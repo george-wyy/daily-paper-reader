@@ -1,0 +1,433 @@
+Title: Fast Confidence-Aware Human Prediction via Hardware-accelerated Bayesian Inference for Safe Robot Navigation
+
+URL Source: https://arxiv.org/pdf/2603.01122v1
+
+Published Time: Tue, 03 Mar 2026 02:46:57 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Fast Confidence-Aware Human Prediction via Hardware-accelerated Bayesian Inference for Safe Robot Navigation 
+
+Michael Lu 1, Minh Bui 1, Xubo Lyu 1, and Mo Chen 1
+
+Abstract — As robots increasingly integrate into everyday environments, ensuring their safe navigation around humans becomes imperative. Efficient and safe motion planning re-quires robots to account for human behavior, particularly in constrained spaces such as grocery stores or care homes, where interactions with multiple individuals are common. Prior research has employed Bayesian frameworks to model human “rationality” based on navigational intent, enabling the prediction of probabilistic trajectories for planning purposes. In this work, we present a simple yet novel approach for confidence-aware prediction that treats future predictions as particles This framework is highly parallelized and accelerated on an graphics processing unit (GPU). As a result, this enables longer-term predictions at a frequency of 125 Hz and can be easily extended for multi-human predictions. Compared to existing methods, our implementation supports finer predic-tion time steps, yielding more granular trajectory forecasts. This enhanced resolution allows motion planners to respond effectively to subtle changes in human behavior. We validate our approach through real-world experiments, demonstrating a robot safely navigating among multiple humans with diverse navigational goals. Our results highlight the method’s potential for robust and efficient human-robot coexistence in dynamic environments. 
+
+I. INTRODUCTION A key factor for the adoption of mobile robots in common applications such as delivery or cleaning robots, is the ability to safely and efficiently navigate around humans. One important factor that would enable such applications is accurate, robust, and real-time predictions of human motions and trajectories. It is essential for human-aware robotic nav-igation methods to be fast enough in to run in real time [1], [2] to adapt to dynamic human movement, especially when the robot itself can move at considerable speeds. While there has been many works addressing the accuracy of predicting future trajectories, robustness and speed have not been as adequately addressed. The considerable body of work in the human navigation prediction literature that push further prediction accuracy can be classified as follows. 
+
+Rule based methods. This body of research assumes people move according to some predefined models. One of earliest methods and most popular method is the Social Force Model [3]. Under this regime, each human is modeled as a particle with a certain mass. Attractive force and repulsive force come from the goal reaching intention and interacting with other agents and obstacles. Due to its simplicity, the method has been influential to many later works that built upon        
+
+> 1School of Computing Science, Simon Fraser University, Canada
+
+{michael lu 3, buiminhb, xly, mochen }@sfu.ca 
+
+this idea [4]–[6]. Other compelling methods assumes that an humans in a group dynamic will always choose to cooperate to avoid collision with each other [7], [8]. Game-theoretic principles have also been applied to solve for an Nash equilibrium to generate socially compliant trajectories for all agents including the robots [9], [10]. The deterministic nature of these approaches means that they are usually easy to implement and can be deployed real-time applications. However, humans may not always follow these rules or principles. 
+
+Data-driven eased methods. Instead of hardcoding the rules for human movement, human trajectories can be learned from data. For example, inverse reinforcement learning has been used to learn human preferences when navigating in an environment [11]. More recently, the success of data-driven methods has inspired the use of many deep learning archi-tectures such as long short term memory (LSTM), generative adversarial networks (GANs), transformers, diffusion models to learn to predict human trajectories from large public datasets [12]–[15]. However, these methods often require significant computational power for training and deployment. Additionally, predicting trajectories in real-time may not be feasible due to long inference time of large networks. More importantly, the black-box nature of these approaches make it hard to deploy these methods in safety-critical situations. 
+
+Confidence-based Human Predictions A large majority of the work discussed previously does not take into account uncertainty of their predictions, which is crucial in safety-critical situations. It is equally important, if not more so, that the robot’s prediction is aware of an human’s changing interest in order to plan safely. for example, a person can suddenly stop to check their phone, thus changing the probability distributions over their future states. a recent line of research employed confidence-aware predictions [16], [17] using a bayesian framework to model the future trajectories of a human. This framework is highly adaptable and robust, allowing for the adjustments to subsequent prediction when a human may unexpectedly deviate from their predicted trajectory. Additionally this approach is simple since no prior trajectories are required and only a mild number of assumptions (such as possible goal locations) are needed. Moreover, this approach has been successfully used for real-time multi-robot, multi-human navigation [18] and have been further extended to also incorporate a human’s changing navigational intent and their urgency in quickly reaching their goal [19]. A caveat to these approaches is that to enable real world demonstrations, the robot moved slowly due to slow real-time 
+
+> arXiv:2603.01122v1 [cs.RO] 1 Mar 2026
+
+predictions. Additionally, only a small (at most 2) number of humans was considered [18]. These limitations are a result of the use of full Bayesian inference, which necessitates iterating over all possible human states. A partial sampling-based approach was proposed in [19], but the approach could not be run in real time. 
+
+Contributions : We fully parallelize the prior Bayesian framework for human-prediction by representing all distri-butions using particles for real-time prediction on an GPU. Our approach enables longer-term predictions with finer prediction time steps, which results in a 300 times speed up compared to equivalent approaches on an CPU. As a result of faster predictions, our approach also easily supports the prediction for multiple humans. Using fast real-time predictions, we demonstrate safe, agile robot planning by integrating the predictions to an anytime time-varying A ∗
+
+planner and a Model Predictive Path Integral (MPPI) con-troller in a constrained environment with multiple people. II. PROBLEM FORMULATION Consider an robot with state zR ∈ RnR and control uR ∈
+
+RmR that evolves according to the system dynamics ˙zR =
+
+f R(zR, u R). Given a sequence of human states collected at discrete intervals, z1, z 2, . . . , z t, the objective to predict the human’s next T states, zt+1 , z t+2 , . . . z t+T . For convenience, let zt1:t2 denote the sequence of states from time t1 to t2 with an interval of ∆t. Since the number of feasible states can be large, we will instead model the next predicted state zt+1 
+
+given a sequence of observed states z1: t, i.e, p(zt+1 | z1: t). To ensure this distribution can be computed efficiently we will use a non-parametric representation of model the distribution, e.g, an occupancies grid. We emphasize the simplicity in this approach since the predictions only requires knowledge of a human’s previous states and does not depend on any external dataset. Given that a human may suddenly change their behaviours, it is necessary to quickly adapt to their new preferences with new predictions. To do so, we will generate confidence-aware human navigational predictions that can be used for robot planning and will explain how to in the following section. III. METHODOLOGY To achieve real-time, robust prediction of human future state probability distributions without assuming access to any training data, we will build on works such as [16], [17], [19], [20] and take on a control theoretic approach. 
+
+A. Model-Based Confidence-Aware Human Prediction 
+
+Let z ∈ RnH be the human state, with its time evolution modeled by a dynamical system f :
+
+˙z = f (z, u ), (1) where the control u ∈ RmH represents the human naviga-tional decision at any given time. In practice, we only have access to the observed humans states z1: t observed states discrete time 1, 2, . . . , t . The dynamics f must be differential flat [21]. 1 so that the control can be recovered from solely from state observations. 2
+
+Running Example : We will use choose f to be the following 2D-kinematic model: 
+
+˙z =
+
+ ˙x
+
+˙y
+
+
+
+= f (z, u ) = 
+
+v cos( θ)
+
+v sin( θ)
+
+
+
+, (2) where z = [ x, y ]⊤ is the position of the human, u =[v, θ ]⊤ the control consisting of the movement speed v
+
+and movement direction θ.Furthermore, let U ⊆ RmH be defined as the set of possible human’s control under the assumption that they are discrete and bounded. Following [16], [17], [19], [20], we will assume that the human intends to reach some unknown goal location 
+
+g ∈ RnH using a policy π(· | z; β, g ) given by a Boltzmann distribution 
+
+π(u | z; β, g ) = exp( β Q H (z, u ; g)) 
+
+P 
+
+> u′
+
+exp( β Q H (z, u ′; g)) , (3) where QH : RnH × RmH → R is the unknown state-control value and β > 0 is the rationality coefficient . This policy represents a noisy-rational model of a human’s behaviour where a human is more likely to make decisions that result in higher utility QH . The function QH models what utility a human expects to receive when taking control u at a particular state z conditioned on the goal g. For example the utility function can be estimated using collected data of human behaviour or based on reachability, such as a time-to-reach value function [19]. The β term models how human is expected to behave: A larger β models more rational human behavior that solely aims to maximize the utility function; a smaller β models the human’s behaviour to be uncertain, and converges towards as uniformly random policy as β →
+
+0. An alternative interpretation of β is that it represents the confidence of the human behavioral model π(· | z; β, g ).Finally, let G represent a finite set of the human’s goals, and let B represent finite set of rationality coefficients β a human could have. 
+
+Running Example : Consider a human shopping in a grocery store. Let G := {gi}ni=1 ⊆ R2 represent the location of grocery items within the store. For each 
+
+gi ∈ G , let QH (z, u ; gi) := −∥ z − gi∥22 − ∥ u∥2 model the human’s desire to reach their goal as quickly, yet efficiently, as possible. Let B represent an discrete random variable with support {0.1, 0.5, 1.5}.Over time, a human’s preference and rationality may change based on environmental factors or changing inter-ests. Hence, following [17], we will model the rationality coefficient and predicted goals as an hidden Markov model                
+
+> 1A dynamical system is differentially flat if there exists flat outputs of the form y=α(z, u, ˙u, . . . , u p)such that z=β(y, ˙y, . . . , y q)and u=
+> γ(y, ˙y, . . . , y r).
+> 2We note that practical requirement has not been explicitly stated in prior work.
+
+where the belief of the distribution B × G will be updated using online data. For each (β, g ) ∈ B ×G , given a history of previous human states z1: t and the new observed state zt+1 ,the Bayesian update of the joint distribution β, g is 
+
+bt+1 (β, g ) = π(ut | zt; β, g ) bt(β, g )
+
+P 
+
+> (β′,g ′)∈B×G
+
+π(ut | zt; β′, g ′) bt(β′, g ′) , (4) where bt(β, g ) := p(β, g | z1: t), π(· | zt; β, g ) is defined in Eq.(3) and ut is the recovered from zt and zt+1 via the differential flatness of f . For convenience, let bt(B, G) := 
+
+{bt(β, g ) | (β, g ) ∈ B × G} denote the set of beliefs over all 
+
+(β, g ) pairs. All together, given the history of the human’s previous states z1: t, the distribution of the human’s future occupancies can be computed as follows. 
+
+p(zt+1 |z1: t)= X
+
+> u,β,g
+
+p(zt+1 , u, β, g | z1: t) (5a) 
+
+= X
+
+> β,g
+
+p(β, g | z1: t) X
+
+> u
+
+p(zt+1 , u | z1: t, β, g ) (5b) 
+
+= X
+
+> β,g
+
+bt+1 (β, g ) X
+
+> u
+
+p(zt+1 | zt, u ; β, g ) π(u | zt; β, g ).
+
+(5c) If the human’s dynamics are deterministic and Eq. (2) dis-cretized, p(zt+1 | z1: t; u, β, g ) = 1{zt+1 = zt + f (zt, u )∆ t}
+
+where 1 is the indicator function and ∆t is the duration of each discretized time step. For longer predictive horizons, the future states can estimated by applying Eq. 5 iteratively, 
+
+p(zt+2 |zt) = X
+
+> zt+1
+
+p(zt+2 , z t+1 |zt) (6a) 
+
+= X
+
+> zt+1
+
+p(zt+2 |zt+1 )p(zt+1 |zt) (6b) In the following section, we will discuss how Eqs. (5)and (6) can be approximated via sampling to facilitate GPU parallelization, enabling fast online prediction for real-time systems. 
+
+B. Parallelizable Human-Prediction 
+
+In order to predict a human’s future T occupancies, computing Eq. (5) requires O(T |B| |G| |U| ) operations since we must iterate over each (u, β, g ) for each subsequent time step. Additionally, the space required to store the prediction is O(|X| | Y |) where X and Y represent the set of finite grid points the human could be located at. When either T , |X|,
+
+|Y | is large, fully computing Eq. (5) in real time may be infeasible for even a single human. To mitigate this computational challenge, we adopt a particle-based representation to approximate the probability distributions of predicted states. This approach is widely used in robotics for planning and prediction tasks in uncertain environments, as demonstrated in prior work [22], [23]. Observe that Eq.(5c) can equivalently as 
+
+p(zt+1 |z1: t)= X
+
+> β,g
+
+bt+1 (β, g ) X
+
+> u
+
+p(zt+1 | zt, u ; β, g ) π(u | zt; β, g )
+
+(7a) 
+
+= E(β,g )∼bt+1 (β,g )
+
+"X
+
+> u
+
+p(zt+1 | zt, u ; β, g ) π(u | zt; β, g )
+
+#
+
+(Definition of an expectation of a discrete r.v.) 
+
+= E(β,g )∼bt+1 (β,g )
+
+Eu∼π(u | zt;β,g ) [p(zt+1 | zt, u ; β, g ) ] 
+
+(Definition of an expectation of a discrete r.v.) 
+
+= E(β,g )∼bt+1 (β,g ) [
+
+Eu∼π(u|,z t;β,g )
+
+Ezt+1 ∼f (zt,u )[1{zt+1 = f (zt, u )}] 
+
+= E(β,g )∼bt+1 (β,g ) 
+
+> u∼π(u|,z t;β,g )
+> zt+1 ∼f(zt,u )
+
+[1{zt+1 = f (zt, u )}]. (7b) where second last equality obtained since probability of an event is equal to the expectation of the indicator of the event, and the last equality is due to the law of total expectation, where the joint expectation is over all possible (β, g, u, z t+1 )
+
+tuples. As a result, Eq. (7b) can be approximated by an Monte-Carlo approximation by using a sufficiently large number of samples. To do so, we will represent states as particles and evolving them using the weights from the above equation. For example, given an initial particle at state ˜zt, we can sample an (β, g ) pair from bt(B, G), sample control ˜u ∼
+
+π(· | zt; β, g ) and obtain new state ˜zt+1 = ˜ zt +f (˜ zt, ˜u)∆ t. A large number of particles are needed to sufficiently represent the probability distribution. To mitigate this challenge, will evolve them in parallel on an GPU. Alg. 1 provides the pseudo-code for approximating Eq. (5). 
+
+Algorithm 1 Hardware-Accelerated Human Prediction 
+
+Input: Number of samples n, predictive horizon T , predic-tion time step ∆t, initial states z1: t′ , beliefs bt′
+
+(B, G) 
+
+> 1:
+
+Create n duplicate particles of zt′ and create batch 
+
+[˜ z1]ni=1  
+
+> 2:
+
+Sample n behavioural and goals pairs ([ β]ni=1 , [g]ni=1 ) ∼
+
+bt′
+
+(B, G) 
+
+> 3:
+
+for prediction steps t = 1 to T do  
+
+> 4:
+
+// Executed in parallel for each particle i 
+
+> 5:
+
+for (˜ zt, β, g ) ∈ [˜ zt]ni=1 × [β]ni=1 × [g]ni=1 do  
+
+> 6:
+
+ut ∼ π(· | ˜zt; β, g ) using Eq. 3  
+
+> 7:
+
+˜zt+1 ← ˜zt + f (˜ zt, u t)∆ t 
+
+> 8:
+
+end for  
+
+> 9:
+
+Emplace [˜ zt+1 ]ni=1 onto a grid to obtain p(zt′+t|z1: t′ ) 
+
+> 10:
+
+end for Output: p(zt′+t | z1: t′ ) for each t = 1 . . . T 
+
+For the initial time step, t = 1 , we initialize the joint belief distributions as b1(β, g ) = 1 
+
+> |B| |G|
+
+. Unlike in [19], our ap-proach leverages propagating particles in parallel on a GPU, allowing for significantly more particles to be used when generating predictions, leading to more accurate predictions in the form of arbitrary (e.g. multi-modal) distributions over future human states. According to Eq. 5c, we must compute bt+1 (β, g ) =
+
+p(β, g | z1: t+1 ) for each future time step. However, updat-ing bt+1 (β, g ) in parallel is challenging due to the need to maintain consistent distributions across each goal and behavior. To address this issue, we employ a “bootstrapped” approach, using the initial estimates bt′
+
+(β, g ) to approximate the update beliefs in each prediction step. This is a common approach taken in prior work [16], [19] and avoids the assumption of conditional independence between behaviors, i.e. p(β, g |z1: t) = p(β|z1: t)p(g|z1: t). By leveraging faster predictions, our method captures more complex human nav-igational behaviors, as each goal g is associated with its own set of behaviours. To convert the particles into probability mass, we will use a point estimate when mapping the particles onto a discrete grid. To ensure a smooth distribution, we apply a Gaussian convolution to the batch of particles [zt]ni=1 in each iteration before emplacing them onto a a grid. This convolution can be done efficiently on the GPU. We observed that this convolution significantly improves the continuity and accuracy of the predictions, since the smoothing step helps eliminate gaps when the particles are mapped onto a grid. Notably, the particles in each iterations only placed onto a grid when estimating p(zt+1 |zt) This prevents the unnec-essary discretization of particles across multiple predictions. In practice, it is common to store the resulting predictions on a grid as it is a common input for trajectory planners. For observations zt and zt+1 , the corresponding control 
+
+ut can be recovered because the assumed human model f
+
+is differentiable flat. As previously discussed, paralleling the updates in Eq. (4) is difficult due to their interdependence. Nevertheless, we can still perform the updates on the GPU to avoid the computation overhead associated with frequent data transfer between the GPU and CPU. To prevent numerical instabilities, we store and update the beliefs in the log-probability space in the following equation: 
+
+log bt+1 (β, g ) (8a) 
+
+= log π(ut|zt; β, g ) bt(β, g )
+
+P 
+
+> (β′,g ′)∈B×G
+
+π(ut | zt; β′, g ′) bt(β′, g ′)
+
+!
+
+(8b) 
+
+= log( π(ut|zt; β, g )) + log( bt(β, g )) 
+
+− log 
+
+ X
+
+> (β′,g ′)
+
+π(ut | zt; β′, g ′) bt(β′, g ′)
+
+ . (8c) The final term, a LogSumExp operation, is computed effi-ciently and only once during belief updates. Given an discrete occupancy grids {p(zt′+t | zt′ )}Tt=1 rep-resenting the probability at a human is at state z at time t,we will next discuss how these predictions can be integrated in time-varying planner to generate safe robotic trajectories. 
+
+C. Safe Trajectory Planning 
+
+The human predictions can be integrated as an obstacle map or occupancy grid into either time-varying global or local planners for safe planning. In both approaches, we will replan frequency to take advantage of the fast predictions. 
+
+Running Example : We will the model the dynamics of the robot f R to be the following 4D-Dubins car model: 
+
+˙zR =
+
+
+
+˙x
+
+˙y
+
+˙v
+
+˙θ
+
+ = f R(zR, u R) = 
+
+
+
+v cos( θ)
+
+v sin( θ)
+
+aω
+
+ . (9) Here, zR = [ x, y, v, θ ]⊤ is the robot state, with (x, y )
+
+being the position, v the speed, and θ the heading. The control inputs are uR = [ v, ω ]⊤ where a is acceleration and ω is the steering angle. 
+
+1) Global Planner: To formulate a global planner we use Anytime Nonparametric A ∗ (ANA ∗) [24], an anytime time-varying A ∗ algorithm. The anytime property is necessary due to changing obstacles in the environment, i.e the human predictions. ANA ∗ does not require explicitly depend on the time of the goal state unlike more common anytime search planners such as Anytime Repairing A ∗ [25] or Anytime Dynamic A ∗ [26]. This trait is needed since the predicted time of when the robot will reach the goal is unknown due to the human predictions. 
+
+Running Example : We use the following cost for ANA ∗
+
+to integrate the predictions into the planning, 
+
+cANA* 
+
+ zRt , u Rt , t  = 1000 1{coll (zRt , z t) ≥ 0.1}
+
++ ∆ plan t (10) where coll (zRt , z t) denotes the probability that robot collides with a predicted human state at time t, ∆plan t
+
+is the planning interval and use −∥ zR − gR∥2 as the heuristic and gR is the goal state of the robot. Once a collision free path is returned or planning time-limit has been reached an linear quadratic regulator (LQR) controller is used to follow the path. 
+
+2) Local Planner: To demonstrate the advantages of fast predictions, we will use an Model Predictive Path Integral (MPPI) [27], [28] controller. As a brief overview, given initial state zRt′ and a sequence of discrete control references 
+
+{uRt′+t}Kt=1 , N random control perturbations are sampled 
+
+[{δt′=t}Kt=1 ]Ni=1 and is applied to each control sequence, i.e 
+
+{uR′
+
+> t′+t
+
+}Kt=1 = {uRt′+t + δt′+t}Tt=1 . Then the trajectory cost 
+
+S(ξit′+t) when staring at initial state zt′+t is computed for each generated control sequence. Finally, the optimal control sequence for each t = 1, 2 . . . , T can be approximated as [29] 
+
+u∗ 
+
+> t′+t
+
+= uRt′+t +
+
+PNi=1 exp( −(1/τ )S(ξit′+t)) δit′+t
+
+PNi=1 exp( −(1/τ )S(ξit′+t)) , (11) where τ ≥ 0 denotes the “temperature” which controls which costs to prioritize. 
+
+Running Example : We use the following quadratic cost for MPPI, 
+
+cMPPI 
+
+ zRt , u Rt , t  = ( zRt − gR)⊤Q (zRt − gR) + R⊤ut
+
++ cANA* (zRt , u Rt , t ) (12) 
+
+cMPPI 
+
+ zRt , u Rt , T  = ( zRt − gR)⊤Qfinal (zRt − gR)
+
+(13) where Q = diag ([3 .0, 3.0, 10 .0, 0.0]) , Qfinal = Q/ 5, and 
+
+R = [2 .0, 1.0] .The first control from the control sequence is then executed before replanning again. Similar to Algorithm 1, computing the trajectories can be computed in parallel on a GPU. Lastly, we note that these sequentially planners can also be extended to account for worst-case tracking error bounds using methods such as [30], [31] to provide better safe guarantees as shown in [17], [18]. IV. EXPERIMENTS We implement the proposed method in JAX [32] and conduct real-world experiments using the Robot Operating System 2 (ROS 2) [33]. Our fully particle-based approach allows easy parallelization on hardware accelerators like GPUs using frameworks like JAX [32] to efficiently draw many particles to update of all probability distributions in real time. The just-in-time (JIT) compilation in JAX further accelerates the algorithm’s execution. In Sec. IV-A, we measure the wall-clock time for running the algorithm and in Sec. IV-B, we evaluate the method in a real-world, human-aware robot navigation task to highlight the advantages of fast predictions in agile robot navigation among people. 
+
+A. Numerical Simulation 
+
+We first begin by evaluating the wall-clock performance of our implementation across different configurations, compar-ing execution on the GPU versus the CPU, and assessing the impact of Just-In-Time (JIT) compilation. The experiments were conducted done on a desktop computer equipped with an AMD Ryzen 9 3950X processor, and a single NVIDIA GeForce RTX 2080 Ti GPU. To measure the wall-clock of Alg. (1), we follow the same setting as in the running examples, a 2D kinematic as defined in Eq. (2) with n = 8192 samples, with the eventual predictions emplaced onto a 50 × 50 grid. Table I summarizes the performance across multiple hardware and compilation settings with |B| = 5 , |G| = 10 and |U| =96 . The wall-clock times are averaged over 5 runs. When comparing implementations, the JIT methods are “warm-started” so that compilation time is not accounted for. This reflects the actual behavior of the algorithm when used for real world experiments, since the compilation only happens once during the start and can be cached between several executions. On the backend, JAX’s JIT compilations features                                
+
+> Prediction Steps T
+> Setting 246810
+> CPU 0.130 0.642 1.242 1.865 2.493
+> CPU w/ JIT 0.050 0.097 0.139 0.189 0.229
+> GPU 2.826 2.943 3.022 3.192 3.253
+> GPU w/ JIT 0.007 0.007 0.007 0.007 0.008
+> Speed Up x 18 x 95 x 175 x 257 x 300
+
+TABLE I: Wall clock (in seconds) for different device set-tings across varying number of prediction steps T , and speed-ups of our method compared to CPU (without JIT), which represents a naive Python implementation of the particle-based approach. Note that such an approach would already be must faster than full Bayesian inference without the use of particles. are via [34] that transforms written Python to optimized machine instructions (using C++). As shown in the “GPU w/ JIT” row of Table I, the combination of executing the code on an GPU with JIT compilation enables human-prediction for a single human at ∼125 Hz. This high-frequency prediction allows for a significantly larger time horizon or finer prediction time steps, which are critical for robust and adaptive planning. In comparison to a naive Python implementation using running on the CPU (“CPU” row of Table I), we can achieve a 300 times speed up. In contrast, using GPU parallelization without JIT (shown in the “GPU” row of Table I), results in the slowest prediction. We suspect this is due to operations only being executing on an GPU without any optimization or parallelization provided from the JIT compiler. When ex-ecuted on the CPU, the JIT provides a smaller improvement (shown in the “CPU w/ JIT” row of Table I). However, it lacks the parallel processing strength when compared to an GPU. Here, predictions of more than 4 time steps take at least 0.1s to compute, which can be too slow for robotic applications especially when the robot is also moving at considerable speeds. For example, if a human walks at a typical speed 3 of 1.42 m/s, with a robot moving at 1.0 m/s, their relative distance may change by 0.24 m, which is a significant fraction of the average human body width. Faster prediction directly improves planning quality in several ways. First, it enables the robot to account for longer-term human trajectories, reducing the likelihood of unexpected collisions or suboptimal paths. Second, finer time steps provide more granular predictions, allowing the planner to react to subtle changes in human behavior. Additionally, predictions for multiple-humans can be performed sequen-tially and efficiently, which will be shown in the following section. 
+
+> 3https://en.wikipedia.org/wiki/Preferred_walking_ speed
+
+Fig. 1: In the experiment, the humans are tasked to navigate in an 9.6 × 5.4 meter room as demonstrated in the left picture. The picture on the right shows an RVIZ display of the human predictions and their goals (red). 
+
+B. Safe Human-Aware Planning in the Real World 
+
+To demonstrate the scalability of our approach, we con-ducted an experiment where a robot is tasked to patrol an occluded area while safely navigating around multiple humans with changing goals (see Fig. 1). A Quanser QBot was used to reach a set of fixed goals in sequence in an 
+
+9.6m × 5.4m room and is modeled using Eq. (9). The robot’s states were estimated using an Adaptive Monte-Carlo Localization method provided by the Nav2 package [35]. The robot control’s were bounded to allow a maximum speed of 
+
+1.1 m/s and 1.0 radians/s. The human’s (x, y ) positions were estimated using 3D object detection features obtain from an ZED 2 camera SDK. The ZED2 camera was mounted in a fixed position in the room and tracked humans at frequency of 30 Hz. The humans were tasked to walk to random specified goal locations, distributed through the room. During the experiments, our prediction method and robot do not have access to the true human navigational intents. For both experiments, we used Alg. 1 (on the GPU w/ JIT) with n = 8192 samples, |B| = 5 , |U| = 96 , ∆t = 0 .5, T = 6 
+
+and varied the number of goals |G| . The computation were done on a desktop computer equipped with an AMD Ryzen 9 5900X processor and a single NVIDIA GeForce RTX 4070 GPU. For these environments, we used a grid size of 418 ×
+
+195 for computing trajectories using Anytime-A ∗ and when emplacing the predictions onto a grid. This computation lead to resolution of 5cm × 5cm per grid cell. If k people were present in the environment, we would then track the states of each human to gather {z1: t}ki=1 then compute their predictions sequentially. Finally, the predictions would be emplaced onto the same grid by taking a point-wise maximum to represent the union of probabilities. During experiments, we found that the robot would act too conservatively when navigation around multiple people. This was caused by the predictions occupying the majority of the free unoccupied space. As a solution, we decided to dynamically change a human control’s space if the camera detected them as stationary. Specifically, for a high velocity control u′, a large negative number used as the unknown state-control , i.e, QH (u′, | z) = −∞ . This trick resulted in 
+
+π(u′, z ; β, g ) ≈ 0 and is a commonly used in reinforcement learning [36]. Additionally, after a human leaves a goal, we reset their joint belief-goal distribution to be uniform. As discussed in Sec. III-C, we integrated the pre-dictions into both a global planner, ANA ∗ and a local planner, MPPI. Videos of the following experiments can be found at https://www.youtube.com/playlist? list=PLUBop1d3Zm2sS2iI5TWN2wxQLjI_olpXd .
+
+1) ANA ∗: For this experiment, we used ANA ∗ (refer to Sec. III-C.1) to generate a global path wtih |G| = 21 .For path planning, we set a time-limit of 0.1 seconds, and replanning was also done at 10 Hz. If a collision-free path could not be found, the previous path is used. We were able to compute these predictions at 11 Hz and the visualization of these predictions for 5 people in Fig.1. Compared to Table I, a slower prediction frequency was achieved due to the need to predict the future occupancies of 5 people, compared to a single person, using a higher number of goal locations, and the additional overhead of visualizing the predictions. However, the resulting prediction frequency were still faster than the planning frequency. On average, the robot navigated around the humans at 0.7 m/s. Since the predictions were integrated into the global planner, long-term collision paths could be found. 
+
+2) MPPI: In this section, we used the local planner MPPI (refer to Sec.III-C.2) for robot navigation with |G| = 8 . In this setting, we used a planning horizon T = 40 with a 
+
+∆plan t = 0 .1 and replan at 30 Hz. We visualize the planned path and future human predictions every 0.2s of part of the hardware demonstration in Fig. 2. Using the MPPI controller, the robot navigated at speeds up to 1.1 m/s. Due to faster replanning, the robot could react to the change in human predictions much faster when comparison to ANA ∗. When using Alg. 1 to predict the future states of two people along side the MPPI controller, the method produced predictions at 45 Hz. The frequency of prediction was slower since the MPPI controller was also running on the GPU, . 
+
+(a) t = 1 
+
+(b) t = 1 .2
+
+(c) t = 1 .4
+
+Fig. 2: Evolution of Human Predictions and visualized MPPI trajectories over three snapshots of the experiment. The coloured visualizations indicate the future predicted occupancies. (a) A human reaches a goal. (b) As the human starts to walk towards another goal, the predictions change to be the mean of the two goals (red). As a result, the robot slightly quickly adjusts it’s trajectory. (c) The human decides to walk to the lower left goal. Hence, the robot’s plan largely remains the same. V. LIMITATIONS & CONCLUSION We present a framework for confidence-aware human navigational prediction that operates in real-time for multiple humans. By parallelizing the Bayesian framework on a GPU, we achieve up to a 300 times speedup, enabling real-time prediction of the future human occupancies for multiple individuals. This approach is both efficient and scalable, as demonstrated in real-world experiments using local and global planners with up to five humans. During experiments, we observed instances of “near-misses” between the robot and humans. We attribute these occurrences to tracking inaccuracies and model mismatches, which could be mitigated by integrating reachability-based methods such as FastTrack [30] to enhance safety guaran-tees. Additionally, the choice of the unknown state-control 
+
+function occasionally resulted in unrealistic predictions, such as predictions passing through obstacles. We also noted that humans often adjusted their behavior in response to the robot’s movements, introducing further complexity to the prediction task. For future work, we aim to address these challenges by incorporating reachability-based techniques, such as time-varying reach-avoid games [37], into both the unknown state-control function and the planner. Furthermore, we plan to extend Bayesian inference to model group dynamics, which would reduce computational overhead when predicting the behavior of human groups. This extension would improve both efficiency and accuracy in multi-human environments. REFERENCES [1] T. Kruse, A. K. Pandey, R. Alami, and A. Kirsch, “Human-aware robot navigation: A survey,” Robotics and Autonomous Systems , vol. 61, no. 12, pp. 1726–1743, 2013. [2] R. M¨ oller, A. Furnari, S. Battiato, A. H¨ arm¨ a, and G. M. Farinella, “A survey on human-aware robot navigation,” Robotics and Autonomous Systems , vol. 145, p. 103837, 2021. [3] D. Helbing and P. Molnar, “Social force model for pedestrian dynam-ics,” Phys. Rev. E , vol. 51, no. 5, pp. 4282–4286, May 1995. [4] M. Luber, J. A. Stork, G. D. Tipaldi, and K. O. Arras, “People tracking with human motion predictions from social forces,” in 2010 IEEE International Conference on Robotics and Automation , 2010, pp. 464– 469. [5] A. Rudenko, L. Palmieri, and K. O. Arras, “Joint long-term prediction of human motion using a planning-based social force approach,” in 
+
+2018 IEEE International Conference on Robotics and Automation (ICRA) , 2018, pp. 4571–4577. [6] F. Farina, D. Fontanelli, A. Garulli, A. Giannitrapani, and D. Prat-tichizzo, “Walking ahead: The headed social force model,” PLOS ONE , vol. 12, p. e0169734, 01 2017. [7] S. Kim, S. J. Guy, W. Liu, D. Wilkie, R. W. Lau, M. C. Lin, and D. Manocha, “Brvo: Predicting pedestrian trajectories using velocity-space reasoning,” The International Journal of Robotics Research ,vol. 34, no. 2, pp. 201–217, 2015. [8] P. Trautman and A. Krause, “Unfreezing the robot: Navigation in dense, interacting crowds,” in 2010 IEEE/RSJ International Confer-ence on Intelligent Robots and Systems , 2010, pp. 797–803. [9] D. Fridovich-Keil, E. Ratner, L. Peters, A. D. Dragan, and C. J. Tomlin, “Efficient iterative linear-quadratic approximations for non-linear multi-player general-sum differential games,” in 2020 IEEE International Conference on Robotics and Automation (ICRA) , 2020, pp. 1475–1481. [10] M. Sun, F. Baldini, P. Trautman, and T. Murphey, “Mixed-strategy nash equilibrium for crowd navigation,” ArXiv , vol. abs/2403.01537, 2024. [Online]. Available: https://api.semanticscholar.org/CorpusID: 268247625 [11] B. D. Ziebart, N. Ratliff, G. Gallagher, C. Mertz, K. Peterson, J. A. Bagnell, M. Hebert, A. K. Dey, and S. Srinivasa, “Planning-based prediction for pedestrians,” in 2009 IEEE/RSJ International Conference on Intelligent Robots and Systems , 2009, pp. 3931–3936. [12] A. Gupta, J. Johnson, L. Fei-Fei, S. Savarese, and A. Alahi, “So-cial gan: Socially acceptable trajectories with generative adversarial networks,” in 2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition . Salt Lake City, UT: IEEE, Jun 2018, pp. 2255– 2264. [13] A. Alahi, K. Goel, V. Ramanathan, A. Robicquet, L. Fei-Fei, and S. Savarese, “Social lstm: Human trajectory prediction in crowded spaces,” in 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR) . Las Vegas, NV, USA: IEEE, 2016, pp. 961–971. [14] Z. Zhang, A. Li, A. Lim, and M. Chen, “Predicting long-term human behaviors in discrete representations via physics-guided diffusion,” in 
+
+2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2024, pp. 11 500–11 507. [15] T. Salzmann, B. Ivanovic, P. Chakravarty, and M. Pavone, “Trajectron++: Dynamically-feasible trajectory forecasting with heterogeneous data,” in European Conference on Computer Vision ,2020. [Online]. Available: https://api.semanticscholar.org/CorpusID: 214802528 [16] J. F. Fisac, A. Bajcsy, S. L. Herbert, D. Fridovich-Keil, S. Wang, C. J. Tomlin, and A. D. Dragan, “Probabilistically safe robot planning with confidence-based human predictions,” arXiv preprint arXiv:1806.00109 , 2018. [17] D. Fridovich-Keil, A. Bajcsy, J. F. Fisac, S. L. Herbert, S. Wang, A. D. Dragan, and C. J. Tomlin, “Confidence-aware motion prediction for real-time collision avoidance1,” The International Journal of Robotics Research , vol. 39, no. 2-3, pp. 250–265, 2020. [18] A. Bajcsy, S. L. Herbert, D. Fridovich-Keil, J. F. Fisac, S. Deglurkar, A. D. Dragan, and C. J. Tomlin, “A scalable framework for real-time multi-robot, multi-human collision avoidance,” in 2019 international conference on robotics and automation (ICRA) . IEEE, 2019, pp. 936–943. [19] P. Agand, M. Taherahmadi, A. Lim, and M. Chen, “Human naviga-tional intent inference with probabilistic and optimal approaches,” in 
+
+2022 International Conference on Robotics and Automation (ICRA) .IEEE, 2022, pp. 8562–8568. [20] C. L. Baker, J. B. Tenenbaum, and R. R. Saxe, “Goal inference as inverse planning,” in Proceedings of the annual meeting of the cognitive science society , vol. 29, no. 29, 2007. [21] M. Fliess, J. L´ evine, P. Martin, and P. Rouchon, “Flatness and defect of non-linear systems: introductory theory and examples,” International journal of control , vol. 61, no. 6, pp. 1327–1361, 1995. [22] S. Thrun, “Particle filters in robotics.” in UAI , vol. 2. Citeseer, 2002, pp. 511–518. [23] M. Montemerlo, S. Thrun, and W. Whittaker, “Conditional particle filters for simultaneous mobile robot localization and people-tracking,” in Proceedings 2002 IEEE international conference on robotics and automation (cat. no. 02CH37292) , vol. 1. IEEE, 2002, pp. 695–701. [24] J. Van Den Berg, R. Shah, A. Huang, and K. Goldberg, “Anytime nonparametric a,” in Proceedings of the AAAI conference on artificial intelligence , vol. 25, no. 1, 2011, pp. 105–111. [25] M. Likhachev, G. J. Gordon, and S. Thrun, “Ara*: Anytime a* with provable bounds on sub-optimality,” Advances in neural information processing systems , vol. 16, 2003. [26] M. Likhachev, D. I. Ferguson, G. J. Gordon, A. Stentz, and S. Thrun, “Anytime dynamic a*: An anytime, replanning algorithm.” in ICAPS ,vol. 5, 2005, pp. 262–271. [27] G. Williams, P. Drews, B. Goldfain, J. M. Rehg, and E. A. Theodorou, “Aggressive driving with model predictive path integral control,” in 2016 IEEE international conference on robotics and automation (ICRA) . IEEE, 2016, pp. 1433–1440. [28] ——, “Information-theoretic model predictive control: Theory and applications to autonomous driving,” IEEE Transactions on Robotics ,vol. 34, no. 6, pp. 1603–1622, 2018. [29] G. Williams, A. Aldrich, and E. A. Theodorou, “Model predictive path integral control: From theory to parallel computation,” Journal of Guidance, Control, and Dynamics , vol. 40, no. 2, pp. 344–357, 2017. [30] S. L. Herbert, M. Chen, S. Han, S. Bansal, J. F. Fisac, and C. J. Tomlin, “Fastrack: A modular framework for fast and guaranteed safe motion planning,” in 2017 IEEE 56th Annual Conference on Decision and Control (CDC) . IEEE, 2017, pp. 1517–1522. [31] S. Siriya, M. Chen, and Y. Pu, “Towards fast and safety-guaranteed trajectory planning and tracking for time-varying systems,” IEEE Transactions on Automatic Control , 2025. [32] J. Bradbury, R. Frostig, P. Hawkins, M. J. Johnson, C. Leary, D. Maclaurin, G. Necula, A. Paszke, J. VanderPlas, S. Wanderman-Milne, and Q. Zhang, “JAX: composable transformations of Python+NumPy programs,” 2018. [Online]. Available: http://github. com/jax-ml/jax [33] S. Macenski, T. Foote, B. Gerkey, C. Lalancette, and W. Woodall, “Robot operating system 2: Design, architecture, and uses in the wild,” Science Robotics , vol. 7, no. 66, p. eabm6074, 2022. [Online]. Available: https://www.science.org/doi/abs/10.1126/ scirobotics.abm6074 [34] A. Sabne, “Xla : Compiling machine learning for peak performance,” 2020. [35] S. Macenski, F. Mart´ ın, R. White, and J. G. Clavero, “The marathon 2: A navigation system,” in 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 2020, pp. 2718–2725. [36] S. Huang and S. Onta˜ n´ on, “A closer look at invalid action masking in policy gradient algorithms,” arXiv preprint arXiv:2006.14171 , 2020. [37] J. F. Fisac, M. Chen, C. J. Tomlin, and S. S. Sastry, “Reach-avoid problems with time-varying dynamics, targets and constraints,” in 
+
+Proceedings of the 18th international conference on hybrid systems: computation and control , 2015, pp. 11–20.
