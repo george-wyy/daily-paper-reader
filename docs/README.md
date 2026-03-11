@@ -6,73 +6,79 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-02 ~ 2026-03-11
-- 运行时间：2026-03-11 03:32:19 UTC
+- 最新运行日期：2026-02-10 ~ 2026-03-11
+- 运行时间：2026-03-11 03:54:32 UTC
 - 运行状态：成功
-- 本次总论文数：17
-- 精读区：6
+- 本次总论文数：19
+- 精读区：8
 - 速读区：11
 
 ### 今日简报（AI）
-聚焦视觉注意力与认知增强，今日精选 17 篇前沿论文深度解析人机协作的底层逻辑。
-重点推荐资源理性原则下的视觉控制建模，以及利用眼动稳定性与瞳孔特征加速第一视角学习的创新方法。
-建议关注 AI 辅助记忆与亲社会性引导等应用，探索认知技术如何重塑知识办公与人机交互体验。
-- 详情：[/20260302-20260311/README](/20260302-20260311/README)
+本期精选 19 篇前沿论文，深度解析大模型如何通过“眼神”与“动作”精准读懂人类意图。
+满分论文 IRIS 与 SIAgent 分别展示了推理时扫视优化 VQA 及 VR 环境下眼手协同交互的突破性进展。
+建议关注多模态感知与具身智能的融合，探索更自然、直觉化的人机交互新范
+- 详情：[/20260210-20260311/README](/20260210-20260311/README)
 
 ### 精读区论文标签
-1. [A Resource-Rational Principle for Modeling Visual Attention Control](/20260302-20260311/2603.02056v1-a-resource-rational-principle-for-modeling-visual-attention-control)  
+1. [IRIS: Intent Resolution via Inference-time Saccades for Open-Ended VQA in Large Vision-Language Models](/20260210-20260311/2602.16138v1-iris-intent-resolution-via-inference-time-saccades-for-open-ended-vqa-in-large-vision-language-models)  
    标签：评分：10.0/10、query:gaze-intent
-   evidence：通过眼动理解人类目标的计算模型
-2. [Real Eyes Realize Faster: Gaze Stability and Pupil Novelty for Efficient Egocentric Learning](/20260302-20260311/2603.04098v1-real-eyes-realize-faster-gaze-stability-and-pupil-novelty-for-efficient-egocentric-learning)  
+   evidence：实时使用眼动追踪数据解决歧义
+2. [SIAgent: Spatial Interaction Agent via LLM-powered Eye-Hand Motion Intent Understanding in VR](/20260210-20260311/2603.00522v1-siagent-spatial-interaction-agent-via-llm-powered-eye-hand-motion-intent-understanding-in-vr)  
+   标签：评分：10.0/10、query:gaze-intent
+   evidence：VR中基于大语言模型的眼手运动意图理解
+3. [Developing Neural Network-Based Gaze Control Systems for Social Robots](/20260210-20260311/2602.10946v1-developing-neural-network-based-gaze-control-systems-for-social-robots)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：利用视线固定和瞳孔反应进行高效的第一视角学习
-3. [AttentiveLearn: Personalized Post-Lecture Support for Gaze-Aware Immersive Learning](/20260302-20260311/2603.05324v1-attentivelearn-personalized-post-lecture-support-for-gaze-aware-immersive-learning)  
+   evidence：注视方向是兴趣和意图的关键指标
+4. [Eyes on Many: Evaluating Gaze, Hand, and Voice for Multi-Object Selection in Extended Reality](/20260210-20260311/2602.12406v1-eyes-on-many-evaluating-gaze-hand-and-voice-for-multi-object-selection-in-extended-reality)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：在VR中利用眼动追踪推断注意力分布以提供个性化支持
-4. [GazeShift: Unsupervised Gaze Estimation and Dataset for VR](/20260302-20260311/2603.07832v1-gazeshift-unsupervised-gaze-estimation-and-dataset-for-vr)  
+   evidence：在扩展现实中评估注视、手势和语音的多目标选择
+5. [Humanizing Robot Gaze Shifts: A Framework for Natural Gaze Shifts in Humanoid Robots](/20260210-20260311/2602.21983v1-humanizing-robot-gaze-shifts-a-framework-for-natural-gaze-shifts-in-humanoid-robots)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：用于VR交互的无监督视线估计和数据集
-5. [Proact-VL: A Proactive VideoLLM for Real-Time AI Companions](/20260302-20260311/2603.03447v1-proact-vl-a-proactive-videollm-for-real-time-ai-companions)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：用于AI伴侣的前瞻性实时交互智能体
-6. [Listening with the Eyes: Benchmarking Egocentric Co-Speech Grounding across Space and Time](/20260302-20260311/2603.07966v1-listening-with-the-eyes-benchmarking-egocentric-co-speech-grounding-across-space-and-time)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：用眼睛聆听与第一视角协同言语对齐
+   evidence：基于视觉语言模型的多模态交互线索视线推理
+6. [SPGen: Stochastic scanpath generation for paintings using unsupervised domain adaptation](/20260210-20260311/2602.22049v1-spgen-stochastic-scanpath-generation-for-paintings-using-unsupervised-domain-adaptation)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：随机扫描路径生成与眼动轨迹的概率建模
+7. [PIRA-Bench: A Transition from Reactive GUI Agents to GUI-based Proactive Intent Recommendation Agents](/20260210-20260311/2603.08013v1-pira-bench-a-transition-from-reactive-gui-agents-to-gui-based-proactive-intent-recommendation-agents)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：前瞻性意图推荐代理从视觉输入中预测用户意图
+8. [Alfa: Attentive Low-Rank Filter Adaptation for Structure-Aware Cross-Domain Personalized Gaze Estimation](/20260210-20260311/2603.08445v1-alfa-attentive-low-rank-filter-adaptation-for-structure-aware-cross-domain-personalized-gaze-estimation)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：个性化视线估计与用户特定差异的自适应
 
 ### 速读区论文标签
-1. [Cognitive Prosthetic: An AI-Enabled Multimodal System for Episodic Recall in Knowledge Work](/20260302-20260311/2603.02072v1-cognitive-prosthetic-an-ai-enabled-multimodal-system-for-episodic-recall-in-knowledge-work)  
+1. [Human-Like Gaze Behavior in Social Robots: A Deep Learning Approach Integrating Human and Non-Human Stimuli](/20260210-20260311/2602.11648v1-human-like-gaze-behavior-in-social-robots-a-deep-learning-approach-integrating-human-and-non-human-stimuli)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：同步眼动行为和生理信号以构建多模态上下文
-2. [Strategic Shaping of Human Prosociality: A Latent-State POMDP Framework](/20260302-20260311/2603.02379v1-strategic-shaping-of-human-prosociality-a-latent-state-pomdp-framework)  
+   evidence：根据人类活动调整机器人视线
+2. [Egocentric Gaze Estimation via Neck-Mounted Camera](/20260210-20260311/2602.11669v1-egocentric-gaze-estimation-via-neck-mounted-camera)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：人类潜状态的概率建模用于机器人前瞻性动作
-3. [Cognition to Control - Multi-Agent Learning for Human-Humanoid Collaborative Transport](/20260302-20260311/2603.03768v1-cognition-to-control---multi-agent-learning-for-human-humanoid-collaborative-transport)  
+   evidence：在日常活动中从颈挂式摄像头视角估计用户注视点
+3. [ProAct: A Dual-System Framework for Proactive Embodied Social Agents](/20260210-20260311/2602.14048v1-proact-a-dual-system-framework-for-proactive-embodied-social-agents)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：将高层意图转化为人机协作的连续控制
-4. [Evolutionary Multimodal Reasoning via Hierarchical Semantic Representation for Intent Recognition](/20260302-20260311/2603.03827v1-evolutionary-multimodal-reasoning-via-hierarchical-semantic-representation-for-intent-recognition)  
+   evidence：利用意图推理和多模态交互的前瞻性社交智能体
+4. [Debiasing Central Fixation Confounds Reveals a Peripheral "Sweet Spot" for Human-like Scanpaths in Hard-Attention Vision](/20260210-20260311/2602.14834v1-debiasing-central-fixation-confounds-reveals-a-peripheral-sweet-spot-for-human-like-scanpaths-in-hard-attention-vision)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：通过层次化语义表示进行多模态意图识别
-5. ["When to Hand Off, When to Work Together": Expanding Human-Agent Co-Creative Collaboration through Concurrent Interaction](/20260302-20260311/2603.02050v1-when-to-hand-off-when-to-work-together-expanding-human-agent-co-creative-collaboration-through-concurrent-interaction)  
+   evidence：人类眼动和扫描路径的计算模型
+5. [Conversational Behavior Modeling Foundation Model With Multi-Level Perception](/20260210-20260311/2602.11065v1-conversational-behavior-modeling-foundation-model-with-multi-level-perception)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：解释并发用户操作并实时调整
-6. [Robotic Grasping and Placement Controlled by EEG-Based Hybrid Visual and Motor Imagery](/20260302-20260311/2603.03181v1-robotic-grasping-and-placement-controlled-by-eeg-based-hybrid-visual-and-motor-imagery)  
+   evidence：在全双工系统中预测高层交流意图
+6. [Situation Graph Prediction: Structured Perspective Inference for User Modeling](/20260210-20260311/2602.13319v1-situation-graph-prediction-structured-perspective-inference-for-user-modeling)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用神经信号进行实时意图驱动的机器人控制
-7. [Selecting Spots by Explicitly Predicting Intention from Motion History Improves Performance in Autonomous Parking](/20260302-20260311/2603.04695v1-selecting-spots-by-explicitly-predicting-intention-from-motion-history-improves-performance-in-autonomous-parking)  
+   evidence：从多模态人工制品中建模演变的内部状态和目标
+7. [Uncertain Pointer: Situated Feedforward Visualizations for Ambiguity-Aware AR Target Selection](/20260210-20260311/2602.13433v1-uncertain-pointer-situated-feedforward-visualizations-for-ambiguity-aware-ar-target-selection)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用概率信念图从运动历史中显式预测意图
-8. [LEGS-POMDP: Language and Gesture-Guided Object Search in Partially Observable Environments](/20260302-20260311/2603.04705v1-legs-pomdp-language-and-gesture-guided-object-search-in-partially-observable-environments)  
+   evidence：AR中目标选择与歧义消除的视觉前馈技术
+8. [GRAIL: Goal Recognition Alignment through Imitation Learning](/20260210-20260311/2602.14252v1-grail-goal-recognition-alignment-through-imitation-learning)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：用于人类辅助的多模态对齐与概率规划
-9. [Action-Guided Attention for Video Action Anticipation](/20260302-20260311/2603.01743v1-action-guided-attention-for-video-action-anticipation)  
+   evidence：利用模仿学习从行为轨迹中识别目标
+9. [PointAloud: An Interaction Suite for AI-Supported Pointer-Centric Think-Aloud Computing](/20260210-20260311/2602.09296v1-pointaloud-an-interaction-suite-for-ai-supported-pointer-centric-think-aloud-computing)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：视频动作预测中的潜在意图推理
-10. [Lightweight Visual Reasoning for Socially-Aware Robots](/20260302-20260311/2603.03942v1-lightweight-visual-reasoning-for-socially-aware-robots)  
+   evidence：通过以指针为中心的交互实时捕捉演变中的意图
+10. [Pushing Forward Pareto Frontiers of Proactive Agents with Behavioral Agentic Optimization](/20260210-20260311/2602.11351v1-pushing-forward-pareto-frontiers-of-proactive-agents-with-behavioral-agentic-optimization)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：多模态人机交互与社交感知机器人
-11. [Act, Think or Abstain: Complexity-Aware Adaptive Inference for Vision-Language-Action Models](/20260302-20260311/2603.05147v1-act-think-or-abstain-complexity-aware-adaptive-inference-for-vision-language-action-models)  
+   evidence：通过强化学习使前瞻性智能体适应用户意图
+11. [Human Tool: An MCP-Style Framework for Human-Agent Collaboration](/20260210-20260311/2602.12953v1-human-tool-an-mcp-style-framework-for-human-agent-collaboration)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：实时视觉-语言-动作模型的自适应推理
+   evidence：前瞻性工作流与人机协作框架
 
 
 <div class="dpr-home-promo-card">

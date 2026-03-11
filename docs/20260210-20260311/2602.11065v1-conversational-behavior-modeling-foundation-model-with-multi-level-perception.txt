@@ -1,0 +1,490 @@
+Title: Conversational Behavior Modeling Foundation Model With Multi-Level Perception
+
+URL Source: https://arxiv.org/pdf/2602.11065v1
+
+Published Time: Thu, 12 Feb 2026 02:22:22 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Dingkun Zhou 1 2 * Shuchang Pan 3 * Jiachen Lian 1 * Siddharth Banerjee 1 Sarika Pasumarthy 1
+
+Dhruv Hebbar 1 Siddhant Patel 1 Zeyi Austin Li 1 Kan Jen Cheng 1 Sanay Bordia 1 Krish Patel 1
+
+Akshaj Gupta 1 Tingle Li 1 Gopala Anumanchipalli 1
+
+# Abstract 
+
+Human conversation is organized by an implicit chain of thoughts that manifests as timed speech acts. Capturing this perceptual pathway is key to building natural full-duplex interactive sys-tems. We introduce a framework that models this process as multi-level perception, and then reasons over conversational behaviors via a Graph-of-Thoughts (GoT). Our approach formalizes the intent-to-action pathway with a hierarchical label-ing scheme, predicting high-level communicative intents and low-level speech acts to learn their causal and temporal dependencies. To train this system, we develop a high quality corpus that pairs controllable, event-rich dialogue data with human-annotated labels. The GoT framework structures streaming predictions as an evolving graph, enabling a transformer to forecast the next speech act, generate concise justifications for its decisions, and dynamically refine its reasoning. Experiments on both synthetic and real duplex dialogues show that the framework delivers ro-bust behavior detection, produces interpretable reasoning chains, and establishes a foundation for benchmarking conversational reasoning in full duplex spoken dialogue systems. 
+
+# 1. Introduction 
+
+Recent advances in spoken dialogue systems have shifted from turn-based, half-duplex models to full-duplex systems capable of simultaneous listening and speaking (Arora et al., 2025b; Nguyen et al., 2022b; Inoue et al., 2025). Under this setting, the dominant paradigms frame this task as predic-
+
+> *
+
+Equal contribution 1University of California, Berkeley, Berkeley, CA, USA 2South China University of Technology, Guangzhou, Guangdong, China 3Zhejiang University, Hangzhou, Zhejiang, China. Correspondence to: Dingkun Zhou <jack-kun818@gmail.com>, Jiachen Lian <jiachenlian@berkeley.edu>. 
+
+Preprint. February 12, 2026. 
+
+tion. The first approach, Next Segment Prediction, models the agent’s response as a complete turn (Hara et al., 2018; Li et al., 2022; Lee & Narayanan, 2010). A more recent approach, Next Dual-Token Prediction, generates simultane-ous token streams for both speakers to better handle overlap and real-time interaction (Nguyen et al., 2022a; Défossez et al., 2024). While these methods have improved system responsiveness, they treat conversation as a sequence gener-ation problem, bypassing the cognitive layer of reasoning that governs human interaction (Monroe & Potts, 2015; Zhi-Xuan et al., 2024). Human conversation, however, operates on a more abstract and causal level. When Speaker 1 produces an utterance, Speaker 2 does not simply predict the next sequence of words. Instead, they first perceive the behavior (e.g., recog-nizing a constative speech act), which triggers an internal chain of thought (e.g., deciding not to interrupt and to re-main silent). This reasoning process culminates in a gener-ated action (e.g., an acknowledgement). This gap between pattern matching and causal reasoning is a fundamental barrier to creating truly natural AI agents. Meanwhile, full-duplex interaction imposes strict real-time requirements. When an agent is listening and speaking at the same time, it must make decisions at a per-second granularity; con-sequently, latency must be upper-bounded and throughput must remain stable. Our work addresses the core scientific question: under the full-duplex task setting, how can a ma-chine model this perception-reasoning-generation loop to make principled, interpretable decisions in real time? To tackle this challenge, we introduce a framework that op-erationalizes the process. Our approach is twofold. First, we formalize the Perception stage with a hierarchical con-versational behavior detection model. This module learns to identify conversational behaviors at two dimensions. It first captures high-level speech acts (e.g., constative, directive )(Jurafsky & Martin, 2025) that reflect coarse-grained com-municative intent. Then, guided by these high-level acts, it predicts low-level interaction behaviors (e.g., turn-taking, backchannel ) that describe interaction mechanics (Sche-gloff, 1982; Gravano & Hirschberg, 2011; Duncan, 1972; 1  
+
+> arXiv:2602.11065v1 [cs.CL] 11 Feb 2026 Conversational Behavior Modeling Foundation Model With Multi-Level Perception
+> Figure 1. Comparison of dialogue paradigms. (Traditional) Traditional duplex systems frame conversation as a direct sequence prediction task. (Ours) We propose a framework based on next-behavior perception and reasoning: the agent first perceives the speaker’s behaviors at multiple levels, then reasons via a Graph-of-Thoughts, and finally generates a response.
+
+Raux & Eskenazi, 2012; Khouzaimi et al., 2016; Marge et al., 2022; Lin et al., 2025b; Arora et al., 2025b; Nguyen et al., 2022b). This provides the system with a structured understanding of the ongoing dialogue. Second, we model the explicit reasoning process with a Graph-of-Thoughts (GoT) system (Yao et al., 2024). The system constructs a causally inspired dynamic graph from the sequence of per-ceived speech acts, capturing the evolving chain of thoughts within the conversation. By performing inference over this graph, our model can not only predict the most appropriate subsequent behavior, but also generate a natural language rationale explaining its decision. This transforms the opaque prediction task into an auditable reasoning process, which provides a unified benchmark for evaluating conversational behavior in duplex speech systems. 
+
+To train this framework, we construct a high-quality hybrid corpus that combines behavior-rich simulated dialogues with high-quality synthetic annotations that are manually verified. Models trained on this corpus generalize well when transferred to real-world conversational datasets with sub-stantially different discourse distributions. This indicates that our synthetic data effectively reproduces key interac-tional structures of human conversation (e.g., turn-taking dynamics), while the introduced annotations provide a high-fidelity characterization of conversational behaviors and the rationales underlying them. In summary, our contributions are: • A conceptual shift from next-token prediction to next-behavior reasoning for full-duplex interaction, demon-strating that modeling the causal chain from intent to action is essential for natural dialogue. • A hierarchical speech act detection model that per-ceives conversational behaviors at both high (intent) and low (action) levels, serving as a foundational mod-ule for reasoning-driven dialogue systems. • A GoT framework for conversational reasoning that models intent-act dynamics as a causal graph, enabling real-time, interpretable decision-making and rationale generation. • A comprehensive empirical validation demonstrating that our system effectively detects conversational be-haviors, generates plausible rationales, and success-fully transfers its reasoning capabilities from simulated to real-world full-duplex systems. 
+
+# 2. Related Work 
+
+Duplex Models. Recent work in spoken dialogue systems (SDMs) increasingly draws on human conversational behav-iors. Building on insights from human conversation, recent SDMs have progressed toward duplex capabilities—systems that listen and speak concurrently. SDMs are commonly built in two modes. Half-duplex models follow a turn-by-turn protocol, waiting for explicit end-of-turn signals (e.g., end-pointing/VAD) before responding, which sim-plifies streaming but adds latency and suppresses natural overlap. They commonly adopt next segment prediction (Hara et al., 2018; Li et al., 2022; Lee & Narayanan, 2010) where the system predicts the agent’s response as a segment. Full-duplex models listen and speak simultaneously, mod-eling overlapping speech, micro-pauses, and background noise to sustain context and deliver timely cues (e.g., con-tinuers, barge-in handling). They either employ the next segment prediction paradigm (Arora et al., 2025b; Nguyen et al., 2022b; Inoue et al., 2025) or introduce the next dual to-ken prediction (Nguyen et al., 2022a; Défossez et al., 2024) scheme to incorporate the listener’s branch. 2Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Faithful Rationales. In speech analysis tasks, generat-ing verifiable, evidence-aligned rationale to explain model decisions has been widely studied; such explanations can improve decision reliability and make the reasoning process more transparent. Recent work further leverages LLMs, e.g., Brown et al. (2020), together with RL post-training methods such as GRPO (Zhang & Zuo, 2025), to align and optimize the model’s reasoning process and to gener-ate explanations. This line of work is related to emotion-aware reasoning (Wang et al., 2026; Xu et al., 2023; Cheng et al., 2024; Zhang et al., 2025) and mental-state modeling (Sclar et al., 2024). However, in the full duplex setting, the system needs to make millisecond-level low-latency judgments about speaker behavior, while the computational overhead of explanation generation must be controllable and predictable. To this end, we propose a Graph-of-Thought (GoT) representation inspired by human online perception and incremental reasoning mechanisms, to efficiently model dialogue dynamics and generate high-quality explanations under low-latency constraints. 
+
+Conversational Behaviors. Interactive behaviors in SDMs have been extensively examined to foster mutual understanding, user engagement, and social connection between human and computer. However, recent studies in SDMs only focus on low-level behaviors (backchan-nel (Schegloff, 1982; Lin et al., 2025a;b), turn-taking (Gra-vano & Hirschberg, 2011; Duncan, 1972; Raux & Eskenazi, 2012), interruption (Khouzaimi et al., 2016; Marge et al., 2022), continuation (Lin et al., 2025a;b; Arora et al., 2025a; Nguyen et al., 2023), emotion (Liu et al., 2025; Patel et al., 2025), and disfluency (Lian & Anumanchipalli, 2024; Lian et al., 2023; 2024; 2025), which overlook the importance of discourse-level intent that drives these phenomena. To resolve this, we also introduce high-level speech acts (con-stative, directive, commissive, acknowledgment) (Juraf-sky & Martin, 2025) to restore this layer, enabling more interpretable modeling and evaluation for conversational behaviors. 
+
+# 3. Method 
+
+As shown in Fig 2, our framework combines multi-level speech act perception with GoT reasoning to capture the perceptual pathway of human conversation. Our system performs online prediction at the per-second level. Each sec-ond, it outputs a two-level speech act and the corresponding rationale as explanation. The model is strictly causal and streaming (it can only access the current second and past audio information). We construct ConversationGoT-120h, a training dataset that includes high-quality dialogue content, synthetic audio, and human-verified rationale annotations, to train our framework. In addition, we train a multi-level, causal, and streaming perceiver to output perception results for per-second speech action. Finally, we use GoT to reason and generate high-quality rationale as an explanation. 
+
+3.1. ConversationGoT-120h Motivation. Existing full-duplex datasets primarily em-phasize low-level acoustic dynamics (e.g., 20–40 ms frame-based events) or token-level modeling. We shift the focus to decision-level conversational behaviors paired with verifi-able rationales, producing behavior decisions with control-lable latency and auditable, checkable explanations. There-fore, we choose a 1s time step to output two-level speech acts (high/low) and rationale, balancing latency, annotation noise, and compute budget. Meanwhile, existing datasets often lack a unified annotation framework for multi-level speech act plus rationale, making it difficult to systemati-cally model conversational behaviors. More critically, many works leverage the global structure of the full dialogue when annotating or generating labels, introducing a risk of causal leakage. To this end, we build ConversationGoT-120h: a training dataset covering 120 hours, with dialogue content closer to real scenarios, and providing two-level speech act and high-quality rationale, spanning diverse speaker identi-ties, topics, acoustic conditions, and dialogue styles; and ex-plicitly aligning the annotation and generation mechanisms with a strictly causal setting to minimize causal leakage. This dataset represents a novel step toward hierarchical be-havior modeling in dialogue, facilitating the development of models that provide perceptually grounded explanations alongside standard label outputs. 
+
+Speech Acts and Rationale. Low speech acts include Backchannel, Interruption, Turn-taking, and Continuation. High speech acts include Constatives, Directives, Commis-sives, and Acknowledgments. All Speech Acts are generated under a causal constraint by design. See the Appendix for the formal definition. Rationale is an open-form reasoning text used to explain and justify the current conversation behavior, characterizing the finest-grained level of conversa-tional behavior perception. 
+
+Generation. Our dataset targets open domain chit-chat dialogues. To obtain dialogue text with diverse content, natural topic transitions, and rich character settings, we de-sign a structured data generation pipeline: we first use a GPT-4o (OpenAI et al., 2024) to synthesize speaker identity information (such as interests, birthplace, education back-ground, and family background); based on this, we generate 8–10 topics for each dialogue, and split them into interac-tive topics (jointly discussed by both sides) and expressive topics (primarily led by a single speaker). When generating each topic, we mask the full identity information and use only 1–2 traits for conditional generation to reduce repeti-tion and improve content diversity. Then, given the identity 3Conversational Behavior Modeling Foundation Model With Multi-Level Perception   
+
+> Figure 2. Causal streaming pipeline for conversational behavior modeling. At each 1 s tick, the model causally predicts hierarchical speech acts and generates an evidence-grounded rationale using a sliding-window Graph-of-Thoughts (GoT).
+
+information and topic sequence, we complete transitions between topics and generate the beginning and ending of the dialogue, making the overall dialogue more coherent. To provide supervision signals consistent with a strictly causal setting, we model the dialogue second by second: we segment audio/text into consecutive 1s chunks, and generate hierarchical speech acts and rationale without relying on the global dialogue structure. Specifically, we first use a GPT-4o (OpenAI et al., 2024) to retrieve remote content anchor sentence(s) for the current second, and organize them from far to near into a topic thought chain; we then feed this topic chain together with the observable inputs of the current second into a reasoning GPT5 (Singh et al., 2025), so that it gradually derives the speech act (high/low) label for the current second, and we save the step by step reasoning process as the rationale annotation. Meanwhile, these saved anchors provide multi-hot supervision for Stage-1 selection. As a result, the dataset can supervise GoT to learn the reasoning chain required for decision making, rather than performing post hoc attribution analysis toward predefined labels. Finally, we synthesize audio: we collect 1,166 high qual-ity reference voices from LibriSpeech (Panayotov et al., 2015), and use CosyVoice2 (Du et al., 2024) to synthesize speech that is closer to real conversations and has more diverse prosody; we obtain 1,440 samples with an average duration of about 5 minutes, totaling about 120 hours of ConversationGoT-120h. 
+
+3.2. Speech Acts Perceiver 
+
+Our SA predictor is designed around two principles: realis-tic perception should be hierarchical, and the entire model must operate in a streaming, strictly causal setting. Prior work often treats speech act observation as a single level, one shot prediction event, overlooking human hierarchical                      
+
+> Table 1. Conditional Distribution for SA
+> cond. dist.( ↑)Continuation Turn-taking Interruption Backchannel Constatives 0.5375 0.2280 0.1320 0.1025 Directives 0.4903 0.2409 0.1619 0.1069 Acknowledgments 0.2552 0.2325 0.1593 0.3530
+> Commissives 0.4723 0.2620 0.1393 0.1264
+
+perception of conversational events. Humans typically first perceive speech act at the utterance and turn level, and then, on this basis, predict the other speaker’s next concrete con-versational action, which is the key to reliable perception. For example (Figure 2), at the 1 second in the figure, humans first identify from within utterance second information that a new turn is being initiated, namely that this segment is at the beginning of the sentence and uses a typical question ini-tiating template. Meanwhile, combined with the historical context in which “Sydney” has been repeatedly introduced in earlier multiple turns and associated with “playing gui-tar”, humans further, at a fine grained level, judge its intent as a Directives “evaluation request”. To characterize the relationship between high-level and low-level acts, we compute the empirical mean low-level distri-bution conditioned on each high-level act. Concretely, for each high-level category h, we estimate 
+
+¯p(y | h) = 1
+
+Nh
+
+X 
+
+> i:hi=h
+
+I[yi = y], (1) where y denotes the low-level label, Nh is the number of instances with high-level label h, and I is the indicator function. As shown in Table 1, the conditional low-level distributions differ substantially across high-level categories; in particular, Acknowledgments assigns markedly higher mass to Backchannel than other high-level acts, indicating a distinct interaction pattern. 4Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Problem Definition. We formulate hierarchical sequen-tial modeling as a strictly causal streaming hierarchical se-quence, as a stepwise conditional classification problem, and further use an autoregressive factorization to express on-line prediction. The model takes as input a dialogue speech signal X = {xt | t = 1 , . . . , T }, represented as a time-series of length T . For two-channel full-duplex recordings, we downmix the channels into a single-channel mono mix-ture using a per-sample linear combination, which preserves causality, and resample the signal to fs = 16 , kHz . Let the number of samples in each 1-second block be Nblock = fs,then the entire audio is partitioned into N = ⌈T /N block ⌉
+
+continuous, non-overlapping speech blocks U = {Ui}Ni=1 .The goal is to predict hierarchical speech acts at the seg-ment level: a high-level label sequence Y H = {yHi }Ni=1 
+
+and a low-level label sequence Y L = {yLi }Ni=1 . At step i,the output can only depend on the current and past inputs 
+
+U≤i (or a restricted window thereof), and cannot access future blocks U>i . Accordingly, we directly model a fam-ily of causal conditional distributions and write the joint conditional distribution as an autoregressive factorization: 
+
+pθ (Y H , Y L | X) = 
+
+> N
+
+Y
+
+> i=1
+
+pθ
+
+ yHi , y Li | U≤i
+
+ . (2) Using a causal decomposition (i.e., the low-level prediction is explicitly conditioned, in the causal sense, on the high-level information at the same time step), we obtain 
+
+pθ (Y H , Y L | X) = 
+
+> N
+
+Y
+
+> i=1
+
+pθ
+
+ yHi | U≤i
+
+ pθ
+
+ yLi | yHi , U ≤i
+
+ .
+
+(3) 
+
+Model Details. We propose a hierarchical speech model-ing framework that combines complementary acoustic and semantic cues, and explicitly injects high-level context to guide low-level prediction. For each speech block Ui, we obtain frozen acoustic and semantic embeddings (hBi , h Ei )
+
+and fuse them via element-wise gating: 
+
+λi = σ(WbhBi + WehEi ), ei = (1 − λi) ⊙ hBi + λi ⊙ hEi .
+
+The fused representation is mapped to a shared latent space 
+
+˜zi = gshared (ei). To capture hierarchical temporal depen-dencies, we use two causal Transformer decoders to pro-duce high-level state zHi = gH (˜ z≤i) and low-level state 
+
+zLi = gL(˜ z≤i). We further realize high-level guidance for low-level prediction by modulating the low-level stream with FiLM parameters predicted from the high-level state: 
+
+(γi, η i) = gFiLM (zHi ), ˜zLi = γi ⊙ zLi + ηi.
+
+Finally, task-specific heads output predictions for the high-level and low-level tasks. More detail is provided in ap-pendix. The training objective is defined as the sum of cross-entropy losses over all valid time steps 
+
+L = X
+
+> i
+
+CE  yHi , o Hi
+
+ + CE  yLi , o Li
+
+ . (4) 
+
+3.3. Graph of Thought 
+
+Our design targets strict latency budgets. Prior work often uses LLM reasoning verbatim as the explanation, but such reasoning incurs high and hard-to-control runtime latency. We therefore use LLM reasoning traces only as training supervision, so GoT can imitate the teacher’s intermediate evidence and decision path while generating rationales with minimal overhead and less post-hoc rationalization. To make GoT closer to human online perception and in-ference, we draw on a key cognitive logic: humans often combine grammatical cues, semantic templates, and histori-cal context chains to gradually form and verify hypotheses about conversational behavior. For example, at the 1 second in Figure 2, humans first judge that a new turn is initiated based on the sentence-initial grammatical structure and the typical question semantic template triggered within that sec-ond. They then use the “Sydney + playing guitar” topic chain in the historical context for grounding, and finally categorize the intent as an “evaluation request” under Direc-tives. Accordingly, we represent the input as a hierarchical sliding-window graph with sentence nodes and second-level nodes. A low-latency topic-chain selector retrieves rele-vant sentence nodes for the current second; we then add directed edges to form a pseudo-causal graph and feed it to the decoder to generate rationales. 
+
+Graph Definition. At each time step, we define the dia-logue context within the sliding window as a dynamic graph, containing two types of nodes: second-level node and sen-tence node. For any second-level node t, its attributes in-clude speaker identity st, the relative time position t within the window, the transcript text segment xt of that second, the audio segment at of that second, and the hierarchical speech-act input label yt of that second. For any sentence node k,its attributes include the relative time interval [τ sk , τ ek ) within the window, speaker identity sk, and the transcript text Xk
+
+of that sentence. Within the window, second-level nodes represent those sec-onds that still belong to an uncommitted sentence segment, while sentence nodes represent committed sentence seg-ments. When a sentence segment becomes committed, all second-level nodes whose time positions fall within [τ sk , τ ek )
+
+are conceptually folded into a single sentence node k, and are replaced by this sentence node in the graph. As the window moves forward, the current time step appends new second-level nodes, and sentence nodes earlier than the win-dow range are removed; the graph always contains exactly 5Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+the second-level nodes and sentence nodes whose time posi-tions fall within the current window. 
+
+Problem Definition. We model second-by-second online conversational behavior explanation as a strictly causal streaming select-augmented generation problem. By pro-viding a coarse-grained, low-overhead guiding signal, we steer the decoding model toward the desired distribution. The observable input is the observation (ot) within a strictly causal history window, from which we construct a query node (qt) and a candidate sentence-node set (Ct). The first stage introduces a latent evidence-chain variable (πt ⊆ Ct).It provides a coarse-grained inference signal for subsequent generation, approximately characterizing which historical sentence-segment evidence the teacher LLM would rely on when reasoning about the current second. Thus we formal-ize selection as approximate inference of the latent posterior: 
+
+πt ∼ pϕ(πt | ot),
+
+where (πt) intended to the reachability of the teacher con-ditional likelihood. During data construction, reachability is approximated by the teacher-LLM retriever used to build the rationale. π⋆t denotes the retriever-selected anchor set. During training, we learn from the supervised signal π⋆t .In inference, we obtain an anchor chain via a threshold-ing approximation: ˆπt = arg max πt pϕ(πt | ot), In the second stage, on top of (ˆ πt), we incorporate more nearby fine-grained information to construct the final decoding con-dition (ξt): ξt ≜  ˆπt, R t, P t, q t
+
+, and autoregressively generate rationale in a strictly causal manner: 
+
+pθ (yt | ot, ˆπt, R t, P t) = 
+
+> |yt|
+
+Y
+
+> n=1
+
+pθ (yt,n | yt,<n , ξ t) .
+
+Intuitively, (ˆ πt) provides a global topic chain, while 
+
+(( Rt, P t, q t)) provides local observable details; together they determine the final LLM-style reasoning text. 
+
+Model Details. Under streaming audio, we run online speaker tracking, streaming ASR, and a per-second SA pre-dictor in parallel. Every 1s tick, we aggregate the incremen-tal ASR words into a second text Sτ , assign a speaker tag 
+
+pτ from the speaker posterior, and attach SA labels (ℓhτ , ℓ lτ )
+
+to create a second node vsec  
+
+> τ
+
+. Sentence nodes are committed online with a causal sentence buffer; their speaker is set by within-sentence majority vote, and subsequent second nodes reference the updated sentence_id. All features use only past observations, satisfying strict causality. For evidence selection at time t, we use the current second node as query qt := vsec  
+
+> t
+
+and collect completed sentence nodes in the causal window [t−W, t ) as candidates Ct. We encode Vt = {qt} ∪ Ct with a fully-connected Graph Trans-former to model query–candidate matching and candidate competition (de-redundancy). We add a relational bias only on query →candidate attention to inject temporal/structural cues while keeping candidate–candidate interactions unbi-ased. The model outputs candidate scores st,j and a query-dependent threshold τt; we select all anchors with st,j > τ t
+
+and sort them into an evidence chain. Given the selected anchors ˆAt, we augment them with lightweight causal caches (recent committed sentences Rt
+
+and within-sentence seconds Pt), then sort all nodes by time and connect only adjacent ones to form a past →present chain. Rather than adding another graph network, we lin-earize this chain into a token sequence for a T5 encoder; the decoder then generates the current-second rationale un-der cross-attention, fusing coarse sentence-level and fine second-level evidence. 
+
+Loss Function. Selector Loss: For each sample 
+
+(audio_id , t ), the selector outputs candidate sentence scores 
+
+st,j and a dynamic threshold τt. Define threshold-aligned logits: 
+
+ℓt,j = st,j − τt
+
+T .
+
+Given multi-hot labels yt,j ∈ { 0, 1} and a candidate mask 
+
+mt,j , the loss of the Stage-1 selector is 
+
+Lsel = Lwbce + λcount Lcount + λrank Lrank ,
+
+where the weighted BCE (only on valid candidates) is 
+
+Lwbce = 1
+
+P 
+
+> j
+
+mt,j 
+
+X
+
+> j
+
+mt,j WBCEWithLogits( ℓt,j , y t,j ; α),
+
+and we use two lightweight regularizers: 
+
+Lcount =
+
+ X 
+
+> j
+
+σ(ℓt,j ) − X
+
+> j
+
+yt,j 
+
+2
+
+to constrain the selected count, 
+
+Lrank = 1
+
+|Pt|
+
+X
+
+> j∈Pt
+
+− log eℓt,j 
+
+P 
+
+> k
+
+eℓt,k 
+
+to promote positive-sample ranking, where Pt = {j :
+
+mt,j = 1, y t,j = 1}. Decoder (T5 per-second ratio-nale) loss. Given the tokenized input xt (linearized causal evidence chain) and the target rationale tokens yt =(yt, 1, . . . , y t,L ), we train the T5 decoder with standard teacher-forced seq2seq negative log-likelihood: 
+
+Ldec = −
+
+> L
+
+X
+
+> n=1
+
+log pθ (yt,n | yt,<n , xt) .
+
+# 4. Experiments 
+
+4.1. ConversationGoT-120h 
+
+The dataset is split into training/validation/test sets with a 6:2:2 ratio. 6Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Table 2. Subjective comparison between human volunteers and GPT-4o across four conversational quality dimensions.                             
+
+> Rater Naturalness Consistency SA Reasonableness Human-Likeness
+> Volunteers 6.71 ±1.32 7.98 ±1.12 6.36 ±0.90 6.46 ±0.92
+> GPT-4o 8.34 ±1.35 8.10 ±1.34 8.42 ±0.93 7.64 ±0.90
+
+Table 3. Subjective comparison between human volunteers and GPT-4o across six rationale quality dimensions.                                           
+
+> Rater Reasonableness Context Grounding Intra-Utterance Coherence
+> Volunteers 7.85 ±1.02 7.88 ±0.86 6.79 ±1.13
+> GPT-4o 7.62 ±2.31 8.28 ±1.49 7.88 ±1.88
+> Rater Inter-Utterance Coherence Specificity & Focus Clarity & Non-Template Style
+> Volunteers 7.61 ±0.94 7.72 ±0.87 8.09 ±1.00
+> GPT-4o 8.13 ±1.69 7.89 ±1.84 8.00 ±1.69
+
+Quality Check Dialogue quality is the upstream linchpin of the entire dataset, directly determining the fidelity and safety of all subsequent labels. To assess how well the syn-thetic dialogues match the distribution of real conversations and to mitigate LLM generation bias, we first manually cu-rate the data by filtering out low-quality or low-authenticity samples; we then ask five volunteers and GPT-4o to inde-pendently score the dialogue content along four dimensions. As shown in Table 2, after removing low-quality samples, the subjective quality of ConversationGoT-120h remains overall stable: Consistency is rated close to 8 by both vol-unteers and GPT-4o ( 7.98 ± 1.12 vs. 8.10 ± 1.34 ), meeting the standard. The results indicate that model evaluation is more optimistic while humans are more conservative. The similar standard deviations (about 0.9 ∼ 1.35 ) suggest that the variability is controllable. The per-second rationale annotations provide the pri-mary supervision for training GoT, guiding both evidence-chain/graph construction and rationale generation condi-tioned on selected evidence. Annotation quality is therefore critical for learning decision paths consistent with teacher traces (or human explanations) and for producing credible, verifiable explanations at inference time. To assess quality, we asked volunteers and GPT-4o to independently rate ratio-nales on six dimensions. As shown in Table 3, both groups assign consistently high scores (6.8–8.3), suggesting that the rationales are generally reliable in plausibility, context dependency, and intra-/inter-utterance coherence, and thus provide strong supervision for GoT. The two evaluators also show close agreement: except for Intra-Utterance Coher-ence, differences across dimensions are within 0.6 points, with consistent overall trends. We focus on the full-duplex task, where the richness of high-quality overlap events available for learning can sig-nificantly affect the conversational perception ability of the SA Perceiver. Overlap quality. Our simulated di-alogs show denser micro-segmentation than human con-versations (more IPUs/pauses per minute) while preserving similar gap/overlap ratios; overlaps are shorter and within-speaker pauses more frequent, suggesting more backchan-nels/hesitations rather than long monologues (see Appendix Table 8). 
+
+Event Distribution. The dataset shows clear head concen-tration at both levels. at the high level, Constatives dominate (54.18%); at the low level, Continuation overwhelmingly leads (64.77%), followed by Turn-taking (19.03%), with the rest forming a long tail. Anchor statistics indicate moder-ate dispersion: a mean of 3.92 anchors per segment and a maean spacing of 60.55 s. More details are provided in the Appendix. 
+
+4.2. Experimental Setup 
+
+We train the behavior prediction model and the GoT rea-soning model on the ConversationGoT-120h dataset, using a unified 90-second context window. Both models use the AdamW (Loshchilov & Hutter, 2017) with a learning rate of 3 × 10 −4 and weight decay of 10 −2, along with a linear learning-rate decay schedule with 1,000 warmup steps and gradient clipping at 1.0. Training is conducted with a batch size of 8 per GPU for 15 epochs, using automatic mixed pre-cision (fp16). Audio is resampled to 16 kHz and segmented into 1-second frames. On a single A6000 GPU, training takes approximately 18 hours for speech-act prediction and 5 hours for GoT generation. Results use random seed 42 and are evaluated with statistical analysis over five independent runs. We report in-domain results on ConversationGoT-120h, and evaluate out-of-distribution (OOD) transfer on the real Candor dataset (Reece et al., 2022), which we use only for model evaluation (not training). More details are provided in Appendix. 
+
+4.3. Speech Acts Perceiver 
+
+Evaluating our Speech Acts Perceiver requires a protocol tailored to our setting: the model predicts at 1 Hz and uses a hierarchical SA taxonomy that does not align with prior label sets. As a result, cross-paper metric comparisons would confound modeling gains with differences in tempo-ral granularity and taxonomy. We therefore adopt a three-pronged evaluation: (i) complementary in-distribution met-rics—one for the relatively balanced high-level SAs and one for the imbalanced low-level SAs; (ii) out-of-distribution transfer to real dialogue data to test generalization beyond ConversationGoT-120h; and (iii) human judgments of per-second decisions to assess perceptual validity and capture aspects missed by automated scores. 
+
+Metrics. F1 is the harmonic mean of precision and recall; a larger value means fewer false positives (FP) and false negatives (FN) at the current threshold. AUC is the area un-der the ROC curve; a larger value indicates stronger overall 7Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Table 4. In-domain: Per-class metrics for High-level and Low-level Speech Acts.                           
+
+> High-level Speech Acts Low-level Speech Acts Class F1 ( ↑)AUC ( ↑)Class F1 ( ↑)AUC ( ↑)
+> Constatives 0.732 0.811 Turn-taking 0.730 0.938 Directives 0.474 0.776 Interruption 0.495 0.872 Commissives 0.474 0.800 Backchannel 0.560 0.889 Acknowledgments 0.514 0.850 Continuation 0.870 0.971
+
+Table 5. OOD: Per-class metrics for High-level and Low-level Speech Acts.                           
+
+> High-level Speech Acts Low-level Speech Acts Class F1 ( ↑)AUC ( ↑)Class F1 ( ↑)AUC ( ↑)
+> Constatives 0.696 0.777 Turn-taking 0.709 0.918 Directives 0.456 0.739 Interruption 0.486 0.847 Commissives 0.445 0.753 Backchannel 0.537 0.855 Acknowledgments 0.479 0.804 Continuation 0.827 0.938
+
+discrimination between positive and negative examples. 
+
+In-domain and OOD Experiments. ConversationGoT-120h has a head-concentrated label distribution: the high-level Constatives accounts for 54.18The SA Perceiver per-forms stably on core conversational mechanisms: the AUC of Turn-taking/Continuation is 0.938/0.971, and the F1 is 0.730/0.870. Although the long-tail classes have lower F1 due to data scarcity and ambiguous boundaries (Interruption 0.495, Backchannel 0.560), the AUC remains 0.872/0.889, indicating strong separability. When transferred OOD to real dialogues, performance degrades only slightly, suggest-ing good generalization of SA perception, and also vali-dating that this synthetic data has transferable value for full-duplex conversational perception training. 
+
+Human Model Agreement. We quantify human–model similarity by the agreement rate under per-second judgments. For each second t, the model predicts a high-level label ˆℓht
+
+and a low-level label ˆℓlt. Each volunteer independently an-notates, at each level, whether they agree with the model’s decision at time t, yielding binary responses (1 if agree ,otherwise 0). We then average over time and volunteers to compute the agreement rates, and report them for the two levels HMA. HMA measures the degree of agreement between humans and the model on per-second decisions. Its formal definition is provided in the appendix. Table 6 shows that both human volunteers and GPT-4o agree well with the model’s per-second decisions, indicating that the predicted speech-act labels are broadly plausible. The evaluators, how-ever, differ systematically: humans almost fully endorse high-level intents (HMA h=0.97) but are more conservative on low-level interaction acts (HMA l=0.77), whereas GPT-4o shows lower agreement on high-level categories (0.78) yet strong alignment on low-level mechanics (0.93). We attribute the lower human agreement at the low level to lim-ited use of long-range discourse context in ambiguous cases. Accordingly, we report GPT-4o agreement as a conservative, fully automatic reference for human–model similarity. 
+
+Table 6. Human–Model Agreement (HMA) for high- and low-level speech-act decisions, evaluated via per-second agree/disagree judg-ments. We report the mean and standard deviation over evaluated samples. 
+
+Rater HMA h (↑) HMA l (↑)
+
+Volunteers 0.97 0.77 GPT-4o 0.78 0.93 
+
+Table 7. Reasoning latency and subjective ruler scores across methods.                                  
+
+> Method Latency (s) Ruler Alignment Justification Caption Clarity
+> Ours 0.74 ±0.12 4.40 4.27 4.21 4.38 Random selector 0.73 ±0.11 3.28 3.13 3.21 3.88 GPT-4o 2.98 ±1.04 3.40 3.27 3.21 3.38 GPT-5 (thinking) 16 .98 ±5.29 4.46 4.33 4.32 4.65
+
+4.4. Graph of Thought 
+
+We evaluate explanation quality and generation latency of different methods under controlled conditions. For each test sample, all four methods use the same input context: (i) our method (ii) random selection: keeping the same GoT reasoner unchanged and only replacing anchors with uniform random sampling from (k ∈ [2 , 8]) candidates; (iii) GPT-4o: a lightweight LLM baseline (iv) GPT-5 (thinking): a stronger LLM baseline. For evaluation, we use GPT-4o as an automatic judge, scoring the generated outputs with a fixed rubric (Ruler) along four dimensions: Alignment, Justification, Caption Completeness, and Clarity. We report, under the same inputs, the required latency and the quality gap of the output rationale. Compared with random anchors, as shown in Table 7, our method significantly improves explanation quality with almost no increase in latency, indicating that selecting more informative anchors helps generate more consistent and traceable reasoning. Furthermore, compared with directly prompting GPT-4o, our method reduces latency from (2 .98 ± 1.04)s to about (0 .73 ± 0.12)s , and improves all four dimensions by about 1 point. GPT-5 (thinking) achieves the highest scores ( 4.32 –4.65 ), but its latency reaches (16 .98 ± 5.29)s , which is over (20 ×) slower than our method. Overall, GoT maintains low latency while ap-proaching GPT-5 quality, making it suitable for full-duplex scenarios that require high-frequency outputs. 
+
+# 5. Conclusion 
+
+We propose a strictly causal, streaming, full-duplex frame-work that continuously outputs decisions at a per-second rate, explicitly models the intent-to-action logic chain via Graph-of-Thoughts, and generates auditable natural-language explanations. Experiments show that the method maintains stable performance on hierarchical behavior 8Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+recognition, significantly improves explanation quality over random evidence chains, and achieves controllable low la-tency under full-duplex settings. 
+
+# Impact Statement 
+
+This work uses synthetically generated data to enable con-trolled, scalable annotation of fine-grained conversational behaviors. A key risk is distribution shift and artifacts that may reduce robustness on real interactions. We mitigate this by enforcing an explicit label taxonomy and causal constraints during generation, reporting results with clear separation between synthetic and any real evaluation when available, and releasing the generation procedure for trans-parency and reproducibility. Potential misuse includes generating deceptive conversa-tional content or enabling intrusive behavioral inference. We recommend deployment only in consented settings with access control and downstream safety review. Residual risks remain under domain shift and malicious use. 
+
+# References 
+
+Arora, S., Lu, Z., Chiu, C.-C., Pang, R., and Watanabe, S. Talking turns: Benchmarking audio foundation models on turn-taking dynamics. arXiv preprint arXiv:2503.01174 ,2025a. Arora, S., Lu, Z., Chiu, C.-C., Pang, R., and Watanabe, S. Talking turns: Benchmarking audio foundation models on turn-taking dynamics, 2025b. URL https://arxiv. org/abs/2503.01174 .Brown, T. B., Mann, B., Ryder, N., Subbiah, M., Kaplan, J., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G., Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G., Henighan, T., Child, R., Ramesh, A., Ziegler, D. M., Wu, J., Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M., Gray, S., Chess, B., Clark, J., Berner, C., McCandlish, S., Radford, A., Sutskever, I., and Amodei, D. Language models are few-shot learners, 2020. URL https:// arxiv.org/abs/2005.14165 .Cheng, Z., Cheng, Z.-Q., He, J.-Y., Sun, J., Wang, K., Lin, Y., Lian, Z., Peng, X., and Hauptmann, A. Emotion-llama: Multimodal emotion recognition and reasoning with instruction tuning, 2024. URL https://arxiv. org/abs/2406.11161 .Défossez, A., Mazaré, L., Orsini, M., Royer, A., Pérez, P., Jégou, H., Grave, E., and Zeghidour, N. Moshi: a speech-text foundation model for real-time dialogue. 
+
+arXiv preprint arXiv:2410.00037 , 2024. Du, Z., Wang, Y., Chen, Q., Shi, X., Lv, X., Zhao, T., Gao, Z., Yang, Y., Gao, C., Wang, H., et al. Cosyvoice 2: Scalable streaming speech synthesis with large language models. arXiv preprint arXiv:2412.10117 , 2024. Duncan, S. Some signals and rules for taking speaking turns in conversations. Journal of personality and social psychology , 23(2):283, 1972. Gravano, A. and Hirschberg, J. Turn-taking cues in task-oriented dialogue. Computer Speech & Language , 25(3): 601–634, 2011. Hara, K., Inoue, K., Takanashi, K., and Kawahara, T. Predic-tion of turn-taking using multitask learning with predic-tion of backchannels and fillers. In Interspeech 2018 , pp. 991–995, 2018. doi: 10.21437/Interspeech.2018-1442. Hwang, J., Hira, M., Chen, C., Zhang, X., Ni, Z., Sun, G., Ma, P., Huang, R., Pratap, V., Zhang, Y., Kumar, A., Yu, C.-Y., Zhu, C., Liu, C., Kahn, J., Ravanelli, M., Sun, P., Watanabe, S., Shi, Y., Tao, Y., Scheibler, R., Cornell, S., Kim, S., and Petridis, S. Torchaudio 2.1: Advancing speech recognition, self-supervised learning, and audio processing components for pytorch, 2023. URL 
+
+https://arxiv.org/abs/2310.17864 .Inoue, K., Lala, D., Skantze, G., and Kawahara, T. Yeah, un, oh: Continuous and real-time backchannel prediction with fine-tuning of voice activity projection, 2025. URL 
+
+https://arxiv.org/abs/2410.15929 .Jurafsky, D. and Martin, J. H. Speech and Lan-guage Processing . Draft / Stanford University, 3 edi-tion, 2025. URL https://web.stanford.edu/ ~jurafsky/slp3/15.pdf .Khouzaimi, H., Laroche, R., and Lefèvre, F. Reinforce-ment learning for turn-taking management in incremental spoken dialogue systems. In IJCAI , pp. 2831–2837, 2016. Lee, C.-C. and Narayanan, S. Predicting interruptions in dyadic spoken interactions. In 2010 IEEE International Conference on Acoustics, Speech and Signal Processing ,pp. 5250–5253, 2010. Li, S., Paranjape, A., and Manning, C. When can I speak? predicting initiation points for spoken dialogue agents. In Lemon, O., Hakkani-Tur, D., Li, J. J., Ashrafzadeh, A., Garcia, D. H., Alikhani, M., Vandyke, D., and Dušek, O. (eds.), Proceedings of the 23rd Annual Meeting of the Special Interest Group on Discourse and Dialogue , pp. 217–224, Edinburgh, UK, September 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022. sigdial-1.22. URL https://aclanthology.org/ 2022.sigdial-1.22/ .Lian, J. and Anumanchipalli, G. Towards hierarchical spo-ken language disfluency modeling. In Proceedings of the 
+
+9Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+18th Conference of the European Chapter of the Asso-ciation for Computational Linguistics (Volume 1: Long Papers) , 2024. Lian, J., Feng, C., Farooqi, N., Li, S., Kashyap, A., Cho, C. J., Wu, P., Netzorg, R., Li, T., and Anumanchipalli, G. K. Unconstrained dysfluency modeling for dysfluent speech transcription and detection. In 2023 IEEE Auto-matic Speech Recognition and Understanding Workshop (ASRU) , pp. 1–8. IEEE, 2023. Lian, J., Zhou, X., Ezzes, Z., Vonk, J., Morin, B., Baquirin, D. P., Miller, Z., Gorno Tempini, M. L., and Anu-manchipalli, G. Ssdm: Scalable speech dysfluency mod-eling. In Advances in Neural Information Processing Systems , volume 37, 2024. Lian, J., Zhou, X., Guo, C., Ye, Z., Ezzes, Z., Vonk, J., Morin, B., Baquirin, D., Mille, Z., Tempini, M. L. G., and Anumanchipalli, G. K. Automatic detection of articulatory-based disfluencies in primary progressive aphasia. IEEE JSTSP , 2025. Lin, G.-T., Kuan, S.-Y. S., Wang, Q., Lian, J., Li, T., Watanabe, S., and yi Lee, H. Full-duplex-bench v1.5: Evaluating overlap handling for full-duplex speech mod-els, 2025a. URL https://arxiv.org/abs/2507. 23159 .Lin, G.-T., Lian, J., Li, T., Wang, Q., Anumanchipalli, G., Liu, A. H., and yi Lee, H. Full-duplex-bench: A benchmark to evaluate full-duplex spoken dialogue mod-els on turn-taking capabilities, 2025b. URL https: //arxiv.org/abs/2503.04721 .Liu, J., Cheng, K. J., Lian, J., Anand, A., Jain, R., Qiao, F., Netzorg, R., Chou, H.-C., Li, T., Lin, G.-T., and Anu-manchipalli, G. Emo-reasoning: Benchmarking emo-tional reasoning capabilities in spoken dialogue systems. In 2025 IEEE Automatic Speech Recognition and Under-standing Workshop (ASRU) , 2025. Loshchilov, I. and Hutter, F. Decoupled weight decay regu-larization. arXiv preprint arXiv:1711.05101 , 2017. Marge, M., Espy-Wilson, C., Ward, N. G., Alwan, A., Artzi, Y., Bansal, M., Blankenship, G., Chai, J., Daumé III, H., Dey, D., et al. Spoken language interaction with robots: Recommendations for future research. Computer Speech & Language , 71:101255, 2022. Monroe, W. and Potts, C. Learning in the rational speech acts model, 2015. URL https://arxiv.org/abs/ 1510.06807 .Nguyen, T. A., Kharitonov, E., Copet, J., Adi, Y., Hsu, W.-N., Elkahky, A., Tomasello, P., Algayres, R., Sagot, B., Mohamed, A., and Dupoux, E. Generative spoken dialogue language modeling, 2022a. URL https:// arxiv.org/abs/2203.16502 .Nguyen, T. A., Kharitonov, E., Copet, J., Adi, Y., Hsu, W.-N., Elkahky, A., Tomasello, P., Algayres, R., Sagot, B., Mohamed, A., and Dupoux, E. Generative spoken dialogue language modeling, 2022b. URL https:// arxiv.org/abs/2203.16502 .Nguyen, T. A., Kharitonov, E., Copet, J., Adi, Y., Hsu, W.-N., Elkahky, A., Tomasello, P., Algayres, R., Sagot, B., Mohamed, A., et al. Generative spoken dialogue language modeling. Transactions of the Association for Computational Linguistics , 11:250–266, 2023. OpenAI, :, Hurst, A., Lerer, A., Goucher, A. P., Perelman, A., Ramesh, A., Clark, A., Ostrow, A., Welihinda, A., Hayes, A., Radford, A., M ˛ adry, A., Baker-Whitcomb, A., Beutel, A., Borzunov, A., Carney, A., Chow, A., Kirillov, A., Nichol, A., Paino, A., Renzin, A., Passos, A. T., Kir-illov, A., Christakis, A., Conneau, A., Kamali, A., Jabri, A., Moyer, A., Tam, A., Crookes, A., Tootoochian, A., Tootoonchian, A., Kumar, A., Vallone, A., Karpathy, A., Braunstein, A., Cann, A., Codispoti, A., Galu, A., Kon-drich, A., Tulloch, A., Mishchenko, A., Baek, A., Jiang, A., Pelisse, A., Woodford, A., Gosalia, A., Dhar, A., Pan-tuliano, A., Nayak, A., Oliver, A., Zoph, B., Ghorbani, B., Leimberger, B., Rossen, B., Sokolowsky, B., Wang, B., Zweig, B., Hoover, B., Samic, B., McGrew, B., Spero, B., Giertler, B., Cheng, B., Lightcap, B., Walkin, B., Quinn, B., Guarraci, B., Hsu, B., Kellogg, B., Eastman, B., Lu-garesi, C., Wainwright, C., Bassin, C., Hudson, C., Chu, C., Nelson, C., Li, C., Shern, C. J., Conger, C., Barette, C., Voss, C., Ding, C., Lu, C., Zhang, C., Beaumont, C., Hallacy, C., Koch, C., Gibson, C., Kim, C., Choi, C., McLeavey, C., Hesse, C., Fischer, C., Winter, C., Czar-necki, C., Jarvis, C., Wei, C., Koumouzelis, C., Sherburn, D., Kappler, D., Levin, D., Levy, D., Carr, D., Farhi, D., Mely, D., Robinson, D., Sasaki, D., Jin, D., Valladares, D., Tsipras, D., Li, D., Nguyen, D. P., Findlay, D., Oiwoh, E., Wong, E., Asdar, E., Proehl, E., Yang, E., Antonow, E., Kramer, E., Peterson, E., Sigler, E., Wallace, E., Brevdo, E., Mays, E., Khorasani, F., Such, F. P., Raso, F., Zhang, F., von Lohmann, F., Sulit, F., Goh, G., Oden, G., Salmon, G., Starace, G., Brockman, G., Salman, H., Bao, H., Hu, H., Wong, H., Wang, H., Schmidt, H., Whitney, H., Jun, H., Kirchner, H., de Oliveira Pinto, H. P., Ren, H., Chang, H., Chung, H. W., Kivlichan, I., O’Connell, I., O’Connell, I., Osband, I., Silber, I., Sohl, I., Okuyucu, I., Lan, I., Kostrikov, I., Sutskever, I., Kanitscheider, I., Gulrajani, I., Coxon, J., Menick, J., Pachocki, J., Aung, J., Betker, J., Crooks, J., Lennon, J., Kiros, J., Leike, J., Park, J., Kwon, J., Phang, J., Teplitz, J., Wei, J., Wolfe, J., Chen, J., Harris, J., Varavva, J., Lee, J. G., Shieh, J., Lin, J., Yu, J., Weng, J., Tang, J., Yu, J., Jang, J., Candela, J. Q., Beut-10 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+ler, J., Landers, J., Parish, J., Heidecke, J., Schulman, J., Lachman, J., McKay, J., Uesato, J., Ward, J., Kim, J. W., Huizinga, J., Sitkin, J., Kraaijeveld, J., Gross, J., Ka-plan, J., Snyder, J., Achiam, J., Jiao, J., Lee, J., Zhuang, J., Harriman, J., Fricke, K., Hayashi, K., Singhal, K., Shi, K., Karthik, K., Wood, K., Rimbach, K., Hsu, K., Nguyen, K., Gu-Lemberg, K., Button, K., Liu, K., Howe, K., Muthukumar, K., Luther, K., Ahmad, L., Kai, L., Itow, L., Workman, L., Pathak, L., Chen, L., Jing, L., Guy, L., Fedus, L., Zhou, L., Mamitsuka, L., Weng, L., McCal-lum, L., Held, L., Ouyang, L., Feuvrier, L., Zhang, L., Kondraciuk, L., Kaiser, L., Hewitt, L., Metz, L., Doshi, L., Aflak, M., Simens, M., Boyd, M., Thompson, M., Dukhan, M., Chen, M., Gray, M., Hudnall, M., Zhang, M., Aljubeh, M., Litwin, M., Zeng, M., Johnson, M., Shetty, M., Gupta, M., Shah, M., Yatbaz, M., Yang, M. J., Zhong, M., Glaese, M., Chen, M., Janner, M., Lampe, M., Petrov, M., Wu, M., Wang, M., Fradin, M., Pokrass, M., Castro, M., de Castro, M. O. T., Pavlov, M., Brundage, M., Wang, M., Khan, M., Murati, M., Bavarian, M., Lin, M., Yesil-dal, M., Soto, N., Gimelshein, N., Cone, N., Staudacher, N., Summers, N., LaFontaine, N., Chowdhury, N., Ryder, N., Stathas, N., Turley, N., Tezak, N., Felix, N., Kudige, N., Keskar, N., Deutsch, N., Bundick, N., Puckett, N., Nachum, O., Okelola, O., Boiko, O., Murk, O., Jaffe, O., Watkins, O., Godement, O., Campbell-Moore, O., Chao, P., McMillan, P., Belov, P., Su, P., Bak, P., Bakkum, P., Deng, P., Dolan, P., Hoeschele, P., Welinder, P., Tillet, P., Pronin, P., Tillet, P., Dhariwal, P., Yuan, Q., Dias, R., Lim, R., Arora, R., Troll, R., Lin, R., Lopes, R. G., Puri, R., Miyara, R., Leike, R., Gaubert, R., Zamani, R., Wang, R., Donnelly, R., Honsby, R., Smith, R., Sahai, R., Ramchandani, R., Huet, R., Carmichael, R., Zellers, R., Chen, R., Chen, R., Nigmatullin, R., Cheu, R., Jain, S., Altman, S., Schoenholz, S., Toizer, S., Miserendino, S., Agarwal, S., Culver, S., Ethersmith, S., Gray, S., Grove, S., Metzger, S., Hermani, S., Jain, S., Zhao, S., Wu, S., Jomoto, S., Wu, S., Shuaiqi, Xia, Phene, S., Papay, S., Narayanan, S., Coffey, S., Lee, S., Hall, S., Balaji, S., Broda, T., Stramer, T., Xu, T., Gogineni, T., Christian-son, T., Sanders, T., Patwardhan, T., Cunninghman, T., Degry, T., Dimson, T., Raoux, T., Shadwell, T., Zheng, T., Underwood, T., Markov, T., Sherbakov, T., Rubin, T., Stasi, T., Kaftan, T., Heywood, T., Peterson, T., Walters, T., Eloundou, T., Qi, V., Moeller, V., Monaco, V., Kuo, V., Fomenko, V., Chang, W., Zheng, W., Zhou, W., Man-assra, W., Sheu, W., Zaremba, W., Patil, Y., Qian, Y., Kim, Y., Cheng, Y., Zhang, Y., He, Y., Zhang, Y., Jin, Y., Dai, Y., and Malkov, Y. Gpt-4o system card, 2024. URL 
+
+https://arxiv.org/abs/2410.21276 .Panayotov, V., Chen, G., Povey, D., and Khudanpur, S. Librispeech: an asr corpus based on public domain au-dio books. In 2015 IEEE international conference on acoustics, speech and signal processing (ICASSP) , pp. 5206–5210. IEEE, 2015. Patel, K., Zhou, D., Kankipati, A., Gupta, A., Li, Z. A., Shukla, M., Narang, V., Kofman, S., Ye, Z., Wang, G., Shi, X., Li, T., Lin, G.-T., Cheng, K. J., Chou, H.-C., Lian, J., and Anumanchipalli, G. Av-emo-reasoning: Benchmarking emotional reasoning capabilities in omni-modal llms with audio-visual cues, 2025. URL https: //arxiv.org/abs/2510.07355 .Perez, E., Strub, F., De Vries, H., Dumoulin, V., and Courville, A. Film: Visual reasoning with a general con-ditioning layer. In Proceedings of the AAAI conference on artificial intelligence , volume 32, 2018. Raffel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., and Liu, P. J. Exploring the limits of transfer learning with a unified text-to-text transformer. Journal of machine learning research , 21 (140):1–67, 2020. Raux, A. and Eskenazi, M. Optimizing the turn-taking behavior of task-oriented spoken dialog systems. 
+
+ACM Transactions on Speech and Language Processing (TSLP) , 9(1):1–23, 2012. Reece, A., Cooney, G., Bull, P., Chung, C., Dawson, B., Fitzpatrick, C., Glazer, T., Knox, D., Liebscher, A., and Marin, S. Advancing an interdisciplinary science of con-versation: Insights from a large multimodal corpus of human speech, 2022. URL https://arxiv.org/ abs/2203.00674 .Sacks, H., Schegloff, E. A., and Jefferson, G. A simplest systematics for the organization of turn-taking for conver-sation. Language , 50(4):696–735, 1974. Schegloff, E. A. Discourse as an interactional achievement: Some uses of ‘uh huh’and other things that come between sentences. Analyzing discourse: Text and talk , 71(93), 1982. Sclar, M., Yu, J., Fazel-Zarandi, M., Tsvetkov, Y., Bisk, Y., Choi, Y., and Celikyilmaz, A. Explore theory of mind: Program-guided adversarial data generation for theory of mind reasoning. arXiv preprint arXiv:2412.12175 , 2024. Singh, A., Fry, A., Perelman, A., Tart, A., Ganesh, A., El-Kishky, A., McLaughlin, A., Low, A., Ostrow, A., Ananthram, A., Nathan, A., Luo, A., Helyar, A., Madry, A., Efremov, A., Spyra, A., Baker-Whitcomb, A., Beutel, A., Karpenko, A., Makelov, A., Neitz, A., Wei, A., Barr, A., Kirchmeyer, A., Ivanov, A., Christakis, A., Gillespie, A., Tam, A., Bennett, A., Wan, A., Huang, A., Sandjideh, A. M., Yang, A., Kumar, A., Saraiva, A., Vallone, A., Gheorghe, A., Garcia, A. G., Braunstein, A., Liu, A., 11 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Schmidt, A., Mereskin, A., Mishchenko, A., Applebaum, A., Rogerson, A., Rajan, A., Wei, A., Kotha, A., Srivas-tava, A., Agrawal, A., Vijayvergiya, A., Tyra, A., Nair, A., Nayak, A., Eggers, B., Ji, B., Hoover, B., Chen, B., Chen, B., Barak, B., Minaiev, B., Hao, B., Baker, B., Lightcap, B., McKinzie, B., Wang, B., Quinn, B., Fioca, B., Hsu, B., Yang, B., Yu, B., Zhang, B., Brenner, B., Zetino, C. R., Raymond, C., Lugaresi, C., Paz, C., Hud-son, C., Whitney, C., Li, C., Chen, C., Cole, C., Voss, C., Ding, C., Shen, C., Huang, C., Colby, C., Hallacy, C., Koch, C., Lu, C., Kaplan, C., Kim, C., Minott-Henriques, C., Frey, C., Yu, C., Czarnecki, C., Reid, C., Wei, C., Decareaux, C., Scheau, C., Zhang, C., Forbes, C., Tang, D., Goldberg, D., Roberts, D., Palmie, D., Kappler, D., Levine, D., Wright, D., Leo, D., Lin, D., Robinson, D., Grabb, D., Chen, D., Lim, D., Salama, D., Bhattacharjee, D., Tsipras, D., Li, D., Yu, D., Strouse, D., Williams, D., Hunn, D., Bayes, E., Arbus, E., Akyurek, E., Le, E. Y., Widmann, E., Yani, E., Proehl, E., Sert, E., Cheung, E., Schwartz, E., Han, E., Jiang, E., Mitchell, E., Sigler, E., Wallace, E., Ritter, E., Kavanaugh, E., Mays, E., Nikishin, E., Li, F., Such, F. P., de Avila Belbute Peres, F., Raso, F., Bekerman, F., Tsimpourlas, F., Chantzis, F., Song, F., Zhang, F., Raila, G., McGrath, G., Briggs, G., Yang, G., Parascandolo, G., Chabot, G., Kim, G., Zhao, G., Valiant, G., Leclerc, G., Salman, H., Wang, H., Sheng, H., Jiang, H., Wang, H., Jin, H., Sikchi, H., Schmidt, H., Aspegren, H., Chen, H., Qiu, H., Lightman, H., Covert, I., Kivlichan, I., Silber, I., Sohl, I., Hammoud, I., Clavera, I., Lan, I., Akkaya, I., Kostrikov, I., Kofman, I., Etinger, I., Singal, I., Hehir, J., Huh, J., Pan, J., Wilczynski, J., Pachocki, J., Lee, J., Quinn, J., Kiros, J., Kalra, J., Samaroo, J., Wang, J., Wolfe, J., Chen, J., Wang, J., Harb, J., Han, J., Wang, J., Zhao, J., Chen, J., Yang, J., Tworek, J., Chand, J., Lan-don, J., Liang, J., Lin, J., Liu, J., Wang, J., Tang, J., Yin, J., Jang, J., Morris, J., Flynn, J., Ferstad, J., Heidecke, J., Fishbein, J., Hallman, J., Grant, J., Chien, J., Gordon, J., Park, J., Liss, J., Kraaijeveld, J., Guay, J., Mo, J., Lawson, J., McGrath, J., Vendrow, J., Jiao, J., Lee, J., Steele, J., Wang, J., Mao, J., Chen, K., Hayashi, K., Xiao, K., Salahi, K., Wu, K., Sekhri, K., Sharma, K., Singhal, K., Li, K., Nguyen, K., Gu-Lemberg, K., King, K., Liu, K., Stone, K., Yu, K., Ying, K., Georgiev, K., Lim, K., Tirumala, K., Miller, K., Ahmad, L., Lv, L., Clare, L., Fauconnet, L., Itow, L., Yang, L., Romaniuk, L., Anise, L., Byron, L., Pathak, L., Maksin, L., Lo, L., Ho, L., Jing, L., Wu, L., Xiong, L., Mamitsuka, L., Yang, L., McCallum, L., Held, L., Bourgeois, L., Engstrom, L., Kuhn, L., Feuvrier, L., Zhang, L., Switzer, L., Kondraciuk, L., Kaiser, L., Joglekar, M., Singh, M., Shah, M., Stratta, M., Williams, M., Chen, M., Sun, M., Cayton, M., Li, M., Zhang, M., Aljubeh, M., Nichols, M., Haines, M., Schwarzer, M., Gupta, M., Shah, M., Huang, M., Dong, M., Wang, M., Glaese, M., Carroll, M., Lampe, M., Malek, M., Shar-man, M., Zhang, M., Wang, M., Pokrass, M., Florian, M., Pavlov, M., Wang, M., Chen, M., Wang, M., Feng, M., Bavarian, M., Lin, M., Abdool, M., Rohaninejad, M., Soto, N., Staudacher, N., LaFontaine, N., Marwell, N., Liu, N., Preston, N., Turley, N., Ansman, N., Blades, N., Pancha, N., Mikhaylin, N., Felix, N., Handa, N., Rai, N., Keskar, N., Brown, N., Nachum, O., Boiko, O., Murk, O., Watkins, O., Gleeson, O., Mishkin, P., Lesiewicz, P., Baltescu, P., Belov, P., Zhokhov, P., Pronin, P., Guo, P., Thacker, P., Liu, Q., Yuan, Q., Liu, Q., Dias, R., Puckett, R., Arora, R., Mullapudi, R. T., Gaon, R., Miyara, R., Song, R., Aggarwal, R., Marsan, R., Yemiru, R., Xiong, R., Kshirsagar, R., Nuttall, R., Tsiupa, R., Eldan, R., Wang, R., James, R., Ziv, R., Shu, R., Nigmatullin, R., Jain, S., Talaie, S., Altman, S., Arnesen, S., Toizer, S., Toyer, S., Miserendino, S., Agarwal, S., Yoo, S., Heon, S., Ethersmith, S., Grove, S., Taylor, S., Bubeck, S., Banesiu, S., Amdo, S., Zhao, S., Wu, S., Santurkar, S., Zhao, S., Chaudhuri, S. R., Krishnaswamy, S., Shuaiqi, Xia, Cheng, S., Anadkat, S., Fishman, S. P., Tobin, S., Fu, S., Jain, S., Mei, S., Egoian, S., Kim, S., Golden, S., Mah, S., Lin, S., Imm, S., Sharpe, S., Yadlowsky, S., Choudhry, S., Eum, S., Sanjeev, S., Khan, T., Stramer, T., Wang, T., Xin, T., Gogineni, T., Christianson, T., Sanders, T., Patwardhan, T., Degry, T., Shadwell, T., Fu, T., Gao, T., Garipov, T., Sriskandarajah, T., Sherbakov, T., Kaftan, T., Hiratsuka, T., Wang, T., Song, T., Zhao, T., Peter-son, T., Kharitonov, V., Chernova, V., Kosaraju, V., Kuo, V., Pong, V., Verma, V., Petrov, V., Jiang, W., Zhang, W., Zhou, W., Xie, W., Zhan, W., McCabe, W., DePue, W., Ellsworth, W., Bain, W., Thompson, W., Chen, X., Qi, X., Xiang, X., Shi, X., Dubois, Y., Yu, Y., Khakbaz, Y., Wu, Y., Qian, Y., Lee, Y. T., Chen, Y., Zhang, Y., Xiong, Y., Tian, Y., Cha, Y., Bai, Y., Yang, Y., Yuan, Y., Li, Y., Zhang, Y., Yang, Y., Jin, Y., Jiang, Y., Wang, Y., Wang, Y., Liu, Y., Stubenvoll, Z., Dou, Z., Wu, Z., and Wang, Z. Openai gpt-5 system card, 2025. URL 
+
+https://arxiv.org/abs/2601.03267 .Stivers, T., Enfield, N. J., Brown, P., Englert, C., Hayashi, M., Heinemann, T., Hoymann, G., Rossano, F., de Ruiter, J. P., Yoon, K.-E., and Levinson, S. C. Universals and cultural variation in turn-taking in conversation. Pro-ceedings of the National Academy of Sciences , 106(26): 10587–10592, 2009. Wang, D., Liu, S., Zhang, T., Chen, Y., Li, J., and Meng, H. Emotionthinker: Prosody-aware reinforcement learning for explainable speech emotion reasoning, 2026. URL 
+
+https://arxiv.org/abs/2601.15668 .Watanabe, S., Hori, T., Karita, S., Hayashi, T., Nishitoba, J., Unno, Y., Soplin, N. E. Y., Heymann, J., Wiesner, M., Chen, N., Renduchintala, A., and Ochiai, T. Espnet: End-12 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+to-end speech processing toolkit, 2018. URL https: //arxiv.org/abs/1804.00015 .Xu, Y., Chen, H., Yu, J., Huang, Q., Wu, Z., Zhang, S., Li, G., Luo, Y., and Gu, R. Secap: Speech emo-tion captioning with large language model, 2023. URL 
+
+https://arxiv.org/abs/2312.10381 .Yao, Y., Li, Z., and Zhao, H. Beyond chain-of-thought, effective graph-of-thought reasoning in language mod-els, 2024. URL https://arxiv.org/abs/2305. 16582 .Zhang, J. and Zuo, C. Grpo-lead: A difficulty-aware re-inforcement learning approach for concise mathemati-cal reasoning in language models, 2025. URL https: //arxiv.org/abs/2504.09696 .Zhang, W., He, Y., Lin, G., Liu, Z., Sun, S., Wang, B., Zou, X., Wong, J. H. M., Wang, Q., Sailor, H. B., Chen, N. F., and Aw, A. T. Beyond classification: Towards speech emotion reasoning with multitask audiollms, 2025. URL 
+
+https://arxiv.org/abs/2506.06820 .Zhi-Xuan, T., Ying, L., Mansinghka, V., and Tenenbaum, J. B. Pragmatic instruction following and goal assistance via cooperative language-guided inverse planning, 2024. URL https://arxiv.org/abs/2402.17930 .13 Conversational Behavior Modeling Foundation Model With Multi-Level Perception                                           
+
+> Table 8. Turn-taking event frequencies (per minute) and cumulative durations (%) for the simulation dataset, a human reference, and model baselines.Human, dGSLM, and Moshi values are reproduced from Fig. 2 of (Arora et al., 2025b).
+> Number of events per minute Cumulative duration (% of time)
+> Event type Simulation Human dGSLM Moshi Simulation Human dGSLM Moshi
+> IPU 23.06 15.7 24.2 21.6 84.7 97.3 99.0 81.0 Pause 10.7 3.8 5.4 10.2 9.6 5.7 6.0 10.3 Gap 7.3 5.5 7.2 6.7 1.6 3.7 4.8 11.8 Overlap 6.7 6.6 10.9 4.8 4.2 6.7 9.7 3.1
+
+# A. Method 
+
+Speech Acts Definition Low speech acts: Backchannel : the speaker changes, but the turn ownership does not change (brief acknowledgment or agreement followed by returning to the prior topic). Interruption : the speaker changes, and the turn ownership keeps changing rapidly within a short time (both sides speak simultaneously and try to take the turn). 
+
+Turn-taking : the speaker changes, and the turn ownership changes normally (a smooth turn transition). Continuation : the speaker does not change. High speech acts: Constatives : the intent to state or describe facts, opinions, or information. Directives : the intent to make a request, ask a question, give an instruction, or guide the other party to act. Acknowledgments : the intent to confirm, agree with, thank, apologize for, or otherwise maintain interaction regarding the other party content. Commissives : the intent to express a commitment, plan, willingness, or taking on future actions. All speech acts are generated under strictly causal inputs. at time t, the model only accesses information available up to t, ensuring no future or external events leak into the current SA decision. 
+
+Strictly causal protocol Our strictly causal (strictly causal) convention governs the entire pipeline—data construction, annotation generation, and model training and deployment. When constructing the ConversationGoT-120 synthetic dialogues, the system is not allowed to access any information beyond the current time step, and it is also prohibited from exploiting implicit future cues such as how the current second’s utterance will continue in later seconds. Correspondingly, when generating speech act (SA) and rationale annotations, GPT-5 is constrained to take as input only the current second and the preceding history, thereby eliminating any form of causal leakage where labels are “filled in after seeing the future,” and ensuring that the annotations are producible from online streaming observations. Furthermore, when generating OOD annotations for the Candor dataset, we use a strictly causal streaming ASR that outputs transcripts only up to the current time, and we impose the same causality constraint on all subsequent modules: any large model or auxiliary component, including GPT-5, is forbidden from accessing future audio, future transcripts, or future semantic cues, ensuring that the OOD annotation process matches a real online perception setting. Aligned with these data- and annotation-side constraints, all modules proposed in this work also operate under a strictly causal setting during both training and deployment: at every time step, predictions depend only on the current input and historical states, never on any future segments, guaranteeing deployability and causal consistency in real streaming scenarios. 
+
+Data Verification Protocol To ensure the quality and usability of the verification data, all synthesized samples must undergo human review. If a sample’s score falls below 70% of the maximum score defined in the rating rubric, the reviewer will discard the sample and trigger the pipeline to regenerate a new sample, repeating this process until a qualified sample is obtained. The failed sample will be retained as a case study to support iterative improvements to the pipeline. 
+
+# B. Experiments 
+
+Experimental setup We set the selector temperature to T = 1 .0. We use weighted BCE with logits, where the positive-class weight is computed once on the training split and kept fixed as α = Nneg /N pos (counted over candidate positions), and is implemented via pos_weight . We set λcount = 0 .01 and λrank = 0 .1. Sentence candidates are formed from the past window [t − W, t ) with W = 90 s. 
+
+Overlap Quality As shown in Table 8, our simulation data exhibit denser micro-segmentation than human dialogues, with higher IPU and pause counts per minute but comparable gap and overlap rates. Cumulative durations further suggest shorter overlaps and more within-speaker pauses, indicating frequent short backchannels or clause-internal hesitations rather than long monologic turns. This pattern not only aligns with established observations of conversational floor management (Sacks 14 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+et al., 1974; Stivers et al., 2009), but also indicates that our simulated data closely approximate the interactional structure of genuine full-duplex conversations. Additional quality measures, including speaking rate, noise level, and naturalness. 
+
+HMA Definition 
+
+HMA h = 1
+
+T R 
+
+> T
+
+X
+
+> t=1
+> R
+
+X
+
+> r=1
+
+aht,r , HMA l = 1
+
+T R 
+
+> T
+
+X
+
+> t=1
+> R
+
+X
+
+> r=1
+
+alt,r .
+
+where T is the number of seconds, R is the number of volunteers, and aht,r , a lt,r ∈ { 0, 1} denote whether volunteer r agrees with the model’s decision at second t for the high-level and low-level labels, respectively (1 if agree, 0 otherwise). 
+
+Speech Acts Model For each speech block (Ui), we extract frozen acoustic and semantic embeddings (both 768-dimensional). The acoustic branch uses ESPnet (Watanabe et al., 2018) to encode (Ui), and applies mean pooling over the frame dimension to obtain (hBi ). The semantic branch first uses TorchAudio2.1 (Hwang et al., 2023) to transcribe (Ui),then feeds the transcribed text into a frozen T5-Base encoder (Raffel et al., 2020), and applies mask-aware mean pooling to obtain (hEi ). We then fuse them via element-wise gating: 
+
+λi = σ(WbhBi + WehEi ), ei = (1 − λi) ⊙ hBi + λi ⊙ hEi ,
+
+and map to a shared latent space (˜ zi = gshared (ei)) .We use two task-specific causal Transformer decoders (gH ) and (gL). Attention is strictly causal (masking keys for (j > i )), and adds an additional temporal-neighborhood bias −β(i − j) when (j ≤ i). They produce 
+
+zHi = gH (˜ zi−K:i), zLi = gL(˜ zi−K:i).
+
+We use FiLM (Perez et al., 2018) to modulate the low-level stream with high-level context, explicitly realizing high-level guidance for low-level prediction: (( γi, η i) = gFiLM (zHi )) , (˜ zLi = γi ⊙ zLi + ηi). Finally, two parallel classification heads output logits (( oHi , o Li )) , and convert them to class probabilities via softmax. 
+
+Event Distribution The dataset shows clear head concentration in both the high and low Speech Acts dimensions. Among the 4 high classes, Constatives accounts for 54.18% and is strongly dominant, followed by Directives 18.93%, Acknowledgments 14.43%, and Commissives 12.37%, indicating that the overall corpus is centered on statement/description utterances, while other functions are more dispersed. The concentration is stronger for the 5 lowSA classes: Continuation is an absolute peak at 64.77%, followed by Turn-taking 19.03%, with Interruption 9.07%, Backchannel 7.13%forming a long tail, suggesting that dialogue progression mainly relies on continuous continuation and regular turn-taking, while interruption and feedback signals are relatively less common. For anchor statistics, the mean number of anchors is 3.9206 with a standard deviation of 1.7153, indicating moderate dispersion; p95=7.4757. The average anchor distance is 60.55s. 
+
+human evaluation rubric Dimension 1: Naturalness & Flow (Language + Topic Transitions) Question: Does the dialogue read naturally? Do turns and topics flow smoothly? • 9–10: Very natural. Strong colloquial feel with almost no awkward phrasing; responses clearly build on the previous turn; topic transitions are explicit and smooth—feels like real conversation. • 7–8: Mostly natural. Most sentences are fluent; a few feel slightly stiff; turn-to-turn flow is generally coherent; topic transitions can be a bit abrupt at times but remain acceptable. • 5–6: Fair. Understandable but somewhat written/templated; some loose connections or mild topic drifting; several topic shifts are obvious “hard cuts.” • 3–4: Poor. Many sentences feel unnatural for spoken language; turns often fail to respond to each other; topic jumps feel random or poorly motivated. • 1–2: Very poor. Heavy machine-translation / stitched-together feel; dialogue is largely disjointed and not conversational; topic changes feel completely random. 15 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Dimension 2: Logical Consistency & Identity Coherence Question: Is the dialogue logically consistent and aligned with the given identities? • 9–10: Very consistent. No obvious contradictions; frequently and correctly reuses earlier details (hometown, major, family, etc.); topics strongly reflect the characters’ backgrounds. • 7–8: Mostly consistent. Overall logic makes sense with only minor fuzziness; most content fits the identities; a few points may be slightly stretched but still plausible. • 5–6: Fair. Generally coherent, but includes a few inconsistencies or forced elements; identity signals are weak—the dialogue could almost be said by anyone. • 3–4: Poor. Noticeable conflicts with earlier facts (places, jobs, family, timeline); topics often feel unrelated to the character setup. • 1–2: Very poor. Frequent self-contradictions or impossible facts; clearly violates core identity information. 
+
+Dimension 3: Interruption / Backchannel Reasonableness Question: Are interruptions and backchannels used in appropriate places and amounts? • 9–10: Very reasonable. Occur at natural moments (long turns, high-information segments, emotional peaks); inserted at good positions (not just at sentence ends); frequency is moderate and improves conversational rhythm. • 7–8: Mostly reasonable. Generally appropriate usage, with minor overuse/underuse; a few instances feel slightly off, but overall acceptable. • 5–6: Fair. Intention to include interruptions/backchannels is clear but somewhat coarse; placement or frequency can feel awkward or repetitive; some instances are unnecessary. • 3–4: Poor. Very noisy usage: almost none or far too many; often inserted where they are clearly not needed; frequently placed at sentence ends or disrupt semantics. • 1–2: Very poor. Usage is almost always unreasonable or violates the intended spec; seriously harms readability. 
+
+Dimension 4: Human-Likeness (Disfluency, Hesitation, Emotion) Question: Does the speaking style feel human, with natural disfluency and emotion? • 9–10: Highly human-like. Natural fillers/hesitations (not overused); emotions and attitudes are clear (nervous, curious, embarrassed, etc.); speakers have noticeably distinct speaking styles. • 7–8: Quite human-like. Some colloquial markers (“uh”, “honestly”, “to be fair”, etc.); emotions are present but not very rich; slight template flavor in places. • 5–6: Fair. Occasional fillers or affective words, but somewhat formulaic; many lines still read like “information dumps” rather than lived speech. • 3–4: Poor. Either almost no colloquial traces, or mechanical overuse of fillers; very little emotional coloring; monotone style. • 1–2: Very poor. Reads like formal documentation or rigid templates; or filled with strange/unrealistic fillers that feel obviously fake. 
+
+Scoring Rules The scoring rules are as follows: 
+
+Rationale Quality Scoring (Score 1–10) 
+
+16 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Dimension 1: Reasonableness / Discourse-Function Accuracy Question: Does it correctly describe the discourse function of this second-level snippet (recommendation, explanation, response, shift, example, clarification, topic transition, etc.)? • 9–10: Clear and accurate function judgment; tightly matches the intent of this second. • 7–8: Mostly accurate; minor generalization without harming correctness. • 5–6: Generally reasonable but somewhat vague or off the main point. • 3–4: Partly unreasonable or misclassifies the function (e.g., treating an explanation as a question). • 1–2: Largely invalid or opposite to the intended meaning. 
+
+Dimension 2: Context Grounding Question: Is it grounded in information that is visible up to the current second (rather than generic commentary)? • 9–10: Clearly grounded in prior visible context (correct reference and correct continuation). • 7–8: Context dependence is evident, but the reference is somewhat broad. • 5–6: Weak grounding; sounds more like generic dialogue commentary. • 3–4: Forced linkage; could apply to almost any dialogue. • 1–2: Essentially unrelated to the context, or links to the wrong context. 
+
+Dimension 3: Intra-Utterance Coherence Question: Does it explain how this second relates to the earlier part of the same utterance (continuation, expansion, contrast, evidence, sharpening an example, etc.)? • 9–10: Explicitly identifies the intra-utterance relation and strongly aligns with the immediately preceding content. • 7–8: Mentions intra-utterance linkage but with less precision. • 5–6: Uses vague continuity language (“continues/adds”) without specifying the relation type. • 3–4: The intra-utterance relation is partly incorrect (e.g., calling an example a contrast). • 1–2: No intra-utterance relation is captured, or it is clearly wrong. 
+
+Dimension 4: Inter-Utterance Linkage Question: When cross-utterance linkage is truly needed (responding, returning to a prior topic, comparing two cities, reactivating a previously mentioned entity, etc.), does it do so accurately? When it is not needed, does it avoid forcing it? • 9–10: Links across utterances accurately when appropriate; does not force cross-linking when unnecessary. • 7–8: Cross-link direction is correct but slightly broad or mildly forced. • 5–6: Cross-linking is present but vague, or shows mild over-referencing. • 3–4: Clearly forced cross-linking, or links to an unrelated earlier utterance. • 1–2: Needed cross-linking is missing entirely, or the cross-link is completely wrong. 
+
+Key principle: Cross-utterance linkage is optional but must be accurate—it is not something that must appear every second. 17 Conversational Behavior Modeling Foundation Model With Multi-Level Perception 
+
+Dimension 5: Specificity & Focus Question: Does it focus on the incremental contribution of this second, rather than summarizing a larger span? • 9–10: Tightly captures what is newly added in this second (e.g., a micro-step from “recommendation” → “starting a reason”). • 7–8: Mostly focused, with minor extra expansion. • 5–6: Somewhat summarizes the whole utterance; second-level granularity is insufficient. • 3–4: Clearly summarizes a larger span or drifts off-topic. • 1–2: Fails to capture the incremental point of this second. 
+
+Dimension 6: Clarity & Non-Template Style Question: Is the wording natural, clear, and informative, and does it avoid repetitive template phrasing across seconds? • 9–10: Natural, concise, and specific; does not read like a template. • 7–8: Clear overall, with occasional templated phrasing. • 5–6: Understandable but repetitive or overly formulaic. • 3–4: Strongly templated with low information content. • 1–2: Hard to read, ungrammatical, or mostly empty filler. 18
