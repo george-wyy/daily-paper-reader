@@ -6,64 +6,58 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-13
-- 运行时间：2026-03-13 19:24:58 UTC
+- 最新运行日期：2026-03-15
+- 运行时间：2026-03-15 19:18:27 UTC
 - 运行状态：成功
-- 本次总论文数：14
-- 精读区：3
+- 本次总论文数：12
+- 精读区：1
 - 速读区：11
 
 ### 今日简报（AI）
-今日聚焦模拟人类感知的视觉与意图理解，重点解析了仿生眼动视觉转换器与第一视角行为预测基准。
-核心突破在于通过扫视机制优化ViT效率，并利用EgoIntent基准实现了对复杂行为“是什么、为什么、下一步”的深度拆解。
-建议关注第一视角数据与人机交互逻辑的融合，这是提升智能体理解力与协作效率的关键路径。
-- 详情：[/202603/13/README](/202603/13/README)
+今日聚焦脑机接口与人机协作，深度解析了结合视线感知的 fMRI 神经编码模型。
+重点关注如何通过视线追踪提升自由视阈下的脑活动预测，以及在人机协作中利用物理修正推断人类意图。
+推荐关注神经科学与具身智能的交叉领域，探索 AI 如何更精准地理解并模拟人类行为。
+- 详情：[/202603/15/README](/202603/15/README)
 
 ### 精读区论文标签
-1. [A saccade-inspired approach to image classification using visiontransformer attention maps](/202603/13/2603.09613v1-a-saccade-inspired-approach-to-image-classification-using-visiontransformer-attention-maps)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：借鉴人类注视模式的扫视启发式方法
-2. [EgoIntent: An Egocentric Step-level Benchmark for Understanding What, Why, and Next](/202603/13/2603.12147v1-egointent-an-egocentric-step-level-benchmark-for-understanding-what-why-and-next)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：第一人称视角视频中用于助手的步骤级意图理解
-3. [Decision-Aware Uncertainty Evaluation of Vision-Language Model-Based Early Action Anticipation for Human-Robot Interaction](/202603/13/2603.10061v2-decision-aware-uncertainty-evaluation-of-vision-language-model-based-early-action-anticipation-for-human-robot-interaction)  
+1. [Neural network-based encoding in free-viewing fMRI with gaze-aware models](/202603/15/2603.11663v1-neural-network-based-encoding-in-free-viewing-fmri-with-gaze-aware-models)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：人机交互中的早期动作预测与不确定性评估
+   evidence：在自然视觉数据集中整合眼动追踪数据
 
 ### 速读区论文标签
-1. [From Logs to Agents: Reconstructing High-Level Creative Workflows from Low-Level Raw System Traces](/202603/13/2603.07609v1-from-logs-to-agents-reconstructing-high-level-creative-workflows-from-low-level-raw-system-traces)  
+1. [Alignment-Process-Outcome: Rethinking How AIs and Humans Collaborate](/202603/15/2603.08017v2-alignment-process-outcome-rethinking-how-ais-and-humans-collaborate)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：从底层系统追踪中重构高层创意意图
-2. [Directing the Robot: Scaffolding Creative Human-AI-Robot Interaction](/202603/13/2603.07748v1-directing-the-robot-scaffolding-creative-human-ai-robot-interaction)  
+   evidence：研究个人意图如何表达的意图视角
+2. [Embodied Human Simulation for Quantitative Design and Analysis of Interactive Robotics](/202603/15/2603.09218v1-embodied-human-simulation-for-quantitative-design-and-analysis-of-interactive-robotics)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：人类在创意交互中定义意图并引导机器人行为
-3. [Identifying Influential Actions in Human-Robot Interactions](/202603/13/2603.07885v1-identifying-influential-actions-in-human-robot-interactions)  
+   evidence：交互式机器人中人类动力学系统的预测代理
+3. [TATIC: Task-Aware Temporal Learning for Human Intent Inference from Physical Corrections in Human-Robot Collaboration](/202603/15/2603.11077v1-tatic-task-aware-temporal-learning-for-human-intent-inference-from-physical-corrections-in-human-robot-collaboration)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用传递熵识别人机交互中的影响力行为
-4. [A Saccade-inspired Approach to Image Classification using Vision Transformer Attention Maps](/202603/13/2603.09613v2-a-saccade-inspired-approach-to-image-classification-using-vision-transformer-attention-maps)  
+   evidence：协作中通过物理修正推断人类意图
+4. [A Causal Approach to Predicting and Improving Human Perceptions of Social Navigation Robots](/202603/15/2603.11290v1-a-causal-approach-to-predicting-and-improving-human-perceptions-of-social-navigation-robots)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：用于任务相关位置的扫视眼动
-5. [N-gram-like Language Models Predict Reading Time Best](/202603/13/2603.09872v1-n-gram-like-language-models-predict-reading-time-best)  
+   evidence：用于社交导航中预测人类感知的因果贝叶斯方法
+5. [Learning to Assist: Physics-Grounded Human-Human Control via Multi-Agent Reinforcement Learning](/202603/15/2603.11346v1-learning-to-assist-physics-grounded-human-human-control-via-multi-agent-reinforcement-learning)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：基于眼动追踪的阅读时间指标与语言模型相关联
-6. [Decision-Aware Uncertainty Evaluation of Vision-Language Model-Based Early Action Anticipation for Human-Robot Interaction](/202603/13/2603.10061v1-decision-aware-uncertainty-evaluation-of-vision-language-model-based-early-action-anticipation-for-human-robot-interaction)  
+   evidence：对人类伙伴的持续感知及对动态演化的适应
+6. [From Control to Foresight: Simulation as a New Paradigm for Human-Agent Collaboration](/202603/15/2603.11677v1-from-control-to-foresight-simulation-as-a-new-paradigm-for-human-agent-collaboration)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：第一视角下的早期动作预测与不确定性评估
-7. [Visioning Human-Agentic AI Teaming: Continuity, Tension, and Future Research](/202603/13/2603.04746v1-visioning-human-agentic-ai-teaming-continuity-tension-and-future-research)  
+   evidence：前瞻性和前瞻性协作的交互范式
+7. [SurgSync: Time-Synchronized Multi-Modal Data Collection Framework and Dataset for Surgical Robotics](/202603/15/2603.06919v1-surgsync-time-synchronized-multi-modal-data-collection-framework-and-dataset-for-surgical-robotics)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：人类-智能体AI团队的共享感知与预测
-8. [Deep Research for Recommender Systems](/202603/13/2603.07605v1-deep-research-for-recommender-systems)  
+   evidence：用于人机协作系统实时推理的多模态数据采集
+8. [InterReal: A Unified Physics-Based Imitation Framework for Learning Human-Object Interaction Skills](/202603/15/2603.07516v1-interreal-a-unified-physics-based-imitation-framework-for-learning-human-object-interaction-skills)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：取代被动过滤器的前瞻性助手范式
-9. [Reasoning Knowledge-Gap in Drone Planning via LLM-based Active Elicitation](/202603/13/2603.07824v1-reasoning-knowledge-gap-in-drone-planning-via-llm-based-active-elicitation)  
+   evidence：基于物理的人机/物交互控制模仿框架
+9. [See and Switch: Vision-Based Branching for Interactive Robot-Skill Programming](/202603/15/2603.08057v1-see-and-switch-vision-based-branching-for-interactive-robot-skill-programming)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：人机联合规划与目标解决中的主动信息启发
-10. [How Neurotypical and Autistic Children Interact Nonverbally with Anthropomorphic Agents in Open-Ended Tasks](/202603/13/2603.07843v1-how-neurotypical-and-autistic-children-interact-nonverbally-with-anthropomorphic-agents-in-open-ended-tasks)  
+   evidence：基于视觉的交互式机器人执行在线分支选择
+10. [Novel Semantic Prompting for Zero-Shot Action Recognition](/202603/15/2603.08289v1-novel-semantic-prompting-for-zero-shot-action-recognition)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：与具身智能体的非语言行为交互
-11. [AutoTraces: Autoregressive Trajectory Forecasting via Multimodal Large Language Models](/202603/13/2603.07989v1-autotraces-autoregressive-trajectory-forecasting-via-multimodal-large-language-models)  
+   evidence：描述意图和交互层级动作的语义提示
+11. [Do Models See in Line with Human Vision? Probing the Correspondence Between LVLM Representations and EEG Signals](/202603/15/2603.08303v1-do-models-see-in-line-with-human-vision-probing-the-correspondence-between-lvlm-representations-and-eeg-signals)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于建模复杂人类行为的多模态轨迹预测
+   evidence：视觉表征与人类大脑信号之间的对齐
 
 
 <div class="dpr-home-promo-card">

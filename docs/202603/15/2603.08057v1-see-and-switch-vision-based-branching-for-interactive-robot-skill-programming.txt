@@ -1,0 +1,665 @@
+Title: See and Switch: Vision-Based Branching for Interactive Robot-Skill Programming
+
+URL Source: https://arxiv.org/pdf/2603.08057v1
+
+Published Time: Tue, 10 Mar 2026 01:59:40 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# See and Switch: Vision-Based Branching for Interactive Robot-Skill Programming 
+
+Petr Vanc, Jan Kristof Behrens, Václav Hlaváč, and Karla Stepanova 
+
+Abstract — Programming robots by demonstration (PbD) is an intuitive concept, but scaling it to real-world variability remains a challenge for most current teaching frameworks. Conditional task graphs are very expressive and can be de-fined incrementally, which fits very well with the PbD idea. However, acting using conditional task graphs requires reliable perception-grounded online branch selection. In this paper, we present See & Switch , an interactive teaching-and-execution framework that represents tasks as user-extendable graphs of skill parts connected via decision states (DS), enabling conditional branching during replay. Unlike prior approaches that rely on manual branching or low-dimensional signals (e.g., proprioception), our vision-based Switcher uses eye-in-hand images (high-dimensional) to select among competing successor skill parts and to detect out-of-distribution contexts that require new demonstrations. We integrate kinesthetic teaching, joystick control, and hand gestures via an input-modality-abstraction layer and demonstrate that our proposed method is teaching modality-independent, enabling efficient in-situ recovery demonstrations. The system is validated in experiments on three challenging dexterous manipulation tasks. We evaluate our method under diverse conditions and fur-thermore conduct user studies with 8 participants. We show that the proposed method reliably performs branch selection and anomaly detection for novice users, achieving 90 .7% and 
+
+87 .9% accuracy, respectively, across 576 real-robot rollouts. We provide all code and data required to reproduce our experiments at imitrob.ciirc.cvut.cz/publications/seeandswitch. 
+
+I. Introduction 
+
+Teaching robots new tasks from human guidance rather than code-based programming makes automation more ac-cessible to non-experts. In Learning from Demonstration 
+
+(LfD), a robot derives its control policy by imitating the observed human behavior (e.g., kinesthetic teaching) instead of relying on hand-crafted code or trajectories [1], [2], [3]. Building on this idea, Programming by Demonstration 
+
+(PbD) enables end-users to teach robots interactively through demonstrations, without writing any code or tuning parame-ters [4], [5], [1]. This demonstration-based approach is intuitive, but a key challenge is that a single demonstration’s validity is limited to the current state of the environment and its immediate neighborhood. In the face of significant changes, a fixed replay of the original demonstration may fail because of the demonstration’s implicit assumptions. Consider the following example. The robot is taught to measure a voltage with a probe by demonstrating how to approach the contact point. It might succeed when the contact point is accessible, but if it is hidden behind a closed door (see Fig. 1), the original behavior is inappropriate. Instead, a different behavior (opening the doors first) is required to accomplish Wrap 
+
+a cable! 
+
+> likelihoods
+> Eye-in-hand
+> camera
+
+# ★
+
+The 
+
+switcher  
+
+> Interact with user
+> Seen skill variants Skill variants
+
+# ★
+
+# ★
+
+> Demonstrations
+> Teaching
+> task
+> Running task
+> our model
+> (A)
+> (B)
+> (C)
+> 1)
+> 2)
+> 3)
+> anomaly
+> door
+
+Fig. 1. Interactive robot teaching framework. The user requests to wrap the cable . The user teaches the robot a task using either a (A) kinesthetic teaching, (B) joystick, or (C) hand gestures (blue background). During execution, a robotic trajectory is replayed, and the ★ marks a decision state (DS). At this point, the system may select the most suitable successor skill part s0 (option 2) ) or s1 (option 3) ) or trigger an anomaly (option 1) ) if no previously seen options fit the observation. The Switcher is described in Sec. III-D. 
+
+the task. Traditional PbD systems lack such conditional adaptation; they repeat the learned motion and are brittle to changes in environmental conditions. In this paper, we focus on overcoming this limitation and enabling the robot to incrementally learn to handle the given task under different circumstances by leveraging iterative human feedback and grounding in the visual domain. Our solution builds on the concept of conditional skills :distinct task variants corresponding to alternative environ-mental states, such as various probe states. Recent PbD frameworks [6], [5], [1] represent such behaviors using task-graph models with multiple skill variants , where a skill variant defines a complete task solution as an end-to-end execution path from task start to completion. Each skill variant is composed of individual skill parts (trajectory segments). During execution, it is possible to switch at de-cision states (DS). At each DS, a suitable branch (successor skill part) is selected online based on sensory feedback [1], defining the executed variant. The Collaborative Incremental Programming (CIP) system by Eiband et al. [5] exemplifies this strategy: it incrementally constructs a task graph of individual skill parts from demonstrations, and an anomaly detector monitors the robot inputs to decide if execution is out-of-distribution (OOD) and if a new skill part is needed. However, a central challenge remains: selecting the appro-priate skill variant online given high-dimensional real-world observations. During incremental learning or unexpected fail-ures, the robot may encounter previously unseen situations (anomalies) that must be detected, and the user prompted 
+
+> arXiv:2603.08057v1 [cs.RO] 9 Mar 2026
+
+to provide a new demonstration. Existing systems typically rely on low-level internal signals, such as force sensing [5]. Vision-based approaches for skill branching are increasingly more popular [7], but many still require manually specified perceptual features. While proprioception reliably captures internal contact and motion states, it is inherently limited to what the robot can sense through its body, often only during interaction, whereas vision provides broader, contact-free access to environmental context across diverse scenarios. In this work, we extend task-graph-based PbD with a vision-grounded decision mechanism and human feedback to enable incremental, open-ended refinement. We introduce an image-based Switcher (Sec. III-D) that uses an eye-in-hand camera to evaluate the scene at decision states, to (i) select the appropriate skill variant, and (ii) detect novel contexts outside the current task graph. When such contexts occur, the system can (iii) incorporate situation-specific corrective demonstrations to expand the task graph via conditional branching. To support efficient refinement, we provide a modality-agnostic teaching interface that allows corrective demonstrations during execution via kinesthetic guidance, joystick control, or hand gestures. This enables users to add recovery behaviors online with minimal effort and without restructuring the existing task representation. Building on the CIP-style framework [5], our contributions are:  
+
+> •
+
+Automatic insertion of decision states (DS) triggered by (visual) anomaly detection [8] or user intervention, en-abling conditional branching for incremental refinement;  
+
+> •
+
+Online task-graph expansion via user-guided recovery demonstrations , adding new skill variants without mod-ifying the existing structure;  
+
+> •
+
+Modality-agnostic teaching (kinesthetic, joystick, ges-tures) for efficient in-situ recovery demonstrations. We evaluate the framework in a user study comparing teaching modalities in terms of feasibility and teaching efficiency. All source code, interactive visualization tools, experimental videos, and datasets are available at: 
+
+> imitrob.ciirc.cvut.cz/publications/seeandswitch
+
+.
+
+II. Related Work 
+
+PbD has progressed from single-trajectory replay to in-teractive, graph-structured task models capturing conditional behavior. CIP learns task graphs with decision states and recovery branches from multiple demonstrations, using pro-prioceptive and force-based uncertainty for anomaly trig-gering and branch selection [8], [5], while Aayush et al. induce reactive behavior trees from one demonstration via a combination of learning and logic-based synthesis [9]. Neural Task Graph Networks infer latent graphs from a single video and execute unseen multi-step tasks [10]. We adopt the same high-level representation (user-editable task graph) but replace hand-crafted switching logic with a unified, image-based classifier that operates at decision-state context windows, enabling robust and automatic branch selection under ambiguous visual conditions. Execution monitoring and recovery have been addressed by learning recovery motions and visual monitors. Wu et al. encode anomaly recovery skills with Gaussian Process regression over multiple demonstrations [11]. Condition-NET and ILeSiA learn, respectively, symbolic precondi-tions/effects and visual risk scores from language and camera supervision to monitor execution [12], [13], while symbolic failure-detection pipelines learn human-interpretable predi-cates from multimodal signals [14]. Diffusion-PbD instead uses visual foundation models to extract keyframes and transfer waypoints to novel scenes, focusing on generalization rather than explicit, user-editable branching [15]. In contrast, our Switcher is trained per decision state on eye-in-hand images to jointly (i) classify among competing skill parts and (ii) flag OOD views within the shared embedding space, tightly coupling branch selection and anomaly detection. Vision foundation models are increasingly used as state encoders for manipulation and conditional control. DI-NOBot [16] leverages DINO [17] features for retrieval-based one-shot imitation and pixel-level alignment to novel objects. Similarly, we use DINO features within a decision-state-specific classifier to support efficient branch selection and anomaly detection, aligning visual representation learning with the discrete, incremental structure of task-graph exe-cution. 
+
+III. Method 
+
+We present a modality-agnostic system for programming 
+
+conditional skills (multi-variant tasks) from user demon-strations. The approach integrates online execution mon-itoring and mechanisms for teaching recovery behaviors, formalized in the robot policy described in Sec. III-A). Our design retains the CIP [5] decision-state (DS) logic and anomaly-triggered insertion rule (Sec. III-B). We introduce (i) an input-modality-abstraction layer that unifies teaching interfaces (Sec. III-C), and ( ii ) a vision-based observation channel (eye-in-hand) capable of detecting anomalies and online selection of the most suitable skill continuation at each DS: the Switcher, Sec. III-D. The core idea of our method is to enable incremental user-guided task definition and to simplify task-part selection and anomaly detection by conditioning decisions on perceptions at the DS and only deciding among relevant task-part alternatives. This effectively avoids the need for global scene understanding. 
+
+A. Robot policy 
+
+In this section, we describe the robot execution policy, focusing on how visual observations and user feedback drive skill switching and incremental task refinement during execution. The resulting demonstration defines a valid motion trajectory for those specific states of the environment (e.g., probe location). We first formalize how demonstrations are represented as skill parts (i.e., conditioned skills) and how these are executed and switched during task execution. Let Parts T =
+
+{s(1) , . . . , s (M )} be the set of saved skill parts for task T ,each skill part is created based on a single demonstration and optionally finetuned with recorded execution trials, in total of R ∈ N trajectories. The i-th skill part si is a quartet: Fig. 2. Task-graph example. Four skill parts ( s0,1,2,3) form four distinct skill variants. Each skill part has an offset K(i) and terminates at different time steps t. Decision state (DS) windows are located around t = 10 and 
+
+t = 15 . The task-graph grows online through an increasing number of skill parts via branching and refinement. 
+
+Algorithm 1 Robot policy ΠT for execution of task T .
+
+1: t ← 0 ▷ Initialize execution timestep index t ∈ N0
+
+2: (pt
+
+> (0) ,0
+
+, g t
+
+> (0) ,0
+
+, z t
+
+> (0) ,0
+
+, K = 0) ← st  
+
+> (i=0) ,r =0 ▷Load initial skill part
+
+3: S ← train (ZU ) ▷ Train the Switcher on image set, Sec. III-D 
+
+4: N(i) ← | p(i)=0 ,r =0 | ▷ Get trajectory length 
+
+5: while t < N (i) do 
+
+6: r ← New execution trial 
+
+7: zt     
+
+> (i),r , p t
+> (i),r ←sense() ▷Observe image and robot proprioception
+
+8: ip, a p ← S(zt   
+
+> (i),r , t )▷The Switcher prediction, Sec. III-D
+
+9: if ap is True then 
+
+10: Anomaly event: (1) Branch or (2) Refine ▷ Sec. III-B 
+
+11: end if 
+
+12: if it̸ = it−1, i.e., does target skill part change then 
+
+13: st 
+
+> (i),r
+
+← (pt 
+
+> (i),r
+
+, g t 
+
+> (i),r
+
+, z t 
+
+> (i),r
+
+, K ) ▷ Save execution trial 
+
+14: (pt
+
+> (ip),0
+
+, g t
+
+> (ip),0
+
+, z t
+
+> (ip),0
+
+, K ) ← st  
+
+> (ip),0▷Load new skill part
+
+15: N(i) ← | p(i),r =0 | ▷ Get trajectory length 
+
+16: t ← 0 ▷ We reset timestep, while knowing offset K > 0
+
+17: end if 
+
+18: pt
+
+> (i),0
+
+, g t 
+
+> (i),0
+
+← πp(i=ip),0 (t) ▷ Set attractor pose, gripper, Sec. III-A 
+
+19: if || po − pt  
+
+> (i),0|| < ϵ , i.e., is near then
+
+20: t ← t + 1 ▷ increment timestep 
+
+21: end if 
+
+22: end while 
+
+23: st    
+
+> (i),r =R←(pt
+> (i),R , g t
+> (i),R , z t
+> (i),R )▷Save skill execution trial
+
+s(i) =
+
+
+
+(pt 
+
+> (i),r
+
+, g t 
+
+> (i),r
+
+, z t 
+
+> (i),r
+
+)N(i) 
+
+> t=0
+
+, K (i)
+
+Rr=0 
+
+,
+
+where pt 
+
+> (i),r
+
+∈ R7 is observed robot pose toward the base, 
+
+gt 
+
+> (i),r
+
+∈ R is gripper state (open/close), and zt 
+
+> (i),r
+
+∈ R224 ×224 
+
+is observed image in the robot camera at time t in the trial 
+
+r. N(i) is the number of timesteps for i-th skill part. Offset 
+
+K(i) ∈ N is the skill part starting timestep. R execution trials for i-th skill part are used for training the Switcher, Sec. III-D. We define the replay controller for i-th skill part as the time-indexed reference π(i)(t) := pt
+
+> (i),0
+
+. A skill part can only be activated if t ≥ K(i). Fig. 2 details an example task-graph and Algorithm 1 the overall execution logic. 
+
+1) Task execution: Each execution starts with the initial skill part s(0) (K(0) = 0 ). A task execution consists of one or more skill parts connected through switching events (Fig. 2). Switching rule: The Switcher is a skill part switching function that maps the image zt 
+
+> (i),r
+
+observed at time t to the predicted successor skill part. It is trained on a subset 
+
+ZU ⊂ Z, of all previously observed images Z = {zt 
+
+> (i),r
+
+}i,r,t ,as explained in Sec. III-D. Through these predictions, S
+
+determines the active transitions in the task graph. A task-graph G = (Parts T , E ) consists of skill parts Parts T as nodes and directed edges representing permitted transitions between them. Let M U 
+
+> (i)
+
+denote the set of permit-ted successor skill parts reachable from skill part s(i) at its decision states. We define the Switcher prediction at time t
+
+as (ip, a p) ← S (zt, t ), where ip ∈ M U 
+
+> (i)
+
+is the predicted successor skill part index and ap ∈ {0, 1} indicates an anomaly. If ap = 0 , execution switches to s(ip), activating the directed edge (s(i) → s(ip)) in the task graph. If ap = 1 ,no successor is selected, and the anomaly-handling logic is invoked. The robot policy Π thus combines trajectory replay and per-timestep decision. The overall execution logic of a task is summarized in Algorithm 1. While trajectory replay follows standard PbD practice, the key novelty lies in the per-timestep decision logic driven by the Switcher. Line 8 selects the target skill part based on visual observations, and lines 9–16 handle anomaly-triggered branching and task refinement. When execution has no switches, it remains fully contained within the initial skill part i = 0 , Fig. 2. At a DS window 
+
+W , however, the program may switch to a successor skill part selected from the permitted set M U 
+
+> (i)
+
+⊂ M . The switch function S continuously evaluates visual observations during execution. The executed skill variant is thus the sequence of skill parts ( s0, s 1, . . . ) selected online by S based on the image stream ( zt). 
+
+2) Human–Robot Interaction Workflow: The user first pro-vides an initial demonstration of task T using any supported modality (gestures, joystick, or kinesthetic teaching), which defines the initial skill part s0 and initializes the task graph as GT = ( s0, ∅). During execution, the system monitors the image stream zt at decision points to detect novel (OOD) be-havior" the anomaly . When such a case is detected, the user may provide an alternative demonstration that adds a new skill variant as a conditional branch, incrementally expanding 
+
+GT . Over time, the accumulated variants enable increasingly autonomous execution across changing conditions. 
+
+B. Anomaly event 
+
+An anomaly detected at time t suggests a new potential 
+
+decision state (DS) based on visual observations (see Fig. 4). At this point, the user determines whether the observed situation requires a new recovery behavior or corresponds to a known execution context. If the anomaly is confirmed, a new branch (directed edge), is created by demonstrating an appropriate skill part (Sec.: III-B.1). Otherwise, execution proceeds without branching and the newly observed data are used to refine the current skill part via the refine operation, without modifying the task-graph structure (Sec. III-B.2). 
+
+1) Branch (recovery behavior): The user demonstrates a new skill part snew suitable for the current context, i.e., introducing a new branch in the task graph. The Switcher S
+
+is retrained to distinguish between the existing successor sold 
+
+and the newly introduced successor snew , thereby updating the DS-local classifier. A direct edge from the DS to the 
+
+snew is added. We represent the insertion of a DS as a split of the original skill part sold into two segments, soldA and 
+
+soldB , with the DS located between them (see Fig. 4). 
+
+2) Refine: If the user approves continuation (e.g., thumbs-up gesture), execution continues. Captured data s(i),r are saved as an additional execution trial and used to update the Switcher, while preserving the task-graph structure. Fig. 3. Interactive robot teaching & execution framework. Un-changed CIP core: DS logic where user verifies anomaly a, and insertion rule (branch). New components: (1) a modality-agnostic input layer (ges-tures/joystick/kinesthetic) that maps human intent to robot controls, (2) an optional eye-in-hand vision channel. ZU is a subset of images used for training the Switcher, defined in Sec. III-D. When the skill part it is different from the previous ( it̸ = it−1), we load and extract a new skill part trajectory from the library Parts T .start  end 
+
+> start
+> Run 1. New task demonstration
+
+## ★ end 
+
+> Run 2a. Anomaly - A new decision state
+> end
+
+## ★ 
+
+> Run 3. Execution of the original
+> start end
+> timestep=49 trajectory
+
+## ★ 
+
+> start
+
+## ★
+
+> Run 2b. Alternative demonstration
+
+## ★end end 
+
+## ★start 
+
+> end
+> Run 4. Execution of the alternative
+
+Fig. 4. Teaching a “peg pick” task with four separate runs. ★ is a decision state. You can see eye-in-hand image at DS (timestep t = 49 ) and peg visible/absent. (bottom) You can see the likelihoods for two test runs around DS. 
+
+C. Input–Modality Layer (Modality–Agnostic API) 
+
+The input–modality layer provides the interface through which the human guides the robot during programming and execution. Input channels ( hand gestures , joystick/keyboard ,
+
+kinesthetic teaching ) are unified into a common set of abstract commands, allowing teaching and decision-making components to operate independently of the interaction modality. We distinguish two primary roles of human input, each mapped to abstract commands as summarized in Table I: 1) Demonstration. The user provides an initial or corrective demonstration, defining how the robot should perform a skill in a given context. This may be the initial trajectory of a new task or a recovery behavior appended at a decision state.                 
+
+> Modality Demonstration
+> [target poses]
+> Anomaly
+> [boolean]
+> Approve
+> [boolean]
+> Gripper
+> [open/close] Kinesthetic Manual guidance with gravity compensation “Pilot” button “Check” button “Cross” button Joystick Lstick (x/y), Rstick (roll/pitch), LB/RB (z)
+> Ybtn Xbtn A/B btn Hand gestures 6-DoF hand teleop “Stop” gesture “Thumbs-up” gesture Hand open/close
+
+TABLE I 
+
+Mapping of input modalities to the common command API. 
+
+2) Execution controls. During skill replay, the user may influence execution by issuing commands such as pause (to inspect for an anomaly) or continue (when the system raises ’Anomaly’, and it is a false alarm). 
+
+D. Observation-based State Evaluator (The Switcher) 
+
+The core contribution of our system is the Switcher S: It decides at each timestep based on the observed image ( zt), a target skill part or triggers an anomaly ( zt is not previously seen). As introduced in Sec. III-A, if the anomaly is triggered and the user approves, then we create a DS and demonstrate a new skill part by creating a new branch. The Switcher 
+
+S module is trained on images zt 
+
+> (i),r
+
+collected from all skill parts Parts T for the given task T that are available, see Fig. 2. The Switcher S is composed of two parts: 1) Anomaly detector and 2) State Estimator. 
+
+1) Anomaly detector: We build on top of the IleSiA [13] anomaly detector, trained on a dataset of collected images. It estimates whether a new image is OOD relative to the training set. We want the anomaly detector to detect changes such as: (1) a new object appears/disappears, (2) the pose, or state of the object changes, and (3) the camera view changes, meaning the robot is not respecting the predefined trajectory path. In practice, it should alert us when the probe is misplaced or an obstacle is blocking access. We see the benefit of using the same model for anomaly detection and state estimation, because it enables the system to determine whether a detected anomaly corresponds to a known state or a novel context.However, when anomalies are user-triggered, visual cues may be insufficiently distinctive, preventing reli-able association with existing states and transitions. 
+
+a) Context window: Let tthresh denote the first timestep at which an anomaly threshold is crossed. We de-fine the decision-state (DS) context window as: W =
+
+{tthresh , . . . , t thresh +e}, where e is the window length. Only observations with t ∈ W are used for branch selection and anomaly evaluation, i.e. s(W ) = s(tthresh , t thresh + e).
+
+b) Permitted skill parts available for switching: At a DS, switching is allowed only from the root skill part 
+
+s(curr ) to a selected subset of skill parts M U 
+
+> (curr )
+
+⊂ P arts T ,containing the permitted successor skill parts. The subset is initialized as M U 
+
+> (curr )
+
+← s(curr ) . When a new skill part 
+
+s(new) is demonstrated from this DS, the set is extended as 
+
+M U 
+
+> (curr)
+
+← M U 
+
+> (curr)
+
+∪ { s(new) }.
+
+2) State Estimator: For each new DS created, we train a dedicated State Estimator model (Sec. III-D) using images from the corresponding context window W and the permitted skill parts M U
+
+> (curr )
+
+. Restricting switching to M U 
+
+> (curr)
+
+prevents ambiguity arising from visually similar states that corre-spond to different, unobservable environmental conditions. For example, if the door is outside the camera view, we could switch to both door-opened/closed skill parts, not taking into the account the knowledge of the door state. We further constrain the switching only to skill parts whose start timestep Ki satisfies t ≥ Ki, ensuring that only temporally valid successors are considered. Each DS is associated with a branching timestep tDS . All branching timesteps are clus-tered into larger temporal segments by merging overlapping context windows using a union-of-intervals procedure [18] (window size e = 10 ). A separate instance of the State Estimator model is trained on each resulting cluster using the image set ZWM U 
+
+> (i)⊂M
+
+collected over the corresponding DS window W and the permitted skill parts M U
+
+> (i)
+
+.
+
+E. Proposed DINO-based Switcher for DS estimation 
+
+To implement DS-local state estimation in the Switcher, we use self-supervised DINO vision transformers [17] as frozen feature extractors. Given an eye-in-hand image z,the backbone outputs a set of patch embeddings {xk}Kk=1 ,
+
+xk ∈ Rd. We convert these patch embeddings into aclass prediction over competing skill parts using one of the following strategies: 
+
+a) Prototype inference (mean).: We form an image representation either by mean pooling ( mean ) or by concate-nating patch embeddings ( concat ). For each class ci, we compute a prototype by averaging the training representations of that class. At inference time, we assign the query image to the class with maximum cosine similarity to its prototype. 
+
+b) Multi-instance learning (MIL).: We treat patch em-beddings as a set of instances and learn an attention-based MIL head that aggregates {xk} into a class prediction. 
+
+c) Attention-gated features (attn).: To emphasize infor-mative regions, we use the last-layer [CLS] -to-patch self-attention weights as patch importance scores. We apply either 
+
+hard gating (discard low-attention patches) or soft gating (down-weight them), and reduce multiple attention heads by mean or max before aggregation. 
+
+d) Anomaly detection.: We use the same DINO embed-ding space for novelty detection by computing an anomaly score from the query image’s similarity to the DS train-ing set (e.g., based on the maximum cosine similarity to known classes) and flagging an anomaly when the score crosses a threshold (set via a training-score percentile 
+
+percentile_keep ∈ (0 , 1] ). 
+
+IV. Experimental Setup 
+
+We evaluate the proposed system on a dataset collected during our user study where users were asked to teach a robot manipulation tasks on the Robothon Electronic Task Board [19], Fig. 1, bottom left. Our experimental setup includes a Franka Robotics Panda robot with a RealSense D455 camera mounted in an eye-in-hand configuration, as shown in Fig. 1 (top left). 
+
+A. Robothon Manipulation Skills 
+
+We consider three manipulation tasks on the taskboard: (1) Peg pick, (2) Probe measure, and (3) Cable wrap. The Scenarios are detailed in Fig. 5. For each task, we vary the initial state in a way that requires an adapted manipulation. This can be, for example, a different initial pose for the peg ( lA, lB in Fig. 5) or a closed door over the probe measurement point. In our experiments, users teach/program these tasks to (i) evaluate the system usability, and at the same time (ii) collect the evaluation dataset D.
+
+B. User study dataset configuration 
+
+We collect the dataset D = (Ddemo , R) during the user study to evaluate the proposed Switcher (Sec. III-D) for two objectives: (i) target skill-part estimation (branch selection) and (ii) anomaly detection. Ddemo is the set of demonstrations and R the set of roll-outs. Each participant was first introduced to the system terminology and task setup (Fig. 5). To build intuition for the demonstration workflow for our single manipulator, we asked participants to perform the selected tasks single-handedly before actually teaching the robot. The users were then asked to perform the task using the given teaching method once. The task is reset to another variation, rendering the original demonstration unsuccessful. The user would then flag an anomaly as soon as the culprit is visible in the camera image. From that state on, the user demonstrates the remaining task parts (up to 3 variants) till the task end. The dataset covers the 3 manipulation tasks defined in Sec. IV-A. The study involved 8 participants (age 24–40). Seven had no prior experience with gesture teleoperation, and five had no prior experience with kinesthetic teaching. The total number of demonstrations is 
+
+||D demo || = U|{z} 
+
+> 8 users
+
+× T|{z} 
+
+> 3 tasks
+
+× M|{z} 
+
+> 3 modalities
+
+× V|{z} 
+
+> 2−3 varants
+
+= 192 
+
+(1) We collect |R| = R · |D demo | = 576 execution roll-outs (i.e., 
+
+3 per demonstration). Participants typically recorded one demonstration per task and modality. A second attempt was allowed in about 3% of cases. Each successful demonstration defines one skill variant. Every variant is replayed and evaluated at least three times (e.g., successful peg pick), see Tab. II. 4% of the demonstrations were filtered out as unsafe and were therefore counted as unsuccessful. We evaluate the branching performance at DS context win-dows (Sec. III-D.1) and report results for (i) state evaluation and (ii) anomaly detection. We organize D into two labelings. In Dclassification , samples are labeled by their corresponding skill part to support multiclass state estimation. In Danomaly ,the root skill part defines the in-distribution set, while samples from all other skill parts are labeled as unfamiliar (OOD) for anomaly evaluation. 
+
+1) Success metric: The user demonstrations Parts T define reproducible task policies ΠT . We define Decision success 
+
+as when the correct skill variant is selected, and Task success 
+
+if it achieves the task-specific goal: (i) Peg pick: grasp the Fig. 5. Starting states of the environment for three considered tasks. 
+
+peg (from either location) and drop it into the bowl; (ii) 
+
+Probe measure: touch the measurement point with the probe and then place it into the bowl (including opening the door if it blocks access); (iii) Cable wrap: produce at least two complete loops of wrapped cable, regardless of the initial cable-end configuration. 
+
+2) System-gated vs. user-gated anomaly detection: As described in Sec. III-D, the proposed framework supports both automatic DS insertion via visual anomaly detection and manual user triggering. Conceptually, it comprises two coupled components: (i) anomaly detection that proposes a new DS, and (ii) DS-local state estimation (the Switcher) that selects among competing successor skill parts. In deployment, we allow both the system and the user to trigger an anomaly to maximize robustness. In the user study, however, we intentionally used user-gated DS timing. This choice isolates the evaluation of the Switcher and the teaching workflow from temporal errors in automatic triggering: early, late, or missed anomaly detections would otherwise confound branch-selection accuracy and obscure modality comparisons. User-gating also yields consistent DS alignment and reliable labels in the collected dataset, while improving study safety and execution stability by keeping the participant in control. Automatic anomaly detection is evaluated separately offline on the collected data (Sec. V-B). 
+
+C. Switcher baselines and configurations 
+
+We compare three families of Switcher implementations: (i) classical keypoint matching (SIFT/ORB), (ii) an autoen-coder + Gaussian Process (AEGP) baseline [13], and (iii) DINO-based state estimation (Sec. III-E). For DINO, we evaluate DINOv2 and DINOv3 [20], [21] with small 
+
+(∼22M) and large (∼300M) backbones. 
+
+1) SIFT/ORB matching (baseline): We extract SIFT/ORB features [22] for each training image and store them per class. At inference time, we match a query image to each class template and score the match via a robust homography estimate using MAGSAC [23]. 
+
+2) Autoencoder–Gaussian Process (AEGP, baseline): Fol-lowing [13], we train an autoencoder on DS-window images and use its latent codes as inputs to a GP classifier. Since our state estimation is multiclass ( Multiclass AEGP ), we implement a variational multitask GP with inducing points (one latent function per class). 2 classes                                           
+
+> 3 classes
+> 4 classes
+> 5 classes
+> 6 classes
+> 7 classes
+> 8 classes
+> dinov2 small mean
+> dinov3 small mean
+> dinov2 small concat
+> dinov2 small attn
+> dinov2 small MIL
+> SIFT
+> AEGP Multiclass
+> Models
+> 92.4 93.7 79.8 66.5 55.9 55.1 49.0
+> 75.7 73.4 64.2 58.1 48.7 45.3 38.0
+> 92.4 95.2 77.6 67.0 56.2 48.5 43.2
+> 92.4 94.6 95.6 94.0 87.4 82.0 73.1
+> 92.4 68.1 46.2 41.4 28.5 30.6 21.4
+> 92.9 88.7 66.8 62.5 54.9 43.7 40.0
+> 92.4 42.1 27.7 26.0 19.0 22.5 15.7
+> Test Accuracy (%)
+
+Fig. 6. Model Reliability with Growing State Space. Top: Model reliability under an increasing number of classes. As shown, the model 
+
+dinov2 small attn performs well even with an increasing number of branches to choose from. Bottom: Eight variants of the peg pick task. 
+
+3) Proposed method (DINO-based) configurations: For the MIL head, we use 128 hidden units, dropout 0.1, and Adam [24] (lr 7×10 −5, weight decay 10 −3), trained for 1000 epochs with cross-entropy loss. For attention-gated features, we report both hard/soft gating, mean/max head reduction, and an attention keep fraction attn_keep ∈ (0 , 1] (e.g., 
+
+attn_keep =0.2 keeps the top 20% patches). 
+
+V. Experiments 
+
+We evaluate the proposed framework in two stages: we evaluate (i) the scalability of the Switcher in a controlled experiment, where the number of competing classes in-creases (Sec. V-A), and (ii) the method on data collected in a user study with 8 novice participants, reporting both Switcher performance (Sec. V-B) and task success across different teaching modalities (Sec . V-C). Materials are available on the project website 1.
+
+A. Controlled experiment: Model reliability 
+
+We first evaluate Switcher scalability in a controlled exper-iment (Sec. V-B) where the number of competing decision-state classes increases from 2 to 8. We vary three binary factors on the task-board: (i) door open/closed, (ii) peg at 
+
+lA/missing, and (iii) probe at lB /missing, i.e., 8 distinct state variations (Fig. 6, bottom). For each variation, we verify on five test executions. As baselines, we include SIFT matching and an AEGP model, which quickly degrade as class counts increase. As shown in Fig. 6 (top), the proposed DINO-based attention model dinov2 small attn is overall the most reliable under growth of classes, remaining above 90% up to 5 DS classes (compared to 62 .5% for SIFT). 
+
+B. Switcher evaluation on the novice-user dataset 
+
+We evaluate the Switcher on the user-study datasets (Sec. IV-B) using the Decision success metric (Sec. IV-B.1). The user study included at most 3 skill variants per DS. 
+
+1) Branch selection.: Fig. 8 reports multiclass DS classi-fication accuracy across tasks and modalities. Frozen DINO features with lightweight heads perform reliably on the noisy user-study data: dinov2 small concat achieves the best overall accuracy (81.7%), followed closely by dinov2 
+
+> 1
+
+imitrob.ciirc.cvut.cz/publications/seeandswitch. Fig. 7. Example demonstration trajectories for Probe measure task. 
+
+◦ is demo start. ⋆ is demo end. (i) is probe pick, (ii) is measurement with probe, and (iii) is probe drop into a bowl. You can see that gesture probe measurement (ii) is messy when the user tries to reorient the gripper and focus on target precision. N is the number of time steps. Keypoint colors indicate the time encoding. See video of recording at the link 1.Peg                                     
+
+> pick
+> Probe
+> measure
+> Cable
+> wrap
+> gst
+> joy
+> kin
+> dinov2 small mean
+> dinov3 small mean
+> dinov2 small concat
+> dinov2 small attn
+> dinov2 small MIL
+> SIFT
+> AEGP Multiclass
+> Models
+> Tasks Modality
+> 75.1 71.5 84.5 78.9 74.6 74.7
+> 76.2 72.3 87.8 80.8 77.0 75.1
+> 82.6 74.0 88.6 82.8 77.7 80.7
+> 77.4 76.8 84.2 82.1 78.3 76.4
+> 71.8 71.5 85.4 78.5 76.2 71.4
+> 69.5 67.8 73.3 69.2 68.0 72.3
+> 64.0 59.5 68.7 65.3 63.0 61.5
+> Test Accuracy (%)
+
+Fig. 8. The evaluation of Switcher for considered methods (Sec. III-E) on the collected task dataset Dclassification . Modalities include kin for kines-thetic teaching, joy for joystick, and gst for hand-guided teleoperation. All methods scored min. 98% accuracy on the training data. 
+
+(a) dinov2 small concat (b) dinov2 small attn 
+
+Fig. 9. Per-decision-state (DS) branch-selection test accuracy distri-bution. Each DS window yields an independent state-estimation model trained on images from the corresponding training roll-outs; we evaluate it on held-out roll-outs and obtain one test accuracy (%) per DS instance. The histogram aggregates these per-DS accuracies (bin = accuracy interval; numbers above bars = number of DS windows in that bin). The y-axis therefore counts #DS windows. Top: default train/test split (limited training data). Bottom: enlarged training set by swapping train/test (more training samples), which shifts the distribution toward higher accuracies. Red colored DS instances (40/78) denote a subset of the dataset with insufficient observability (a discriminative cue not visible) or a camera not working. Blue color indicates a clean dataset. 
+
+small attn (79.3%). When we remove DS windows in which the discriminative cue is not reliably observable, accuracy increases to 90 .7% , showing that the remaining errors are driven largely by sensing limitations. 
+
+2) Anomaly detection.: Fig. 11 summarizes anomaly-detection accuracy on test dataset. The DINO variants 
+
+dinov2 small concat/attn are robust across DS in-stances: they achieves > 90% accuracy in 44 /43 of 78 DS windows (and < 80% in 27 /29 windows). Detection failures are most often caused by decisive scene details not being visible in the sensor data. Peg                           
+
+> pick
+> Probe
+> measure
+> Cable
+> wrap
+> gst
+> joy
+> kin
+> dinov2 small mean
+> dinov3 small mean
+> dinov2 small concat
+> dinov2 small attn
+> dinov2 small MIL
+> Models
+> Tasks Modality
+> 65.9 58.5 75.7 65.5 70.1 60.5
+> 61.0 58.6 77.9 61.8 71.9 60.5
+> 78.3 66.2 87.9 69.2 76.9 81.3
+> 79.7 67.1 74.8 75.1 79.4 63.6
+> 24.1 25.6 18.7 31.1 16.6 21.5
+> Test Accuracy (%)
+
+Fig. 10. Accuracy scores for the dataset Danomaly and considered models from Sec. III-E. We set a percentile_keep parameter to the value 0.1.We can see that the MIL model overfits the training data. Modalities include 
+
+kin for kinesthetic teaching, joy for joystick, and gst for hand-guided teleoperation. 
+
+(a) dinov2 small concat (b) dinov2 small attn 
+
+Fig. 11. Per-decision-state (DS) anomaly-detection test accuracy distribution. Each DS window yields one anomaly detector trained on in-distribution images (root skill part) and evaluated on held-out DS roll-outs containing both in-distribution and out-of-distribution (OOD) samples (Danomaly ). Modality Peg Pick Probe measure Cable wrap Imitation Learning Task, Success (%) 
+
+kin 88.0 83.0 58.1 
+
+joy 99.2 80.3 53.1 
+
+gst 92.7 72.2 48.8 
+
+Demonstration length (s) 
+
+kin 24.2 19.5 23.2 
+
+joy 26.2 39.2 61.4 
+
+gst 38.2 41.6 73.5 TABLE II 
+
+User study results. Replay success rate (Sec. IV-B.1) over ≥3 trials and average demonstration length for each modality and task. 
+
+C. Novice user study: teaching efficiency and task success 
+
+We report replay success rates (manual switching) and average demonstration lengths (teaching effort) in Tab. II. Replay success is highest for Peg pick (up to 99 .2% 
+
+with joystick), while Cable wrap is hardest overall ( 48 .8–
+
+58 .1% across modalities). Since switching is manual in this experiment, most failed task success cases were slip grasps or missing end actions, rather than switching errors. We analyze failed decision success cases separately in Sec. V-B. A recurring failure mode is limited observability, e.g., DS triggered when the camera does not capture the door state (open/closed), making correct branch selection impossible from images alone. Demonstration length serves as a proxy for teaching effort: as expected, kinesthetic teaching is consistently fastest (19.5– 24.2s) and stays efficient even for Cable wrap (23.2s), while joystick and gestures become substantially longer on orientation-sensitive tasks (up to 61.4 s and 73.5 s for Cable wrap ). The high joystick performance on Peg pick (short and accurate) is consistent with the task requiring mostly top-down grasps with minimal wrist reorientation, whereas Probe measure demands precise end-effector alignment. Ges-ture teleoperation was particularly sensitive to hand sensor reliability. Example trajectories are shown in Fig. 7. This is visible in Fig. 7, where the gesture trajectory becomes notably irregular during the measurement phase while re-orienting the gripper. Experienced users tend to produce fewer unnecessary actions and errors [25], whereas novices often provide suboptimal trajectories [26]. When partici-pants repeated demonstrations, their performance typically improved, leading to shorter and more reliable executions [27]. Finally, the trajectory shapes differ systematically across modalities: kinesthetic demonstrations tend to be smooth and direct, joystick trajectories are more segmented due to incremental command inputs, and gesture trajectories can be noisier during fine orientation adjustments (Fig. 7). 
+
+VI. Conclusion and Discussion 
+
+We presented a conditional PbD framework that represents tasks as branching skill parts and supports incremental exten-sion via decision states (DS). A vision-based Switcher selects the appropriate branch at each DS or flags observations as outside the demonstrated contexts, i.e., an anomaly. 
+
+a) Switcher performance and practical implications: 
+
+On the user-study DS windows, performance varies due to noisy and partially observable data: for branch selection, only about half of DS instances achieve high test accuracy (e.g., 31/78 DS models exceed 90% for dinov2 small attn ). By filtering out cases where, for example, the camera does not capture the correct features, the overall accuracy increases from 81.7% to 90.7%. In contrast, anomaly de-tection is more stable (43/78 DS models exceed 90%). In a controlled label-growth experiment, dinov2 small attn remains robust as the number of competing classes increases (93.6% at 5 classes, and 90.8% at 6 classes), supporting use in larger DS branch sets. 
+
+b) User study findings: Non-expert participants suc-cessfully taught conditional tasks where kinesthetic teach-ing produced the shortest demonstrations (19.5–24.2s) and remained efficient even for Cable wrap (23.2s), while joy-stick and gesture teleoperation became much longer for the harder tasks (up to 61.4s and 73.5s, respectively). Replay success was highest for Peg pick (up to 99.2% with joystick), while Cable wrap was the most challenging overall (48.8– 58.1%), with kinesthetic teaching achieving the best success rate. Taken together, the results support the practical use of kinesthetic teaching when available, while also showing that gesture-based teaching remains a viable alternative for modality-independent task programming. 
+
+c) Limitations and open problems: The main limitation is observability: switching fails when the discriminative scene information is not visible to the eye-in-hand camera, motivating multi-view sensing or viewpoint control. Per-formance can also degrade under strong visual distractors. Finally, enabling re-joining of branches after the decisive variation could reduce graph growth and better support long tasks with local corrections. 
+
+References 
+
+[1] A. G. Billard et al. , “Learning from humans,” Springer Handb. Robot. ,pp. 1995–2014, 2016. [2] B. D. Argall et al. , “A survey of robot learning from demonstration,” 
+
+Robot. Auton. Syst. , vol. 57, no. 5, pp. 469–483, 2009. [3] S. Calinon and A. Billard, “Incremental learning of gestures by imitation in a humanoid robot,” in Proc. ACM/IEEE Int. Conf. Human-Robot Interact. (HRI) , ser. HRI ’07. New York, NY, USA: Association for Computing Machinery, 2007, p. 255–262. [4] A. Billard et al. , Robot Programming by Demonstration . Berlin, Heidelberg: Berlin, Heidelberg: Springer, 2008, pp. 1371–1394. [5] T. Eiband et al. , “Collaborative programming of robotic task decisions and recovery behaviors,” Aut. Robots , vol. 47, pp. 229–247, 2023. [6] G. Konidaris et al. , “Robot learning from demonstration by construct-ing skill trees,” Int. J. Robot. Res. (IJRR) , vol. 31, no. 3, pp. 360–375, 2012. [7] T. Migimatsu et al. , “Symbolic state estimation with predicates for contact-rich manipulation tasks,” 2022 Int. Conf. on Robot. and Autom. (ICRA) , pp. 1702–1709, 2022. [8] T. Eiband et al. , “Intuitive programming of conditional tasks by demonstration of multiple solutions,” IEEE Robot. Autom. Lett. , vol. 4, no. 4, pp. 4483–4490, 2019. [9] A. Jain et al. , “Cobt: Collaborative programming of behaviour trees from one demonstration for robot manipulation,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) , 2024, pp. 12 993–12 999. [10] D. Huang et al. , “Neural task graphs: Generalizing to unseen tasks from a single video demonstration,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2019, pp. 8565–8574. [11] H. Wu et al. , “Learning robot anomaly recovery skills from multiple time-driven demonstrations,” Neurocomputing , vol. 464, pp. 522–532, 2021. [12] D. Sliwowski and D. Lee, “Conditionnet: Learning preconditions and effects for execution monitoring,” IEEE Robot. Autom. Lett. (RA-L) ,vol. 10, no. 2, pp. 1337–1344, 2025. [13] P. Vanc et al. , “Ilesia: Interactive learning of robot situational aware-ness from camera input,” IEEE Robot. Autom. Lett. (RA-L) , vol. 10, no. 10, pp. 10 490–10 497, 2025. [14] P. Hegemann et al. , “Learning symbolic failure detection for grasping and mobile manipulation tasks,” in Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS) , 2022, pp. 4302–4309. [15] M. Murray et al. , “Diffusion-pbd: Generalizable robot programming by demonstration with diffusion features,” in Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS) , 2024, pp. 5168–5175. [16] N. D. Palo and E. Johns, “DINOBot: Robot manipulation via retrieval and alignment with vision foundation models,” in Proc. IEEE Int. Conf. on Rob. and Aut. (ICRA) , 2024, pp. 2798–2805. [17] M. Caron et al. , “Emerging Properties in Self-Supervised Vision Transformers,” in IEEE Int. Conf. Comp. Vis. (ICCV) , 2021, pp. 9630– 9640. [18] T. H. Cormen et al. , Introduction to Algorithms . MIT Press, 2009. [19] P. So et al. , “Digital robot judge: Building a task-centric performance database of real-world manipulation with electronic task boards,” IEEE Robot. Autom. Mag. , vol. 31, no. 4, pp. 32–44, 2024. [20] M. Oquab et al. , “Dinov2: Learning robust visual features without supervision,” 2023. [21] O. Siméoni et al. , “Dinov3,” 2025. [Online]. Available: https: //arxiv.org/abs/2508.10104 [22] D. Lowe, “Object recognition from local scale-invariant features,” in 
+
+Proc. 7th IEEE Int. Conf. Comput. Vis. (ICCV) , 1999, pp. 1150–1157. [23] D. Barath et al. , “MAGSAC++, a fast, reliable and accurate robust estimator,” in Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2020. [24] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,” 2017. [25] J. Chen et al. , “Towards effective utilization of mixed-quality demon-strations in robotic manipulation via segment-level selection and optimization,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) , 2025, pp. 16 884–16 891. [26] M. Bilal et al. , “Beyond success: Quantifying demonstration quality in learning from demonstration,” in IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2024, pp. 5120–5127. [27] P. Aliasghari et al. , “How non-experts kinesthetically teach a robot over multiple sessions: diversity in teaching styles and effects on performance,” Int. J. Soc. Robot. , vol. 16, no. 11, pp. 2079–2105, 2024.
