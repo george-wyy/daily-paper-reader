@@ -69,6 +69,7 @@ window.DPRWorkflowRunner = (function () {
   let activeRun = null;
   let selectedRun = null;
   const lastRunStateById = {};
+  let repoContextCache = null;
 
   const escapeHtml = (str) => {
     if (!str) return '';
@@ -125,6 +126,46 @@ window.DPRWorkflowRunner = (function () {
     }
 
     return { owner: '', repo: '' };
+  };
+
+  const resolveRepoContext = async (token, options = {}) => {
+    const { forceRefresh = false } = options || {};
+    const { owner, repo } = await resolveRepoFromUrl(token);
+    if (!owner || !repo) {
+      return { owner: '', repo: '', isFork: null, defaultBranch: 'main' };
+    }
+
+    const cacheKey = `${owner}/${repo}`;
+    if (!forceRefresh && repoContextCache && repoContextCache.key === cacheKey && repoContextCache.value) {
+      return repoContextCache.value;
+    }
+    if (!forceRefresh && repoContextCache && repoContextCache.key === cacheKey && repoContextCache.promise) {
+      return repoContextCache.promise;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const repoUrl = `https://api.github.com/repos/${owner}/${repo}`;
+        const res = await ghFetch(token, repoUrl);
+        if (!res.ok) {
+          return { owner, repo, isFork: null, defaultBranch: 'main' };
+        }
+        const data = await res.json().catch(() => null);
+        return {
+          owner,
+          repo,
+          isFork: !!(data && data.fork),
+          defaultBranch: String((data && data.default_branch) || 'main'),
+        };
+      } catch {
+        return { owner, repo, isFork: null, defaultBranch: 'main' };
+      }
+    })();
+
+    repoContextCache = { key: cacheKey, promise: fetchPromise, value: null };
+    const value = await fetchPromise;
+    repoContextCache = { key: cacheKey, promise: null, value };
+    return value;
   };
 
   const ghFetch = async (token, url, init) => {
@@ -298,7 +339,7 @@ window.DPRWorkflowRunner = (function () {
     }
   };
 
-  const renderRecentRuns = (owner, repo, byWorkflow, errText) => {
+  const renderRecentRuns = (owner, repo, byWorkflow, errText, repoContext = null) => {
     if (!recentEl) return;
     recentEl.classList.remove('is-loading');
     if (errText) {
@@ -306,6 +347,14 @@ window.DPRWorkflowRunner = (function () {
       return;
     }
     const blocks = WORKFLOWS.map((wf) => {
+      if (wf.key === 'sync' && repoContext && repoContext.isFork === false) {
+        return `
+          <div class="dpr-wf-recent-block">
+            <div class="dpr-wf-recent-block-title">${escapeHtml(wf.name)}</div>
+            <div style="color:#c90;">当前仓库不是 GitHub Fork，已禁用上游同步。</div>
+          </div>
+        `;
+      }
       const list = (byWorkflow && byWorkflow[String(wf.key || wf.id || '')]) || [];
       const items = Array.isArray(list) ? list : [];
       const lines = items
@@ -378,7 +427,8 @@ window.DPRWorkflowRunner = (function () {
     }
 
     try {
-      const { owner, repo } = await resolveRepoFromUrl(token);
+      const repoContext = await resolveRepoContext(token);
+      const { owner, repo } = repoContext;
       if (!owner || !repo) {
         renderRecentRuns(owner, repo, null, '无法推断目标仓库，无法加载最近运行记录。');
         return;
@@ -436,11 +486,11 @@ window.DPRWorkflowRunner = (function () {
         byWorkflow[String(wf.key || wfId)] = (runsByWorkflowId[wfId] || []).slice(0, 3);
       });
 
-      renderRecentRuns(owner, repo, byWorkflow, '');
+      renderRecentRuns(owner, repo, byWorkflow, '', repoContext);
     } catch (e) {
       console.error(e);
       if (recentEl) recentEl.classList.remove('is-loading');
-      renderRecentRuns('', '', null, e.message || String(e));
+      renderRecentRuns('', '', null, e.message || String(e), null);
     }
   };
 
@@ -476,27 +526,64 @@ window.DPRWorkflowRunner = (function () {
       setStatus('未检测到 GitHub Token：请在“密钥配置”或“GitHub Token”处完成配置。', '#c00');
       return;
     }
-    const { owner, repo } = await resolveRepoFromUrl(token);
+    const repoContext = await resolveRepoContext(token);
+    const { owner, repo } = repoContext;
     if (!owner || !repo) {
       setStatus('无法推断目标仓库：请确认 GitHub Token 有效，或使用 xxx.github.io/仓库名/ 访问。', '#c00');
       return;
     }
+    if (wf.key === 'sync' && repoContext.isFork === false) {
+      setStatus('当前仓库不是 GitHub Fork，无法使用上游同步。', '#c00');
+      runsEl.innerHTML =
+        '<div style="color:#c00;">当前仓库不是 Fork 仓库，Upstream Sync 不会运行。</div>' +
+        `<div style="margin-top:8px;"><a class="arxiv-tool-btn" style="padding:6px 10px; text-decoration:none;" target="_blank" href="https://github.com/${owner}/${repo}/fork">前往 Fork 当前仓库</a></div>`;
+      return;
+    }
 
-    setStatus(`正在触发工作流：${wf.name || workflowFile} ...`, '#666', { waiting: true });
-    runsEl.innerHTML = '<div style="color:#999;">正在触发，请稍候...</div>';
+    setStatus(`正在检查工作流状态：${wf.name || workflowFile} ...`, '#666', { waiting: true });
+    runsEl.innerHTML = '<div style="color:#999;">正在检查是否有运行中的工作流...</div>';
     stopPolling();
     activeRun = null;
 
-    const createdAt = new Date();
-
     try {
+      // 检查是否有正在运行中的同名工作流（防止误触重复触发）
+      const activeStatuses = new Set(['queued', 'in_progress', 'waiting']);
+      const statusZhMap = { queued: '排队中', in_progress: '运行中', waiting: '等待中' };
+      const checkUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(
+        workflowFile,
+      )}/runs?per_page=5`;
+      const checkRes = await ghFetch(token, checkUrl);
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        const runs = Array.isArray(checkData.workflow_runs) ? checkData.workflow_runs : [];
+        const activeRuns = runs.filter((r) => activeStatuses.has(r.status));
+        if (activeRuns.length > 0) {
+          const r = activeRuns[0];
+          const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${r.id}`;
+          const statusText = statusZhMap[r.status] || r.status;
+          setStatus(
+            `已有正在运行的工作流（#${r.run_number || r.id}，状态：${statusText}），请等待完成后再触发。`,
+            '#c00',
+          );
+          runsEl.innerHTML =
+            `<div style="color:#c00;">同一时间只允许运行一个该工作流实例，请等待当前运行结束。</div>` +
+            `<div style="margin-top:8px;"><a class="arxiv-tool-btn" style="padding:6px 10px; text-decoration:none;" target="_blank" href="${runUrl}">查看当前运行</a></div>`;
+          return;
+        }
+      }
+
+      setStatus(`正在触发工作流：${wf.name || workflowFile} ...`, '#666', { waiting: true });
+      runsEl.innerHTML = '<div style="color:#999;">正在触发，请稍候...</div>';
+
+      const createdAt = new Date();
+
       // 触发 dispatch
       const dispatchUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(
         workflowFile,
       )}/dispatches`;
       const dispatchInputs = combineInputs(wf.dispatchInputs, extraInputs);
       const dispatchBody = {
-        ref: 'main',
+        ref: String(repoContext.defaultBranch || 'main'),
       };
       if (Object.keys(dispatchInputs).length > 0) {
         dispatchBody.inputs = dispatchInputs;
@@ -509,6 +596,11 @@ window.DPRWorkflowRunner = (function () {
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
+        if (res.status === 422 && txt.includes('disabled workflow')) {
+          const err = new Error('触发失败：该 Workflow 当前处于禁用状态，请先前往 Actions 页面启用该工作流。');
+          err.workflowEnableUrl = `https://github.com/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFile)}`;
+          throw err;
+        }
         throw new Error(`触发失败：HTTP ${res.status} ${res.statusText} - ${txt}`);
       }
 
@@ -568,8 +660,15 @@ window.DPRWorkflowRunner = (function () {
       loadRecentRuns();
     } catch (e) {
       console.error(e);
-      setStatus(`触发失败：${e.message || e}`, '#c00');
-      runsEl.innerHTML = `<div style="color:#c00;">${escapeHtml(e.message || String(e))}</div>`;
+      const msg = e.message || String(e);
+      setStatus(`触发失败：${msg}`, '#c00');
+      if (e.workflowEnableUrl) {
+        runsEl.innerHTML =
+          `<div style="color:#c00;">${escapeHtml(msg)}<br/>` +
+          `👉 <a href="${e.workflowEnableUrl}" target="_blank" style="color:#1a73e8;">前往 Actions 页面启用工作流</a></div>`;
+      } else {
+        runsEl.innerHTML = `<div style="color:#c00;">${escapeHtml(msg)}</div>`;
+      }
     }
   };
 
