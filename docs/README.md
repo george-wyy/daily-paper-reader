@@ -6,73 +6,55 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-09 ~ 2026-03-18
-- 运行时间：2026-03-18 03:07:37 UTC
+- 最新运行日期：2026-03-18
+- 运行时间：2026-03-18 20:32:08 UTC
 - 运行状态：成功
-- 本次总论文数：17
-- 精读区：6
-- 速读区：11
+- 本次总论文数：11
+- 精读区：4
+- 速读区：7
 
 ### 今日简报（AI）
-本期聚焦人机协作与混合现实，深度解析了通过第一视角实现认知对齐及 3D 意图预测的 17 篇前沿进展。
-重点推荐 Int3DNet 在 MR 环境下的运动预测突破，以及共享视角对增强人机信任与协作效率的关键作用。
-建议关注具身智能如何通过手势识别和生活模拟器，让个性化 AI 助手更精准地理解并预测人类行为。
-- 详情：[/20260309-20260318/README](/20260309-20260318/README)
+今日深度解析 11 篇前沿成果，重点攻克 VR 沉浸式交互与机器人视线感知两大核心领域。
+闭环框架实现了文化遗产展示的参与度自适应，而视线追踪技术则为更精准的人机协作任务检测提供了新方案。
+推荐关注 AIoT 智能家居的安全意图分析与微表情识别，探索更细腻的人机共生体验。
+- 详情：[/202603/18/README](/202603/18/README)
 
 ### 精读区论文标签
-1. [Seeing Eye to Eye: Enabling Cognitive Alignment Through Shared First-Person Perspective in Human-AI Collaboration](/20260309-20260318/2603.12701v1-seeing-eye-to-eye-enabling-cognitive-alignment-through-shared-first-person-perspective-in-human-ai-collaboration)  
+1. [Adaptive Virtual Reality Museum: A Closed-Loop Framewor for Engagement-Aware Cultural Heritage](/202603/18/2603.13639v1-adaptive-virtual-reality-museum-a-closed-loop-framewor-for-engagement-aware-cultural-heritage)  
+   标签：评分：10.0/10、query:gaze-intent
+   evidence：利用注视时长推断参与度和意图的闭环自适应界面
+2. [Gaze-Aware Task Progression Detection Framework for Human-Robot Interaction Using RGB Cameras](/202603/18/2603.15951v1-gaze-aware-task-progression-detection-framework-for-human-robot-interaction-using-rgb-cameras)  
+   标签：评分：10.0/10、query:gaze-intent
+   evidence：用于人机交互的注视感知任务进度检测
+3. [GLANCE: Gaze-Led Attention Network for Compressed Edge-inference](/202603/18/2603.15717v1-glance-gaze-led-attention-network-for-compressed-edge-inference)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：通过第一人称视角和共同注意力协调实现认知对齐
-2. [Int3DNet: Scene-Motion Cross Attention Network for 3D Intention Prediction in Mixed Reality](/20260309-20260318/2603.13355v1-int3dnet-scene-motion-cross-attention-network-for-3d-intention-prediction-in-mixed-reality)  
+   evidence：用于AR/VR实时交互的注视引导注意力网络
+4. [The Midas Touch in Gaze vs. Hand Pointing: Modality-Specific Failure Modes and Implications for XR Interfaces](/202603/18/2603.15991v1-the-midas-touch-in-gaze-vs-hand-pointing-modality-specific-failure-modes-and-implications-for-xr-interfaces)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：基于头手运动的3D意图预测，用于混合现实中的前瞻性响应
-3. [Attend Before Attention: Efficient and Scalable Video Understanding via Autoregressive Gazing](/20260309-20260318/2603.12254v1-attend-before-attention-efficient-and-scalable-video-understanding-via-autoregressive-gazing)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：用于选择任务相关视觉补丁的自回归注视模块
-4. [Deployment-Oriented Session-wise Meta-Calibration for Landmark-Based Webcam Gaze Tracking](/20260309-20260318/2603.12388v1-deployment-oriented-session-wise-meta-calibration-for-landmark-based-webcam-gaze-tracking)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：网络摄像头视线追踪与注视点估计
-5. [Enhancing Eye Feature Estimation from Event Data Streams through Adaptive Inference State Space Modeling](/20260309-20260318/2603.14077v1-enhancing-eye-feature-estimation-from-event-data-streams-through-adaptive-inference-state-space-modeling)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：从事件数据中提取眼部特征用于实时眼动追踪
-6. [Inclusive AI for Group Interactions: Predicting Gaze-Direction Behaviors in People with Intellectual and Developmental Disabilities](/20260309-20260318/2603.14460v1-inclusive-ai-for-group-interactions-predicting-gaze-direction-behaviors-in-people-with-intellectual-and-developmental-disabilities)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：用于非语言交流和交互的目光接触检测
+   evidence：XR界面中的注视与手部指向对比
 
 ### 速读区论文标签
-1. [FutureVLA: Joint Visuomotor Prediction for Vision-Language-Action Model](/20260309-20260318/2603.10712v1-futurevla-joint-visuomotor-prediction-for-vision-language-action-model)  
+1. [A Prediction-as-Perception Framework for 3D Object Detection](/202603/18/2603.12599v1-a-prediction-as-perception-framework-for-3d-object-detection)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：联合视觉运动预测与动态动作意图建模
-2. [LifeSim: Long-Horizon User Life Simulator for Personalized Assistant Evaluation](/20260309-20260318/2603.12152v1-lifesim-long-horizon-user-life-simulator-for-personalized-assistant-evaluation)  
+   evidence：通过将注视点聚焦在预测位置来整合预测与感知
+2. [Proactive Rejection and Grounded Execution: A Dual-Stage Intent Analysis Paradigm for Safe and Efficient AIoT Smart Homes](/202603/18/2603.16207v1-proactive-rejection-and-grounded-execution-a-dual-stage-intent-analysis-paradigm-for-safe-and-efficient-aiot-smart-homes)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：为个性化助手建模用户认知和意图驱动的行为
-3. [Do You See What I Am Pointing At? Gesture-Based Egocentric Video Question Answering](/20260309-20260318/2603.12533v1-do-you-see-what-i-am-pointing-at-gesture-based-egocentric-video-question-answering)  
+   evidence：用于主动式AIoT交互的双阶段意图分析框架
+3. [FG-SGL: Fine-Grained Semantic Guidance Learning via Motion Process Decomposition for Micro-Gesture Recognition](/202603/18/2603.16269v1-fg-sgl-fine-grained-semantic-guidance-learning-via-motion-process-decomposition-for-micro-gesture-recognition)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：从第一视角视频中通过手部意图标记推断细粒度指向意图
-4. [Perceive What Matters: Relevance-Driven Scheduling for Multimodal Streaming Perception](/20260309-20260318/2603.13176v1-perceive-what-matters-relevance-driven-scheduling-for-multimodal-streaming-perception)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：人机协作中用于机器人主动辅助的多模态流式感知
-5. [NavThinker: Action-Conditioned World Models for Coupled Prediction and Planning in Social Navigation](/20260309-20260318/2603.15359v1-navthinker-action-conditioned-world-models-for-coupled-prediction-and-planning-in-social-navigation)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：社交导航中人类运动的耦合预测与规划
-6. [Human-AI Divergence in Ego-centric Action Recognition under Spatial and Spatiotemporal Manipulations](/20260309-20260318/2603.08317v1-human-ai-divergence-in-ego-centric-action-recognition-under-spatial-and-spatiotemporal-manipulations)  
+   evidence：微手势识别的细粒度语义引导
+4. [TPIFM: A Task-Aware Model for Evaluating Perceptual Interaction Fluency in Remote AR Collaboration](/202603/18/2603.09264v1-tpifm-a-task-aware-model-for-evaluating-perceptual-interaction-fluency-in-remote-ar-collaboration)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：第一视角动作识别与人类对齐模型
-7. [Memory-Guided View Refinement for Dynamic Human-in-the-loop EQA](/20260309-20260318/2603.09541v1-memory-guided-view-refinement-for-dynamic-human-in-the-loop-eqa)  
+   evidence：远程增强现实协作中的感知交互流畅度
+5. [OA-NBV: Occlusion-Aware Next-Best-View Planning for Human-Centered Active Perception on Mobile Robots](/202603/18/2603.11072v1-oa-nbv-occlusion-aware-next-best-view-planning-for-human-centered-active-perception-on-mobile-robots)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：动态场景中包含人类活动的有人参与的具身问答
-8. [HiSync: Spatio-Temporally Aligning Hand Motion from Wearable IMU and On-Robot Camera for Command Source Identification in Long-Range HRI](/20260309-20260318/2603.11809v1-hisync-spatio-temporally-aligning-hand-motion-from-wearable-imu-and-on-robot-camera-for-command-source-identification-in-long-range-hri)  
+   evidence：以人为中心的机器人主动感知与前瞻性响应
+6. [Pointing-Based Object Recognition](/202603/18/2603.15403v1-pointing-based-object-recognition)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：人机交互中的多模态指令源识别
-9. [Reimagining Wearable AR Gesture Design: Physical Therapy Reasoning in Everyday Contexts](/20260309-20260318/2603.13565v1-reimagining-wearable-ar-gesture-design-physical-therapy-reasoning-in-everyday-contexts)  
+   evidence：识别指向手势的目标物体以实现直观的人机交互
+7. [FEEL (Force-Enhanced Egocentric Learning): A Dataset for Physical Action Understanding](/202603/18/2603.15847v1-feel-force-enhanced-egocentric-learning-a-dataset-for-physical-action-understanding)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：识别日常AR交互中的手势意图
-10. [Audo-Sight: AI-driven Ambient Perception Across Edge-Cloud for Blind and Low Vision Users](/20260309-20260318/2603.13668v1-audo-sight-ai-driven-ambient-perception-across-edge-cloud-for-blind-and-low-vision-users)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：通过语音对话交互推断用户意图
-11. [EyeWorld: A Generative World Model of Ocular State and Dynamics](/20260309-20260318/2603.14039v1-eyeworld-a-generative-world-model-of-ocular-state-and-dynamics)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：将眼部状态和动力学建模为动力系统
+   evidence：将力测量与第一视角视频配对的多模态数据集
 
 
 <div class="dpr-home-promo-card">
