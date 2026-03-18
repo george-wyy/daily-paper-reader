@@ -1,0 +1,583 @@
+Title: Deployment-Oriented Session-wise Meta-Calibration for Landmark-Based Webcam Gaze Tracking
+
+URL Source: https://arxiv.org/pdf/2603.12388v1
+
+Published Time: Mon, 16 Mar 2026 00:06:28 GMT
+
+Number of Pages: 25
+
+Markdown Content:
+# Deployment-Oriented Session-wise Meta-Calibration for Landmark-Based Webcam Gaze Tracking 
+
+Chenkai Zhang a, ∗
+
+> aIndependent Researcher, Wenzhou, Zhejiang 325000, China
+
+Abstract 
+
+Practical webcam gaze tracking is constrained not only by prediction error but also by calibration burden, robustness to head motion and session changes, runtime footprint, and the feasibility of browser-side deployment on commodity devices. We therefore study a deployment-oriented operating point rather than the raw-image, large-backbone regime emphasized by much of the accuracy-driven literature. We formulate landmark-based point-of-regard estimation as a session-wise adaptation problem in which a shared geometric encoder produces embeddings that can be aligned to a new session from only a small calibration set. We present Equivariant Meta-Calibrated Gaze (EMC-Gaze), a lightweight landmark-only method that combines an E(3)-equivariant landmark-graph encoder, richer local eye geometry, binocular eye emphasis, training-only auxiliary 3D gaze-direction supervision, and a closed-form ridge calibrator through which we di ff erentiate during episodic meta-training. To reduce pose leakage without introducing a high-capacity deployment-time pose pathway, we add a two-view canonicalization consistency loss and an optional low-capacity pose residual. The deployed predictor consumes only derived facial landmarks and head pose and fits a tiny per-session ridge head from a brief calibration routine. In a fixation-style interactive evaluation over 33 sessions at an approximate viewing distance of 100 cm , EMC-Gaze achieves 5 .79(181) ◦ overall angular RMSE after 9-point calibration, compared with 6 .68(234) ◦ for Elastic Net, the strongest raw-landmark baseline. The gain is larger on still-head queries (2 .92(75) ◦ versus 4 .45(30) ◦). As our primary generalization benchmark, we report a retrospective subject-disjoint evaluation: across three randomized holdouts of 10 held-out subjects each, EMC-Gaze retains an advantage over Elastic Net (5 .66(19) ◦ versus 6 .49(33) ◦
+
+overall angular RMSE across split means). On the public MPIIFaceGaze benchmark under leave-one-person-out evaluation with short per-session calibration, the eye-focused EMC-Gaze achieves 8.82(121) ◦ angular error at 16-shot calibration, ties Elastic Net at 1-shot, and outperforms it from 3-shot calibration onward. The exported eye-focused encoder contains 944,423 parameters and occupies approximately 4 .76 MB as an ONNX artifact; full calibrated browser prediction requires 12.58 /12.58 /12.90 ms per sample (mean /median /p90) in headless Chromium 145 with threaded ONNX Runtime Web. These results position EMC-Gaze as a browser-capable, calibration-friendly operating point for webcam gaze tracking rather than as a claim of universal state-of-the-art performance against heavier appearance-based systems. 
+
+Keywords: gaze tracking, point-of-regard estimation, landmark-based estimation, session adaptation, geometric deep learning, browser deployment, runtime e ffi ciency 
+
+> arXiv:2603.12388v1 [cs.CV] 12 Mar 2026
+
+1. Introduction 
+
+Webcam gaze tracking aims to infer a user’s point of regard on a display from commodity cameras, enabling applications in accessibility, attentive interfaces, and human–computer interac-tion. In practice, however, useful webcam systems are constrained not only by prediction error but also by calibration burden, robustness to head motion and session changes, runtime footprint, and browser feasibility. Recent surveys emphasize that personal calibration and head motion remain two of the main unresolved issues in practical remote gaze estimation, especially when camera placement and viewing geometry vary across sessions [ 1 , 2, 3, 4 , 5]. These issues are particularly acute in everyday webcam use, where the same user may appear under di ff erent lighting, posture, and device placement conditions across runs. Appearance-based gaze estimators have achieved strong results on public datasets and free-head settings such as MPIIGaze, GazeCapture, ETH-XGaze, and Gaze360, building on ear-lier work in synthesis, full-face modeling, data normalization, and monocular 3D tracking [ 6, 7, 8 , 9, 10 , 11 , 12 , 13 ]. Practical webcam systems and studies have additionally explored browser deployment, online experimentation, calibration e ffi ciency, validation against lab-grade trackers, and screen-interaction settings [ 14 , 15 , 16 , 17 , 18 , 19 , 20 , 21 , 22 , 23 , 24 ]. Because browser /webcam studies di ff er substantially in head-motion control, calibration burden, viewing geometry, and runtime assumptions, cross-paper numerical comparisons should be interpreted cautiously [ 16 , 19 , 20 , 21 , 24 ]. These lines of work suggest that raw benchmark accuracy is only one part of the deployment story. Landmark-guided work has also shown that eye and facial geometry carry substantial gaze information [ 25 , 26 , 27 , 28 ]. This makes a landmark-only pipeline attractive when a lightweight geometric representation is preferred over storing or pro-cessing raw facial imagery at inference. However, landmark robustness is not automatic: rigid head motion directly changes the measured 3D configuration, so the representation must retain gaze-relevant geometry while suppressing nuisance Euclidean transforms. Our goal is therefore not to outrun large raw-image backbones on unconstrained leaderboards, but to target a narrower regime in which a short explicit calibration routine is acceptable because it enables a smaller, more controllable, and browser-capable runtime. Existing personalization methods confirm the value of rapid adaptation for gaze estimation [ 29 , 30 , 31 ]. We argue that calibration should be the primary adaptation operator that shapes representation learning. If deployment relies on a tiny per-session regressor fitted from a handful of still-head samples, then the shared encoder should be trained so that this exact low-capacity calibrator remains reliable under head motion and cross-session variability. From this perspective, we introduce Equivariant Meta-Calibrated Gaze (EMC-Gaze), a deployment-oriented landmark-only webcam gaze tracker built around four design choices. First, we use an E(3)-equivariant landmark-graph encoder because the input is geometric and rigid head transforms are the dominant nuisance variation. Second, we add richer local eye geometry, binocular eye emphasis, and a compact set of rotation-invariant iris-distance features to preserve fine ocular cues that graph pooling can dilute. Third, we optimize the shared representation 
+
+through the closed-form ridge solution during episodic meta-training so that learning is aligned with the exact adaptation mechanism used at inference. Fourth, we regularize the encoder with a   
+
+> ∗Corresponding author.
+> Email address: ck.zhang26@gmail.com (Chenkai Zhang)
+
+2two-view canonicalization consistency loss together with training-only auxiliary 3D gaze-direction supervision, so that pose robustness is encouraged in the shared embedding rather than delegated to a heavy deployment-time branch. Beyond the core method, we describe a session-based data-collection pipeline with explicit head-motion phases and an optional smooth-pursuit block. The full training and evaluation pipeline is implemented within the EyeTrax gaze-tracking library, which provides the common collection, calibration, benchmarking, and live-demo infrastructure used throughout this study. The pursuit extension is not intended to replace fixation-based evaluation; rather, it complements it by exposing continuity and interpolation behavior that pointwise fixation metrics can obscure. 
+
+Contributions.. 
+
+• We study a deployment-oriented operating point for webcam gaze tracking: landmark-only runtime inputs , short per-session calibration , and a browser-capable implementation path 
+
+within the EyeTrax system. 
+
+• We formulate landmark-based webcam gaze tracking as session-wise meta-calibration , where a 
+
+closed-form ridge calibrator is part of the training graph and is used unchanged at deployment. 
+
+• We combine an E(3)-equivariant landmark-graph encoder with richer local eye geometry ,
+
+binocular eye emphasis , iris-distance invariants , and a two-view canonicalization consis-tency loss to improve robustness to rigid head motion in a lightweight geometric representation. 
+
+• We provide both accuracy and deployment-facing evidence through a retrospective subject-disjoint benchmark , a session-level interactive benchmark , a few-shot MPIIFaceGaze calibration curve , and a runtime characterization covering model size, calibration burden, latency, and browser export. 
+
+2. Related work 
+
+Remote gaze estimation and webcam systems.. Recent reviews divide gaze estimation into 2D mapping-based, 3D model-based, and appearance-based families, and highlight calibration and head motion as continuing challenges in remote settings [ 1, 2, 3, 4 , 5]. Classical and appearance-based work spans learning-by-synthesis, full-face modeling, monocular free-head 3D estimation, data normalization, and large in-the-wild datasets such as MPIIGaze, GazeCapture, ETH-XGaze, RT-GENE, and Gaze360 [ 10 , 6, 7, 13 , 11 , 12 , 32 , 8, 9, 33 ]. Methodological work on webcam-based eye tracking has progressed from early browser systems and feasibility studies to behavioral experiments, calibration studies, direct validations, and recent scoping recommendations [ 14 , 15 , 16 , 17 , 18 , 19 , 20 , 21 , 22 , 23 , 24 ]. Our work addresses a narrower operating point: short-session calibrated webcam tracking from derived 3D landmarks rather than raw image inputs. 
+
+Landmark-based and landmark-guided gaze estimation.. Eye landmarks provide structured geometric cues for gaze inference. Park et al. showed that learned eye-region landmarks can support competitive personalized and person-independent gaze estimation in unconstrained set-tings [ 25 ]. Subsequent work has used landmarks as explicit geometric constraints, auxiliary 3supervision, or collaborative multi-task signals to improve gaze estimation accuracy [ 26 , 27 , 28 ]. Our method di ff ers in that the runtime representation is itself a 3D facial-landmark graph, and the deployment-time predictor is a per-session screen-space calibrator fitted separately for each session. 
+
+Calibration and personalization.. Calibration remains central in remote gaze tracking because person-specific anatomy and setup geometry induce systematic bias [ 5]. Personalization and low-shot adaptation have been explored through latent parameterization, fine-tuning, and meta-learning, including FAZE, appearance-based personalization, and on-device few-shot personalization [ 29 , 30 , 31 ]. Model-based work has also sought to reduce or avoid explicit calibration under stronger geometric assumptions [ 34 ]. Our work shares the rapid-adaptation motivation but deliberately constrains adaptation to a closed-form ridge regressor that is identical during meta-training and deployment. 
+
+Meta-learning with closed-form adaptation.. Di ff erentiating through convex or closed-form adaptation steps is standard in few-shot learning, including methods with ridge-regression heads [ 35 ]. We adopt this perspective for session-wise gaze calibration: each session is treated as a task, and the support-set ridge solution is part of the computation graph. 
+
+Equivariant representations for geometric inputs.. Equivariant graph neural networks provide a principled way to process point sets under rigid transforms [ 36 ]. In our setting, this inductive bias is appealing because the main nuisance factors are Euclidean motions of a 3D landmark configuration. We combine an EGNN-style encoder with an auxiliary consistency objective that further discourages the embedding from entangling global head pose with gaze. 
+
+Smooth-pursuit paradigms.. Smooth-pursuit interaction uses continuous eye motion induced by moving targets to support gaze-based interaction beyond static point selection [ 37 ]. We draw on this literature only for data collection and evaluation: pursuit segments provide dense supervision that reveals interpolation quality and temporal continuity beyond what discrete fixation targets alone can show. 
+
+3. Problem formulation 
+
+We observe a stream of webcam frames and aim to predict a 2D on-screen target location. Instead of raw pixels, we extract 3D facial landmarks and a head pose estimate. Data are organized into sessions . A session corresponds to a single user /setup run containing timestamped samples with known on-screen targets. At deployment, a new session is adapted using a small calibration support set. Formally, a session provides N samples: 
+
+{(Xn, pn, yn)}Nn=1,
+
+where Xn ∈ R3V are 3D coordinates for a fixed subset of V landmarks (flattened), pn ∈ R3 is head pose (yaw, pitch, roll), and yn ∈ R2 is the 2D on-screen target (normalized or pixels). We learn (i) an encoder fθ that maps a landmark graph to an embedding e ∈ Rd shared across sessions, and (ii) a per-session linear regressor W (ridge) mapping embeddings to y. The central 4Figure 1: EMC-Gaze overview. Landmark-only webcam gaze tracking is decomposed into a shared E(3)-equivariant landmark-graph encoder, a closed-form per-session ridge calibration head fitted on a short support set, and low-capacity deployment refinements. During meta-training, the encoder is optimized through the ridge solution together with canonicalization-consistency and pursuit-continuity regularization. 
+
+modeling assumption is that, once nuisance session factors are suppressed in the embedding, the remaining session-specific mapping to screen coordinates is simple enough to be captured by a regularized linear calibrator fitted from only a few samples. 
+
+4. EMC-Gaze 
+
+4.1. Overview 
+
+EMC-Gaze decomposes gaze tracking into three parts: a shared equivariant encoder fθ, a per-session ridge regressor fitted on the calibration support set, and an optional low-capacity pose residual gϕ. This decomposition is deliberate. Cross-session structure should be absorbed by the encoder, session-specific a ffi ne alignment should be handled by the calibrator, and explicit pose should be permitted only through a tightly constrained additive pathway. In the flagship implementation, the encoder is explicitly eye-focused: capacity is concentrated on richer left /right eye geometry and binocular fusion, with the rest of the face retained only as lightweight stabilizing context. During training only, we further attach a small auxiliary 3D gaze-direction head to the shared embedding. This branch is supervised against a canonicalized direction proxy derived from the 2D targets, but it is discarded at deployment time so that the runtime predictor remains the same closed-form calibrated 2D head. Throughout the remainder of this paper, “EMC-Gaze” refers to this eye-focused flagship implementation unless noted otherwise. Figure 1 summarizes the full EMC-Gaze pipeline, including the deployment-time calibration path and the training-only regularizers used to shape the shared representation. 
+
+4.2. Landmark graph construction 
+
+Nodes correspond to V=161 selected landmark indices from the MediaPipe face mesh: left eye region (76), right eye region (76), and a small set of mutual anchors (9). Edges are derived 5from the FaceMesh tessellation adjacency and filtered to keep only edges whose endpoints are in the subset; the resulting graph is made bidirectional. This subset concentrates capacity on the eye regions, where gaze cues are strongest, while retaining enough shared anchors to stabilize normalization and canonicalization across the full face geometry. 
+
+4.3. E(3)-equivariant landmark-graph encoder 
+
+We adopt an EGNN-style message passing architecture [ 36 ] that maintains node coordinates 
+
+xi ∈ R3 (equivariant to Euclidean transforms) and node embeddings hi ∈ Rd (intended to be invariant). An equivariant encoder is a natural fit for this problem: the dominant nuisance transformations are rigid motions of a 3D landmark set, yet the downstream calibrator still benefits from local geometric structure that a purely handcrafted invariant representation might discard. Our latest refinement further biases this encoder toward the eye regions: it augments the landmark graph with richer local eye-geometry features, pools the left and right eye regions explicitly, and fuses those binocular summaries with only a small face-context pathway. 
+
+Normalization.. Regardless of how landmarks are stored, the model performs translation and scale normalization inside the forward pass: translate to eye center and divide by inter-ocular distance. This removes global translation and scale variation across sessions. We deliberately do not fully canonicalize the main prediction path here; instead, canonicalization is used in an auxiliary consistency branch (Section 5.3) so that pose leakage is penalized without forcing every prediction through a single estimated face basis. 
+
+Initialization.. Coordinates are initialized from normalized landmarks; node features are initial-ized from a learned node identity embedding: hi = Embed( i). 
+
+Layer update.. For each directed edge ( i → j), define di j = x j − xi and squared distance 
+
+r2 
+
+> i j
+
+= ∥di j ∥2. Compute edge messages 
+
+mi j = ϕe([ hi, h j, r2
+
+> i j
+
+]) ,
+
+and a coordinate weight 
+
+wi j = tanh( ϕx(mi j )) .
+
+Aggregate coordinate updates: 
+
+∆x j = 1deg( j) + ϵ
+
+X 
+
+> i∈N (j)
+
+wi j di j , x j ← x j + ∆ x j,
+
+and feature updates: 
+
+m j =
+
+X 
+
+> i∈N (j)
+
+mi j , h j ← h j + ϕh([ h j, m j]) ,
+
+with dropout applied in ϕh. A pooled node embedding (mean pooling) is combined with additional invariants (Section 4.4) and mapped to the final embedding e via an MLP head. 64.4. Invariant iris-distance features 
+
+Pure message passing can under-emphasize the fine relative displacement between iris centers and nearby eyelid or eye-corner anchors, even though these cues are strongly correlated with gaze. We therefore compute a small set of rotation- and translation-invariant distances. Left and right iris centers are estimated as the mean of iris landmarks, and distances from each iris center to fixed eyelid /corner anchors are concatenated with the pooled graph embedding before the final MLP head. These low-dimensional invariants stabilize few-shot calibration rather than replace the learned representation. 
+
+4.5. Per-session calibration head: ridge regression 
+
+Given a support set {(ek, yk)}Kk=1, we fit a ridge regressor with bias. Let H = [e 1] ∈ RK×(d+1) 
+
+and Y ∈ RK×2. The closed-form solution is: 
+
+W = (H⊤ H + λI)−1 H⊤Y, (1) where W ∈ R(d+1) ×2. For a query embedding e, prediction is ˆ y = [e 1] W.The choice of ridge is deliberate. With only a handful of calibration samples (typically a 9-point grid), a closed-form linear calibrator is statistically stable, computationally negligible, and exactly matches the adaptation mechanism used at inference. The encoder is therefore trained to produce embeddings for which this low-capacity head is su ffi cient. 
+
+4.6. Optional pose residual head 
+
+If enabled, a small MLP gϕ : R3 → R2 maps ( yaw , pitch , roll ) to a 2D correction. During calibration we subtract this correction before fitting ridge: yeff  
+
+> k
+
+= yk −gϕ(pk), fit ridge on ( ek → yeff  
+
+> k
+
+), and at inference add it back: ˆy = [e 1] W + gϕ(p).
+
+Its role is intentionally limited: the pose residual can explain only an additive screen-space bias and cannot replace the landmark-to-gaze mapping learned by the main encoder. This preserves the geometric inductive bias of the core model while still allowing a small correction for residual pose-dependent e ff ects. 
+
+4.7. Practical deployment extensions 
+
+We additionally include several deployment-oriented engineering extensions. These keep the encoder frozen and are reported for completeness rather than as primary methodological contributions. 
+
+Implicit online calibration.. At deployment, the ridge head can be updated using occasional user click events as additional supervision while keeping the encoder fixed. Each click contributes a new supervised pair ( e, y), and the head is updated with recursive least squares (online weighted ridge) using a forgetting factor. To limit drift from noisy clicks, we retain the head estimated from the explicit calibration routine as a stable fallback and gradually blend toward the online-updated head only after su ffi cient evidence accumulates. 7Inference-time head-motion correction.. We also support an optional post-hoc correction layer based on relative 6-DoF head motion. For each calibration frame, we estimate a compact head state 
+
+h = (tx, ty, tz, yaw , pitch , roll) ,
+
+where ( tx, ty) are image-plane o ff sets of the eye center, tz is a scale-based depth proxy derived from inter-ocular distance, and the angular terms are computed from the face-attached landmark basis. After fitting the base calibration head, we compute the residual error on the calibration frames and fit a small ridge regressor from relative head-state deltas ∆h to a 2D correction. At inference, the final prediction becomes ˆyfinal = ˆybase + c(∆h),
+
+where c(·) is a bounded low-capacity correction estimated from the calibration set. Because this correction is learned only from per-session residuals and clipped conservatively, it acts as a geometric refinement layer rather than a replacement for the gaze predictor. 
+
+5. Meta-training 
+
+5.1. Episodic sessions and support /query splits 
+
+We treat each session as a meta-learning task. Each training episode samples one session and splits it into: (i) a support (calibration) set consisting of still-head samples from the 9-point grid, and (ii) a query set consisting of the remaining samples, including broader screen coverage and head-motion phases. This construction deliberately mirrors deployment: calibrate on a short still-head routine and evaluate under more diverse conditions. Restricting the support set to still-head samples is also a design choice: it prevents the calibrator from simply memorizing pose-specific corrections and forces robustness to head motion to emerge from the shared representation. 
+
+5.2. Di ff erentiable ridge-in-the-loop 
+
+We compute the ridge solution within the training graph (e.g., using torch.linalg.solve ), so gradients backpropagate through the closed-form solver [ 35 ]. This aligns training with infer-ence: the encoder is optimized for the exact low-shot adaptation procedure that will be used at test time. 
+
+5.3. Two-view canonicalization consistency 
+
+In addition to the query prediction loss, we apply an embedding consistency loss between a query sample and a canonicalized view of the same landmark coordinates. Let eq = fθ(Xq)and ecanon  
+
+> q
+
+= fθ(C(Xq)), where C rotates normalized landmarks into a canonical face basis. The per-episode loss is: 
+
+L = MSE(ˆ yQ, yQ)
+
+| {z }
+
+> query prediction
+
++λcons MSE( eQ, ecanon  
+
+> Q
+
+)
+
+| {z }
+
+> two-view consistency
+
+. (2) The main prediction path always uses the original normalized landmarks; canonicalization is applied only in this auxiliary branch. This makes the regularizer tolerant to imperfect face-basis estimation while still discouraging the encoder from relying on global rigid head pose. 8Algorithm 1 One EMC-Gaze meta-training episode 
+
+Require: Session samples {(Xn, pn, yn)}Nn=1; ridge λ; consistency weight λcons ; optional continuity weight λcont . 
+
+> 1:
+
+Sample support indices S (still head, grid stimuli) and query indices Q (remaining).  
+
+> 2:
+
+ES ← fθ(XS ); EQ ← fθ(XQ) 
+
+> 3:
+
+if pose residual enabled then  
+
+> 4:
+
+GS ← gϕ(pS ); GQ ← gϕ(pQ) 
+
+> 5:
+
+Yeff  
+
+> S
+
+← YS − GS 
+
+> 6:
+
+else  
+
+> 7:
+
+GQ ← 0; Yeff  
+
+> S
+
+← YS 
+
+> 8:
+
+end if  
+
+> 9:
+
+Fit ridge W on ( ES → Yeff  
+
+> S
+
+) (closed form)  
+
+> 10:
+
+ˆYQ ← HQW + GQ 
+
+> 11:
+
+Ecanon  
+
+> Q
+
+← fθ(C(XQ))  
+
+> 12:
+
+L ← MSE( ˆ YQ, YQ) + λcons MSE( EQ, Ecanon  
+
+> Q
+
+) 
+
+> 13:
+
+if query contains pursuit samples then  
+
+> 14:
+
+L ← L + λcont MSE( ∆ ˆY, ∆Y) 
+
+> 15:
+
+end if  
+
+> 16:
+
+Update ( θ, ϕ ) via backprop on L
+
+5.4. Smooth-pursuit continuity loss 
+
+Discrete fixation targets are su ffi cient to assess calibration accuracy, but they do not explicitly constrain whether predictions move smoothly between targets. To address this, we introduce an optional continuity regularizer for pursuit segments. When a query chunk contains temporally ordered smooth-pursuit samples with targets {yt} and predictions {ˆyt}, we form frame-to-frame increments 
+
+∆yt = yt − yt−1, ∆ˆyt = ˆyt − ˆyt−1,
+
+and add the loss 
+
+Lcont = MSE( ∆ˆyt, ∆yt).
+
+The full training objective becomes 
+
+Ltotal = Lquery + λcons Lcons + λcont Lcont .
+
+This term is active only on pursuit samples. Its purpose is not to alter the fixation task, but to discourage the “snapping” behavior that can arise when the model is trained only on held targets and then evaluated on continuous motion. 
+
+6. Data collection and feature extraction 
+
+6.1. Session-based protocol 
+
+Each collection run is stored as a single .npz session file containing per-frame features, target coordinates, and metadata. In the interactive evaluation used in this paper, each session contains 45 distinct stimulus targets: a still-head 9-point calibration grid used as the support set, 9plus 36 Poisson-disk targets used as queries . The query targets comprise 12 still-head Poisson points and 24 pose-hold points organized into six motion phases ( yaw-left /right , pitch-up /down ,
+
+roll-left /right ) with four Poisson targets per phase. We store multiple samples per target (support: 5 samples /point; query: 2 samples /point), totaling 117 labeled frames per session. 
+
+Sessions, participants, and corpora.. We use session to denote one collected .npz run and 
+
+participant to denote one person, who may contribute multiple sessions. The fixation-style training corpus contains 50 sessions from 32 participants. Most participants contributed one session; two contributed three sessions each (seeds 0, 1, and 2), and one contributed 12 sessions in total: seven motion-enabled sessions (seeds 0–6) plus five still-only sessions collected with randomly sampled targets. The main interactive benchmark contains 33 evaluation sessions from 33 evaluation participants. These sessions were collected in a campus-recruited free-head setting with ordinary seating rather than a head-rest apparatus, which increases ecological variability while remaining a structured screen-interaction benchmark. Because some evaluation participants also appear in the training corpus through separate sessions, the 33-run benchmark should be interpreted as a 
+
+session-level generalization test under new runs and conditions rather than as a fully participant-disjoint evaluation. For the pursuit-enhanced EMC-Gaze variant, we additionally collected 10 smooth-pursuit sessions and trained encoder-based models on the combined 60-session corpus. To obtain a stronger held-out-person assessment, we define the primary retrospective subject-disjoint protocol over the fixation-style corpus itself. Sessions from the author and two additional recurring participants are grouped directly; the March 6–7 follow-up sessions from the author are grouped with the same participant; and the March 5 train-then-evaluate collections are treated as distinct single-session subjects according to collection chronology. This yields 35 reconstructed subject groups in total. We then sample three randomized held-out sets of 10 March 5 subjects (10 sessions each) and train encoder-based models on the remaining 50 sessions for each split. 
+
+Optional smooth-pursuit extension.. Motivated by smooth-pursuit paradigms in gaze interaction [ 37 ], the collection pipeline also supports an optional continuous target trajectory in which each saved frame is supervised by the instantaneous target position. Our default pursuit path is a rounded serpentine scan that covers most of the screen while avoiding unnecessarily sharp turns; the implementation also supports figure-eight, horizontal, vertical, and Lissajous variants. These pursuit samples are stored in the same session format with a dedicated phase label, so they can be used for continuity-aware training and for separate continuous-tracking evaluation without changing the underlying landmark representation. 
+
+6.2. MediaPipe landmarks and input vector 
+
+We use the MediaPipe framework and dense face-mesh pipeline to extract 3D face landmarks from video streams [ 38 , 39 ]. From the full face mesh, we retain V=161 selected landmarks (eyes 
+
++ anchors) and concatenate head pose ( yaw , pitch , roll ), yielding a per-frame feature vector of dimension D = 3V + 3 = 486 (pose in radians). 
+
+6.3. Landmark canonicalization 
+
+We support three landmark coordinate frames: raw , centered (translate to eye center and scale by inter-ocular distance), and canonical (additionally rotate into a canonical face basis). Canonicalization uses outer eye corners and a top-of-head anchor to build an orthonormal basis; details are provided in Appendix Appendix A. 10 6.4. Blink filtering 
+
+We compute a simple eye-aspect ratio (EAR) using eyelid landmarks with a short temporal history [40]. Frames below a dynamic threshold are marked as blinks and can be skipped. 
+
+7. Experiments 
+
+7.1. Metrics 
+
+We report RMSE for the 2D output and convert screen-plane error to an angular error 
+
+(degrees) using the viewing distance d: θ = arctan (∆/d), where ∆ is the screen-plane displacement in centimeters. When targets are stored in normalized coordinates, we first convert to pixels and then to centimeters using the screen geometry. 
+
+7.2. Evaluation protocol 
+
+For each session we fit the ridge head using the still-head 9-point calibration grid (support set: 9 targets × 5 samples /target = 45 samples) and evaluate on the remaining Poisson-disk query targets (36 targets × 2 samples /target = 72 samples). The query set contains 12 still-head targets (24 samples) and 24 pose-hold targets (48 samples) spread across six motion phases (8 samples per phase). We report angular RMSE for (i) still-head query samples, (ii) pose-hold blocks (mean across yaw /pitch /roll), and (iii) overall. Because some evaluation participants also contributed separate training sessions, these metrics should be read as evidence for session-level robustness after short calibration, not as a definitive subject-independent benchmark. For the retrospective subject-disjoint split, we use the same 9-point per-session support construction and report overall angular RMSE on the remaining query samples. Because the training-style held-out sessions do not include a separate still-head query block once the full support is consumed, we do not report a still /pose breakdown for that benchmark. 
+
+Benchmark summary.. We therefore report two benchmarks with di ff erent goals. The primary benchmark is a retrospective subject-disjoint protocol over the fixation-style corpus, which reports overall angular RMSE across three randomized held-out-subject splits. The complementary benchmark is the 33-run session-level interactive evaluation, which reports still-head, pose-hold, and overall angular RMSE after the standard 9-point calibration. The subject-disjoint benchmark is intentionally narrower: because the held-out sessions come from the training-style collector and the full 9-point grid is consumed as support, no separate neutral-head query block remains for a still /pose decomposition. 
+
+Separate pursuit evaluation workflow.. Because continuous-tracking quality is not fully captured by held-target accuracy, we additionally define a pursuit evaluation workflow. Given sessions containing pursuit samples, this evaluator calibrates on the still 9-point support, predicts the pursuit trajectory, and reports both trajectory error and frame-to-frame motion error on the predicted path. We do not yet include a large pursuit benchmark in the main fixation table, but this protocol is used both during model development and in the separate pursuit table reported below. 11 Table 1: Interactive evaluation across 33 runs at an approximate viewing distance of 100 cm . Values report angular RMSE (degrees; mean ±std) on the query split.                
+
+> Method Still ( ◦)Pose ( ◦)Overall ( ◦)EMC-Gaze (ours, pursuit-enhanced) 2.92 ±0.75 6.42 ±1.89 5.79 ±1.81
+> Elastic Net 4.45 ±0.30 7.11 ±2.49 6.68 ±2.34 Ridge 3.78 ±2.20 31.07 ±13.35 27.28 ±11.27 Meta GNN 3.68 ±2.20 29.72 ±11.98 26.41 ±10.18
+
+7.3. Baselines 
+
+We compare EMC-Gaze with: (i) a ridge regressor on the raw landmark feature vector, included as a familiar calibrated linear baseline, (ii) an Elastic Net regressor on the raw landmark feature vector, which serves as our stronger classical baseline, and (iii) a learned graph encoder trained without the proposed equivariance or consistency components (“Meta GNN”) but using the same ridge calibration head. All methods use the same landmark inputs, calibration routine, and evaluation protocol. Because the paper studies the matched-input landmark-only calibrated regime, we restrict direct numerical comparison to methods that operate on the same landmark and pose inputs under the same calibration and evaluation protocol. This appropriately narrows the empirical claim: EMC-Gaze is evaluated as a geometric, session-adaptive alternative within the landmark-only setting rather than as a universal replacement for appearance-based gaze estimators. 
+
+7.4. Results 
+
+Table 1 reports results under the session-level interactive protocol: 9-point still-head calibration followed by query targets under both neutral head pose and explicit yaw /pitch /roll hold blocks. At evaluation time, we fit the per-session ridge head on the full 9-point support and measure angular RMSE on the remaining query samples. These numbers correspond to the pursuit-enhanced EMC-Gaze benchmark suite collected before the final eye-focused refinement; the external MPIIFaceGaze benchmark and current deployment artifacts use the final eye-focused flagship described in Section 4.1. Among the matched landmark-input baselines, Elastic Net is the strongest conventional comparator, and EMC-Gaze improves on it for still-head, pose-hold, and overall error. Because this benchmark has partial participant overlap between training and evaluation, we treat it as the session-level companion to the primary subject-disjoint analysis reported below. 
+
+Primary subject-disjoint benchmark.. To test whether the learned encoder remains useful on unseen people rather than only on unseen sessions, we additionally evaluate three randomized retrospective subject-disjoint splits constructed from collection chronology. Each split holds out 10 reconstructed March 5 subjects (10 sessions) and retrains encoder-based models on the remaining 50 sessions while keeping the session-local calibration protocol unchanged. Because the held-out sessions are drawn from the training-style corpus rather than the dedicated interactive evaluator, their query sets are dominated by motion conditions and do not support a separate still /pose breakdown after the full 9-point support has been consumed. We emphasize this experiment because it provides the paper’s strongest evidence that the learned representation transfers beyond 12 Table 2: Primary retrospective subject-disjoint evaluation over 35 reconstructed subject groups. We sample three randomized held-out sets of 10 March 5 subjects (10 sessions) and retrain encoder-based models on the remaining 50 sessions for each split. Values report overall angular RMSE (degrees; mean ±std across split means).      
+
+> Method Held-out overall ( ◦)EMC-Gaze (ours, pursuit-enhanced) 5.66 ±0.19
+> Elastic Net 6.49 ±0.33 Ridge 27.36 ±4.03 Meta GNN 33.23 ±3.33
+
+reused participants. Even under this stricter held-out-subject setting, EMC-Gaze remains better than the strongest classical baseline across all three splits. EMC-Gaze outperformed Elastic Net on all three subject-disjoint splits, with a mean improvement of 0 .83 ◦ angular RMSE, corresponding to an error reduction of roughly 13%. Meta GNN was included for completeness but was not competitive under this limited subject-disjoint training regime. Additional checks with smaller and more strongly regularized Meta GNN variants did not improve held-out-subject performance, suggesting that the baseline transfers poorly in this regime rather than merely being poorly tuned. For reproducibility, we save the frozen split manifests and split-specific checkpoints for this experiment, and the corresponding experiment code will be released as part of the EyeTrax codebase. 
+
+External public-dataset benchmark (MPIIFaceGaze LOPO).. To test whether the learned rep-resentation transfers beyond the EyeTrax-collected corpus under a protocol that better matches EMC-Gaze’s intended use, we evaluate on the public MPIIFaceGaze dataset with a leave-one-person-out (LOPO) protocol and short per-session calibration. For each held-out participant, we train on the remaining 14 MPIIFaceGaze subjects, treat each subject-day as a session at test time, and fit the deployment-time ridge head from only k ∈ { 1, 3, 5, 9, 16 } support samples chosen to cover the screen. EyeTrax features are re-extracted from the MPIIFaceGaze images with the same MediaPipe landmark pipeline used elsewhere in this paper, and angular error is computed from the dataset’s provided screen calibration and 3D face-center / gaze-target geometry. Table 3 shows that the eye-focused EMC-Gaze matches Elastic Net at the extreme 1-shot setting and then pulls ahead from 3-shot calibration onward, with the gap widening as a practical few-shot calibration set becomes available. At 16-shot calibration, the eye-focused EMC-Gaze reaches 8.82(121) ◦, improving on Elastic Net by 2 .01 ◦ (18 .6 %). We also tested a second setting that augments the MPIIFaceGaze training pool with 19 high-quality EyeTrax sessions collected on March 6–7 (still-only random coverage and pursuit-enhanced sessions); the resulting curve was eff ectively unchanged, so we report the cleaner MPII-only setting in the main table. 
+
+Eye-focused refinement.. After the main experiments above, we refined EMC-Gaze further by concentrating more of the encoder capacity on binocular eye geometry rather than broader face context. On the internal 60-session EyeTrax benchmark, this eye-focused variant reduced normal-ized RMSE from 0.4699 to 0.4551. Under the full leave-one-person-out MPIIFaceGaze protocol above, the same refinement improves the 16-shot result from 9.07 ±0.87 to 8.82 ±1.21 degrees, while also improving the 3-shot result from 11.64 ±1.32 to 10.61 ±1.42 degrees. We therefore 13 Table 3: Leave-one-person-out MPIIFaceGaze benchmark with k-shot per-session calibration. Values report subject-macro angular RMSE (degrees; mean ±std across the 15 held-out subjects). Method Calibration shots 1 3 5 9 16 EMC-Gaze (ours, eye-focused, MPII-only) 14.95 ±1.67 10.61 ±1.42 9.73 ±1.31 9.24 ±1.27 8.82 ±1.21            
+
+> Elastic Net 14.95 ±1.67 11.72 ±1.41 11.15 ±1.31 10.95 ±1.31 10.83 ±1.31 Ridge 14.95 ±1.67 15.40 ±2.75 14.52 ±2.76 13.67 ±2.48 12.85 ±2.09 Table 4: Smooth-pursuit evaluation across 10 pursuit sessions at an approximate viewing distance of 100 cm . Values report mean ±std; lower is better except for the standard-deviation ratio, where values far below 1 indicate a collapsed trajectory.
+
+Method Trajectory RMSE (◦)Delta RMSE ( ◦) Std ratio (x /y) EMC-Gaze (ours, pursuit-enhanced) 2.78 ±0.25 0.93 ±0.11 0.95 / 0.64 Elastic Net 4.86 ±0.08 0.57 ±0.02 0.22 / 0.20 Ridge 3.07 ±0.36 0.99 ±0.16 1.08 / 0.99 Meta GNN 3.15 ±0.53 1.08 ±0.15 1.04 / 1.03 
+
+adopt the eye-focused encoder as the default EMC-Gaze implementation for the remainder of the paper. 
+
+Auxiliary 3D training refinement.. We additionally found that 3D geometry is most useful when used as training-only supervision rather than as a deployment-time bottleneck that the calibrated head must depend on directly. Specifically, we add a small auxiliary 3D gaze-direction head on top of the shared embedding and train it against a canonicalized direction proxy, while leaving the deployment-time ridge calibration path unchanged. On the internal 60-session EyeTrax benchmark, this refinement further improves normalized RMSE from 0.4551 to 0.4517, improves still-head RMSE from 0.1909 to 0.1852, and improves pursuit-phase RMSE from 0.2605 to 0.2572. On a reduced MPIIFaceGaze sanity subset (8 subjects, 2 days each), the same refinement improves session-macro angular error from 9.83 ±1.03 to 9.57 ±1.02 degrees. We therefore retain auxiliary 3D supervision in the flagship EMC-Gaze training recipe while keeping inference-time calibration purely 2D and closed-form. 
+
+Continuous pursuit tracking.. The fixation benchmark above does not directly reveal whether predictions move smoothly and with the correct spatial amplitude between discrete targets. Table 4 therefore reports the separate smooth-pursuit evaluation on 10 dedicated pursuit sessions. EMC-Gaze yields the lowest trajectory RMSE after retraining on the same 60-session corpus, while remaining substantially better than Elastic Net and Meta GNN in overall trajectory accuracy. Elastic Net achieves the smallest frame-to-frame motion error, but Table 4 shows that it does so by severely shrinking the predicted trajectory range (standard-deviation ratios 0.22 /0.20), which leads to substantially worse absolute tracking accuracy. By contrast, EMC-Gaze preserves much more of the target trajectory amplitude while remaining accurate overall. We therefore retain EMC-Gaze as the primary pursuit model because it o ff ers the best trajectory RMSE together with a realistic dynamic range. 14 Table 5: Ablations on the core fixation-style EMC model across 33 interactive runs. Values report angular RMSE (degrees; mean ±std) on the query split. 
+
+Variant Still ( ◦) Pose ( ◦) Overall ( ◦)EMC-Gaze core (without pursuit extension) 3.15 ±0.96 6.05 ±1.51 5.48 ±1.38 No canonicalization consistency loss ( λcons =0) 3.15 ±1.00 6.19 ±1.62 5.59 ±1.45 No iris-distance invariant features 5.19 ±0.04 5.93 ±0.05 5.72 ±0.04 No pose residual head 3.13 ±0.95 6.01 ±1.59 5.45 ±1.44 Replace equivariant encoder with MLP encoder 5.14 ±0.05 5.90 ±0.08 5.69 ±0.06 EMC-Gaze Elastic Net Ridge Meta GNN 
+
+> Model
+> 10
+> 20
+> 30
+> 40
+> 50
+> Overall angular RMSE (deg)
+
+33-run aggregate emc mean error per target 
+
+> 0
+> 1
+> 2
+> 3
+> 4
+> 5
+> 6
+> 7
+> Mean error (deg)
+
+Accuracy   
+
+> Figure 2: Accuracy. (Left) Distribution of overall angular RMSE across the 33 interactive evaluation runs. Each point is one run; boxes summarize the run distribution. (Right) Mean angular error per target location (degrees) for EMC-Gaze on the representative run.
+
+Ablations.. Table 5 reports a component ablation study for the core fixation-style EMC model. Removing the canonicalization consistency loss mildly worsens overall accuracy. Removing the pose residual head is essentially neutral on this corpus, suggesting that most robustness is already carried by the encoder and the session calibrator. By contrast, removing the iris-distance invariant features or replacing the equivariant encoder with a simple MLP degrades performance, particularly under still-head conditions, indicating that both the geometric inductive bias and the added ocular invariants contribute meaningfully. 
+
+Qualitative summaries.. Figure 2–Figure 5 summarize (i) aggregate accuracy across runs together with representative spatial error structure, (ii) calibration e ffi ciency, (iii) robustness to head pose, and (iv) temporal stability for a representative interactive run. Table 1 provides the corresponding aggregate statistics across runs. 15 0 2 4 6 8 10 12         
+
+> Calibration time (s)
+> 123456789
+> Calibration targets (k)
+> 10
+> 20
+> 30
+> 40
+> Angular RMSE (deg)  EMC-Gaze
+> Elastic Net
+> Ridge
+
+Calibration efficiency Figure 3: Effi cient calibration. Aggregate angular RMSE (degrees) versus number of calibration targets k across the 33 interactive evaluation runs. Curves show mean performance; shaded bands show ±1 standard deviation. The top axis reports approximate average calibration time for the EMC-Gaze prefix curve. 
+
+8. Implementation details and deployment characteristics 
+
+Because the paper targets a deployment-oriented operating point, we report not only the training configuration but also model size, calibration burden, and runtime latency. A practical default configuration uses embedding dimension d=32, hidden dimension 128, 4 EGNN layers, dropout 0.10, learning rate 3 × 10 −4, ridge λ=10 −3, a pose residual with hidden dimension 16, consistency weight λcons =0.10, and a small auxiliary 3D gaze-direction head used only during training. Episodes sample still-head support from the 9-point grid (typically 1–5 samples per calibration target) and subsample up to 256 query samples, optionally chunked for VRAM safety. 
+
+System and runtime.. The reported experiments were run on an NVIDIA RTX 2000 Ada laptop GPU with MediaPipe 0.10.21. All experiments were executed within the EyeTrax gaze-tracking library, which serves as the common implementation layer for session collection, model fitting, interactive evaluation, latency benchmarking, and live deployment. The same flagship eye-focused encoder is also exported to a browser runtime that combines MediaPipe Tasks landmark extraction, ONNX Runtime Web inference, a user-facing calibration routine (explicit anchors plus straight-line pursuit), and optional click-based online calibration inside a static web page. The exported eye-focused encoder contains 944,423 parameters and occupies approximately 4 .76 MB as an ONNX artifact; including the tiny 98-parameter pose-residual MLP yields a deployed calibrated core of 944,521 learned parameters, with the final session-specific ridge head fit analytically at runtime rather than stored as network weights. A standard 10-epoch training run required approximately 30 minutes. Under the main interactive evaluation protocol, each session uses 45 support samples from the still-head 9-point calibration grid and 72 query samples: 24 still-head query samples and 48 pose-hold query samples spread across six motion phases (8 samples per phase). On a calibrated EMC-Gaze model measured over 120 valid frames, landmark extraction 16 still  
+
+> yaw_left
+> yaw_right
+> pitch_up
+> pitch_down
+> roll_left
+> roll_right
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> Angular RMSE (deg)
+> EMC-Gaze
+> Elastic Net
+> Ridge Meta GNN
+
+Robustness to head pose (aggregate by phase) Figure 4: Robustness to head pose. Mean per-phase angular RMSE (degrees) across the 33 interactive evaluation runs under yaw /pitch /roll pose-hold blocks (still-head calibration support only). Error bars denote ±1 standard deviation across runs. 
+
+latency was 7.36 /6.95 /8.81 ms (mean /median /p90). Model inference latency was 1.94 /1.92 /2.02 ms, and end-to-end pipeline latency was 9.30 /8.89 /10.73 ms per frame. To isolate deployment-time prediction latency apart from webcam capture and landmark extraction, we additionally replayed recorded feature vectors from a saved session using a 45-sample calibration fit and 120 query samples. On CPU, calibrated EMC-Gaze prediction required 8.96 /9.33 /10.18 ms per sample (mean /median /p90) in the Python runtime. In the exported browser runtime measured in headless Chromium 145 with cross-origin-isolated threaded ONNX Runtime Web (4 threads +
+
+proxy worker), encoder inference required 12.78 /12.71 /13.45 ms and full calibrated prediction required 12.58 /12.58 /12.90 ms per sample. Table 6 consolidates the main deployment-facing characteristics of the flagship runtime configuration. 
+
+9. Discussion, limitations, and ethics 
+
+Deployment focus.. EMC-Gaze should be read as a deployment-oriented operating point rather than as a universal leaderboard challenge. The runtime input is a face-landmark graph rather than raw eye or face crops, adaptation is a tiny per-session ridge head, and the exported eye-focused encoder is small enough to support browser-side inference with client-side calibration. In this regime, the relevant tradeo ff is among post-calibration error, calibration burden, robustness to head motion, runtime footprint, and implementation simplicity. 
+
+Why the method is robust to head motion.. Three design choices work together. First, translation and scale normalization remove straightforward nuisance variation before message passing. Second, the equivariant encoder and two-view canonicalization consistency loss discourage rigid-motion leakage into the embedding. Third, because calibration support is collected under 17 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0 
+
+> Within-target jitter (deg)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> CDF
+> emc
+> elastic_net
+> ridge
+> meta_gnn
+
+Stability Figure 5: Stability. CDF of within-target prediction jitter (degrees) on the representative run, computed as the distance from each prediction to that target’s mean prediction. Lower is more stable. 
+
+still-head conditions, the ridge head cannot simply memorize pose-conditioned corrections; the shared representation must remain usable on the pose-hold query blocks. When enabled, the pose residual head provides only a small additive correction rather than a high-capacity shortcut. 
+
+Limitations.. EMC-Gaze depends on reliable landmark extraction and may degrade under oc-clusion, extreme lighting, motion blur, or landmark detector failure. The method predicts 2D screen location rather than a full 3D gaze vector. Per-session calibration is required for best performance, and the meta-training objective assumes that calibration and deployment distribu-tions are reasonably matched by the support /query split. Our current interactive evaluation set covers 33 runs, and the pursuit benchmark covers 10 dedicated smooth-pursuit sessions; these numbers are su ffi cient to reveal meaningful qualitative and quantitative di ff erences, but remain limited in scale and demographic diversity. The 33-run interactive benchmark still contains partial participant overlap between training and evaluation, so it should be interpreted as evidence of session-level robustness after short calibration. The paper’s stronger transfer evidence comes from the three randomized retrospective subject-disjoint splits, although a prospectively annotated participant-disjoint benchmark would be stronger still. The deployment-time online calibration and head-motion correction extensions are useful engineering additions to the system, but they are not isolated in the formal evaluation reported here. Relative to head-rest or chin-rest webcam as-says, the internal interactive benchmark is lower-control and free-head, but it remains a structured screen-interaction protocol rather than a fully in-the-wild study. Finally, the pursuit extension has not yet been scaled to the same breadth as the fixation-style protocol. 
+
+Positioning relative to broader webcam gaze literature.. Recent appearance-based and webcam-oriented systems trained on large public datasets report strong performance when raw images and large-scale supervision are available, and recent methodological papers continue to improve the practical quality of browser-based tracking [ 3, 4, 19 , 20 , 21 , 22 , 23 , 24 , 41 ]. Direct numerical 18 Table 6: Deployment summary for the flagship eye-focused EMC-Gaze runtime. Values correspond to the exported browser-capable configuration discussed in the text. 
+
+Characteristic Value Exported encoder 944,423 parameters; 4 .76 MB ONNX artifact Deployed calibrated core 944,521 learned parameters including the 98-parameter pose residual Runtime calibration head Closed-form ridge regressor fit per session at runtime Calibration burden 9 targets, 45 still-head support samples in the main interactive protocol Browser demo calibration User-facing anchor-plus-pursuit route with optional click-based online updates Runtime stack MediaPipe Tasks, ONNX Runtime Web, client-side ridge calibration /inference Live GPU pipeline (mean /median /p90) Landmarks 7.36 /6.95 /8.81 ms; inference 1.94 /1.92 /2.02 ms; end-to-end 9.30 /8.89 /10.73 ms CPU calibrated prediction 8.96 /9.33 /10.18 ms per sample in Python (feature re-play) Browser calibrated prediction 12.58 /12.58 /12.90 ms per sample in headless Chromium 145 with threaded ONNX Runtime Web comparison across browser /webcam papers should nevertheless be interpreted cautiously, because reported accuracy depends strongly on head-motion control, calibration burden, viewing geometry, and whether inference is browser-native, o ffl ine, or otherwise deployment-constrained [ 19 , 20 , 21 ,24 ]. EMC-Gaze does not attempt to outrun these systems on their own terms. Instead, it targets a narrower regime in which a short explicit calibration routine is acceptable and the runtime is intentionally lightweight, geometry-based, and exportable to the web. The contribution should therefore be interpreted as methodological progress within the landmark-only calibrated regime and as evidence for an accuracy–deployability tradeo ff , not as a claim of universal state-of-the-art performance. 
+
+Privacy and consent.. Although the pipeline can store only derived facial landmarks and head pose (rather than raw video), these signals still constitute biometric data and should be collected with informed consent and appropriate data governance. When collecting new datasets, we recommend documenting consent procedures, retention policies, and, when applicable, demographic balance and fairness analyses. 
+
+10. Conclusion 
+
+We presented EMC-Gaze as a deployment-oriented landmark-only webcam gaze tracker for the regime where a brief explicit calibration routine is acceptable but runtime simplicity, browser feasibility, and robustness to session changes matter. The central methodological idea is to learn a shared geometric representation for the same closed-form ridge operator used at deployment, rather than optimizing an o ffl ine predictor and treating calibration as a separate afterthought. 19 Combined with an E(3)-equivariant landmark-graph encoder, richer local eye geometry, binocular eye emphasis, iris-distance invariants, canonicalization consistency, and training-only auxiliary 3D supervision, this yields a lightweight calibrated system that improves on matched landmark baselines after short calibration and transfers to held-out subjects and MPIIFaceGaze few-shot evaluation. Because the deployed predictor consumes only derived landmarks together with a tiny session-specific ridge head, the same eye-focused encoder can be exported to a browser runtime with client-side calibration and inference. The main contribution is therefore not a universal state-of-the-art claim against heavy appearance-based models, but a practical point on the tradeo ff 
+
+between accuracy, calibration burden, runtime footprint, and deployability for webcam gaze tracking. 
+
+Data availability 
+
+The dataset supporting the findings of this study is not publicly released because it contains human-participant facial landmark and head-pose recordings that are treated as potentially iden-tifying biometric data. The code and trained model used for the reported experiments will be released alongside the public manuscript preprint. 
+
+Funding 
+
+This research received no specific grant from any funding agency in the public, commercial, or not-for-profit sectors. 
+
+CRediT authorship contribution statement 
+
+Chenkai Zhang: Conceptualization, Methodology, Software, Investigation, Formal analysis, Visualization, Writing – original draft, Writing – review & editing. 
+
+Declaration of competing interest 
+
+The author declares that there are no competing financial interests or personal relationships that could have appeared to influence the work reported in this paper. 
+
+Ethics statement 
+
+All participants provided informed consent before data collection. The study was conducted as a small independent non-institutional study by the sole author. No formal ethics review board was available to review the study. 20 EMC-Gaze 
+
+Elastic Net 
+
+Meta GNN 
+
+Ridge 
+
+0
+
+10 
+
+20 
+
+30 
+
+40 
+
+> Angular RMSE (deg)
+
+5.79 6.68 
+
+26.41 27.28 
+
+# Overall accuracy across runs Figure B.6: Overall accuracy comparison. Mean overall angular RMSE (degrees) across the 33 interactive evaluation runs, with error bars indicating ±1 standard deviation. 
+
+Appendix A. Canonicalization details 
+
+Let p33 and p263 denote the outer eye corners and p10 a top-of-head anchor (MediaPipe indices). Define eye center c = (p33 + p263 )/2 and inter-ocular distance s = ∥p263 − p33 ∥. Centered points are pi ← (pi − c)/(s + ϵ). For canonicalization, define: ˆx = normalize( p263 − p33 ), (A.1) ˆy0 = normalize( p10 − c), (A.2) ˆy = normalize(ˆ y0 − ⟨ ˆy0, ˆx⟩ ˆx), (A.3) ˆz = normalize( ˆ x × ˆy), (A.4) and rotation matrix R = [ ˆ x ˆy ˆz] (columns). Canonical coordinates are p′ 
+
+> i
+
+= piR.
+
+Appendix B. Supporting figures for a representative interactive run 
+
+We include additional analyses used in the paper figures and ablations. 
+
+References 
+
+[1] D. W. Hansen, Q. Ji, In the eye of the beholder: A survey of models for eyes and gaze, IEEE Transactions on Pattern Analysis and Machine Intelligence 32 (3) (2010) 478–500. 
+
+doi:10.1109/TPAMI.2009.30 .21 1 2 3 4 5 6 7 8 9
+
+> Calibration targets (k)
+> 6
+> 8
+> 10
+> 12
+> Angular RMSE (deg)
+
+Calibration efficiency (prefix vs random)     
+
+> emc (prefix)
+> emc (random)
+> elastic net (prefix)
+> elastic net (random) Figure B.7: Calibration e ffi ciency (prefix vs random). Representative-run comparison in which prefix order uses the first kcalibration targets and random averages over random subsets (mean ±std).
+
+[2] J. Liu, J. Chi, H. Yang, X. Yin, In the eye of the beholder: A survey of gaze tracking techniques, Pattern Recognition 132 (2022) 108944. doi:10.1016/j.patcog.2022.10 8944 .[3] Y. Cheng, H. Wang, Y. Bao, F. Lu, Appearance-based gaze estimation with deep learning: A review and benchmark, IEEE Transactions on Pattern Analysis and Machine Intelligence 46 (12) (2024) 7509–7528. doi:10.1109/TPAMI.2024.3393571 .[4] Y. Lei, S. He, M. Khamis, J. Ye, An end-to-end review of gaze estimation and its interactive applications on handheld mobile devices, ACM Computing Surveys 56 (2) (2024) 1–38. 
+
+doi:10.1145/3606947 .[5] J. Liu, J. Chi, Z. Yang, A review on personal calibration issues for video-oculographic-based gaze tracking, Frontiers in Psychology 15 (2024) 1309047. doi:10.3389/fpsyg.2024.1 309047 .[6] X. Zhang, Y. Sugano, M. Fritz, A. Bulling, Appearance-based gaze estimation in the wild, in: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2015, pp. 4511–4520. doi:10.1109/CVPR.2015.7299081 .[7] K. Krafka, A. Khosla, P. Kellnhofer, H. Kannan, S. Bhandarkar, W. Matusik, A. Torralba, Eye tracking for everyone, in: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2016, pp. 2176–2184. doi:10.1109/CVPR.2016.239 .[8] X. Zhang, S. Park, T. Beeler, D. Bradley, S. Tang, O. Hilliges, ETH-XGaze: A large scale dataset for gaze estimation under extreme head pose and gaze variation, in: Computer Vision – ECCV 2020, 2020, pp. 365–381. doi:10.1007/978-3-030-58558-7_22 .22 [9] P. Kellnhofer, A. Recasens, S. Stent, W. Matusik, A. Torralba, Gaze360: Physically un-constrained gaze estimation in the wild, in: Proceedings of the IEEE /CVF International Conference on Computer Vision (ICCV), 2019, pp. 6911–6920. doi:10.1109/ICCV.201 9.00701 .[10] Y. Sugano, Y. Matsushita, Y. Sato, Learning-by-synthesis for appearance-based 3d gaze estimation, in: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2014, pp. 1821–1828. doi:10.1109/CVPR.2014.235 .[11] X. Zhang, Y. Sugano, M. Fritz, A. Bulling, It’s written all over your face: Full-face appearance-based gaze estimation, in: Proceedings of the IEEE Conference on Com-puter Vision and Pattern Recognition Workshops (CVPRW), 2017, pp. 2299–2308. doi: 10.1109/CVPRW.2017.284 .[12] X. Zhang, Y. Sugano, A. Bulling, Revisiting data normalization for appearance-based gaze estimation, in: Proceedings of the 2018 ACM Symposium on Eye Tracking Research & Applications (ETRA), 2018, pp. 12:1–12:9. doi:10.1145/3204493.3204548 .[13] H. Deng, W. Zhu, Monocular free-head 3d gaze tracking with deep learning and geometry constraints, in: Proceedings of the IEEE International Conference on Computer Vision (ICCV), 2017, pp. 3162–3171. doi:10.1109/ICCV.2017.341 .[14] A. Papoutsaki, P. Sangkloy, J. Laskey, N. Daskalova, J. Huang, J. Hays, Webgazer: Scal-able webcam eye tracking using user interactions, in: Proceedings of the Twenty-Fifth International Joint Conference on Artificial Intelligence (IJCAI), 2016, pp. 3839–3845. [15] A. Papoutsaki, J. Laskey, J. Huang, Searchgazer: Webcam eye tracking for remote studies of web search, in: Proceedings of the 2017 Conference on Human Information Interaction and Retrieval (CHIIR), 2017, pp. 17–26. doi:10.1145/3020165.3020170 .[16] K. Semmelmann, S. Weigelt, Online webcam-based eye tracking in cognitive science: A first look, Behavior Research Methods 50 (2) (2018) 451–465. doi:10.3758/s13428-017-0913-7 .[17] X. Yang, I. Krajbich, Webcam-based online eye-tracking for behavioral research, Judgment and Decision Making 16 (6) (2021) 1485–1505. doi:10.1017/S1930297500008512 .[18] A. Gudi, X. Li, J. van Gemert, E ffi ciency in real-time webcam gaze tracking, in: Computer Vision – ECCV 2020 Workshops, Springer, 2021, pp. 529–543. doi:10.1007/978-3-030-66415-2_34 .[19] S. Saxena, L. K. Fink, E. B. Lange, Deep learning models for webcam eye tracking in online experiments, Behavior Research Methods 56 (2024) 3487–3503. doi:10.3758/s13428-023-02190-6 .[20] T. Kaduk, C. Goeke, H. Finger, P. König, Webcam eye tracking close to laboratory standards: Comparing a new webcam-based system and the EyeLink 1000, Behavior Research Methods 56 (5) (2024) 5002–5022. doi:10.3758/s13428-023-02237-8 .23 [21] N. V. Valtakari, R. S. Hessels, D. C. Niehorster, C. Viktorsson, P. Nyström, T. Falck-Ytter, C. Kemner, I. T. C. Hooge, A field test of computer-vision-based gaze estimation in psychology, Behavior Research Methods 56 (3) (2024) 1900–1915. doi:10.3758/s13428-023-02125-1 .[22] I. V. der Cruyssen, G. Ben-Shakhar, Y. Pertzov, N. Guy, Q. Cabooter, L. J. Gunschera, B. Verschuere, The validation of online webcam-based eye-tracking: The replication of the cascade e ff ect, the novelty preference, and the visual world paradigm, Behavior Research Methods 56 (5) (2024) 4836–4849. doi:10.3758/s13428-023-02221-2 .[23] L. Falch, K. S. Lohan, Webcam-based gaze estimation for computer screen interaction, Frontiers in Robotics and AI 11 (2024) 1369566. doi:10.3389/frobt.2024.1369566 .[24] A. S. Patterson, C. Nicklin, J. P. Vitta, Methodological recommendations for webcam-based eye tracking: A scoping review, Research Methods in Applied Linguistics 4 (3) (2025) 100244. doi:10.1016/j.rmal.2025.100244 .[25] S. Park, X. Zhang, A. Bulling, O. Hilliges, Learning to find eye region landmarks for remote gaze estimation in unconstrained settings, in: Proceedings of the 2018 ACM Symposium on Eye Tracking Research & Applications (ETRA), 2018, pp. 1–10. doi:10.1145/3204493. 3204545 .[26] Y. Yu, G. Liu, J.-M. Odobez, Deep multitask gaze estimation with a constrained landmark-gaze model, in: Computer Vision – ECCV 2018 Workshops, Springer, 2018, pp. 456–474. 
+
+doi:10.1007/978-3-030-11012-3_35 .[27] Y. Sun, J. Zeng, S. Shan, Gaze estimation with semi-supervised eye landmark detection as an auxiliary task, Pattern Recognition 146 (2024) 109980. doi:10.1016/j.patcog.202 3.109980 .[28] C. Gou, Y. Yu, Z. Guo, C. Xiong, M. Cai, Cascaded learning with transformer for simultane-ous eye landmark, eye state and gaze estimation, Pattern Recognition 156 (2024) 110760. 
+
+doi:10.1016/j.patcog.2024.110760 .[29] S. Park, S. D. Mello, P. Molchanov, U. Iqbal, O. Hilliges, J. Kautz, Few-shot adaptive gaze estimation, in: Proceedings of the IEEE /CVF International Conference on Computer Vision (ICCV), 2019, pp. 9368–9377. doi:10.1109/ICCV.2019.00946 .[30] E. Lindén, J. Sjöstrand, A. Proutière, Learning to personalize in appearance-based gaze tracking, in: Proceedings of the IEEE /CVF International Conference on Computer Vision Workshops (ICCVW), 2019, pp. 1140–1148. doi:10.1109/ICCVW.2019.00145 .[31] J. He, K. Pham, N. Valliappan, P. Xu, C. R. Roberts, D. Lagun, V. Navalpakkam, On-device few-shot personalization for real-time gaze estimation, in: Proceedings of the IEEE /CVF International Conference on Computer Vision Workshops (ICCVW), 2019, pp. 1149–1158. 
+
+doi:10.1109/ICCVW.2019.00146 .[32] T. Fischer, H. J. Chang, Y. Demiris, Rt-gene: Real-time eye gaze estimation in natural environments, in: Proceedings of the European Conference on Computer Vision (ECCV), 2018, pp. 339–357. doi:10.1007/978-3-030-01249-6_21 .24 [33] X. Zhang, Y. Sugano, A. Bulling, Evaluation of appearance-based methods and implications for gaze-based applications, in: Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems, 2019, pp. 1–13. doi:10.1145/3290605.3300646 .[34] K. Wang, Q. Ji, 3d gaze estimation without explicit personal calibration, Pattern Recognition 79 (2018) 216–227. doi:10.1016/j.patcog.2018.01.031 .[35] L. Bertinetto, J. F. Henriques, P. H. S. Torr, A. Vedaldi, Meta-learning with di ff erentiable closed-form solvers, International Conference on Learning Representations (ICLR) (2019). URL https://openreview.net/forum?id=HyxnZh0ct7 
+
+[36] V. G. Satorras, E. Hoogeboom, M. Welling, E(n) Equivariant Graph Neural Networks, in: Proceedings of the 38th International Conference on Machine Learning (ICML), 2021, pp. 9323–9332. [37] M. Vidal, A. Bulling, H. Gellersen, Pursuits: Spontaneous interaction with displays based on smooth pursuit eye movement and moving targets, in: Proceedings of the 2013 ACM International Joint Conference on Pervasive and Ubiquitous Computing (UbiComp), 2013, pp. 439–448. doi:10.1145/2493432.2493477 .[38] C. Lugaresi, J. Tang, H. Nash, C. McClanahan, E. Uboweja, M. Hays, F. Zhang, C. Chang, M. G. Yong, J. Lee, W. Chang, W. Hua, M. Georg, M. Grundmann, MediaPipe: A framework for building perception pipelines, arXiv preprint arXiv:1906.08172 (2019). [39] Y. Kartynnik, A. Ablavatski, I. Grishchenko, M. Grundmann, Real-time facial surface geometry from monocular video on mobile gpus, arXiv preprint arXiv:1907.06724 (2019). [40] T. Soukupová, J. ˇ Cech, Real-time eye blink detection using facial landmarks, in: 21st Computer Vision Winter Workshop, 2016, pp. 1–8. [41] L. Xia, Y. Li, X. Cai, Z. Cui, C. Xu, A. B. Chan, Collaborative contrastive learning for cross-domain gaze estimation, Pattern Recognition 161 (2025) 111244. doi:10.1016/j. patcog.2024.111244 .25

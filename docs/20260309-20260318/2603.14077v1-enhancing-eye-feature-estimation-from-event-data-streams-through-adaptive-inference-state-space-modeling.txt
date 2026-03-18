@@ -1,0 +1,368 @@
+Title: Enhancing Eye Feature Estimation from Event Data Streams through Adaptive Inference State Space Modeling
+
+URL Source: https://arxiv.org/pdf/2603.14077v1
+
+Published Time: Tue, 17 Mar 2026 01:56:40 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# ENHANCING EYE FEATURE ESTIMATION FROM EVENT DATA 
+
+# STREAMS THROUGH ADAPTIVE INFERENCE STATE SPACE 
+
+# MODELING 
+
+Viet Dung Nguyen 
+
+Rochester Institute of Technology 
+
+vn1747@rit.edu 
+
+Mobina Ghorbaninejad 
+
+Rochester Institute of Technology 
+
+mg2587@.rit.edu 
+
+Chengyi Ma 
+
+Rochester Institute of Technology 
+
+cxm3593@rit.edu 
+
+Reynold Bailey 
+
+Rochester Institute of Technology 
+
+rjbvcs@rit.edu 
+
+Gabriel J. Diaz 
+
+Rochester Institute of Technology 
+
+Gabriel.Diaz@rit.edu 
+
+Alexander Fix 
+
+Meta Reality Labs 
+
+alexander.fix@meta.com 
+
+Ryan J. Suess 
+
+Meta Reality Labs 
+
+ryan.suess@gmail.com 
+
+Alexander Ororbia 
+
+Rochester Institute of Technology 
+
+ago@cs.rit.edu 
+
+# ABSTRACT 
+
+Eye feature extraction from event-based data streams can be performed efficiently and with low energy consumption, offering great utility to real-world eye tracking pipelines. However, few eye feature extractors are designed to handle sudden changes in event density caused by the changes between gaze behaviors that vary in their kinematics, leading to degraded prediction performance. In this work, we address this problem by introducing the adaptive inference state space model (AISSM), a novel architecture for feature extraction that is capable of dynamically adjusting the relative weight placed on current versus recent information. This relative weighting is determined via estimates of the signal-to-noise ratio and event density produced by a complementary dynamic confidence network . Lastly, we craft and evaluate a novel learning technique that improves training efficiency. Experimental results demonstrate that the AISSM system outperforms state-of-the-art models for event-based eye feature extraction. 
+
+Keywords Eye tracking · State space model · Eye Feature Estimation · Computer Vision Algorithms 
+
+# 1 Introduction 
+
+Many methods for gaze estimation rely on the localization of eye features present in near-eye images [ Mackworth and Mackworth(1958) ]. Example features include the pupil bound-ary [ Kothari et al.(2022) , Kothari et al.(2021) ], pupil centroid [Chen et al.(2025a) , Chen et al.(2023) ], or iris texture [ Pelz and Hansen(2017) , Shah and Ross(2009) , Daugman(1993) ]. Eye image collection typically relies on frame-based cameras operating at fixed frame rates and with roughly fixed exposure durations that can lead to motion blur and tracking latency. Due to the need for high spatial and temporal resolution, frame-based methods require a significant power draw and high bandwidth [ Lichtsteiner et al.(2008) ]. For example, a binocular eye tracker with a resolution of 320 × 320 pixels operating at 90 frames per second must transmit over 18 million pixels per second, many of which do not meaningfully contribute to gaze estimation, e.g. surrounding skin, introducing inefficiencies in downstream feature extraction. Recent research explores event sensors as a means to overcome many of the limitations of frame-based cameras [Gallego et al.(2022) , Chakravarthi et al.(2024) , Iddrisu et al.(2024) ]. Event sensors, also known as dynamic vision sensors (DVS), passively monitor the scene and asynchronously transmit pixel-level ‘events’ only when the observed 
+
+> arXiv:2603.14077v1 [cs.CV] 14 Mar 2026
+
+Preprint change in log-luminance exceeds a threshold. This per-pixel, parallel sensing enables extremely low latency and effective sampling rates as high as 10 , 000 Hertz [ Gallego et al.(2022) ]. In eye-tracking, event sensors offer several advantages over traditional frame-based sensors: 1. they operate at a higher frequency and lower latency, leading to better accuracy in tracking saccades, micro-saccades, and fast eye movements; 2. since an event sensor only detects brightness/contrast changes, algorithms can exploit this motion-selective capturing behavior, i.e., there are abundant quantities of events when the eye moves, and nearly no events when the eye is in fixation; 3. event sensors consume significantly less power than frame-based cameras, resulting in more accessible wearable devices and edge devices [Chakravarthi et al.(2024)]; and, 4. when properly tuned, triggered events will be spatially sparse and localized primarily around task-relevant portions of the eye in motion, such as the iris-pupil boundary, where changes in luminance are greatest. Despite the advantages of event-based cameras for eye tracking, several challenges remain at the frontier of research. A key challenge arises from the highly variable kinematics of eye movements. Notably, the eye exhibits brief periods of rapid, ballistic saccadic movements that generate dense bursts of task-relevant events, yielding a high signal-to-noise ratio (SNR). These bursts are interspersed with periods of slower or lower-amplitude eye movements (e.g., smooth pursuit, vestibulo-ocular reflex, and fixational eye movements), which elicit comparatively few events and result in a lower SNR. One potential mitigation strategy is to increase the temporal window over which events are accumulated prior to image formation and feature extraction. However, this approach comes at the cost of increased system latency as well as a potential reduction in effective sampling rate. Replacing a convolutional neural network (CNN) with a recurrent neural network (RNN), as is done in some efforts [ Lipton et al.(2015) , Chung et al.(2014) ], presents similar trade-offs. Beyond latency-related concerns, recurrence is computationally inefficient during periods of rapid eye movement when SNR is already high, and it may introduce bias by incorporating recent temporal context when it is not necessary. In this work, we test the hypothesis that relying only on a history-driven or recurrent model leads to inaccurate feature extraction in the presence of abrupt changes in the event density or SNR. We further propose and evaluate a novel Bayesian model designed to overcome these issues through an adaptive neural mechanism that dynamically weights the model’s posterior and prior. This scheme – the adaptive inference state space model (AISSM) – is inspired by the Kalman filter [ Kalman(1960) ] and aims to leverage information during periods of high SNR, while incorporating historical information when SNR drops. Furthermore, we introduce a module called the dynamic confidence network , which aids the AISSM in learning from dynamic behavior. To adapt the parameters of these neuronal components, we construct a model learning technique called long-horizon training so as to improve the training efficiency and maintain the accuracy of the final model. Evaluation demonstrates that our approach outperforms other event-based feature tracking algorithms. Additional testing provides insight into the contributions of the proposed modules. 
+
+# 2 Related Work 
+
+2.1 Event Representations 
+
+Instead of producing a dense pixel frame like conventional cameras do, a DVS generates a spatially sparse stream of events. Each event is denoted as a tuple (x, y, p, t ) where x and y are the pixel coordinates, t is the event timestamp, and p is the binary polarity of the event (indicating an increase ( 1) or decrease ( −1) in light intensity at that pixel) [ Lichtsteiner et al.(2008) ]. Collectively, events form a 3D event stream across the sensor plane and over time; researchers have begun to explore ways to leverage this raw stream for feature extraction. 
+
+EyeGraph [Bandara et al.(2024) ] applies graph-based modeling to encode local spatio-temporal relationships and was shown to work well as a feature extraction method that was robust to the variability in eye movement kinematics in terms of SNR (albeit with a computational cost and latency that hindered deployment in real-time systems). Other approaches have adopted representations that ‘bin’ events into frames to allow the frame-duration to increase in response to sparsity. For example, a histogram-based approach [ Liu and Delbruck(2018) ]aggregates events by counting their occurrences at each pixel location within a fixed temporal window and a 
+
+time surface records the timestamp of the most recent event at each pixel; this creates a map where brightness is indicative of motion recency [ Delbruck et al.(2008) , Lagorce et al.(2017) ]. The voxel-grid is a compromise in which the 3D spatio-temporal domain is quantized into voxels spanning both time and the x and y dimensions of the sensor plane [ Truong et al.(2025) ]. In our work, we adopt a simple binary event-frame representation, i.e., 
+
+binarep [ Barchid et al.(2022) ], which combines event polarity into a lightweight 2D grid compatible with neural 2Preprint networks. Paired with our proposed temporal model, this approach extracts sufficient spatial structure in order to achieve state-of-the-art performance without added representation complexity. 
+
+2.2 Model Architectures 
+
+Beyond considering different event representations, researchers have explored artificial neural network (ANN) architecture designs that mitigate the effects of variable SNR on feature extraction performance. Due to the lack of established methodologies for directly processing raw spatio-temporal event streams, most event-based ANNs rely on frame-based representations. For example, [ Donahue et al.(2017) ] proposed a hybrid CNN-RNN model where a CNN extracts spatial features that are then passed to an RNN that maintains a memory state of the eye location over time. Another approach inspired by computational neuroscience is known as the spiking neural network (SNN). SNNs encode information via asynchronous spike trains, activating neurons only when needed, greatly reducing power usage [ Akopyan et al.(2015) , Ottati et al.(2023) , Narduzzi et al.(2022) , Yin et al.(2021) ]. Models such as 
+
+Retina [Bonazzi et al.(2024) ] and GazeSCRNN [Groenen et al.(2025) ] show that SNNs can estimate gaze accu-rately while using less energy than standard CNNs. State space models (SSMs) have also been employed in order to capture long-term temporal patterns while avoiding the high computational cost of transformer architectures [ Gu and Dao(2024) , Truong et al.(2025) ]. Bayesian variants, including recurrent state space models (RSSMs) [ Ha and Schmidhuber(2018) , Hafner et al.(2020) ,Hafner et al.(2021) , Hafner et al.(2025) ] model the sequence dynamics probabilistically and have been applied to eye-tracking, e.g., as in Mamba [Wang et al.(2024c) ]. In this work, we introduce and design a special variant of the SSM, further formulated in a Bayesian manner, that learns to represent the state space of the event frame observation. 
+
+2.3 Metrics and Datasets Metrics. Model performance in feature extraction is commonly assessed by measuring the spatial accuracy of feature localization relative to a known ground truth. Recent work has increasingly relied on threshold-based detection rates to quantify performance. In particular, evaluations of feature-detection networks often report prediction accuracy as the cumulative proportion of samples whose estimated locations fall within a fixed pixel radius of the ground-truth pupil centroid, e.g., P 5 denotes estimates within 5 pixels of the labeled position [Wang et al.(2024b), Chen et al.(2025b)]. A key limitation of these P-metrics is that they enable meaningful comparisons only across datasets with similar image resolutions and optical imaging configurations, since differences in the eye–sensor distance, lens properties, and overall magnification directly determine the apparent size of the eye and pupil within the sensor’s field of view. Consequently, a 5-pixel localization error is not comparable across images with different pupil sizes or resolutions; this limits the interpretability and generalizability of these metrics across studies. Here, we adopt these P-metrics in the absence of suitable alternatives, with the caveat that any comparisons of P-metrics across manuscripts are only valid if evaluations were performed on similar test-sets and resolutions at evaluation time. 
+
+The 3ET+ Dataset. We evaluate competing algorithms using the widely adopted 3ET+ dataset [ Wang et al.(2024b) ,Chen et al.(2025b) ], which provides large-scale, real-world event-based eye recordings with high-quality anno-tations. In principle, supervised models should be trained and evaluated on datasets that capture the range of task-relevant variability expected in real-world deployment, including differences in imaging system characteristics, participant physiology and demographics, environmental illumination, task demands, and resulting gaze behaviors. As with other commonly used datasets, e.g., RGBE-Gaze [Zhao et al.(2025) ] and EV-Eye [Zhao et al.(2023) ], 3ET+ does not comprehensively sample these dimensions of variability. Specifically, it exhibits limited diversity in sensor and optical configurations, participant demographics, and recording conditions. Nevertheless, we adopt 3ET+ since it is a well-established benchmark in the event-based eye-tracking literature, supports direct comparison with prior work, and offers sufficiently large, consistently annotated data for enabling controlled and reproducible evaluation of competing methods. 
+
+# 3 Methods 
+
+Typically, CNNs designed to accept frame-based representations of event streams exhibit limited utility when applied to event-based eye data, especially during periods of minimal eye motion when the signal-to-noise ratio or event density drops (see Section 1). One common approach to resolve this issue is to augment the 3Preprint 
+
+Figure 1: Overall architecture of our adaptive inference state space model : (a) The core architecture. The encoder forms a posterior distribution of the current event information q(st−1) while the transition model utilizes a recurrent neural network (RNN) to produce a prior distribution over the next frame p(st|st−1, h t−1). The RNN output ( ht−1)is also used to update the prior at the next timestep. (b) The head is responsible for the estimation of the eye feature 
+
+ˆy. Its input is an α-weighted linear combination of the prior and posterior distributions over the latent state, i.e., it is a weighted summation of current and prior event information. (c) The dynamic confidence network predicts the weighting term α that is used in (b) , which is an estimate of the current information’s ‘reliability’. (d) The inner workings of the AISSM’s encoder module, which is a combination of CNNs and a multi-layered perceptron (MLP), whose output is reshaped into a 2D (categorical distribution) matrix that represents the present data state. (e) The inner workings of the AISSM’s transition module, which is a concatenation of the prior recurrent state ( ht−1) and the representation state ( st−1) sampled from the previous posterior q(st−1). This input is passed through an MLP, forming the prior (categorical) distribution over past data p(st).CNN with recurrent elements, as in CB-ConvLSTM [ Chen et al.(2023) ], MambaPupil [ Wang et al.(2024c) ], and 
+
+PEPNet [Ren et al.(2024) ]. However, conventional RNN models often exhibit unstable performance due to their simultaneous reliance on both past and present information. To overcome this limitation, we introduce a multi-stage training pipeline for eye feature tracking. First, we employ a temporally adaptive technique that enables the system to dynamically adjust the relative weighting of current and past observations (see Section 3.1). This relative weighting is determined by the dynamic confidence network , which dynamically adjusts this weighting on the basis of both SNR and event density (see Section 3.2). Lastly, we propose a training scheme to improve the efficiency and robustness of the eye tracking model (Section 3.3). 
+
+3.1 The Adaptive Inference State Space Model (AISSM) 
+
+To address the problems inherent to using RNNs, where performance degrades when event density/SNR changes, we introduce a model that is designed to dynamically weight the contribution of past and present information. Since there is only one event frame in the present whereas there are multiple event frames in the past, our model combines past and present information in the context of a latent code. Specifically, we represent this possible latent information using a discrete, categorical distribution [ Hafner et al.(2021) ,Hafner et al.(2025) , Nguyen et al.(2025) ] instead of a single latent vector in contrast to what is typically done in standard variational inference [ Kingma and Welling(2014) , Kalman(1960) ], active inference [ Friston(2003) ,Friston(2010) , Friston(2013) , Ororbia and Mali(2023) , Yang et al.(2023) ], and representation/model-based-reinforcement learning [ Ha and Schmidhuber(2018) , Hafner et al.(2019) , Hafner et al.(2020) , Hansen et al.(2022) ,Hansen et al.(2024) ] schemes. We then compute the downstream latent representation using the dynamically-weighted linear combination between the past and the present information. We refer to this modeling approach as the adaptive inference state space model (AISSM) .4Preprint 
+
+Model Formulation. Different parts of our proposed AISSM are constructed utilizing ANNs and can be expressed in the following manner: Encoder Posterior: qθ (st|ot); Recurrent Dynamics: fω (ht|ht−1, s t−1)
+
+Transition Prior: pν (st|ht); Confidence: fλ(ˆ αt|ot); Task Head: fψ (ˆ yt|¯st). (1) In this formulation, θ, ω, ν, λ, ψ are the ANN parameters of our model’s corresponding encoder, recurrent model, prior, confidence, and task head, respectively. ot ∈ O H×W ×X is the event frame observation at time t with height H and width W and X is the number of channel(s), depending on the event representation method. Similarly, st ∈ RdS is the corresponding state representation with dimension dS . Next, ht ∈ RdR is the recurrent state with dimension dR. The (dynamic) confidence network fλ maps the observation space to a single term 
+
+ˆαt ∈ R1, ˆαt ∈ [0 , 1] , which determines how reliable the signal is within the most current observation (event frame). 
+
+αt is then used in a linear combination process so as to produce a dynamically weighted state representation 
+
+¯st, i.e., L(sqt , s pt ) = ¯ st = ˆ αt × sqt + (1 − ˆαt) × spt ; spt ∼ pν (st|ht), s qt ∼ qθ (st|ot). Finally, the weighted state representation ¯st is used as input to the task prediction head fψ in order to produce the final prediction of eye feature ˆyt ∈ R. Note that the dimension of ˆy depends on the dataset’s label expectation; the 3ET+ dataset [ Chen et al.(2023) , Wang et al.(2024b) , Chen et al.(2025b) ] uses pupil centroid ( x and y pixel coordinate) as the label output, so ˆyt ∈ R2. Model details are further described in Figure 1. 
+
+Model Training. Unlike variational inference approaches [ Kingma and Welling(2014) , Karl et al.(2017) ], AISSM does not aim to collapse the posterior and prior distributions to update beliefs based on observation-induced 
+
+surprisal . Continually collapsing the posterior and prior distributions would cause the posterior to become fully informed by past states, effectively reducing AISSM to a conventional RNN. In contrast, we treat the posterior distribution as purely informative of the present and the prior distribution as purely informative of the past. Therefore, no complexity objective/penalty [ Friston et al.(2016) ], such as the KL divergence between posterior and prior, was required. Finally, the downstream task head can learn to predict the eye features using any distance loss. In our work, we employ the Huber loss [ Huber(1964) ], denoted as U, so as to ensure a more stable learning trajectory. The AISSM learning objective can then be expressed as follows: 
+
+arg min 
+
+> θ,ω,ν,ψ
+
+Lt(θ, ω, ν, ψ ) = Uyt, f ψ (L(sqt , s pt )) ; spt ∼ pν (st|fω (ht|ht−1, s t−1)) , s qt ∼ qθ (st|ot)
+
+where, Huber loss: Uy, ˆy = 0 .5 min( |ˆy − y|, δ )2 + δ |ˆy − y| − min( |ˆy − y|, δ ).
+
+(2) Note that δ is the threshold where the Huber loss transitions from a quadratic objective, e.g., the mean squared error, to a linear objective, e.g., the mean absolute error. This term controls the model’s outlier sensitivity as well as clip the gradients, further stabilizing our AISSM’s training objective; in our experiments, we set δ = 1 .0.
+
+3.2 The Dynamic Confidence Network Model Formulation. To dynamically infer the confidence of the signal contained within the current observation to be used in a final downstream task head, we require another module to examine and score the actual observation, i.e., fλ(ˆ αt|ot). We define the confidence score of the frame based on the SNR and the event density and train an ANN to predict the total confidence score computed using these two terms. Formally, we first define a region of interest (ROI) rt, which has height h and width w, by forming a region around the label of each event frame. Specifically, rt has its top-left pixel coordinate set to (yit − h 
+
+> 2
+
+, y jt − w 
+
+> 2
+
+) and the bottom-right coordinate set to 
+
+(yit + h 
+
+> 2
+
+, y jt + w 
+
+> 2
+
+), where i, j are the i-th row and j-th column in the event frame, respectively. The label confidence score αt can then be computed in the following manner: SNR t = σ
+
+P 
+
+> i,j
+
+ei,j t ∈ rt
+
+max 
+
+P 
+
+> i,j
+
+ei,j t /∈ rt, ϵ 
+
+ ; ED t =
+
+P 
+
+> i,j
+
+ei,j t ∈ rt
+
+h × w × τ
+
+> 10
+
+; αt = β SNR t + (1 − β) ED t (3) where the signal-to-noise ratio SNR t is first computed by calculating the ratio between the sum of events inside the ROI rt and the sum of events outside of rt. This quantity is then normalized to the range [0 , 1] using a sigmoid squashing function. Next, the event density ED t is defined by calculating the ratio between the total number of events in rt and the number of pixels that rt contains ( h × w). Since the event stream is sparse, even within an event frame, we normalize the number of pixels in rt down to a threshold τ = 0 .1, forming the denominator 
+
+h × w × τ . ED t is then clipped to remain between 0 and 1 and, finally, the label confidence score αt is computed by calculating the weighted average of SNR t and ED t via the term β. Given the labeled confidence score, we can train the dynamic confidence network using any distance objective. Similar to training the AISSM downstream task head, we optimize this module using a Huber loss [Huber(1964)]: 
+
+arg min 
+
+> λ
+
+Lt(λ) = Uαt, f λ(ˆ αt|ot). (4) 5Preprint 
+
+Model/Metrics P5 ↑ P10 ↑ P15 ↑ Distance ↓
+
+CNN 17 .67 ± 10 .88 41 .82 ± 20 .04 60 .17 ± 20 .48 0.03 ± 0.01 
+
+CNN-GRU 25 .33 ± 14 .28 48 .62 ± 26 .66 62 .44 ± 28 .47 0.03 ± 0.01 
+
+CNN-Mamba 16 .02 ± 14 .38 45 .43 ± 39 .38 55 .61 ± 41 .01 0.03 ± 0.01 
+
+CNN-BiGRU 21 .63 ± 21 .48 41 .95 ± 41 .47 49 .33 ± 48 .00 0.03 ± 0.01 
+
+CB-ConvLSTM 29 .86 ± 15 .30 57 .40 ± 21 .25 71 .94 ± 18 .21 0.03 ± 0.01 
+
+MambaPupil 11 .35 ± 11 .33 32 .84 ± 32 .37 48 .22 ± 45 .95 0.13 ± 0.06 
+
+AISSM (ours) 46 .85 ± 21 .49 72 .38 ± 8.13 85 .41 ± 0.79 0.01 ± 0.01 
+
+Table 1: Test/validation accuracy P 5, P 10 , P 15 , and normalized predicted error distance metrics for each model in the 3ET+ dataset at a resolution of 320 × 320 pixels. ↑Higher mean is better. ↓Lower mean is better. Cells highlighted in blue/cyan denote best performance. All models were implemented under this work’s experimental parameter constraints to ensure fair comparison. 
+
+3.3 Long-Horizon Training Technique 
+
+When training recurrent/temporal algorithms, one encounters a problem known as stateless train-ing [ Schäfer et al.(2006) , Johnston et al.(2025) , Trinh et al.(2018) ]. Specifically, when the recurrent state of the RNN is re-initialized at every training batch, as is normally done when training RNNs, temporal information is also reset and thus lost. One can resolve this issue by storing the model state and only resetting it at each epoch’s start. However, one epoch might contain multiple independent gaze behaviors along unique trajectories. To prevent interference among these largely interdependent behaviors, we introduce a training technique for typical sequential, RNN-based models. Specifically, we attach the model state, e.g., posterior and prior distributions, and the recurrent state of the internal RNN directly to each training item and store them within the dataset. Upon training each instance, we retrieve a new state for that instance, and then update it to the corresponding item within the dataset. 
+
+# 4 Experimental Results 
+
+Simulation Setup. We compare our method with recent strong baselines, including CB-ConvLSTM 
+
+[ Chen et al.(2023) ], a CNN with a bidirectional gated recurrent unit (CNN-BiGRU ) as used in [ Schuster and Paliwal(1997) , Chung et al.(2014) ], and MambaPupil [Wang et al.(2024c) ] (the winner of CVPR’s event-based eye tracking challenge [ Wang et al.(2024b) ]). Additionally, we train/simulate general baseline algorithms: 1) a convolution neural network ( CNN ) [ LeCun et al.(1995) ]; 2) a CNN equipped with a gated recurrent unit [ Chung et al.(2014) ] ( CNN-GRU ); and 3) CNN integrated with a Mamba [ Gu and Dao(2024) , Dao and Gu(2024) ] module ( CNN-Mamba ). We compare each method with respect to their accuracy performance, i.e. prediction success rate within 5 pixels (P 5), 10 pixels (P 10 ), and 15 pixels (P 15 ), and distance error which measures how far away the predicted pupil is from the labeled pupil. Note that the distance metrics are normalized to the range [0 , √2] , i.e., since x and y coordinates are normalized the range becomes [0 , 1] . For fair comparison, all models are constrained to ≈ 500 , 000 (synaptic) parameters. The 3ET+ dataset [Wang et al.(2024b), Chen et al.(2025b)] is used as the main benchmark for comparison. To preprocess the data, we follow the methodologies of MambaPupil [ Wang et al.(2024c) ], CB-ConvLSTM [Chen et al.(2023) ], CETM [ Wang et al.(2024a) ], TENNs [ Pei et al.(2024) ], and TD-Tracker [ Ren et al.(2025) ]; event frames/labels are transformed to match network inputs and training efficiency is improved by lowering input resolution to 160 × 120 . To construct an event representation, we use 
+
+binarep [ Barchid et al.(2022) ] which yields higher accuracy in the CB-ConvLSTM baseline [ Chen et al.(2023) ]. After training each model instance, we compute the mean and standard deviation over 5 runs on the validation set. Our final test-time metrics are evaluated at 320 × 320 resolution to closely match that used in prior pipelines [Scheerlinck et al.(2019), Angelopoulos et al.(2021)]. 
+
+Experimental Results. Overall, with the constraint of only ≈ 500 , 000 parameters in total, our AISSM model achieves the best performance as compared to other baselines with respect to P 5, P 10 , P 15 , and normalized distance (with better reported mean and relatively lower standard deviation statistics); see Table 1. This empirical result demonstrates that our AISSM is capable of dynamically weighting the information coming from the past and the most current observation, facilitating effective eye feature estimation. Furthermore, Figure 2 illustrates the utility of being able to change the relative weighting on history and current information on the basis of the quality of current information, as indicated by an estimate of event density. The interaction between current and recent information is most apparent at transitions between gaze behaviors; for instance, when the eye suddenly transitions from saccade to fixation. Inspection of these saccade-to-fixation 6Preprint 
+
+Figure 2: The relationship between event density (blue) and successful prediction (hit) within the range of 10 pixels (orange). The x-axis represents the time-steps within an event frame. Top depicts the CNN-GRU; bottom depicts the AISSM. 
+
+Figure 3: Our AISSM’s validation accuracy when training with (orange) and without (blue) our pro-posed long-horizon training technique. transitions leads us to the speculate that RNN-centric models such as the CNN-GRU rely heavily on the current observation, resulting in rapid performance deterioration as event density drops during fixation. In contrast, as event density drops, our AISSM dynamically increases its weight on past information in response to low posterior confidence; this results in a more informative input to the downstream task head. As a result, the number of “hits” (<P 10 ) produced by the AISSM exceeds that of the CNN-GRU model. Lastly, we measure the performance of our model trained with and without the novel long-horizon technique. Figure 3 shows the stabilizing effect that is provided by this method. Specifically, with the storage and reuse of model states, the accuracy of our trained model stabilizes over time as the training steps become larger; this usefully avoids the slight divergence and degradation in accuracy that happens later on when the model is trained without this technique. 
+
+# 5 Conclusion 
+
+We introduced the adaptive inference state space model (AISSM) for enhancing eye feature estimation from event data streams. This Bayesian model learns to dynamically weight the information between past and present event frames through an inferred confidence scoring scheme. A novel dynamic confidence network learns to estimate the labeled confidence at training time. This labeled confidence is calculated based on the region of interest inferred from the actual position of the labeled eye feature (e.g., the pupil centroid), event density, and signal-to-noise ratio. Empirically, we demonstrate that our proposed AISSM system outperforms other state-of-the-art eye-tracking model baselines. Project-related source code has been made publicly available at: LINK REMOVED FOR ANONYMOUS REVIEW. 
+
+Limitations and Future Work. Although our method can outperform other state-of-the-art baselines at a similar number of parameters, the training/inference speed has not been taken into account and could po-tentially yield higher latency due to the existence of two networks (the AISSM and dynamic confidence net-work ). Future work might resolve this potential problem by investigating different model optimization meth-ods such as using observation uncertainty-aware confidence [ Friston et al.(2015) , Friston et al.(2017) ] instead of a separate network. One could also propose a different representation method, i.e., using disentangle-ment [ Wang et al.(2023) , Higgins et al.(2018) ], instead of employing a categorical distribution as we do, since training and sampling might be temporally/computationally expensive. 
+
+# References 
+
+[Akopyan et al.(2015)] Filipp Akopyan, Jun Sawada, Andrew Cassidy, Rodrigo Alvarez-Icaza, John Arthur, Paul Merolla, Nabil Imam, Yutaka Nakamura, Pallab Datta, Gi-Joon Nam, Brian Taba, Michael Beakes, Bernard Brezzo, Jente B. Kuang, Rajit Manohar, William P. Risk, Bryan Jackson, and Dharmendra S. Modha. 2015. TrueNorth: Design and Tool Flow of a 65 mW 1 Million Neuron Programmable Neurosynaptic Chip. IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems 34, 10 (2015), 1537–1557. 
+
+https://doi.org/10.1109/TCAD.2015.2474396 
+
+7Preprint [Angelopoulos et al.(2021)] Anastasios N. Angelopoulos, Julien N.P. Martel, Amit P. Kohli, Jörg Conradt, and Gordon Wetzstein. 2021. Event-Based Near-Eye Gaze Tracking Beyond 10,000 Hz. IEEE Transactions on Visualization and Computer Graphics 27, 5 (2021), 2577–2586. https://doi.org/10.1109/TVCG.2021. 3067784 
+
+[Bandara et al.(2024)] Nuwan Bandara, Thivya Kandappu, Argha Sen, Ila Gokarn, and Archan Misra. 2024. EyeGraph: Modularity-aware Spatio Temporal Graph Clustering for Continuous Event-based Eye Tracking. 
+
+Advances in Neural Information Processing Systems 37 (2024), 120366–120380. [Barchid et al.(2022)] Sami Barchid, José Mennesson, and Chaabane Djéraba. 2022. Bina-Rep Event Frames: A Simple and Effective Representation for Event-Based Cameras. In 2022 IEEE International Conference on Image Processing (ICIP) . 3998–4002. https://doi.org/10.1109/ICIP46576.2022.9898061 
+
+[Bonazzi et al.(2024)] Pietro Bonazzi, Sizhen Bian, Giovanni Lippolis, Yawei Li, Sadique Sheik, and Michele Magno. 2024. Retina : Low-Power Eye Tracking with Event Camera and Spiking Hardware. In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) . 5684–5692. 
+
+https://doi.org/10.1109/CVPRW63382.2024.00577 
+
+[Chakravarthi et al.(2024)] Bharatesh Chakravarthi, Aayush Atul Verma, Kostas Daniilidis, Cornelia Fermuller, and Yezhou Yang. 2024. Recent Event Camera Innovations: A Survey. arXiv:2408.13627 [cs.CV] https: //arxiv.org/abs/2408.13627 
+
+[Chen et al.(2025a)] Qinyu Chen, Chang Gao, Min Liu, Daniele Perrone, Yan Ru Pei, Zuowen Wang, Zhuo Zou, Shihang Tan, Tao Han, Guorui Lu, Zhen Xu, Junyuan Ding, Ziteng Wang, Zongwei Wu, Han Han, Yuliang Wu, Jinze Chen, Wei Zhai, Yang Cao, Zheng-jun Zha, Nuwan Bandara, Thivya Kandappu, Archan Misra, Xiaopeng Lin, Hongxiang Huang, Hongwei Ren, Bojun Cheng, Hoang M. Truong, Vinh-Thuan Ly, Huy G. Tran, Thuan-Phat Nguyen, and Tram T. Doan. 2025a. Event-Based Eye Tracking. 2025 Event-based Vision Workshop. arXiv:2504.18249 [cs.CV] https://arxiv.org/abs/2504.18249 
+
+[Chen et al.(2025b)] Qinyu Chen, Chang Gao, Min Liu, Daniele Perrone, Yan Ru Pei, Zuowen Wang, Zhuo Zou, Shihang Tan, Tao Han, Guorui Lu, Zhen Xu, Junyuan Ding, Ziteng Wang, Zongwei Wu, Han Han, Yuliang Wu, Jinze Chen, Wei Zhai, Yang Cao, Zheng-jun Zha, Nuwan Bandara, Thivya Kandappu, Archan Misra, Xiaopeng Lin, Hongxiang Huang, Hongwei Ren, Bojun Cheng, Hoang M. Truong, Vinh-Thuan Ly, Huy G. Tran, Thuan-Phat Nguyen, and Tram T. Doan. 2025b. Event-Based Eye Tracking. 2025 Event-based Vision Workshop. arXiv:2504.18249 [cs.CV] https://arxiv.org/abs/2504.18249 
+
+[Chen et al.(2023)] Qinyu Chen, Zuowen Wang, Shih-Chii Liu, and Chang Gao. 2023. 3ET: Efficient Event-based Eye Tracking using a Change-Based ConvLSTM Network. In 2023 IEEE Biomedical Circuits and Systems Conference (BioCAS) . IEEE, 1–5. https://doi.org/10.1109/biocas58349.2023.10389062 
+
+[Chung et al.(2014)] Junyoung Chung, Çaglar Gülçehre, Kyunghyun Cho, and Yoshua Bengio. 2014. Empirical Evaluation of Gated Recurrent Neural Networks on Sequence Modeling. ArXiv abs/1412.3555 (2014). 
+
+https://api.semanticscholar.org/CorpusID:5201925 
+
+[Dao and Gu(2024)] Tri Dao and Albert Gu. 2024. Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality. In International Conference on Machine Learning (ICML) .[Daugman(1993)] J.G. Daugman. 1993. High confidence visual recognition of persons by a test of statistical independence. IEEE Transactions on Pattern Analysis and Machine Intelligence 15, 11 (1993), 1148–1161. 
+
+https://doi.org/10.1109/34.244676 
+
+[Delbruck et al.(2008)] Tobi Delbruck et al . 2008. Frame-free dynamic digital vision. In Proceedings of Intl. Symp. on Secure-Life Electronics, Advanced Electronics for Quality Life and Society , Vol. 1. Tokyo, 21–26. [Donahue et al.(2017)] Jeff Donahue, Lisa Anne Hendricks, Marcus Rohrbach, Subhashini Venugopalan, Sergio Guadarrama, Kate Saenko, and Trevor Darrell. 2017. Long-Term Recurrent Convolutional Networks for Visual Recognition and Description. IEEE Transactions on Pattern Analysis and Machine Intelligence 39, 4 (2017), 677–691. https://doi.org/10.1109/TPAMI.2016.2599174 
+
+[Friston(2003)] Karl Friston. 2003. Learning and inference in the brain. Neural Networks 16, 9 (2003), 1325–1352. 
+
+https://doi.org/10.1016/j.neunet.2003.06.005 Neuroinformatics. [Friston(2013)] Karl Friston. 2013. Life as we know it. Journal of the Royal Society, Interface / the Royal Society 
+
+10 (06 2013), 20130475. https://doi.org/10.1098/rsif.2013.0475 
+
+[Friston et al.(2016)] Karl Friston, Thomas FitzGerald, Francesco Rigoli, Philipp Schwartenbeck, Giovanni Pezzulo, et al . 2016. Active inference and learning. Neuroscience & Biobehavioral Reviews 68 (2016), 862–879. 8Preprint [Friston et al.(2015)] Karl Friston, Francesco Rigoli, Dimitri Ognibene, Christoph Mathys, Thomas FitzGerald, and Giovanni Pezzulo. 2015. Active inference and epistemic value. Cognitive neuroscience (02 2015). 
+
+https://doi.org/10.1080/17588928.2015.1020053 
+
+[Friston(2010)] Karl J. Friston. 2010. The free-energy principle: a unified brain theory? Nature Reviews Neuroscience 11 (2010), 127–138. https://api.semanticscholar.org/CorpusID:5053247 
+
+[Friston et al.(2017)] Karl J Friston, Thomas Parr, and Bert de Vries. 2017. The graphical brain: belief propagation and active inference. Network Neuroscience 1, 4 (2017), 381–414. [Gallego et al.(2022)] Guillermo Gallego, Tobi Delbruck, Garrick Orchard, Chiara Bartolozzi, Brian Taba, Andrea Censi, Stefan Leutenegger, Andrew J. Davison, Jorg Conradt, Kostas Daniilidis, and Davide Scaramuzza. 2022. Event-Based Vision: A Survey . IEEE Transactions on Pattern Analysis & Machine Intelligence 44, 01 (Jan. 2022), 154–180. https://doi.org/10.1109/TPAMI.2020.3008413 
+
+[Groenen et al.(2025)] Stijn Groenen, Marzieh Hassanshahi Varposhti, and Mahyar Shahsavari. 2025. Gaze-SCRNN: Event-based Near-eye Gaze Tracking using a Spiking Neural Network. arXiv:2503.16012 [cs.CV] 
+
+https://arxiv.org/abs/2503.16012 
+
+[Gu and Dao(2024)] Albert Gu and Tri Dao. 2024. Mamba: Linear-time sequence modeling with selective state spaces. In First conference on language modeling .[Ha and Schmidhuber(2018)] David R Ha and Jürgen Schmidhuber. 2018. World Models. ArXiv abs/1803.10122 (2018). https://api.semanticscholar.org/CorpusID:4807711 
+
+[Hafner et al.(2020)] Danijar Hafner, Timothy Lillicrap, Jimmy Ba, and Mohammad Norouzi. 2020. Dream to Control: Learning Behaviors by Latent Imagination. In International Conference on Learning Representations .
+
+https://openreview.net/forum?id=S1lOTC4tDS 
+
+[Hafner et al.(2019)] Danijar Hafner, Timothy P. Lillicrap, Ian Fischer, Ruben Villegas, David Ha, Honglak Lee, and James Davidson. 2019. Learning Latent Dynamics for Planning from Pixels. In Proceedings of the 36th International Conference on Machine Learning, ICML 2019, 9-15 June 2019, Long Beach, California, USA (Proceedings of Machine Learning Research, Vol. 97) , Kamalika Chaudhuri and Ruslan Salakhutdinov (Eds.). PMLR, 2555–2565. http://proceedings.mlr.press/v97/hafner19a.html 
+
+[Hafner et al.(2021)] Danijar Hafner, Timothy P Lillicrap, Mohammad Norouzi, and Jimmy Ba. 2021. Mastering Atari with Discrete World Models. In International Conference on Learning Representations . https: //openreview.net/forum?id=0oabwyZbOu 
+
+[Hafner et al.(2025)] Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timothy Lillicrap. 2025. Mastering diverse control tasks through world models. Nature 640, 8059 (01 Apr 2025), 647–653. https://doi.org/10. 1038/s41586-025-08744-2 
+
+[Hansen et al.(2024)] Nicklas Hansen, Hao Su, and Xiaolong Wang. 2024. TD-MPC2: Scalable, Robust World Models for Continuous Control. In The Twelfth International Conference on Learning Representations .
+
+https://openreview.net/forum?id=Oxh5CstDJU 
+
+[Hansen et al.(2022)] Nicklas A Hansen, Hao Su, and Xiaolong Wang. 2022. Temporal Difference Learning for Model Predictive Control. In Proceedings of the 39th International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 162) , Kamalika Chaudhuri, Stefanie Jegelka, Le Song, Csaba Szepesvari, Gang Niu, and Sivan Sabato (Eds.). PMLR, 8387–8406. https://proceedings.mlr. press/v162/hansen22a.html 
+
+[Higgins et al.(2018)] Irina Higgins, David Amos, David Pfau, Sebastien Racaniere, Loic Matthey, Danilo Rezende, and Alexander Lerchner. 2018. Towards a definition of disentangled representations. arXiv preprint arXiv:1812.02230 (2018). [Huber(1964)] Peter J. Huber. 1964. Robust Estimation of a Location Parameter. The Annals of Mathematical Statistics 35, 1 (1964), 73 – 101. https://doi.org/10.1214/aoms/1177703732 
+
+[Iddrisu et al.(2024)] Khadija Iddrisu, Waseem Shariff, Peter Corcoran, Noel E. O’Connor, Joe Lemley, and Suzanne Little. 2024. Event Camera-Based Eye Motion Analysis: A Survey. IEEE Access 12 (2024), 136783–136804. https://doi.org/10.1109/ACCESS.2024.3462109 
+
+[Johnston et al.(2025)] Liam Johnston, Vivak Patel, Yumian Cui, and Prasanna Balaprakash. 2025. Revisiting the problem of learning long-term dependencies in recurrent neural networks. Neural Networks 183 (2025), 106887. https://doi.org/10.1016/j.neunet.2024.106887 
+
+[Kalman(1960)] Rudolph Emil Kalman. 1960. A New Approach to Linear Filtering and Prediction Problems. 
+
+Transactions of the ASME–Journal of Basic Engineering 82, Series D (1960), 35–45. 9Preprint [Karl et al.(2017)] Maximilian Karl, Maximilian Soelch, Justin Bayer, and Patrick van der Smagt. 2017. Deep Variational Bayes Filters: Unsupervised Learning of State Space Models from Raw Data. In International Conference on Learning Representations . https://openreview.net/forum?id=HyTqHL5xg 
+
+[Kingma and Welling(2014)] Diederik P. Kingma and Max Welling. 2014. Auto-Encoding Variational Bayes. In 
+
+2nd International Conference on Learning Representations, ICLR 2014, Banff, AB, Canada, April 14-16, 2014, Conference Track Proceedings . arXiv:http://arxiv.org/abs/1312.6114v10 [stat.ML] [Kothari et al.(2022)] Rakshit S. Kothari, Reynold J. Bailey, Christopher Kanan, Jeff B. Pelz, and Gabriel J. Diaz. 2022. EllSeg-Gen, towards Domain Generalization for Head-Mounted Eyetracking. Proceedings of the ACM on Human-Computer Interaction 6, ETRA (may 2022), 1–17. https://doi.org/10.1145/3530880 
+
+[Kothari et al.(2021)] Rakshit S. Kothari, Aayush K. Chaudhary, Reynold J. Bailey, Jeff B. Pelz, and Gabriel J. Diaz. 2021. EllSeg: An Ellipse Segmentation Framework for Robust Gaze Tracking. IEEE Transactions on Visualization and Computer Graphics 27, 5 (may 2021), 2757–2767. https://doi.org/10.1109/tvcg. 2021.3067765 
+
+[Lagorce et al.(2017)] Xavier Lagorce, Garrick Orchard, Francesco Galluppi, Bertram E. Shi, and Ryad B. Benos-man. 2017. HOTS: A Hierarchy of Event-Based Time-Surfaces for Pattern Recognition. IEEE Transactions on Pattern Analysis and Machine Intelligence 39, 7 (2017), 1346–1359. https://doi.org/10.1109/ TPAMI.2016.2574707 
+
+[LeCun et al.(1995)] Yann LeCun, Yoshua Bengio, et al . 1995. Convolutional networks for images, speech, and time series. The handbook of brain theory and neural networks 3361, 10 (1995), 1995. [Lichtsteiner et al.(2008)] Patrick Lichtsteiner, Christoph Posch, and Tobi Delbruck. 2008. A 128 × 128 120 dB 15 μs Latency Asynchronous Temporal Contrast Vision Sensor. IEEE Journal of Solid-State Circuits 43, 2 (2008), 566–576. https://doi.org/10.1109/JSSC.2007.914337 
+
+[Lipton et al.(2015)] Zachary C. Lipton, John Berkowitz, and Charles Elkan. 2015. A Critical Review of Recurrent Neural Networks for Sequence Learning. arXiv:1506.00019 [cs.LG] https://arxiv.org/abs/1506. 00019 
+
+[Liu and Delbruck(2018)] Min Liu and Tobi Delbruck. 2018. Adaptive time-slice block-matching optical flow algorithm for dynamic vision sensors. BMVC. [Mackworth and Mackworth(1958)] Jane F Mackworth and Norman H Mackworth. 1958. Eye fixations recorded on changing visual scenes by the television eye-marker. Journal of the Optical Society of America 48, 7 (1958), 439–445. [Narduzzi et al.(2022)] Simon Narduzzi, Siavash A. Bigdeli, Shih-Chii Liu, and L. Andrea Dunbar. 2022. Opti-mizing The Consumption Of Spiking Neural Networks With Activity Regularization. In ICASSP 2022 - 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . 61–65. 
+
+https://doi.org/10.1109/ICASSP43922.2022.9746375 
+
+[Nguyen et al.(2025)] Viet Dung Nguyen, Zhizhuo Yang, Christopher L Buckley, and Alexander Ororbia. 2025. SR-AIF: Solving Sparse-Reward Robotic Tasks From Pixels with Active Inference and World Models. In 
+
+2025 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 6510–6518. [Ororbia and Mali(2023)] Alexander Ororbia and Ankur Mali. 2023. Active Predictive Coding: Brain-Inspired Reinforcement Learning for Sparse Reward Robotic Control Problems. In 2023 IEEE International Confer-ence on Robotics and Automation (ICRA) . 3015–3021. https://doi.org/10.1109/ICRA48891.2023. 10160530 
+
+[Ottati et al.(2023)] Fabrizio Ottati, Chang Gao, Qinyu Chen, Giovanni Brignone, Mario R. Casu, Jason K. Eshraghian, and Luciano Lavagno. 2023. To Spike or Not to Spike: A Digital Hardware Perspective on Deep Learning Acceleration. IEEE Journal on Emerging and Selected Topics in Circuits and Systems 13, 4 (2023), 1015–1025. https://doi.org/10.1109/JETCAS.2023.3330432 
+
+[Pei et al.(2024)] Yan Ru Pei, Sasskia Bruers, Sebastien Crouzet, Douglas McLelland, and Olivier Coenen. 2024. A Lightweight Spatiotemporal Network for Online Eye Tracking with Event Camera . In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) . IEEE Computer Society, Los Alamitos, CA, USA, 5780–5788. https://doi.org/10.1109/CVPRW63382.2024.00587 
+
+[Pelz and Hansen(2017)] Jeff Pelz and Dan Witzner Hansen. 2017. System and Method for Eye Tracking. Pub. No.: WO/2017/205789 International Application No.: PCT/US2017/034756 Publication Date: 30.11.2017 International Filing Date: 26.05.2017; 2017/034756; G06K 9/00 (2006.01), G06K 9/62 (2006.01), G06K 9/46 (2006.01). 10 Preprint [Ren et al.(2025)] Hongwei Ren, Xiaopeng Lin, Hongxiang Huang, Yue Zhou, and Bojun Cheng. 2025. Exploring Temporal Dynamics in Event-based Eye Tracker. arXiv:2503.23725 [cs.CV] https://arxiv.org/abs/ 2503.23725 
+
+[Ren et al.(2024)] Hongwei Ren, Jiadong Zhu, Yue Zhou, Haotian Fu, Yulong Huang, and Bojun Cheng. 2024. A Simple and Effective Point-Based Network for Event Camera 6-DOFs Pose Relocalization . In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE Computer Society, Los Alamitos, CA, USA, 18112–18121. https://doi.org/10.1109/CVPR52733.2024.01715 
+
+[Scheerlinck et al.(2019)] Cedric Scheerlinck, Henri Rebecq, Timo Stoffregen, Nick Barnes, Robert Mahony, and Davide Scaramuzza. 2019. CED: Color Event Camera Dataset . In 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) . IEEE Computer Society, Los Alamitos, CA, USA, 1684–1693. https://doi.org/10.1109/CVPRW.2019.00215 
+
+[Schuster and Paliwal(1997)] M. Schuster and K.K. Paliwal. 1997. Bidirectional recurrent neural networks. IEEE Transactions on Signal Processing 45, 11 (1997), 2673–2681. https://doi.org/10.1109/78.650093 
+
+[Schäfer et al.(2006)] Anton Schäfer, Steffen Udluft, and Hans Zimmermann. 2006. Learning Long Term De-pendencies with Recurrent Neural Networks. Neurocomputing 71, 71–80. https://doi.org/10.1007/ 11840817_8 
+
+[Shah and Ross(2009)] Samir Shah and Arun Ross. 2009. Iris Segmentation Using Geodesic Active Contours. 
+
+IEEE Transactions on Information Forensics and Security 4, 4 (2009), 824–836. https://doi.org/10. 1109/TIFS.2009.2033225 
+
+[Trinh et al.(2018)] Trieu H. Trinh, Andrew M. Dai, Minh-Thang Luong, and Quoc V. Le. 2018. Learning Longer-term Dependencies in RNNs with Auxiliary Losses. https://openreview.net/forum?id=Hy9xDwyPM 
+
+[Truong et al.(2025)] Hoang M Truong, Vinh-Thuan Ly, Huy G Tran, Thuan-Phat Nguyen, and Tram T Doan. 2025. Dual-Path Enhancements in Event-Based Eye Tracking: Augmented Robustness and Adaptive Temporal Modeling. In Proceedings of the Computer Vision and Pattern Recognition Conference . 5155–5163. [Wang et al.(2023)] Xin Wang, Hong Chen, Si’ao Tang, Zihao Wu, and Wenwu Zhu. 2023. Disentangled Repre-sentation Learning. arXiv:2211.11695 [cs.LG] [Wang et al.(2024a)] Zuowen Wang, Chang Gao, Zongwei Wu, Marcos V. Conde, Radu Timofte, Shih-Chii Liu, Qinyu Chen, Zheng-Jun Zha, Wei Zhai, Han Han, Bohao Liao, Yuliang Wu, Zengyu Wan, Zhong Wang, Yang Cao, Ganchao Tan, Jinze Chen, Yan Ru Pei, Sasskia Bruers, Sebastien Crouzet, Douglas Mclelland, Oliver Coenen, Baoheng Zhang, Yizhao Gao, Jingyuan Li, Hayden Kwok-Hay So, Philippe Bich, Chiara Boretti, Luciano Prono, Mircea Lica, David Dinucu-Jianu, Catalin Griu, Xiaopeng Lin, Hongwei Ren, Bojun Cheng, Xinan Zhang, Valentin Vial, Anthony Yezzi, and James Tsai. 2024a. Event-Based Eye Tracking. AIS 2024 Challenge Survey. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops . 5810–5825. [Wang et al.(2024b)] Zuowen Wang, Chang Gao, Zongwei Wu, Marcos V. Conde, Radu Timofte, Shih-Chii Liu, Qinyu Chen, Zheng-jun Zha, Wei Zhai, Han Han, Bohao Liao, Yuliang Wu, Zengyu Wan, Zhong Wang, Yang Cao, Ganchao Tan, Jinze Chen, Yan Ru Pei, Sasskia Brüers, Sébastien Crouzet, Douglas McLelland, Oliver Coenen, Baoheng Zhang, Yizhao Gao, Jingyuan Li, Hayden Kwok-Hay So, Philippe Bich, Chiara Boretti, Luciano Prono, Mircea Lic˘ a, David Dinucu-Jianu, C˘ at˘ alin Grîu, Xiaopeng Lin, Hongwei Ren, Bojun Cheng, Xinan Zhang, Valentin Vial, Anthony Yezzi, and James Tsai. 2024b. Event-Based Eye Tracking. AIS 2024 Challenge Survey. In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) . 5810–5825. https://doi.org/10.1109/CVPRW63382.2024.00590 
+
+[Wang et al.(2024c)] Zhong Wang, Zengyu Wan, Han Han, Bohao Liao, Yuliang Wu, Wei Zhai, Yang Cao, and Zheng-Jun Zha. 2024c. MambaPupil: Bidirectional Selective Recurrent model for Event-based Eye tracking . In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) . IEEE Computer Society, Los Alamitos, CA, USA, 5762–5770. https://doi.org/10.1109/CVPRW63382. 2024.00585 
+
+[Yang et al.(2023)] Zhizhuo Yang, Gabriel J Diaz, Brett R Fajen, Reynold Bailey, and Alexander G Ororbia. 2023. A neural active inference model of perceptual-motor learning. Frontiers in Computational Neuroscience 17 (2023), 1099593. [Yin et al.(2021)] Bojian Yin, Federico Corradi, and Sander M. Bohté. 2021. Accurate and efficient time-domain classification with adaptive spiking recurrent neural networks. Nature Machine Intelligence 3, 10 (01 Oct 2021), 905–913. https://doi.org/10.1038/s42256-021-00397-w 
+
+11 Preprint [Zhao et al.(2025)] Guangrong Zhao, Yiran Shen, Chenlong Zhang, Zhaoxin Shen, Yuanfeng Zhou, and Hongkai Wen. 2025. RGBE-Gaze: A Large-Scale Event-Based Multimodal Dataset for High Frequency Remote Gaze Tracking. IEEE Transactions on Pattern Analysis and Machine Intelligence 47, 1 (2025), 601–615. 
+
+https://doi.org/10.1109/TPAMI.2024.3474858 
+
+[Zhao et al.(2023)] Guangrong Zhao, Yurun Yang, Jingwei Liu, Ning Chen, Yiran Shen, Hongkai Wen, and Guohao Lan. 2023. EV-Eye: Rethinking High-frequency Eye Tracking through the Lenses of Event Cameras. In Advances in Neural Information Processing Systems , A. Oh, T. Nau-mann, A. Globerson, K. Saenko, M. Hardt, and S. Levine (Eds.), Vol. 36. Curran Asso-ciates, Inc., 62169–62182. https://proceedings.neurips.cc/paper_files/paper/2023/file/ c41b5d8c1ba15b2aa83e4fa1541f02c8-Paper-Datasets_and_Benchmarks.pdf 
+
+12
