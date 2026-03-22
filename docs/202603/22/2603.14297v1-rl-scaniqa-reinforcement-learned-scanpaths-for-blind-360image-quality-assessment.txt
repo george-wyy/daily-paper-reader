@@ -1,0 +1,835 @@
+Title: RL-ScanIQA: Reinforcement-Learned Scanpaths for Blind 360{\deg}Image Quality Assessment
+
+URL Source: https://arxiv.org/pdf/2603.14297v1
+
+Published Time: Tue, 17 Mar 2026 04:40:22 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# RL-ScanIQA: Reinforcement-Learned Scanpaths for Blind 360° Image Quality Assessment 
+
+## Yujia Wang 1, Yuyan Li 2, Jiuming Liu 3, Fang-Lue Zhang 4* 
+
+## Xinhu Zheng 2, Neil.A Dodgson 11Victoria University of Wellington 2The Hong Kong University of Science and Technology (Guangzhou) 
+
+3University of Cambridge 4University of New South Wales 
+
+## Abstract 
+
+Blind 360° image quality assessment (IQA) aims to pre-dict perceptual quality for panoramic images without a pristine reference. Unlike conventional planar images, 360° content in immersive environments restricts viewers to a limited viewport at any moment, making viewing behaviors critical to quality perception. Although existing scanpath-based approaches have attempted to model viewing behav-iors by approximating the human view-then-rate paradigm, they treat scanpath generation and quality assessment as separate steps, preventing end-to-end optimization and task-aligned exploration. To address this limitation, we propose RL-ScanIQA, a reinforcement-learned framework for blind 360° IQA. RL-ScanIQA optimize a PPO-trained scanpath policy and a quality assessor, where the policy re-ceives quality-driven feedback to learn task-relevant view-ing strategies. To improve training stability and prevent mode collapse, we design multi-level rewards, including scanpath diversity and equator-biased priors. We further boost cross-dataset robustness using distortion-space aug-mentation together with rank-consistent losses that preserve intra-image and inter-image quality orderings. Extensive experiments on three benchmarks show that RL-ScanIQA achieves superior in-dataset performance and cross-dataset generalization. 
+
+## 1. Introduction 
+
+Image quality assessment (IQA) aims to predict the hu-man perceptual quality of images [8, 16]. Due to the limited availability of compared reference images in real-world scenarios, blind (no-reference) IQA (BIQA) has re-cently gained substantial research attention [42, 51, 80]. In contrast to full-reference methods [50], BIQA supports more downstream tasks such as image restoration [29], au-tonomous driving [32, 33, 45], and AI-generated content 
+
+> *
+
+Corresponding Author. (a) Previous Independent Training Method     
+
+> (b) Our Joint Optimizing Method
+> Reward
+> Quality
+> Assessor
+> Joint Optimization
+> ...
+> ......
+> ...
+> Scanpath
+> ...
+> ......
+> ...
+> Scanpath
+> Generator
+> Human
+> Scanpath
+> Scanpath
+> Human
+> Score
+> Quality
+> Assessor ...
+> ��
+> ��
+> ...
+> ��
+> ��Scanpath Generator
+> Proximal Policy
+> Optimization
+> Policy Model
+> Human
+> Score
+> Independent Optimization
+
+# ×
+
+Figure 1. Comparison of previous works and ours. a: Previous works train the scanpath generator and quality assessor indepen-dently, typically with human scanpath supervision. b: Our method requires no human scanpath and jointly optimizes these two mod-ules end-to-end with a reinforcement learning policy. 
+
+assessment [27, 35, 36, 41, 44]. The widespread adoption of virtual and augmented re-ality (VR/AR) has driven extensive use of 360° omnidirec-tional images [12, 74]. Assessing and guaranteeing the vi-sual quality of panoramic videos remains an open challenge [11]. Unlike planar images, 360° content is captured on a sphere and experienced through sequential head and eye movements within immersive environments [12, 52, 63]. Because viewers perceive only a limited viewport at any moment, diverse scanpaths determine which distortions are encountered and thus perceived quality depends not only on the content but also on the viewer’s visual attentional trajec-tory [9, 11, 55, 56, 65]. These considerations demand the development of novel BIQA models that effectively capture the spherical geometry inherently embedded in panoramic images and also users’ viewing behaviors. Existing BIQA methods for 360° images typically fall into three categories: (1) direct, full-image analysis based on equirectangular projection (ERP) [42, 43]; (2) viewport sampling with predefined or static strategies [1, 25]; and 1
+
+> arXiv:2603.14297v1 [cs.CV] 15 Mar 2026
+
+(3) scanpath-based exploration guided by observed user be-havior [11, 55, 65]. ERP-based models, which treat the 360° image as a planar projection, suffer from inherent spatial biases and distortions. Viewport-based methods, such as patch-wise CNNs, often neglect the sequential na-ture of user exploration by relying on fixed sampling lo-cations. Recent scanpath-based approaches offer improved approximations of human perception by simulating realistic viewing patterns. However, a key limitation still remains: These pipelines generally treat scanpath generation as a sep-arate, externally trained pre-processing step decoupled from the quality prediction task, and are typically trained using heuristics or independent supervision to imitate human be-haviors [55, 65]. To address this problem, we propose RL-ScanIQA, an end-to-end, task-driven framework for blind 360° image quality assessment that jointly learns viewport sampling (scanpath) and quality assessment. As shown in Figure 1, RL-ScanIQA has two jointly optimized modules, where scanpath generation is first formulated as a reinforcement learning (RL) problem in which the agent receives feed-back directly from the subsequent IQA assessor, enabling the RL policy to learn task-relevant exploration trajectories from quality-prediction feedback instead of merely imitat-ing human gaze. Unlike prior approaches that treat scan-path generation as a separate step, we formulate it as a se-quential decision-making process, directly aligned with the IQA objective. Conceptually, RL-ScanIQA reformulates blind 360° IQA as active perception with end-to-end task-driven scanpath learning, rather than in any individual re-ward term or augmentation taken in isolation. Furthermore, distortion-space data augmentation with rank-consistency constraints is employed to improve generalization capabil-ity under cross-dataset adaptations. Our contributions are summarized as follows: • We recast blind 360° IQA as an active perception prob-lem and propose RL-ScanIQA, the first reinforcement-learning-based framework that jointly learns scanpath generation and quality assessment directly from IQA su-pervision, without human scanpath annotations. • We develop a task-calibrated multi-level reward that con-verts sparse IQA supervision into dense shaping signals through step-wise exploration, set-level scanpath diver-sity, and task-aligned perceptual feedback. • We further employ distortion-space augmentation with rank-consistent training as auxiliary regularization to im-prove robustness under cross-dataset distribution shifts. • Extensive experiments on three 360° IQA benchmarks demonstrate that our proposed RL-ScanIQA achieves state-of-the-art performance in both in-dataset and cross-dataset evaluations. 
+
+## 2. Related Work 
+
+BIQA for Planar Images and Videos. Early BIQA meth-ods relied on natural scene statistics and handcrafted fea-tures [34, 42, 43]. Recent works adopted convolutional and transformer architectures to predict perceptual quality from raw pixels [21, 37]. For planar videos [39, 40], Korho-nen et al. [22] and Li et al. [26] extended BIQA to han-dle temporal artifacts such as motion blur and frame drops. More recently, Li et al. [28] proposed Q-Insight, a multi-modal reinforcement-learning framework for language-conditioned quality prediction. However, these approaches typically assume full-frame visibility and uniform attention across the frame, ignoring the spatial exploration behavior critical in immersive 360° environments [60]. This assump-tion limits their applicability to 360° content, where viewers perceive only a restricted viewport at any time. 
+
+BIQA for 360° Images and Videos. Unlike planar im-ages [31, 38], 360° content restricts viewers to a limited viewport, making head and eye movements critical to qual-ity perception. Early methods sampled fixed viewports or relied on equirectangular projection (ERP) to aggre-gate patch-level quality scores [13, 24, 25, 70]. Sun et al. [57] proposed MC360IQA, a multi-branch CNN pro-cessing six predefined viewports, while Xu et al. [66] in-troduced VGCN to model spatial relations among view-ports via graph convolutions. However, these approaches relied on heuristic sampling and neglected sequential view-ing behaviors. Recent methods have incorporated scan-path modeling to better capture user exploration. Wu et al. [65] employed recursive probability sampling to gen-erate pseudo scanpaths and learned temporal dependencies through a distortion-aware network. Sui et al. [55] formu-lated scanpath generation as a generative modeling problem to simulate human-like viewing. Fan et al. [11] integrated scanpath predictions into a video-quality pipeline. How-ever, these methods generate scanpaths via separate prepro-cessing or heuristic/imitation-based policies, that are decou-pled from the IQA objective. Consequently, models cannot learn task-aligned exploration strategies. 
+
+Reinforcement Learning for Visual Tasks. Reinforce-ment learning (RL) enables agents to learn decision-making policies through environmental interaction and reward max-imization [71]. Zhou et al. [79] and Devrim et al. [7] applied RL to visual tasks involving sequential decisions, such as attention selection, video summarization, and view-point planning. Among RL algorithms, Proximal Policy Optimization (PPO) [49] has emerged as a robust on-policy method that stabilizes training via clipped surrogate ob-jectives and entropy regularization. Stiennon et al. [53] demonstrated that PPO performed reliably with episodic re-wards when combined with variance reduction and value bootstrapping. Motivated by these properties, we formulate 2×              
+
+> Task-Aligned Perceptual Rewards
+> A
+> B
+> 
+> 6
+> 26.5
+> .1
+> 7
+> 22
+> A
+> A
+> Q
+> Q
+> 
+> 
+> 2
+> 22.3
+> .5
+> 6
+> 23
+> B
+> B
+> Q
+> Q
+> 
+> 2ˆ()AAQQ
+> ˆˆ()ABsQQ  
+> g
+
+…
+
+... 
+
+... ...
+
+... 
+
+X candidate viewports 
+
+> Discre tization
+
+DINO 
+
+V2 
+
+# ❄
+
+K Scanpath 
+
+> f
+
+Reward Function 
+
+Reference Policy 
+
+reward 
+
+Attention-based 
+
+Assessor 
+
+> Sampling
+
+Policy 
+
+> History
+> Viewport
+
+...
+
+> ��
+> ��
+> �
+
+Value 
+
+value 
+
+GAE 
+
+> History
+> Viewport
+
+ˆ tA
+
+> update
+> update
+> estimate
+> Forward
+
+RL-ScanIQA A 
+
+> B
+> Aug. A
+> Aug. B Aug. B
+> Weak
+> Mild Strong
+> augmentation
+
+……                                                                      
+
+> strong mild
+> ug
+> ˆˆˆ
+> ˆ
+> :,,,
+> ˆ
+> ,,
+> :,,,
+> ˆAug weak
+> AAAAA
+> A
+> B
+> A
+> BB
+> AQQQQQ
+> QQ
+> Q
+> BQ…
+> ,ˆˆ
+> ABBAQQQQ
+> ,ˆˆBABAQf Q QiQ
+> ˆ,ˆAug Aug ABBAiQf Q QQ
+> ˆˆweak
+> AAQQ
+> strong mild ˆˆˆ
+> AAAQQQ
+> Loss Functions
+> Backward Calculate
+> str g
+> tri let n
+> poˆˆˆ(,,)mild
+> AAATripletMarginLoss Q QQL
+
+ mse ˆ ˆ, , , A B BAMSELoss Q Q Q QL
+
+ cons ˆ ˆ, weak   
+
+> AAMSELoss Q QL
+
+ aug aug     
+
+> cross-rank ˆˆ,BARankingLoss Q QL
+
+ rank ˆ ˆ, A BRankingLoss Q QL
+
+> constraint
+> Step-Wise Exploration Rewards
+
+Rewards 
+
+ 1,t tSSIM x x
+
+ t
+
+> xH
+
+ new  
+
+> tx
+
+ txB 
+
+> Scanpath Diversity-Aware Rewards
+> Selected Scanpath Next Scanpath
+> div R
+
+loss Figure 2. Overview of RL-ScanIQA: the scanpath generator is trained with PPO policy, sampling K diverse scanpaths. The quality assessor evaluates each scanpath and produces the final quality score. 
+
+the scanpath generation as a learnable policy and apply PPO to optimize the generated scanpath for perceptual quality as-sessment. 
+
+## 3. Methodology 
+
+3.1. Overview 
+
+As illustrated in Figure 2, our method jointly optimizes a scanpath generator and a quality assessor within areinforcement-learning-based framework. Given a 360° im-age, we first discretize the viewing sphere into X candidate viewports and initialize the agent at a starting viewport. The RL policy generates K scanpaths Sk = xk 
+
+> 1
+
+, . . . , x kT , each consisting of T viewports sampled from the X candidates (section 3.2.1). The policy is guided by multi-level reward signals (section 3.2.2). The quality assessor then evaluates the image quality scores ˆQ1, . . . , ˆQK based on each scan-path, and the final image quality is estimated by averag-ing these scores (section 3.3.1). Distortion-space data aug-mentation and rank-consistent losses are applied to enhance cross-domain performance (section 3.3.2). 
+
+3.2. Scanpath Generator 
+
+3.2.1. Sequential Scanpath Modeling 
+
+To capture the sequential and content-aware nature of hu-man visual exploration, we formulate scanpath generation as a finite-horizon Markov Decision Process (MDP) [7, 59] with horizon length T . For each horizon step t, the agent operates over a discretized spherical action space compris-ing {xjt }Xj=1 , sampled uniformly on X viewports covering the sphere. Each viewport is parameterized by its central yaw–pitch coordinate and has a fixed field of view (FOV). horizontal wrapping and polar clamping are applied for spherical continuity [4, 6]. 
+
+Update of Agent State. At each horizon step t, the pol-icy conditions its decision on both historical trajectory and global scene context. Specifically, the agent state is defined as st = [ ht−1; g], where ht−1 is the hidden state of a Gated Recurrent Unit (GRU) [5] summarizing history viewports 
+
+{x1, . . . , x t−1}, and g ∈ R1024 is a global descriptor ex-tracted from a frozen DINOv2 encoder [46]. The next ac-tion is sampled from an auto-regressive policy πθ (xt | st),where xt denotes the selected viewport at time step t.To enable content-aware decision making, the policy ex-plicitly incorporates candidate viewport features. Given the precomputed viewport features {f jt }Xj=1 that are also ex-tracted by the shared DINOv2 encoder, the next viewport is selected based on: 
+
+zjt = v⊤ tanh 
+
+
+
+Whht−1 + Wg g + Wf f jt + b
+
+
+
++ mt(j),
+
+(1) where Wh ∈ Rdz ×dh , Wg ∈ Rdz ×1024 , and Wf ∈
+
+Rdz ×1024 are projection matrices; b, v ∈ Rdz are learnable bias and scoring vectors; mt(j) ∈ R is a dynamic mask applied to invalid viewports j at step t. Consequently, the overall viewport selection at time t can be represented by the policy πθ (xt | st) = Softmax( {zjt }Xj=1 ).
+
+Optimization Policy. To train the auto-regressive policy 
+
+πθ , we adopt Proximal Policy Optimization (PPO) [49], a widely-used on-policy algorithm that balances stability and exploration. During each iteration, the agent collects ex-perience from sampled scanpaths and computes return and advantage estimates using the multi-level rewards (section 3.2.2). The policy is then updated by minimizing the fol-lowing clipped surrogate objective: 
+
+L(θ) = E
+
+h
+
+min 
+
+
+
+ρ ˆAt, clip (ρ, 1 − ϵ, 1 + ϵ) ˆAt
+
+i 
+
++ cv · E
+
+h
+
+(Vϕ(s) − R total )2i
+
+− cH · E [H (πθ (· | s))] , (2) where ρ = πθ (a | s)/π θold (a | s) is the importance ratio, ˆAt
+
+is the estimated advantage at time t, cv is the weight of the value loss, Vϕ(s) is the value predicted by the critic network with parameters ϕ, and Rtotal is the total discounted return computed from multi-level rewards (section 3.2.2). H(·)
+
+3denotes the entropy of the current policy. The PPO clipping threshold ϵ and the entropy regularization coefficient cH are scheduled during training. We estimate advantages ˆA using Generalized Advantage Estimation (GAE) [48]. Given the critic Vϕ(st) defined on the policy state st = [ ht−1; g], the temporal-difference residual and advantage are: 
+
+δt = rt + γ(1 − dt)Vϕ(st+1 ) − Vϕ(st), (3) 
+
+ˆAt = δt + γλ (1 − dt) ˆAt+1 , (4) where γ and λ denote the discount and trace parameters, respectively, and dt indicates episode termination. 
+
+3.2.2. Design of Rewards 
+
+As shown in Figure 3, to guide the scanpath policy toward producing task-relevant, behaviorally informed viewing tra-jectories, we formulate a composite reward function from three cues: (1) Step-wise Exploration Rewards; (2) Scan-path Diversity-Aware Rewards; and (3) Task-Aligned Per-ceptual Rewards. 
+
+A. Step-Wise Exploration Rewards. To guide the agent toward generating task-relevant viewport sequences, we de-fine a step-wise reward that encodes coarse viewing priors in immersive scenes. Rather than treating the sequence as a monolithic trajectory, we provide localized reward signals at each time step to enable fine-grained decision-making during navigation. Specifically, at each step t, the agent receives a reward 
+
+rt for the selected viewport xt, which integrates four per-ceptual cues grounded in empirical findings. First, we in-corporate H(xt), the Shannon entropy of the viewport’s grayscale histogram [23], to encourage the agent to attend to structurally rich or texturally complex regions. These areas not only attract human gazes but also often contain high-frequency information that is sensitive to quality degrada-tions [2, 47]. Second, to reduce redundancy and promote broader coverage, we include a dissimilarity term based on 
+
+1 − SSIM (xt−1, x t), which penalizes transitions to visu-ally similar patches and steers the agent toward semanti-cally diverse regions [10, 62]. Third, we add a novelty sig-nal δnew (xt) that discourages the revisiting of previously at-tended regions, enabling more comprehensive exploration of the spherical content. This is particularly important for detecting localized artifacts that may be missed during nar-row or repetitive viewings [14, 17]. Finally, motivated by eye-tracking studies on 360° content [19, 52, 68], we intro-duce an equator-bias prior B(xt) to softly favor viewports near the equator, where human attention tends to concen-trate in panoramic scenes. These components are linearly combined to form the fi-×             
+
+> Task-Aligned Perceptual Rewards
+> A
+> B
+> 
+> 6
+> 26.5
+> .1
+> 7
+> 22
+> A
+> A
+> Q
+> Q
+> 
+> 
+> 2
+> 22.3
+> .5
+> 6
+> 23
+> B
+> B
+> Q
+> Q
+> 
+> 2ˆ()AAQQ
+> ˆˆ()ABsQQ  
+
+... 
+
+... ...
+
+...  
+
+> Xcandidate viewports
+
+V2 f
+
+> Reward Function
+> Sampling
+> Aug. A
+> Aug. B Aug. B
+> Mild
+> augmenta
+> Step-Wise Exploration Rewards
+
+Rewards     
+
+> 1,ttSSIM xx
+
+ t    
+
+> xH
+> new
+> tx
+> txB
+> Scanpath Diversity-Aware Rewards
+> Selected Scanpath Next Scanpath
+> div R
+
+Figure 3. Rewards: multi-level rewards are designed in our RL policy update. (More details and code in Supplementary Material) 
+
+nal step-wise exploration rewards as: 
+
+rt = λent · H (xt) + λssim · 1[t > 1] · (1 − SSIM( xt−1, x t)) + λnov · δnew (xt) + λeqb · B (xt), (5) where 1[·] denotes the indicator function, δnew (xt) is as-signed as 1 if xt /∈ { x1, . . . , x t−1} and 0 otherwise. 
+
+B(xt) = exp( −γeq · | pitch( xt)|) (6) softly prefers equatorial viewports, where γeq controls the equator-bias strength and pitch( xt) ∈ [−π/ 2, π/ 2] denotes the latitude of xt in radians. The coefficients λent , λssim ,
+
+λnov , and λeqb balance the relative contributions of the four reward terms. 
+
+B. Scanpath Diversity-Aware Rewards. In panoramic scenes, perceived quality varies depending on which re-gions are attended. For example, compression artifacts may be more prominent in sky regions, while motion blur may occur near the ground [20, 54, 67]. To capture this variabil-ity and improve robustness to localized degradations, we introduce a set-level diversity reward. Moreover, since dif-ferent human observers tend to focus on different regions of the same image, incorporating diverse scanpaths can help simulate this perceptual subjectivity and align better with averaged Mean Opinion Score (MOS) [11, 55, 65]. Given 
+
+K sampled scanpaths {S1, . . . , S K } per image, we define a diversity bonus Rdiv as: 
+
+Rdiv = βcov · | ∪ k Sk|
+
+X − βjac · 1
+
+K(K − 1) 
+
+X
+
+> i̸=j
+
+Jacc (Si, S j ),
+
+(7) where S 
+
+> k
+
+Sk represents the union of all visited viewports across K scanpaths, and βcov and βjac control the coverage reward and overlap penalty, respectively. The first term re-wards coverage, encouraging the union of all scanpaths to span a large portion of the viewing sphere. The second term penalizes overlap between scanpaths using pairwise Jaccard similarity [30, 73], ensuring that the policy generates a set of distinct and complementary scanpaths. 
+
+C. Task-Aligned Perceptual Rewards. Ultimately, the goal of scanpath generation is to support perceptual qual-4ity prediction. To enforce task alignment, we introduce two supervised rewards based on a context-aware evalua-tor network. Given a pair of images (I1, I 2) with asso-ciated ground truth MOS scores (Q1, Q 2) and predicted ones ( ˆQ1, ˆQ2) produced by the quality assessor (in Section 3.3.1), we define the following two task-level rewards. First, a negative MSE reward Rmse penalizes the squared error be-tween predicted and ground-truth scores for each image: 
+
+Rmse = −
+
+h
+
+( ˆQ1 − Q1)2 + ( ˆQ2 − Q2)2i
+
+. (8) This encourages the scanpath policy to attend to regions that help the evaluator make accurate predictions. Second, to capture relative quality perception, we intro-duce a pairwise ranking reward Rrank that promotes correct ordering between the two images: 
+
+Rrank = − log 
+
+
+
+1 + exp 
+
+h
+
+−s · ( ˆQ1 − ˆQ2)
+
+i 
+
+. (9) where s = sign (Q1 − Q2) denotes the ground-truth ranking direction ( s=1 if Q1 > Q 2, −1 otherwise ). This soft rank-ing formulation ensures smooth gradients even when score differences are small or ambiguous, and is especially use-ful when the perceptual quality gap between two distorted images is subtle. The final reward for each image pair is obtained by ag-gregating all components described above. Specifically, for each sampled scanpath Sk = {xk 
+
+> 1
+
+, . . . , x kT }, we compute the sum of its step-level exploration rewards. These are then combined with the set-level diversity reward and task-aligned supervision terms to form the total reward signal: 
+
+Rtotal = 1
+
+K
+
+> K
+
+X
+
+> k=1
+> T
+
+X
+
+> t=1
+
+r(k)
+
+> t
+
+!
+
++Rdiv +λmse ·R mse +λrank ·R rank ,
+
+(10) where λmse and λrank are scheduled weighting factors for the two task-aligned supervision terms, and r(k) 
+
+> t
+
+is the ex-ploration reward at time step t of scanpath k.
+
+3.3. Quality Assessor 
+
+3.3.1. Quality Prediction Module 
+
+The Quality Assessor (QA) module predicts the perceptual quality from a given scanpath. Each scanpath Sk is ren-dered into rectilinear patches and encoded as feature vectors 
+
+{f1, . . . , fT } with DINOv2. The global image context g is similarly extracted by a shared DINOv2 encoder from the full ERP image as in Section 3.2.1. To aggregate local viewport features in a context-aware manner, we adopt an attention-based pooling mechanism. Specifically, the attention weight αt of each region-level feature ft is computed by its interaction with the global feature g, allowing the model to emphasize viewports that are more informative for quality assessment. The scanpath-level representation mk = PTt=1 αt · f kt is then obtained as a weighted sum: 
+
+αt = exp  v⊤ tanh  Wpf kt + Wg g PTi=1 exp  v⊤ tanh  Wpf ki + Wg g . (11) where f kt is the feature of the t-th viewport in the k-th scanpath, v ∈ Rda is a learnable attention vector, Wp
+
+and Wg are projection matrices for local and global fea-tures, respectively. The resulting representation mk cap-tures the semantics of the visited regions, modulated by their importance under the global image context. To in-corporate global information, we concatenate mk with the global feature g and feed the result into a multi-layer per-ceptron (MLP) to regress the scanpath-level quality score: 
+
+ˆQk = MLP([ mk; g]) . This design enables the QA to pre-dict a scalar perceptual score ˆQk for each individual scan-path Sk, making it possible to model the quality implica-tions of different viewing behaviors over the same image. 
+
+3.3.2. Cross-Domain Enhancement 
+
+As shown in Figure 4, to supervise the Quality Assessor (QA), we adopt two standard objectives on a pair of images 
+
+(I1, I 2) with ground truth MOS scores (Q1, Q 2) and pre-dicted ones ( ˆQ1, ˆQ2) from the quality assessor: a regres-sion loss to align with ground-truth MOS scores Lmse =( ˆQ1 − Q1)2 + ( ˆQ2 − Q2)2 , and a pairwise ranking loss 
+
+Lrank = log 
+
+
+
+1 + exp 
+
+
+
+−s · ( ˆQ1 − ˆQ2)
+
+ 
+
+to preserve im-age orderings. Beyond these losses, we also adopt three augmentation-based objectives to enhance robustness un-der distribution shifts: (1) Similarity Consistency Loss; (2) Triplet Loss; (3) Cross-Rank Loss. 
+
+(A) Similarity Consistency Loss. To reflect the human in-sensitivity to small visual changes and mild distortions, we introduce a consistency loss that encourages the model to produce similar quality scores under weak perturbations. This regularization encourages smooth prediction behav-iors. For each image, we generate a clean version and a weakly augmented version through compression, blur, or color jitter, and compute their respective predictions ˆQclean 
+
+and ˆQweak . The loss is defined as: Lcons =   ˆQclean −
+
+ˆQweak 
+
+2.
+
+(B) Triplet Loss. To enable the model to capture the diverse intensity of distortions, we further construct aug-mented triplets for each image: clean, mild, and strong. The predicted scores ˆQclean , ˆQmild , and ˆQstrong are expected to satisfy the ordering: 
+
+Ltriplet = max(0 , ˆQmild − ˆQclean + m1)+ max(0 , ˆQstrong − ˆQmild + m2)+ max(0 , ˆQstrong − ˆQclean + m3),
+
+(12) 5Forward  
+
+> Xwpo
+
+D NO 
+
+V2 
+
+RL-ScanIQA A 
+
+> B
+> Aug. A
+> Aug. B Aug. B
+> Weak
+> Mild Strong
+> augmentation
+
+……                                                                      
+
+> strong mild
+> ug
+> ˆˆˆ
+> ˆ
+> :,,,
+> ˆ
+> ,,
+> :,,,
+> ˆAug weak
+> AAAAA
+> A
+> B
+> A
+> BB
+> AQQQQQ
+> QQ
+> Q
+> BQ…
+> ,ˆˆ
+> ABBAQQQQ
+> ,ˆˆBABAQf Q QiQ
+> ˆ,ˆAug Aug ABBAiQf Q QQ
+> ˆˆw eak
+> AAQQ
+> strong m ild ˆˆˆ
+> AAAQQQ
+> Loss Functions
+> Backward Calculate
+> str g
+> tri let n
+> poˆˆˆ(,,)mild
+> AAATripletMarginLoss Q QQL
+
+ cons ˆ ˆ, weak   
+
+> AAMSELoss Q QL
+
+ aug aug     
+
+> cross-rank ˆˆ,BARankingLoss Q QL
+
+ rank ˆ ˆ, A BRankingLoss Q QL
+
+Cross-Domain Enhancement 
+
+L
+
+> mse
+
+L
+
+> rank
+
+L
+
+> cross-rank
+
+L
+
+> consistency
+
+L              
+
+> triplet
+> ×
+> anpa h D ve s ty Aware Rewards
+> hNext Scanpath
+> d v R
+> Ta k A gned Perceptua Rewards
+> A
+> B
+> 
+> 6
+> 26.5
+> .1
+> 7
+> 22
+> A
+> A
+> Q
+> Q
+> 
+> 
+> 2
+> 22.3
+> .5
+> 6
+> 23
+> B
+> B
+> Q
+> Q
+> 
+> 2ˆ)AAQQ
+> ˆˆ()ABsQQ
+
+Figure 4. Cross-Domain Enhancement: the quality assessor mod-ule is trained using multiple losses with distortion-space augmen-tation. (More details and code in Supplementary Material) 
+
+where m1, m2, and m3 denote the triplet margins. 
+
+(C) Cross-Rank Loss. Finally, we ensure that relative quality judgments are preserved even after data augmenta-tion. Given two images IA and IB with ground truth MOS 
+
+QA > Q B , we generate their mildly or strongly augmented versions and require that the ranking is still preserved. The loss is defined as: 
+
+Lcross = log 
+
+
+
+1 + exp 
+
+
+
+−s · ( ˆQaug  
+
+> A
+
+− ˆQaug  
+
+> B
+
+)
+
+ 
+
+, (13) where s = sign (QA − QB ), and ˆQaug  
+
+> A
+
+, ˆQaug  
+
+> B
+
+are the predic-tions after augmentation. The final training loss of the QA head is composed by: 
+
+Ltotal = βmse · L mse + βrank · L rank + βcons · L cons 
+
++ βtriplet · L triplet + βcross · L cross . (14) where βmse , β rank , β cons , β triplet , and βcross are loss weights. 
+
+## 4. Experiments 
+
+4.1. Experimental Setups 
+
+4.1.1. Datasets 
+
+We evaluate our method on three panoramic image IQA datasets: CVIQD[56], OIQA[9], and JUFE [12]. CVIQD contains 528 compressed omnidirectional images derived from 16 references using JPEG, AVC, and HEVC codecs. OIQA includes 320 images derived from 16 references, dis-torted using JPEG, JPEG2000, Gaussian blur, and Gaussian noise. JUFE comprises 1032 distorted images derived from 258 references with non-uniform regional distortions that better reflect real-world degradations. The JUFE dataset also includes eye-movement data and provides four mean opinion scores (MOS) per image, collected using two start-ing points and two viewing durations (5s/15s). To be con-sistent with our single-label blind IQA setting, we average these four scores into one MOS per image. We also tested using only 15-second MOS (averaged over starting points) 
+
+Table 1. In-dataset experiment results. The methods in the first and second sections are full-reference and blind, respectively. Learning-based methods are retrained on the designated train-ing split to ensure fair comparison. Handcrafted and LLM-based methods are applied directly to ERP images without training. Best results are in bold . The second best is underlined. 
+
+Method JUFE OIQA CVIQD SRCC PLCC SRCC PLCC SRCC PLCC 
+
+> Full-reference
+
+SSIM [64] 0.027 0.011 0.298 0.314 0.668 0.705 VSI [75] 0.045 0.053 0.398 0.422 0.921 0.935 WS-PSNR [58] 0.027 0.081 0.375 0.318 0.778 0.812 LPIPS [76] 0.085 0.061 0.607 0.594 0.822 0.830 S-SSIM [3] 0.013 0.076 0.607 0.594 0.822 0.830 WS-SSIM [82] 0.037 0.052 0.591 0.382 0.873 0.754 DISTS [8] 0.105 0.247 0.602 0.613 0.901 0.887 Blind NIQE [43] 0.552 0.592 0.745 0.736 0.893 0.872 BRISQUE [42] 0.705 0.642 0.915 0.914 0.905 0.922 DBCNN [77] 0.512 0.443 0.811 0.882 0.805 0.873 MC360IQA [57] 0.502 0.623 0.875 0.906 0.877 0.892 VGCN [66] 0.495 0.473 0.902 0.938 0.946 0.932 MFILGN [81] 0.334 0.303 0.511 0.572 0.514 0.498 MP-BOIQA [18] 0.311 0.423 0.778 0.804 0.885 0.902 TreS [15] 0.174 0.188 0.812 0.843 0.883 0.925 MANIQA [72] 0.073 0.125 0.431 0.322 0.511 0.587 AHGCN [13] 0.591 0.586 0.903 0.875 0.915 0.926 Clip-IQA [61] 0.132 0.155 0.117 0.243 0.399 0.428 LIQE [78] 0.023 0.039 0.577 0.681 0.723 0.844 Assessor360 [65] 0.489 0.510 0.979 0.945 0.958 0.963 F-VQA (A) [11] 0.725 0.821 0.891 0.905 0.953 0.904 GSR-X [55] 0.843 0.857 0.922 0.937 0.805 0.957 VU-BOIQA [69] 0.696 0.733 0.935 0.912 0.944 0.952 Q-Insight [28] 0.557 0.412 0.643 0.795 0.872 0.801 
+
+RL-ScanIQA 0.816 0.902 0.941 0.967 0.970 0.970 
+
+with similar results, but adopted the full-condition average for dataset consistency and fair baseline comparison. 
+
+4.1.2. Implementation Details 
+
+We implement our method using PyTorch. The viewing sphere is discretized into 8 × 4 = 32 candidate viewports, each spanning a 90 ◦ × 90 ◦ field-of-view (FOV) and ren-dered at a resolution of 224 × 224 [11, 65]. All viewports are projected from the equirectangular projection (ERP) im-age using bilinear interpolation. The scanpath generator uses 6 gated recurrent unit (GRU) modules. To ensure a fair comparison, the GRU policy selects the initial viewport solely based on global image features to avoid biasing the scanpath. We train the framework for 300 epochs using the Adam optimizer (β1 = 0 .9, β 2 = 0 .999) , with learning rates of 3 × 10 −4 (policy) and 1 × 10 −4 (evaluator). The batch size is set to 4, and gradients are clipped to a maxi-mum L2 norm of 1.0. We conduct in-dataset and cross-dataset evaluations. For in-dataset evaluation, we randomly split each dataset (CVIQD, OIQA, JUFE) into 80% training and 20% testing. Following [11, 65], we repeat this random split 10 times 6Table 2. Cross-dataset experiment results. Best results are in bold .The second best is underlined.                           
+
+> Method
+> Train: CVIQD
+> Test: OIQA /JUFE
+> Train: JUFE
+> Test: CVIQD /OIQA SRCC PLCC SRCC PLCC
+> MC360IQA [57] 0.765 / 0.432 0.827 / 0.615 0.275 / 0.317 0.311 / 0.459 VGCN [66] 0.481 / 0.423 0.530 / 0.481 0.753 / 0.679 0.705 / 0.741 AHGCN [13] 0.501 / 0.443 0.695 / 0.527 0.601 / 0.711 0.611 / 0.498 Assessor360 [65] 0.853 / 0.632 0.887 / 0.749 0.617 / 0.724 0.405 / 0.499 GSR-X [55] 0.804 / 0.765 0.831 / 0.694 0.782 / 0.732 0.733 / 0.611 VU-BOIQA [69] 0.533 / 0.517 0.624 / 0.610 0.503 / 0.432 0.415 / 0.490 F-VQA (A) [11] 0.772 / 0.621 0.604 / 0.509 0.665 / 0.679 0.683 / 0.732
+> RL-ScanIQA 0.901 /0.800 0.913 /0.822 0.771 / 0.755 0.802 /0.833
+
+and report average performance. For cross-dataset evalu-ation, we train the model on one of the two larger datasets (CVIQD or JUFE) and test it on the other two datasets. Dur-ing inference, K = 15 and T = 7 steps, averaging quality predictions across all scanpaths. We use Spearman rank-ordered correlation (SRCC) and Pearson linear correlation (PLCC) as the evaluation metrics [11, 55, 65]. 
+
+4.1.3. Compared Methods 
+
+We compare our RL-ScanIQA against seven full-reference IQA methods: SSIM [64], VIF [75], WS-PSNR [58], LPIPS [76], S-SSIM [3], WS-SSIM [82], DISTS [8]. We also compare our RL-ScanIQA against 17 blind IQA meth-ods for both 2D and 360° images, including DBCNN [77], MC360IQA [57], VGCN [66], MFILGN [81], MP-BOIQA [18], TreS [15], MANIQA [72], AHGCN [13], Clip-IQA [61], LIQE [78], Assessor360 [65], F-VQA (Asses-sor360) [11], GSR-X [55], VU-BOIQA [69], handcrafted methods (NIQE [43], BRISQUE [42]), and a large-language model (Q-insight) [28]. 
+
+4.2. Experimental Results 
+
+In-Dataset Evaluation. As shown in Table 1, RL-ScanIQA achieves the highest PLCC across all three benchmarks and demonstrates state-of-the-art performance on CVIQD. Methods lacking scanpath modeling, such as NIQE and Q-Insight, exhibited significantly lower performance, high-lighting the value of viewport-based evaluation that emu-lates the human perception of 360° content through limited field-of-view observations rather than full-sphere analysis. On JUFE, while GSR-X achieved a higher SRCC, our sub-stantially higher PLCC indicates superior calibration with respect to absolute quality scores under authentic distor-tions, enabled by our adaptive viewport selection rather than uniform sampling. On OIQA, RL-ScanIQA’s PLCC sur-passes that of Assessor360 while maintaining competitive ranking ability. This gain results from jointly learning scan-paths with the quality assessor and the use of a learned prior, enabling the model to focus on distortion-relevant regions adaptively rather than relying on fixed viewing patterns. 
+
+Cross-Dataset Evaluation. As shown in Table 2, MOS = 65.43 
+
+> Prediction = 64.11
+> MOS = 25.26
+> Prediction = 28.74
+> MOS = 16.16
+> Prediction = 15.24
+
+Figure 5. Sampled discrete viewport sequences. We visualize a representative scanpath (T=7) for each image and show the MOS and our predicted quality score below it. MOS = 64.67 
+
+> Prediction = 62.75
+> MOS = 16.15
+> Prediction = 15.22
+> MOS = 65.16
+> Prediction = 63.34
+> MOS = 16.15
+> Prediction = 14.70
+
+Figure 6. Learned heatmaps: heatmaps aggregated from 15 scan-paths. Left : High quality images (MOS=64.67, 65.16) show uni-form exploration. Right : Low quality images (MOS=16.15, 16.15) exhibit focused attention on degraded regions. 
+
+RL-ScanIQA exhibits strong cross-dataset generalization. Trained on CVIQD, our method achieves the highest PLCC on JUFE. Conversely, when trained on JUFE, we get the highest PLCC on both test sets. This robustness arises from the joint optimization of adaptive scanpaths with distortion-space augmentation and rank-consistency regularization, which produces more generalizable viewing strategies. In contrast to fixed-strategy methods, which exhibit signifi-cant performance declines across datasets, our learned pol-icy appears to discover viewing patterns that generalize well across different distortion types and datasets by capturing the most salient features used to rate IQA. 
+
+4.3. Qualitative Visualizations 
+
+Sampled Viewports. In Figure 5, we visualize three actual viewports selected by our policy. For these images, we il-lustrate one sampled discrete viewport sequence of length 
+
+T = 7 by overlaying it on the ERP and displaying the cor-responding rectilinear crops. For high-quality images, the policy exhibits broad and uniform coverage of salient con-tent, while for low-quality images, it focuses on distortion-prone areas such as overcompressed sky and blurry ground. This visualization highlights the policy’s ability to adapt its exploration strategy to image quality. 
+
+Visualization of Attention. In Figure 6, we visualized aggregated attention heatmaps generated by our learned scanpath policy for both high-quality (left) and low-quality (right) images. For high-quality content, the attention dis-tribution exhibits balanced spatial coverage across salient regions. This reflects the exploratory behavior promoted by our diversity reward Rdiv and equator-bias prior B(rt).In contrast, for low-quality images, attention concentrates 7Table 3. Ablation study on the impact of scanpath generator and training paradigm on JUFE [12] dataset.              
+
+> Method SRCC PLCC
+> w/ Human GT Scanpaths 0.724 0.752 w/o Joint Training 0.651 0.783
+> Main Model 0.816 0.902 CVIQD OIQA JUFE
+> SRCC
+> T=4, 7, 15
+> K=5
+> K=10
+> K=15
+> K=20
+> K=50
+> 0.95
+> 0.85
+> 0.75
+> 0.65 4715
+> Figure 7. Ablation Study: Impact of the number of scanpaths (K) and the length of a scanpath (T).
+
+on distortion-prone areas, such as the over-compressed sky. This indicates that our joint optimization allows the policy to identify task-relevant features and prioritize regions in-dicative of image quality. 
+
+4.4. Ablation Studies 
+
+Scanpath Generator. To assess the impact of the scan-path generator, we replace it with ground-truth human eye-tracking trajectories from the JUFE dataset [12] ( w/ Human GT Scanpaths ), where the quality assessor receives fixed human scanpaths as input. As shown in Table3, using hu-man scanpaths results in a performance drop, which are at-tributed to two main factors: (1) the limited diversity of hu-man scanpaths during training, which restricts the model’s exposure to a range of viewing patterns, and (2) the se-mantic gap between unconstrained viewing patterns and the task-driven exploration required for effective image qual-ity assessment. The human scanpaths may prioritize salient content rather than distortions critical for evaluating quality. 
+
+Training Protocol. We compare our joint training scheme with a two-stage separate training protocol ( w/o Joint ), which involves: (1) training the scanpath policy via super-vised imitation to match human eye-tracking trajectories us-ing a cross-entropy loss, while keeping the visual feature extractor and the quality assessor fixed; and (2) freezing the weights of the learned policy and training the quality asses-sor independently using scanpaths generated by the now-fixed policy. The results in Table 3 clearly indicate that joint optimization is critical to align the scanpath generation process with the IQA task objective, allowing the policy to uncover exploration strategies relevant to IQA. 
+
+Number and Length of Scanpaths at Inference. We explore whether the number K and length T of sampled scanpaths affect inference performance. We evaluate K ∈{5, 10 , 15 , 20 , 50 } and T ∈ { 4, 7, 15 }, averaging predic-tions across all sampled scanpaths. As shown in Figure 7, SRCC increases rapidly with larger K and saturates around                                                
+
+> Table 4. Ablation study on multiple reward components.
+> Method CVIQD OIQA JUFE SRCC PLCC SRCC PLCC SRCC PLCC
+> w/o SER 0.952 0.960 0.903 0.942 0.754 0.766 w/o SDR 0.946 0.958 0.897 0.946 0.731 0.755 w/o TPR 0.921 0.933 0.874 0.916 0.720 0.771
+> Main Model 0.968 0.977 0.941 0.967 0.816 0.902
+> Table 5. Ablation study on distortion-space augmentation
+> Method
+> Train: CVIQD
+> Test: OIQA /JUFE
+> Train: JUFE
+> Test: CVIQD /OIQA SRCC PLCC SRCC PLCC
+> w/o Aug. 0.782 / 0.774 0.825 / 0.701 0.664 / 0.703 0.663 / 0.702
+> Main Model 0.901 /0.800 0.913 /0.822 0.771 /0.755 0.802 /0.833
+
+K = 15 , beyond which gains become marginal while in-ference cost grows linearly. For scanpath length, T = 7 
+
+provides the best trade-off between accuracy and efficiency: (1) shorter sequences ( T = 4 ) suffer from insufficient ex-ploration and lower performance, and (2) longer sequences (T = 15 ) yield negligible improvements at considerably higher computational cost. 
+
+Reward Components. To explore how each reward con-tributes to policy learning, we progressively remove them. We first remove all Step-wise Exploration Rewards, re-ferred to as ( w/o SER ). We then disable the Scanpath Diversity-aware Rewards ( w/o SDR ), and finally remove the Task-aligned Perceptual Rewards ( w/o TPR ). As shown in Table 4, the greatest degradation appears for w/o TPR on CVIQD and OIQA, while w/o SDR hurts JUFE the most. 
+
+Cross-Domain Enhancement. To evaluate the effective-ness of distortion-space augmentation for cross-dataset gen-eralization, we train a model variant ( w/o Aug. ) that exclude augmentations such as JPEG compression, motion blur, de-focus blur, color jitter, and Poisson noise. Consequently, we also remove all augmentation-related loss supervision, re-taining only the regression loss Lmse and the standard rank-ing loss Lrank . As shown in Table 5, all performance met-rics exhibited a rapid decline, proving that augmentations significantly improve generalization. 
+
+## 5. Conclusion 
+
+We proposed RL-ScanIQA, a reinforcement learning frame-work for BIQA, consisting of a scanpath generator and a quality assessor. The proposed scanpath generator formu-lates viewport selection as a sequential decision-making process that directly optimizes for the downstream IQA objective. For training and enhance robustness, we de-vise multi-level rewards and task-aligned supervision, com-plemented by distortion-space augmentation and rank-consistency constraints. 8Acknowledgments 
+
+This work was supported by Marsden Fund Council man-aged by the Royal Society of New Zealand under Grant MFP-20-VUW-180. 
+
+## References 
+
+[1] Roberto Gerson De Albuquerque Azevedo, Neil Birk-beck, Ivan Janatra, Balu Adsumilli, and Pascal Frossard. A viewport-driven multi-metric fusion approach for 360-degree video quality assessment. In ICME , pages 1–6, 2020. 1[2] Neil DB Bruce and John K Tsotsos. Saliency, attention, and visual search: An information theoretic approach. Journal of vision , 9(3):5–5, 2009. 4 [3] Sijia Chen, Yingxue Zhang, Yiming Li, Zhenzhong Chen, and Zhou Wang. Spherical structural similarity index for objective omnidirectional video quality assessment. In 
+
+2018 IEEE international conference on multimedia and expo (ICME) , pages 1–6. IEEE, 2018. 6, 7 [4] Zheng Chen, Yan-Pei Cao, Yuan-Chen Guo, Chen Wang, Ying Shan, and Song-Hai Zhang. Panogrf: Generalizable spherical radiance fields for wide-baseline panoramas. Ad-vances in Neural Information Processing Systems , 36:6961– 6985, 2023. 3 [5] Kyunghyun Cho, Bart Van Merri¨ enboer, C ¸ a˘ glar Gulc ¸ehre, Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and Yoshua Bengio. Learning phrase representations using rnn encoder–decoder for statistical machine translation. In Pro-ceedings of the 2014 conference on empirical methods in natural language processing (EMNLP) , pages 1724–1734, 2014. 3 [6] Benjamin Coors, Alexandru Paul Condurache, and Andreas Geiger. Spherenet: Learning spherical representations for detection and classification in omnidirectional images. In 
+
+Proceedings of the European conference on computer vision (ECCV) , pages 518–533, 2018. 3 [7] Mustafa Devrim Kaba, Mustafa Gokhan Uzunbas, and Ser Nam Lim. A reinforcement learning approach to the view planning problem. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 6933–6941, 2017. 2, 3 [8] Keyan Ding, Kede Ma, Shiqi Wang, and Eero P Simoncelli. Image quality assessment: Unifying structure and texture similarity. IEEE transactions on pattern analysis and ma-chine intelligence , 44(5):2567–2581, 2020. 1, 6, 7 [9] Huiyu Duan, Guangtao Zhai, Xiongkuo Min, Yucheng Zhu, Yi Fang, and Xiaokang Yang. Perceptual quality assessment of omnidirectional images. In 2018 IEEE international sym-posium on circuits and systems (ISCAS) , pages 1–5. IEEE, 2018. 1, 6 [10] Erkut Erdem and Aykut Erdem. Visual saliency estimation by nonlinearly integrating features using region covariances. 
+
+Journal of vision , 13(4):11–11, 2013. 4 [11] Kanglong Fan, Wen Wen, Mu Li, Yifan Peng, and Kede Ma. Learned scanpaths aid blind panoramic video quality assessment. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2599– 2608, 2024. 1, 2, 4, 6, 7 [12] Yuming Fang, Liping Huang, Jiebin Yan, Xuelin Liu, and Yang Liu. Perceptual quality assessment of omnidirectional images. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 580–588, 2022. 1, 6, 8 [13] Jun Fu, Chen Hou, Wei Zhou, Jiahua Xu, and Zhibo Chen. Adaptive hypergraph convolutional network for no-reference 360-degree image quality assessment. In Proceedings of the 30th ACM international conference on multimedia , pages 961–969, 2022. 2, 6, 7 [14] Ali Ghazizadeh and Okihide Hikosaka. Salience memories formed by value, novelty and aversiveness jointly shape ob-ject responses in the prefrontal cortex and basal ganglia. Na-ture communications , 13(1):6338, 2022. 4 [15] S Alireza Golestaneh, Saba Dadsetan, and Kris M Kitani. No-reference image quality assessment via transformers, rel-ative ranking, and self-consistency. In Proceedings of the IEEE/CVF winter conference on applications of computer vision , pages 1220–1230, 2022. 6, 7 [16] Shuyang Gu, Jianmin Bao, Dong Chen, and Fang Wen. Giqa: Generated image quality assessment. In European confer-ence on computer vision , pages 369–385. Springer, 2020. 1 [17] Laurent Itti and Pierre Baldi. Bayesian surprise attracts hu-man attention. Vision research , 49(10):1295–1306, 2009. 4 [18] Hao Jiang, Gangyi Jiang, Mei Yu, Ting Luo, and Haiyong Xu. Multi-angle projection based blind omnidirectional im-age quality assessment. IEEE Transactions on Circuits and Systems for Video Technology , 32(7):4211–4223, 2021. 6, 7 [19] Ming Jiang, Shi Chen, Jinhui Yang, and Qi Zhao. Fantas-tic answers and where to find them: Immersive question-directed visual attention. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 2980–2989, 2020. 4 [20] Akshay Kapoor, Jatin Sapra, and Zhou Wang. Capturing banding in images: Database construction and objective as-sessment. In ICASSP 2021-2021 IEEE International Confer-ence on Acoustics, Speech and Signal Processing (ICASSP) ,pages 2425–2429. IEEE, 2021. 4 [21] Junjie Ke, Qifei Wang, Yilin Wang, Peyman Milanfar, and Feng Yang. Musiq: Multi-scale image quality transformer. In Proceedings of the IEEE/CVF international conference on computer vision , pages 5148–5157, 2021. 2 [22] Jari Korhonen. Two-level approach for no-reference con-sumer video quality assessment. IEEE Transactions on Im-age Processing , 28(12):5923–5938, 2019. 2 [23] Kieran G Larkin. Reflections on shannon information: In search of a natural information-entropy for images. arXiv preprint arXiv:1609.01117 , 2016. 4 [24] Chen Li, Mai Xu, Xinzhe Du, and Zulin Wang. Bridge the gap between vqa and human behavior on omnidirectional video: A large-scale dataset and a deep learning model. In 
+
+Proceedings of the 26th ACM international conference on Multimedia , pages 932–940, 2018. 2 [25] Chen Li, Mai Xu, Lai Jiang, Shanyi Zhang, and Xiaoming Tao. Viewport proposal cnn for 360° video quality assess-ment. In 2019 IEEE/CVF conference on computer vision 
+
+9and pattern recognition (CVPR) , pages 10169–10178. IEEE, 2019. 1, 2 [26] Dingquan Li, Tingting Jiang, and Ming Jiang. Quality as-sessment of in-the-wild videos. In Proceedings of the 27th ACM international conference on multimedia , pages 2351– 2359, 2019. 2 [27] Feiran Li, Qianqian Xu, Shilong Bao, Zhiyong Yang, Xi-aochun Cao, and Qingming Huang. One image is worth a thousand words: A usability preservable text-image collab-orative erasing framework. In International Conference on Machine Learning , pages 36486–36529. PMLR, 2025. 1 [28] Weiqi Li, Xuanyu Zhang, Shijie Zhao, Yabin Zhang, Junlin Li, Li Zhang, and Jian Zhang. Q-insight: Understanding im-age quality via visual reinforcement learning. arXiv preprint arXiv:2503.22679 , 2025. 2, 6, 7 [29] Jingyun Liang, Jiezhang Cao, Guolei Sun, Kai Zhang, Luc Van Gool, and Radu Timofte. Swinir: Image restoration us-ing swin transformer. In Proceedings of the IEEE/CVF inter-national conference on computer vision , pages 1833–1844, 2021. 1 [30] Huiping Liu, Cheqing Jin, Bin Yang, and Aoying Zhou. Finding top-k shortest paths with diversity. IEEE Transac-tions on Knowledge and Data Engineering , 30(3):488–502, 2017. 4 [31] Jiuming Liu, Mengmeng Liu, Siting Zhu, Yunpeng Zhang, Jiangtao Li, Michael Ying Yang, Francesco Nex, Hao Cheng, and Hesheng Wang. Arflow: Auto-regressive optical flow estimation for arbitrary-length videos via progressive next-frame forecasting. In The Fourteenth International Confer-ence on Learning Representations . 2 [32] Jiuming Liu, Guangming Wang, Zhe Liu, Chaokang Jiang, Marc Pollefeys, and Hesheng Wang. Regformer: An effi-cient projection-aware transformer network for large-scale point cloud registration. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 8451– 8460, 2023. 1 [33] Jiuming Liu, Guangming Wang, Weicai Ye, Chaokang Jiang, Jinru Han, Zhe Liu, Guofeng Zhang, Dalong Du, and Hes-heng Wang. Difflow3d: Toward robust uncertainty-aware scene flow estimation with iterative diffusion-based refine-ment. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 15109–15119, 2024. 1 [34] Jiuming Liu, Weicai Ye, Guangming Wang, Chaokang Jiang, Lei Pan, Jinru Han, Zhe Liu, Guofeng Zhang, and Hesh-eng Wang. Difflow3d: Hierarchical diffusion models for uncertainty-aware 3d scene flow estimation. IEEE transac-tions on pattern analysis and machine intelligence , 2025. 2 [35] Mengmeng Liu, Jiuming Liu, Yunpeng Zhang, Jiangtao Li, Michael Ying Yang, Francesco Nex, and Hao Cheng. 4dstr: Advancing generative 4d gaussians with spatial-temporal rectification for high-quality and consistent 4d generation. 
+
+arXiv preprint arXiv:2511.07241 , 2025. 1 [36] Xiaohong Liu, Xiongkuo Min, Guangtao Zhai, Chunyi Li, Tengchuan Kou, Wei Sun, Haoning Wu, Yixuan Gao, Yuqin Cao, Zicheng Zhang, et al. Ntire 2024 quality assess-ment of ai-generated content challenge. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 6337–6362, 2024. 1 [37] Chengqian Ma, Zhengyi Shi, Zhiqiang Lu, Shenghao Xie, Fei Chao, and Yao Sui. A survey on image quality assess-ment: Insights, analysis, and future outlook. arXiv preprint arXiv:2502.08540 , 2025. 2 [38] Hongxu Ma, Kai Tian, Tao Zhang, Xuefeng Zhang, Han Zhou, Chunjie Chen, Han Li, Jihong Guan, and Shuigeng Zhou. Generative regression based watch time predic-tion for short-video recommendation. arXiv preprint arXiv:2412.20211 , 2024. 2 [39] Hongxu Ma, Guanshuo Wang, Fufu Yu, Qiong Jia, and Shouhong Ding. Ms-detr: Towards effective video moment retrieval and highlight detection by joint motion-semantic learning. In Proceedings of the 33rd ACM International Con-ference on Multimedia , pages 4514–4523, 2025. 2 [40] Hongxu Ma, Chenbo Zhang, Lu Zhang, Jiaogen Zhou, Ji-hong Guan, and Shuigeng Zhou. Fine-grained zero-shot ob-ject detection. In Proceedings of the 33rd ACM International Conference on Multimedia , pages 4504–4513, 2025. 2 [41] Hongxu Ma, Han Zhou, Kai Tian, Xuefeng Zhang, Chun-jie Chen, Han Li, Jihong Guan, and Shuigeng Zhou. Gor: A unified and extensible generative framework for ordinal regression. In The Fourteenth International Conference on Learning Representations , 2026. 1 [42] Anish Mittal, Anush Krishna Moorthy, and Alan Conrad Bovik. No-reference image quality assessment in the spatial domain. IEEE Transactions on image processing , 21(12): 4695–4708, 2012. 1, 2, 6, 7 [43] Anish Mittal, Rajiv Soundararajan, and Alan C Bovik. Mak-ing a “completely blind” image quality analyzer. IEEE Sig-nal processing letters , 20(3):209–212, 2012. 1, 2, 6, 7 [44] Chaojun Ni, Jie Li, Haoyun Li, Hengyu Liu, Xiaofeng Wang, Zheng Zhu, Guosheng Zhao, Boyuan Wang, Chenxin Li, Guan Huang, et al. Wonderfree: Enhancing novel view quality and cross-view consistency for 3d scene exploration. 
+
+arXiv preprint arXiv:2506.20590 , 2025. 1 [45] Chaojun Ni, Guosheng Zhao, Xiaofeng Wang, Zheng Zhu, Wenkang Qin, Guan Huang, Chen Liu, Yuyin Chen, Yida Wang, Xueyang Zhang, et al. Recondreamer: Crafting world models for driving scene reconstruction via online restora-tion. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 1559–1569, 2025. 1 [46] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. 
+
+arXiv preprint arXiv:2304.07193 , 2023. 3 [47] Laura Renninger, James Coughlan, Preeti Verghese, and Ji-tendra Malik. An information maximization model of eye movements. Advances in neural information processing sys-tems , 17, 2004. 4 [48] John Schulman, Philipp Moritz, Sergey Levine, Michael Jor-dan, and Pieter Abbeel. High-dimensional continuous con-trol using generalized advantage estimation. arXiv preprint arXiv:1506.02438 , 2015. 4 
+
+10 [49] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Rad-ford, and Oleg Klimov. Proximal policy optimization algo-rithms. arXiv preprint arXiv:1707.06347 , 2017. 2, 3 [50] Hamid R Sheikh, Muhammad F Sabir, and Alan C Bovik. A statistical evaluation of recent full reference image quality assessment algorithms. IEEE Transactions on image pro-cessing , 15(11):3440–3451, 2006. 1 [51] Nyeong-Ho Shin, Seon-Ho Lee, and Chang-Su Kim. Blind image quality assessment based on geometric order learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 12799–12808, 2024. 1[52] Vincent Sitzmann, Ana Serrano, Amy Pavel, Maneesh Agrawala, Diego Gutierrez, Belen Masia, and Gordon Wet-zstein. Saliency in vr: How do people explore virtual envi-ronments? IEEE transactions on visualization and computer graphics , 24(4):1633–1642, 2018. 1, 4 [53] Nisan Stiennon, Long Ouyang, Jeffrey Wu, Daniel Ziegler, Ryan Lowe, Chelsea Voss, Alec Radford, Dario Amodei, and Paul F Christiano. Learning to summarize with human feed-back. Advances in neural information processing systems ,33:3008–3021, 2020. 2 [54] Xiangjie Sui, Kede Ma, Yiru Yao, and Yuming Fang. Percep-tual quality assessment of omnidirectional images as mov-ing camera videos. IEEE Transactions on Visualization and Computer Graphics , 28(8):3022–3034, 2021. 4 [55] Xiangjie Sui, Hanwei Zhu, Xuelin Liu, Yuming Fang, Shiqi Wang, and Zhou Wang. Perceptual quality assessment of 360° images based on generative scanpath representation. 
+
+IEEE Transactions on Image Processing , 2025. 1, 2, 4, 6, 7[56] Wei Sun, Ke Gu, Guangtao Zhai, Siwei Ma, Weisi Lin, and Patrick Le Calle. Cviqd: Subjective quality evaluation of compressed virtual reality images. In 2017 IEEE interna-tional conference on image processing (ICIP) , pages 3450– 3454. IEEE, 2017. 1, 6 [57] Wei Sun, Xiongkuo Min, Guangtao Zhai, Ke Gu, Huiyu Duan, and Siwei Ma. Mc360iqa: A multi-channel cnn for blind 360-degree image quality assessment. IEEE Journal of Selected Topics in Signal Processing , 14(1):64–77, 2019. 2, 6, 7 [58] Yule Sun, Ang Lu, and Lu Yu. Weighted-to-spherically-uniform quality evaluation for omnidirectional video. IEEE signal processing letters , 24(9):1408–1412, 2017. 6, 7 [59] Richard S Sutton, Andrew G Barto, et al. Reinforcement learning: An introduction . MIT press Cambridge, 1998. 3 [60] Zhengzhong Tu, Xiangxu Yu, Yilin Wang, Neil Birkbeck, Balu Adsumilli, and Alan C Bovik. Rapique: Rapid and accurate video quality prediction of user generated content. 
+
+IEEE Open Journal of Signal Processing , 2:425–440, 2021. 2[61] Jianyi Wang, Kelvin CK Chan, and Chen Change Loy. Ex-ploring clip for assessing the look and feel of images. In Pro-ceedings of the AAAI conference on artificial intelligence ,pages 2555–2563, 2023. 6, 7 [62] Wenguan Wang, Jianbing Shen, Jianwen Xie, Ming-Ming Cheng, Haibin Ling, and Ali Borji. Revisiting video saliency prediction in the deep learning era. IEEE transactions on pattern analysis and machine intelligence , 43(1):220–237, 2019. 4 [63] Yujia Wang, Fang-Lue Zhang, and Neil A. Dodgson. Scantd: 360° scanpath prediction based on time-series diffusion. In 
+
+Proceedings of the 32nd ACM International Conference on Multimedia , page 7764–7773, 2024. 1 [64] Zhou Wang, Alan C Bovik, Hamid R Sheikh, and Eero P Si-moncelli. Image quality assessment: from error visibility to structural similarity. IEEE transactions on image processing ,13(4):600–612, 2004. 6, 7 [65] Tianhe Wu, Shuwei Shi, Haoming Cai, Mingdeng Cao, Jing Xiao, Yinqiang Zheng, and Yujiu Yang. Assessor360: Multi-sequence network for blind omnidirectional image quality assessment. Advances in Neural Information Processing Sys-tems , 36:64957–64970, 2023. 1, 2, 4, 6, 7 [66] Jiahua Xu, Wei Zhou, and Zhibo Chen. Blind omnidi-rectional image quality assessment with viewport oriented graph convolutional networks. IEEE Transactions on Cir-cuits and Systems for Video Technology , 31(5):1724–1737, 2020. 2, 6, 7 [67] Mai Xu, Lai Jiang, Chen Li, Zulin Wang, and Xiaoming Tao. Viewport-based cnn: A multi-task approach for assessing 360° video quality. IEEE Transactions on Pattern Analysis and Machine Intelligence , 44(4):2198–2215, 2020. 4 [68] Yanyu Xu, Yanbing Dong, Junru Wu, Zhengzhong Sun, Zhiru Shi, Jingyi Yu, and Shenghua Gao. Gaze prediction in dynamic 360 immersive videos. In proceedings of the IEEE Conference on Computer Vision and Pattern Recog-nition , pages 5333–5342, 2018. 4 [69] Jiebin Yan, Kangcheng Wu, Junjie Chen, Ziwen Tan, Yum-ing Fang, and Weide Liu. Viewport-unaware blind omnidi-rectional image quality assessment: A flexible and effective paradigm. ACM Transactions on Multimedia Computing, Communications and Applications , 21(5):1–19, 2025. 6, 7 [70] Li Yang, Mai Xu, Tie Liu, Liangyu Huo, and Xinbo Gao. Tvformer: Trajectory-guided visual quality assessment on 360 images with transformers. In Proceedings of the 30th ACM International Conference on Multimedia , pages 799– 808, 2022. 2 [71] Peiyu Yang, Naveed Akhtar, Mubarak Shah, and Ajmal Mian. Regulating model reliance on non-robust features by smoothing input marginal density. In European Conference on Computer Vision , pages 329–347. Springer, 2024. 2 [72] Sidi Yang, Tianhe Wu, Shuwei Shi, Shanshan Lao, Yuan Gong, Mingdeng Cao, Jiahao Wang, and Yujiu Yang. Maniqa: Multi-dimension attention network for no-reference image quality assessment. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 1191–1200, 2022. 6, 7 [73] Sean Bin Yang, Chenjuan Guo, and Bin Yang. Context-aware path ranking in road networks. IEEE Transactions on Knowledge and Data Engineering , 34(7):3153–3168, 2020. 4[74] F.-L. Zhang, J. Zhao, Y. Zhang, and S. Zollmann. A survey on 360° images and videos in mixed reality: Algorithms and applications. Journal of Computer Science and Technology ,38:473–491, 2023. 1 
+
+11 [75] Lin Zhang, Ying Shen, and Hongyu Li. Vsi: A visual saliency-induced index for perceptual image quality assess-ment. IEEE Transactions on Image processing , 23(10): 4270–4281, 2014. 6, 7 [76] Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shecht-man, and Oliver Wang. The unreasonable effectiveness of deep features as a perceptual metric. In Proceedings of the IEEE conference on computer vision and pattern recogni-tion , pages 586–595, 2018. 6, 7 [77] Weixia Zhang, Kede Ma, Jia Yan, Dexiang Deng, and Zhou Wang. Blind image quality assessment using a deep bilinear convolutional neural network. IEEE Transactions on Cir-cuits and Systems for Video Technology , 30(1):36–47, 2018. 6, 7 [78] Weixia Zhang, Guangtao Zhai, Ying Wei, Xiaokang Yang, and Kede Ma. Blind image quality assessment via vision-language correspondence: A multitask learning perspective. In Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 14071–14081, 2023. 6, 7[79] Kaiyang Zhou, Yu Qiao, and Tao Xiang. Deep reinforce-ment learning for unsupervised video summarization with diversity-representativeness reward. In Proceedings of the AAAI conference on artificial intelligence , 2018. 2 [80] Mingliang Zhou, Wenhao Shen, Xuekai Wei, Jun Luo, Fan Jia, Xu Zhuang, and Weijia Jia. Blind image quality assess-ment: Exploring content fidelity perceptibility via quality ad-versarial learning. International Journal of Computer Vision ,pages 1–17, 2025. 1 [81] Wei Zhou, Jiahua Xu, Qiuping Jiang, and Zhibo Chen. No-reference quality assessment for 360-degree images by anal-ysis of multifrequency information and local-global natural-ness. IEEE Transactions on Circuits and Systems for Video Technology , 32(4):1778–1791, 2021. 6, 7 [82] Yufeng Zhou, Mei Yu, Hualin Ma, Hua Shao, and Gangyi Jiang. Weighted-to-spherically-uniform ssim objective qual-ity evaluation for panoramic video. In 2018 14th IEEE In-ternational Conference on Signal Processing (ICSP) , pages 54–57. IEEE, 2018. 6, 7 
+
+12

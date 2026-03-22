@@ -1,0 +1,466 @@
+Title: SemanticFace: Semantic Facial Action Estimation via Semantic Distillation in Interpretable Space
+
+URL Source: https://arxiv.org/pdf/2603.14827v1
+
+Published Time: Tue, 17 Mar 2026 03:58:37 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+# SemanticFace: Semantic Facial Action Estimation via Semantic Distillation in Interpretable Space 
+
+Zejian Kang 1,2, Kai Zheng 2, Yuanchen Fei 3 Wentao Yang 1,2, Hongyuan Zou 2,4,and Xiangru Huang 2†
+
+> 1
+
+Zhejiang University 2Westlake University 3Hunan University 4The University of Hong Kong 
+
+huangxiangru@westlake.edu.cn 
+
+Fig. 1: SemanticFace. Given a facial image, our model jointly outputs structured semantic predictions and interpretable facial action coefficients. This joint formulation bridges visual perception and semantic reasoning, yielding results that are both per-ceptually natural and semantically grounded, while demonstrating strong robustness across diverse identities and domain shifts (e.g., cartoon characters). 
+
+Abstract. Facial action estimation from a single image is often formu-lated as predicting or fitting parameters in compact expression spaces, which lack explicit semantic interpretability. However, many practical applications, such as avatar control and human-computer interaction, require interpretable facial actions that correspond to meaningful mus-cle movements. In this work, we propose SemanticFace , a framework for facial action estimation in the interpretable ARKit blendshape space that reformulates coefficient prediction as structured semantic reason-ing. SemanticFace adopts a two-stage semantic distillation paradigm: it first derives structured semantic supervision from ground-truth ARKit coefficients and then distills this knowledge into a multimodal large lan-guage model to predict interpretable facial action coefficients from im- 
+
+> arXiv:2603.14827v1 [cs.CV] 16 Mar 2026 2Z. Kang et al. ages. Extensive experiments demonstrate that language-aligned seman-tic supervision improves both coefficient accuracy and perceptual con-sistency, while enabling strong cross-identity generalization and robust-ness to large domain shifts, including cartoon faces. Code is available at
+> https://github.com/kangzejian1896/SemanticFace.git .
+
+# 1 Introduction 
+
+Estimating facial actions from images is a core capability for digital humans, avatar control, and human-computer interaction. Given a single facial image, our goal is to predict interpretable blendshape coefficients that directly corre-spond to semantic facial movements such as jaw opening and lip corner pulling. This problem is commonly addressed by regressing parameters in compact para-metric spaces designed for geometric reconstruction and rendering consistency [7, 12, 16, 19, 33]. While effective for recovering geometry, these representations are not explicitly structured as semantic facial actions, which limits their direct use as interpretable controls and makes it difficult to incorporate language-level su-pervision. In many practical settings, what matters is not only geometric fidelity but also whether the predicted controls reflect the intended semantic facial actions. Meanwhile, modern multimodal large language models (MLLMs) [30,43] encode strong visual-semantic priors, yet they require a semantically structured output interface to operate effectively. This motivates a key question: how can we inject the visual-semantic priors of MLLMs into facial action prediction in a way that is explicit, interpretable, and trainable? 
+
+Our key idea is to exploit an interpretable facial action space as the bridge between visual perception and language-level semantics, and to distill structured semantic knowledge into an image-to-action predictor. Blendshape representa-tions such as ARKit [1,3], provide such an action space, where each dimension has a predefined semantic meaning, enabling supervision beyond purely numerical targets. Instead of treating action prediction as isolated parameter regression, we introduce semantic distillation : converting ground-truth action coefficients into structured semantic descriptions and using them as language-aligned supervision to guide an MLLM-based predictor. Based on this idea, we propose SemanticFace , a language-aligned frame-work for interpretable facial action estimation in the ARKit blendshape space. SemanticFace follows a two-stage semantic distillation paradigm. In Stage I, a pretrained large language model (LLM) converts ground-truth ARKit coef-ficients into hierarchical semantic descriptions that encode expression-related attributes such as muscle movement and symmetry. In Stage II, a pretrained MLLM is adapted to predict ARKit coefficients from images under semantic su-pervision, using a unified autoregressive formulation. Rather than simply boost-ing regression accuracy with extra signals, we reinterpret facial action estimation as a language-conditioned structured generation task. We evaluate SemanticFace on both controlled and in-the-wild settings, in-cluding comparisons with a statistical blendshape estimation method [32] and SemanticFace 3
+
+a widely used method [1, 42]. Results show that semantic distillation improves coefficient accuracy and leads to more semantically consistent facial actions. Our contributions can be summarized as follows: 
+
+– We reformulate facial action estimation as language-aligned structured prediction in the interpretable blendshape space, enabling semantic rea-soning over facial actions. 
+
+– We introduce a structured semantic supervision paradigm that converts interpretable blendshape coefficients into hierarchical semantic descriptions to expose the semantic structure of facial actions. 
+
+– We propose a language-prior semantic distillation framework that trans-fers semantic knowledge from a pretrained LLM to a multimodal image-to-action predictor. 
+
+– Extensive experiments demonstrate improved coefficient accuracy and per-ceptual consistency, and show strong cross-identity generalization even when trained on a limited number of subjects, including challenging in-the-wild 
+
+scenarios and stylized domains such as cartoon characters. 
+
+# 2 Related Work 
+
+2.1 Face Modeling 
+
+Facial expression modeling has shifted from computationally expensive high-resolution meshes to compact parametric representations that balance efficiency and expressiveness. Early 3D Morphable Models (3DMMs) [7] employed princi-pal component analysis (PCA) to capture common facial features via linear com-binations, reducing complexity while enabling realistic face generation. Blend-shapes extended this paradigm to dynamic expressions, offering a semantically interpretable parameterization where parameters correspond to localized muscle actions [29,40]. While FLAME [33] offers high compactness and has been widely adopted, its PCA-based expression space suffers from limited semantic disen-tanglement. Its expression parameters, derived from PCA, show poor semantic separation [25], which limits compatibility with language-aligned supervision from MLLM [34, 43]. In contrast, frameworks such as ARKit [1] and MHR [17] preserve explicit semantic features, aligning well with language-based reason-ing in the MLLM era. ARKit, in particular, facilitates easy data acquisition via smartphone cameras with depth sensors [2,38,50], unlike the more labor-intensive MHR. Although ARKit-specific advancements lag behind FLAME, insights from the latter can inform transferable strategies for semantic-aware estimation. 
+
+2.2 Facial Action Estimation 
+
+Single-image parametric estimation has progressed from sparse landmark-based methods to deep learning approaches and recently to leveraging large pretrained model. Early techniques primarily relied on facial landmarks, aligning sparse 4 Z. Kang et al. 
+
+or dense keypoints with template meshes via statistical methods such as Ac-tive Shape Models (ASM) [11], Active Appearance Models (AAM) [10, 14], or 3D Morphable Model fitting [8, 37], as well as early single-image 3D reconstruc-tion techniques [20,27,54]. More recent landmark detectors like BlazeFace [6] and attention-based approaches [28] have also been employed. However, their sparsity limits robustness to extreme poses or expressions [48]. Subsequent works shifted to convolutional neural networks (CNNs), typically using ResNet-50 encoders to extract high-dimensional features followed by regression heads [21, 23], incorpo-rating refinements for emotional details [12, 16] and differentiable rendering for self-supervision [44,46]. Despite improvements, CNNs often overlook global con-text, and the small parameter scale constrains detail capture and generalization. Recent data-driven methods leverage large pretrained models to inject stronger priors: for instance, Vision Transformers (ViTs) generate spatial-geometric con-straints [13, 18], while alternatives like LRM extract features as ResNet sub-stitutes [53], and LAM integrates Gaussian attributes for enhanced expressiv-ity [22]. This trend underscores a shift toward exploiting vast pretraining data for more comprehensive feature extraction. ARKit-based parametric estimation remains underdeveloped but follows similar technical trajectories as FLAME, yet underutilizes its strong semantic properties. Existing ARKit works include direct CNN regression as in DNPM [9], geometry-driven landmark alignment [32], and early attempts at incorporating large pretrained models for feature encoding or generation [52]. However, most approaches largely ignore ARKit’s key advantage-its coefficients are already designed to be human-interpretable actions [49] (e.g., 
+
+BrowInnerUp , EyeBlinkLeft ), which opens a natural path for MLLMs to perform structured, semantically grounded reasoning instead of black-box regression. 
+
+# 3 Method 
+
+Our task is to predict ARKit blendshape coefficients from a single facial image, as formally defined in Sec. 3.1. SemanticFace follows a two-stage semantic dis-tillation paradigm. In Stage I, a pretrained LLM serves as a semantic teacher ,converting ground-truth ARKit coefficients into structured hierarchical semantic descriptions (Sec. 3.2). In Stage II, a pretrained MLLM acts as the student , and is adapted to generate ARKit coefficients from input images under the guidance of the teacher-provided semantic supervision (Sec. 3.3). An overview is shown in Algorithm 1 and Fig. 2. 
+
+3.1 Problem Formulation 
+
+Given an input image  I ∈ RH×W ×3, our target is to predict ARKit blendshape coefficients  V = {vk}Kk=1  with  K = 61 . Each coefficient  vk ∈ R corresponds to the value of a predefined facial action  ak ∈ A , where  A = {ak}Kk=1  denotes the ARKit blendshape action set. We represent the prediction as a structured action-value set  S = {(ak, v k)}Kk=1 , which explicitly associates each facial action with its activation level. SemanticFace 5   
+
+> Fig. 2: Overview of the SemanticFace framework. In Stage I, a frozen LLM serves as a semantic teacher , converting ground-truth ARKit blendshape coefficients into hierarchical semantic descriptions. In Stage II, these structured language-aligned representations are distilled into a MLLM acting as the student . Through language-prior semantic distillation, the student learns to predict ARKit coefficients from images under structured semantic guidance within an interpretable facial action space.
+
+Unlike latent expression spaces, ARKit defines an interpretable action space with explicit semantic meaning. This structure enables language-aligned super-vision, which forms the foundation of our method. 
+
+3.2 Semantic Supervision Signal Generation 
+
+Facial actions exhibit structured semantic relationships, including regional co-ordination, symmetry patterns, and global expression configuration. To capture such structure, we generate structured semantic supervision from ground-truth ARKit coefficients using a pretrained LLM. Formally, given the ARkit blendshape coefficients Vgt = {vgt k }Kk=1 associated with the action set A = {ak}Kk=1 , we represent the coefficients as the structured action-value set Sgt = {(ak, v gt k )}Kk=1 . A structured semantic description is then generated as 
+
+T gt = LLM( Sgt ), (1) where T gt encodes hierarchical semantic attributes (e.g., expression category, coordinated muscle activations, and symmetry patterns) that are implicit in the numerical parameter space. This process generates an intermediate semantic representation that bridges the low-level parameter space and high-level facial reasoning. Rather than su-pervising only scalar targets, we supervise the model with structured semantic 6 Z. Kang et al. 
+
+Algorithm 1 Training and inference of the proposed SemanticFace framework 
+
+Require: Training images {Ii}Ni=1 , ARKit action set A = {ak }Kk=1 , ground-truth value sets {V gt i }Ni=1 , pretrained LLM, pretrained MLLM 
+
+Ensure: Trained image-to-ARKit generator 1: Stage I: Semantic Supervision Signal Generation 
+
+2: for each training sample (Ii, Vgt i ) with action set A do 
+
+3: Construct ground-truth action-value set: 4: Sgt i ← { (ak , v gt i,k ) | ak ∈ A} 
+
+5: Generate semantic description: 6: T gt i ← LLM( Sgt i )
+
+7: end for 
+
+8: 9: Stage II: Language-Prior Semantic Distillation 
+
+10: for each training sample (Ii, Sgt i , T gt i ) do 
+
+11: Construct training target: 12: U gt i ← [T gt i || S gt i ]
+
+13: Update MLLM parameters using autoregressive loss: 14: L = − P 
+
+> t
+
+log pθ (ut | u<t , I i)
+
+15: end for 
+
+16: 17: Inference 
+
+18: for each test image I do 
+
+19: Predict description and coefficient sequence using trained MLLM: 20: ˆU ← MLLM( I)
+
+21: Parse predicted value set ˆV from ˆU
+
+22: end for 
+
+knowledge distilled from coefficients. The structured semantic description T gt is hierarchical and contains the following components: 
+
+– Expression Type: structural configuration of facial actions (e.g., smiling ). 
+
+– Muscle Movements: localized action activations corresponding to specific muscle groups. 
+
+– Emotion Cue: affective interpretation only when clearly supported by ob-servable actions (e.g., happy ). 
+
+– Symmetry Pattern: spatial coordination patterns across bilateral actions. Unlike scalar parameter targets, T gt explicitly encodes relationships among actions at multiple semantic levels. It captures how regional movements compose global expressions, and how bilateral actions interact. Although the semantic descriptions are deterministically derived from ground-truth coefficients, they impose an explicit structural prior over action relation-ships that is otherwise absent in independent scalar supervision. The role of the LLM is not to provide additional labels, but to externalize latent structural de-pendencies among facial actions into a language-aligned form. These structured semantic representations are then distilled into an image-conditioned model to guide interpretable facial action prediction. SemanticFace 7
+
+3.3 Language-Prior Semantic Distillation 
+
+We treat the pretrained LLM as a semantic teacher that encodes structured relationships among facial actions, and the MLLM as a student that learns to predict interpretable facial actions from images. We adopt a pretrained MLLM consisting of a vision encoder and a causal language decoder. Given an image 
+
+I, the vision encoder produces visual tokens, which condition the decoder to generate structured outputs. To distill semantic knowledge from the teacher, we supervise the student to jointly generate (i) the structured semantic description T gt produced by the LLM, and (ii) the action–value sequence Sgt . The combined target sequence is 
+
+U gt = [ T gt || S gt ]. (2) We implicitly transfer structured semantic relationships from the LLM to the image-conditioned predictor by requiring the MLLM to reproduce both seman-tic descriptions and action-value sequences. This process injects language level priors about regional coordination, symmetry, and expression configuration into the parameters of the MLLM. Unlike auxiliary multi-task supervision, the semantic sequence is not treated as an independent prediction target. Instead, it restructures the output space into a causally ordered, semantically constrained generation process. This alters the inductive bias of the predictor from independent scalar estimation to structured action reasoning. 
+
+# 4 Experiments 
+
+We conduct comprehensive experiments to systematically evaluate the proposed framework. We first describe the data collection protocol (Sec. 4.1). We then present the experimental settings (Sec. 4.2), followed by implementation details (Sec. 4.3). Next, we report quantitative and qualitative results on the test set (Sec. 4.4). To further assess robustness and generalization, we evaluate perfor-mance under in-the-wild conditions (Sec. 4.5). Finally, we conduct ablation stud-ies to quantify the contribution of hierarchical semantic supervision (Sec. 5.1). 
+
+4.1 Dataset Data Acquisition. We utilized an iPhone with a depth camera and the Live Link Face system [3] to capture ARKit expression coefficients with frame-level accuracy at a consistent rate of 60 frames per second. To ensure the purity of the expression data and eliminate individual physiological variances, we imple-mented a rigorous calibration protocol. For every recording session, a “neutral face” was first captured to serve as a topological and expressive baseline. All subsequent raw expression sequences were calibrated against this baseline. This normalization process ensures that the resulting coefficients represent pure ex-pressive motion, independent of the subject’s resting facial structure. 8 Z. Kang et al. 
+
+Dataset Statistics and Diversity. The dataset is characterized by its scale, linguistic diversity, and professional quality performances. It contains recordings from nine professional actors, each performing 100 scripted sequences, resulting in a total of 900 sequences and approximately 11.5 hours of high resolution video data. The dialogue scripts were generated with GPT-5 [39], enabling broad cov-erage of diverse emotional expressions. Each sample contains synchronized video, audio, and ARKit coefficients. Specifically, the dataset provides high-definition facial video, clean vocal tracks aligned with facial movements, and calibrated 61-dimensional ARKit coefficients, including 52 blendshape coefficients and 9 head-motion coefficients. We therefore prioritize the diversity of facial expres-sions and speech-driven behaviors rather than identity variation. Furthermore, we analyze the emotional diversity of the dataset to verify that it covers a wide range of expressive states. We employ the LLM Qwen1.5-1.8B [4] to infer the emotional distribution of each script line. Given the script title and dialogue, the model outputs a seven-dimensional probability vector representing the intensity of seven basic emotions (happiness, neutral, sadness, anger, fear, surprise, and disgust). The resulting vector is normalized to ensure the sum equals one and is used as the emotional representation of the script. The domi-nant emotion of each sequence is determined by the highest intensity dimension.  
+
+> Fig. 3: Emotion Distribution and Visualization. (a) t-SNE projection of scripts colored by emotion intensities. (b) Distribution of dominant emotions across all scripts.
+
+As illustrated in Fig. 3, we project the emotion vectors into a two-dimensional space using t-SNE. Distinct clusters corresponding to different emotional cate-gories emerge clearly, indicating that the dataset contains semantically separable emotional expressions. Neutral samples occupy the central region, while more expressive emotions such as anger, sadness, and happiness form well-separated clusters. The distribution of dominant emotions further shows that the dataset maintains a balanced coverage of emotional categories, demonstrating that it spans a broad spectrum of affective states rather than concentrating around a SemanticFace 9
+
+limited subset of expressions. Such diversity exposes the model to a wide variety of facial expression dynamics during training. 
+
+Data Processing. Our dataset consists of facial videos paired with ARKit blendshape coefficients. To reduce temporal redundancy, we subsample the orig-inal videos at 2 frames per second, as adjacent frames often exhibit highly simi-lar facial configurations and provide limited additional supervisory signals. This sampling strategy improves data efficiency while preserving diverse expression states. We adopt a subject-disjoint split, using 7 subjects for training (700 se-quences, 28,209 synchronized image-ARKit coefficient pairs), 1 subject for vali-dation (100 sequences, 4,960 synchronized pairs), and 1 subject for testing (100 sequences, 4,700 synchronized pairs). Each subject performs a diverse set of scripted expressions covering multiple emotion categories, resulting in substan-tial intra-subject variation. This procedure ensures that identities in the test set are unseen during training, enabling rigorous evaluation of cross-identity gener-alization. 
+
+4.2 Experimental Setting Evaluation Metrics. We employ several metrics to assess performance across different dimensions: Mean Squared Error (MSE), R-precision, Multimodal Dis-tance (MMD), and Cross-Comparison. MSE measures the average squared dif-ference between predicted blendshape coefficients and the ground-truth ARKit coefficients. R-Precision evaluates retrieval performance by checking whether the ground-truth motion corresponding to a given image description appears among the top-K (K = 3 ) ranked candidates within a batch of 32 samples [2,50]. MMD measures the distributional discrepancy between image and motion embeddings in the learned joint embedding space. Cross-Comparison, following the proto-col introduced in prior work [32], provides a benchmark comparing predicted blendshape coefficients against ARKit ground truth [1]. The evaluation focuses on the 13 most dominant and expressive blendshapes, which serve as primary indicators of facial expression quality. As the implementation of [32] is not pub-licly available, we report the values provided in their paper and use them as a reference for comparison. Detailed explanations of the metrics are provided in the Appendix. 
+
+Baselines. We compare SemanticFace with two representative baselines for ARKit blendshape estimation. SBCA [32] is a statistical approach that regresses blendshape coefficients from facial landmarks using affine transformations, seg-mentation, and regression models. DeadFace [42] is an open-source implemen-tation built upon MediaPipe [26, 36], providing facial geometry estimation from monocular images. Both methods represent geometric approaches that directly regress ARKit coefficients from images without leveraging semantic priors from MLLM. 10 Z. Kang et al. 
+
+We evaluate all methods on our test set with paired 3D ground-truth ARKit coefficients in Sec. 4.4. For the in-the-wild setting without ground-truth an-notations (Sec. 4.5), we sample 660 images from the “9 Facial Expressions for YOLO” dataset [45] as test data. Since no 3D ground-truth ARKit coefficients are available, we assess semantic alignment using R-Precision and distributional consistency using MMD. 
+
+4.3 Implementation details 
+
+Our framework employs different pretrained foundation models for the two stages. In Stage I (semantic supervision signal generation), we use the LLM Qwen3-14B [51] to convert ground-truth ARKit coefficients into structured semantic descriptions. The LLM is kept frozen during this stage and used solely for se-mantic supervision generation, ensuring stable and consistent semantic annota-tions. Semantic descriptions are generated offline prior to Stage II training and reused across epochs without additional computational overhead. In Stage II (language-prior semantic distillation), we build upon the pre-trained MLLM Qwen3-VL-4B-Instruct [5] and adapt it using parameter-efficient updates via Low-Rank Adaptation (LoRA) [24]. Specifically, LoRA modules are applied to the language decoder, while the vision encoder and multimodal align-ment modules are kept frozen to preserve pretrained multimodal representations and maintain training stability. This design enables efficient adaptation while retaining strong multimodal priors from large-scale pretraining. The model is trained for 50 epochs using the AdamW [35] optimizer with a learning rate of 1 × 10 −4. Training is conducted on 8 NVIDIA A100 GPUs, with an effective batch size of 4 samples per GPU. The total training time is approximately 45 hours. During training, the model jointly generates distilled semantic descriptions and ARKit action–value sequences under a unified autoregressive objective, enabling alignment between visual perception and the interpretable facial ac-tion space. For visualization, predicted ARKit coefficients are rendered using MetaHuman [15], a high-fidelity digital human system that enables realistic fa-cial animation from blendshape coefficients. 
+
+4.4 Evaluation on the Test Set 
+
+Quantitative results on coefficient prediction accuracy are reported in Tab. 1. SemanticFace consistently outperforms existing baselines across all comparable metrics beside S-Cor. In a few ambiguous cases, semantic distillation may slightly adjust the relative strength of similar actions to better match the overall seman-tic meaning (e.g., expression category). This small re-ranking of a minority of samples can cause a minor drop in S-Cor. Compared with SBCA [32], SemanticFace achieves an 81.2% reduction in MSE. Since SBCA is not open-sourced, its reported numbers are directly quoted from the original paper, and MMD and R-Precision are not included because they were not reported therein. Compared with DeadFace, our method yields an SemanticFace 11 
+
+Table 1: Quantitative comparison with different methods on the test set. 
+
+Best values (excluding GT-test) are highlighted in red . The GT-test row is shown with a gray background for reference and is not included in the comparison.                                    
+
+> Method Error R-Precision ↑MMD ↓Main Cross-Comparison MSE ↓top-1 top-2 top-3 P-Cor S-Cor Acc. MSD Deviation
+> GT-test 024.28% 38.60% 48.48% 1.00 100% 100% 100DeadFace [42] 0.0316 13.43% 23.06% 30.25% 2.12 68.48% 67.03% 0.9836 0.0094 0.0691 SBCA [32] 0.0190 ----67.44% 65.61% 0.8449 0.0298 0.1470 Ours 0.0034 22.15% 37.06% 48.06% 1.18 70.50% 63.32% 0.9967 0.0060 0.0554
+
+89.3% reduction in MSE, approximately a 50% improvement in R-Precision, and an 83.5% reduction in MMD, along with consistent gains across other evaluation metrics. These results highlight the benefit of aligning visual perception with language-grounded semantic representations in the interpretable ARKit space. 
+
+Fig. 4: Qualitative Comparison on the Test Set with Ground-Truth ARKit coefficients. From top to bottom: ground truth, DeadFace, and SemanticFace. Com-pared to the geometric baseline, our method produces facial actions that more closely match the ground-truth coefficients. The white numbers overlaid on each result denote the corresponding MSE values. 
+
+Fig. 4 presents qualitative results across six representative facial expression cases. With the incorporation of semantic priors, our method produces more accurate and visually consistent facial actions, particularly in mouth closure, eye blinking, and eyebrow movements, consistently outperforming DeadFace in these regions. These observations indicate that language-aligned semantic super-vision enhances both coefficient fidelity and perceptual realism, highlighting the advantage of reasoning in an interpretable action space. 12 Z. Kang et al. 
+
+Table 2: Quantitative comparison with different methods on the in-the-wild data (R-Precision & MMD). Best values are highlighted in red .               
+
+> Method R-Precision ↑MMD ↓
+> top-1 top-2 top-3
+> DeadFace [42] 9.06% 19.90% 25.37% 0.90 SemanticFace 23.38% 36.98% 47.10% 0.55
+
+4.5 Evaluation on In-the-Wild Data 
+
+Unlike the test set, in-the-wild data does not provide 3D ground-truth coef-ficients. Consequently, metrics such as MSE and cross-comparison cannot be computed. We therefore evaluate performance using distribution-based metrics, namely R-Precision and MMD, which do not rely on explicit supervision. Quantitative results are reported in Tab. 2. SemanticFace achieves higher R-Precision and lower MMD than DeadFace [42], indicating improved alignment between predicted facial actions and the learned semantic distribution. 
+
+Fig. 5: In-the-wild qualitative comparison of interpretable facial action es-timation. SemanticFace maintains coherent and semantically consistent facial actions across diverse subjects and challenging conditions. The white numbers overlaid on each result denote the corresponding MMD values. 
+
+Qualitative comparisons are shown in Fig. 5, covering six representative cases across diverse subjects (male, female, young, and elderly). By incorporating structured semantic priors, our method produces more coherent and percep-tually consistent facial actions, particularly in mouth closure, eye blinking, and eyebrow movements. In contrast, DeadFace often exhibits temporal instability and local inconsistencies, partially attributable to upstream landmark noise from MediaPipe [36]. SemanticFace 13 
+
+Furthermore, SemanticFace provides qualitative evidence of semantic con-sistency under challenging conditions such as occlusion by hair or hands and uneven illumination. Even without explicit 3D supervision, the model maintains semantically plausible and visually coherent predictions. Overall, these results suggest that language-aligned semantic distillation im-proves distributional alignment and perceptual realism on in-the-wild dataset. Despite being trained on a relatively small number of subjects, the model demon-strates strong cross-identity generalization, producing semantically coherent fa-cial actions across diverse in-the-wild images. As illustrated in Fig. 1, the model first performs structured semantic reasoning before generating ARKit coeffi-cients, enabling semantically grounded facial action prediction in unconstrained environments. 
+
+# 5 Visual Comparison with FLAME-based Methods  
+
+> Fig. 6: Comparison of ARKit-based and FLAME-based Methods on Hard Cases. The input images are compared with results from SemanticFace (ours), Dead-Face, SMIRK, EMOCA, and pixel3DMM.
+
+Due to the absence of a reliable conversion between FLAME parameters and ARKit coefficients, we do not include quantitative comparisons with FLAME-based methods. Instead, we provide a qualitative comparison in Fig. 6. From left to right, the columns show the input image, SemanticFace (ours), DeadFace [42], SMIRK [44], EMOCA [12], and pixel3DMM [18]. SemanticFace and Dead-Face are ARKit-based methods, whereas SMIRK, EMOCA, and pixel3DMM are based on FLAME. The label “No Face Detected” indicates that the correspond-ing method fails to detect a face. FLAME-based methods can produce reasonable 14 Z. Kang et al. 
+
+Fig. 7: Qualitative comparison of larger domain shift. SemanticFace 15 
+
+reconstructions on regular human faces, but their robustness degrades noticeably under extreme expressions, partial faces, and occlusions. In contrast, our method remains more stable in these challenging cases and better preserves the target facial expression. We further evaluate robustness under a more extreme out-of-distribution set-ting, namely cartoon and stylized inputs, in Fig. 7. We observe that the perfor-mance gap becomes even more pronounced under this larger domain shift. Our method remains capable of producing stable and semantically plausible facial actions on cartoon characters, whereas the other methods degrade substantially and often fail at the face detection stage, leading to the “No Face Detected” cases. These results further suggest that our ARKit-space semantic formulation provides stronger robustness not only on challenging real-face inputs, but also on non-photorealistic and stylized facial domains. 
+
+5.1 Ablation Study 
+
+To quantify the contribution of semantic supervision, we evaluate three config-urations with progressively increasing levels of semantic structure: 
+
+– A0: Coefficient Regression . The model predicts the ARKit coefficient vector V = {vk}Kk=1 directly from the input image, without explicitly mod-eling the corresponding action identifiers A = {ak}Kk=1 .
+
+– A1: Action–Value Prediction . The model predicts the structured ac-tion–value set S = {(ak, v k)}Kk=1 , where action identifiers ak (e.g., EyeBlin-kLeft ) are provided as structured semantic tokens. 
+
+– A2: Semantic Distillation (Ours) . In addition to the structured ac-tion–value set S, the model is supervised with hierarchical semantic descrip-tions T generated by the proposed two-stage semantic distillation framework. These settings progressively introduce semantic structure from raw coeffi-cients ( V) to action-value pairs ( S) and finally to hierarchical semantic descrip-tions ( T ).                        
+
+> Table 3: Ablation analysis on semantic supervision evaluated on the test set. All values are scaled by 10 −3. We report overall mean MSE, median MSE, standard deviation (Std), and 90th percentile (P90). Best values are highlighted in red .
+> Method Mean MSE ↓Median MSE ↓Std ↓P90 ↓
+> A0 3.66 3.44 1.64 5.74 A1 3.52 3.28 1.51 5.57 A2(Ours) 3.34 3.12 1.49 5.25
+
+As reported in Tab. 3, performance improves monotonically from A0 to A2 across all statistics. Both mean and median MSE decrease consistently, while the standard deviation and P90 are reduced, indicating improved robustness and 16 Z. Kang et al. 
+
+fewer large-error cases. Rather than relying solely on unconstrained numerical regression, semantic structure provides additional constraints that regularize the mapping from visual features to interpretable facial actions. 
+
+Table 4: Paired t-test analysis on the test set using ablation settings A0, A1, and A2. Negative ∆ indicates lower error for the first method in the comparison (i.e., ∆ MSE is calculated as MSE first method − MSE second method ). All improvements are statistically significant ( p < 0.001 ).                           
+
+> Comparison ∆MSE ↓t-statistic p-value
+> A1 vs A0 −1.42 ×10 −4−5.28 1.35 ×10 −7
+> A2 vs A1 −1.45 ×10 −48.21 2.91 ×10 −16
+> A2 vs A0 −2.87 ×10 −410 .61 5.43 ×10 −26
+
+To assess statistical significance, we conduct paired t-tests across test sam-ples (Tab. 4). All pairwise comparisons are statistically significant ( p < 0.001 ), providing evidence that the observed improvements are reliable and consistent across the dataset. Overall, these results suggest that hierarchical semantic supervision improves both accuracy and stability by aligning visual representations with structured, interpretable facial action semantics. 
+
+# 6 Conclusion 
+
+We presented SemanticFace , a language-aligned framework for facial expres-sion estimation in the interpretable ARKit blendshape space. By distilling ARKit coefficients into structured semantic supervision, we reformulate expression es-timation as semantic facial action prediction rather than purely numerical re-gression. Extensive experiments demonstrate consistent improvements in coef-ficient accuracy, distributional alignment, and perceptual realism over existing baselines. Notably, despite being trained on a limited number of subjects, the proposed framework demonstrates strong cross-identity generalization and main-tains semantically coherent facial action prediction under diverse in-the-wild conditions. More broadly, our findings suggest that language-aligned supervi-sion provides a principled way to introduce semantic structure into interpretable facial representation learning. 
+
+Limitations. SemanticFace operates within the predefined ARKit blendshape space, which may not fully capture subtle or highly non-linear facial deformations beyond the fixed basis. Furthermore, the structured semantic descriptions are generated by a pretrained language model and may inherit biases from its train-ing data. Finally, Language-aligned supervision is more effective for interpretable facial muscle actions than for rigid head pose coefficients (e.g., HeadYaw , Head-Pitch , HeadRoll ), as these geometric rotations lack clear linguistic abstraction and therefore benefit less from semantic distillation. SemanticFace 17 
+
+# References 
+
+1. Arkit. https://developer.apple.com/documentation/arkit (2023), https:// developer.apple.com/documentation/arkit , apple Developer Documentation 2. Aloni, Y., Shalev-Arkushin, R., Shafir, Y., Tevet, G., Fried, O., Bermano, A.H.: Express4d: Expressive, friendly, and extensible 4d facial motion generation bench-mark. In: Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) Workshops. pp. 485–494 (October 2025) 3. Apple Inc.: Live Link Face. https://apps.apple.com/us/app/live-link-face/ id1495370834 (2025), accessed: 2025-06-10 4. Bai, J., Bai, S., Chu, Y., Cui, Z., Dang, K., Deng, X., Fan, Y., Ge, W., Han, Y., Huang, F., Hui, B., Ji, L., Li, M., Lin, J., Lin, R., Liu, D., Liu, G., Lu, C., Lu, K., Ma, J., Men, R., Ren, X., Ren, X., Tan, C., Tan, S., Tu, J., Wang, P., Wang, S., Wang, W., Wu, S., Xu, B., Xu, J., Yang, A., Yang, H., Yang, J., Yang, S., Yao, Y., Yu, B., Yuan, H., Yuan, Z., Zhang, J., Zhang, X., Zhang, Y., Zhang, Z., Zhou, C., Zhou, J., Zhou, X., Zhu, T.: Qwen technical report. arXiv preprint arXiv:2309.16609 (2023) 5. Bai, S., Cai, Y., Chen, R., Chen, K., Chen, X., Cheng, Z., Deng, L., Ding, W., Gao, C., Ge, C., Ge, W., Guo, Z., Huang, Q., Huang, J., Huang, F., Hui, B., Jiang, S., Li, Z., Li, M., Li, M., Li, K., Lin, Z., Lin, J., Liu, X., Liu, J., Liu, C., Liu, Y., Liu, D., Liu, S., Lu, D., Luo, R., Lv, C., Men, R., Meng, L., Ren, X., Ren, X., Song, S., Sun, Y., Tang, J., Tu, J., Wan, J., Wang, P., Wang, P., Wang, Q., Wang, Y., Xie, T., Xu, Y., Xu, H., Xu, J., Yang, Z., Yang, M., Yang, J., Yang, A., Yu, B., Zhang, F., Zhang, H., Zhang, X., Zheng, B., Zhong, H., Zhou, J., Zhou, F., Zhou, J., Zhu, Y., Zhu, K.: Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 (2025) 6. Bazarevsky, V., Kartynnik, Y., Vakunov, A., Raveendran, K., Grundmann, M.: Blazeface: Sub-millisecond neural face detection on mobile gpus. arXiv preprint arXiv:1907.05047 (2019), https://arxiv.org/abs/1907.05047 
+
+7. Blanz, V., Vetter, T.: A morphable model for the synthesis of 3d faces. Proceedings of the 26th Annual Conference on Computer Graphics and Interactive Techniques pp. 187–194 (1999), https://dl.acm.org/doi/10.1145/311535.311556 
+
+8. Blanz, V., Vetter, T.: Face recognition based on fitting a 3d morphable model. IEEE Transactions on Pattern Analysis and Machine Intelligence 25 (9), 1063–1074 (2003). https://doi.org/10.1109/TPAMI.2003.1227983 
+
+9. Cao, H., Cheng, B., Pu, Q., Zhang, H., Luo, B., Zhuang, Y., Lin, J., Chen, L., Cheng, X.: Dnpm: A neural parametric model for the synthesis of facial geometric details. arXiv preprint arXiv:2405.19688 (2024), https://arxiv.org/abs/2405. 19688 
+
+10. Cootes, T.F., Edwards, G.J., Taylor, C.J.: Active appearance models. IEEE Trans-actions on Pattern Analysis and Machine Intelligence 23 (6), 681–685 (2001). 
+
+https://doi.org/10.1109/34.927467 
+
+11. Cootes, T.F., Taylor, C.J., Cooper, D.H., Graham, J.: Active shape models-their training and application. Computer Vision and Image Understanding 61 (1), 38–59 (1995). https://doi.org/10.1006/cviu.1995.1004 
+
+12. Daněček, R., Black, M.J., Bolkart, T.: Emoca: Emotion driven monocular face capture and animation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 20311–20322 (2022) 13. Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., Uszkoreit, J., Houlsby, N.: An image is worth 16x16 words: Transformers for image recognition at scale. 18 Z. Kang et al. In: International Conference on Learning Representations (2021), https://arxiv. org/abs/2010.11929 
+
+14. Edwards, G.J., Taylor, C.J., Cootes, T.F.: Interpreting face images using active appearance models. In: Proceedings of the Third IEEE International Conference on Automatic Face and Gesture Recognition. pp. 300–305 (1998). https://doi. org/10.1109/AFGR.1998.670965 
+
+15. Epic Games: Metahuman: High-fidelity digital humans made easy. https://www. metahuman.com/en-US (2025), accessed: 2025-06-30 16. Feng, Y., Feng, H., Black, M.J., Bolkart, T.: Learning an animatable detailed 3d face model from in-the-wild images. ACM Transactions on Graphics 40 (4), 1–13 (2021), https://dl.acm.org/doi/10.1145/3450626.3459936 
+
+17. Ferguson, A., Osman, A.A.A., Bescos, B., Stoll, C., Twigg, C., Lassner, C., Otte, D., Vignola, E., Prada, F., Bogo, F., et al.: Mhr: Momentum human rig. arXiv preprint arXiv:2511.15586 (2025), https://arxiv.org/abs/2511.15586 
+
+18. Giebenhain, S., Kirschstein, T., Rünz, M., Agapito, L., Nießner, M.: Pixel3dmm: Versatile screen-space priors for single-image 3d face reconstruction. arXiv preprint arXiv:2505.00615 (2025), https://arxiv.org/abs/2505.00615 
+
+19. Guo, J., Zhu, X., Yang, Y., Yang, F., Lei, Z., Li, S.Z.: Towards fast, accurate and stable 3d dense face alignment. In: European Conference on Computer Vision. pp. 152–168. Springer (2020) 20. Hassner, T.: Viewing real-world faces in 3d. In: Proceedings of the IEEE Interna-tional Conference on Computer Vision. pp. 3607–3614 (2013). https://doi.org/ 10.1109/ICCV.2013.448 
+
+21. He, K., Zhang, X., Ren, S., Sun, J.: Deep residual learning for image recognition. In: Conference on Computer Vision and Pattern Recognition. pp. 770–778 (2016), 
+
+https://ieeexplore.ieee.org/document/7780459 
+
+22. He, Y., Gu, X., Ye, X., Xu, C., Zhao, Z., Dong, Y., Yuan, W., Dong, Z., Bo, L.: Lam: Large avatar model for one-shot animatable gaussian head. arXiv preprint arXiv:2502.17796 (2025), https://arxiv.org/abs/2502.17796 
+
+23. Howard, A.G., Zhu, M., Chen, B., Kalenichenko, D., Wang, W., Weyand, T., Andreetto, M., Adam, H.: Mobilenets: Efficient convolutional neural networks for mobile vision applications. arXiv preprint arXiv:1704.04861 (2017), https: //arxiv.org/abs/1704.04861 
+
+24. Hu, E.J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., Chen, W.: Lora: Low-rank adaptation of large language models. arXiv preprint arXiv:2106.09685 (2021) 25. Josi, A., Hafemann, L.G., Dib, A., Got, E., Cruz, R.M.O., Carbonneau, M.A., et al.: Serep: Semantic facial expression representation for robust in-the-wild capture and retargeting. In: ICCV (2025) 26. Kartynnik, Y., et al.: Real-time facial surface geometry from monocular video on mobile gpus. arXiv:1907.06724 (2021) 27. Kemelmacher-Shlizerman, I., Basri, R.: 3d face reconstruction from a single image using a single reference face shape. IEEE Transactions on Pattern Analysis and Machine Intelligence 33 (2), 394–405 (2011). https://doi.org/10.1109/TPAMI. 2010.63 
+
+28. Koetzier, T., Pontes, J., Black, M.J., Bolkart, T.: Attention mesh: High-fidelity face mesh prediction in real-time. arXiv preprint arXiv:2006.10962 (2020), https: //arxiv.org/abs/2006.10962 
+
+29. Lewis, J.P., Anjyo, K., Rhee, T., Zhang, M., Pighin, F., Deng, Z.: Practice and theory of blendshape facial models. Eurographics State of the Art Reports (2014), 
+
+https://diglib.eg.org/items/8be51042-1c33-463e-954d-9221658e6172 SemanticFace 19 30. Li, J., Li, D., Savarese, S., Hoi, S.: Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In: International conference on machine learning. pp. 19730–19742. PMLR (2023) 31. Li, M., Zhang, Y., Long, D., Keqin, C., Song, S., Bai, S., Yang, Z., Xie, P., Yang, A., Liu, D., Zhou, J., Lin, J.: Qwen3-vl-embedding and qwen3-vl-reranker: A unified framework for state-of-the-art multimodal retrieval and ranking. arXiv preprint arXiv:2601.04720 (2026) 32. Li, S., Wang, T.: Statistical blendshape calculation and analysis for graphics appli-cations. arXiv preprint arXiv:2601.08234 (2026), https://arxiv.org/abs/2601. 08234 
+
+33. Li, T., Bolkart, T., Black, M.J., Li, H., Romero, J.: Learning a model of facial shape and expression from 4d scans. ACM Trans. Graph. 36 (6), 194:1–194:17 (2017) 34. Liu, H., Li, C., Wu, Q., Lee, Y.J.: Visual instruction tuning. Advances in Neural Information Processing Systems (2023), https://arxiv.org/abs/2304.08485 
+
+35. Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 (2017) 36. Lugaresi, C., et al.: Mediapipe: A framework for building perception pipelines. In: ICCV Workshops (2019) 37. Matthews, I., Baker, S.: Active appearance models revisited. International Jour-nal of Computer Vision 60 (2), 135–164 (2004), https://www.ri.cmu.edu/ publications/active-appearance-models-revisited 
+
+38. Menzel, T., Botsch, M., Latoschik, M.E.: Automated blendshape personalization for faithful face animations using commodity smartphones. Proceedings of the 28th ACM Symposium on Virtual Reality Software and Technology (VRST ’22) pp. 1–10 (2022). https://doi.org/10.1145/3562939.3565622 , also available at: https://dl.acm.org/doi/10.1145/3562939.3565622 39. OpenAI: Introducing gpt-5 (2025), https://openai.com/index/introducing-gpt-5/ 
+
+40. Parke, F.I.: A parametric model for human faces. Tech. rep., University of Utah (1974), https://dl.acm.org/doi/10.5555/907312 
+
+41. Pearson, K.: Liii. on lines and planes of closest fit to systems of points in space. The London, Edinburgh, and Dublin Philosophical Magazine and Journal of Science 
+
+2(11), 559–572 (Nov 1901). https://doi.org/10.1080/14786440109462720 
+
+42. Qaanaaq: Deadface: Arkit blendshape tracking and animation. https://github. com/Qaanaaq/DeadFace (2023), gitHub repository 43. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., Krueger, G., Sutskever, I.: Learning trans-ferable visual models from natural language supervision. International Conference on Machine Learning (2021), https://openai.com/index/clip 
+
+44. Retsinas, G., Filntisis, P.P., Danecek, R., Abrevaya, V.F., Roussos, A., Bolkart, T., Maragos, P.: Smirk: 3d facial expressions through analysis-by-neural-synthesis. arXiv preprint arXiv:2404.04104 (2024), https://arxiv.org/abs/2404.04104 
+
+45. Sakib, N.: 9 facial expressions for yolo (2025). https://doi.org/10.34740/ KAGGLE/DSV/11495578 , https://www.kaggle.com/dsv/11495578 
+
+46. Sanyal, S., Bolkart, T., Feng, H., Black, M.J.: Learning to regress 3d face shape and expression from an image without 3d supervision. arXiv preprint arXiv:1905.06817 (2019), https://arxiv.org/abs/1905.06817 
+
+47. Spearman, C.: Correlation calculated from faulty data. British journal of psychol-ogy 3(3), 271 (1910) 20 Z. Kang et al. 48. Taubner, F., Raina, P., Tuli, M., Teh, E.W., Huang, J., Lee, C.: 3d face track-ing from 2d video through iterative dense uv to image flow. arXiv preprint arXiv:2404.09819 (2024), https://arxiv.org/abs/2404.09819 
+
+49. Wolff, T., Dollack, F., Perusquía-Hernández, M., Uchiyama, H., Kiyokawa, K.: Mapping of facial action units to virtual avatar blend shape movement. Pro-ceedings of the ICAT-EGVE 2024 (Eurographics Symposium on Virtual Envi-ronments) (2024). https://doi.org/10.2312/egve.20241392 , poster/Demo at ICAT-EGVE 2024; Available at: https://diglib.eg.org/items/d8ceee83-6078-48dd-8290-3b15ae919abd 50. Wu, J., Kang, Z., Liu, H., Fei, Y., Huang, X.: Keyframeface: From text to expressive facial keyframes (2025), https://arxiv.org/abs/2512.11321 
+
+51. Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B., Yu, B., Gao, C., Huang, C., Lv, C., Zheng, C., Liu, D., Zhou, F., Huang, F., Hu, F., Ge, H., Wei, H., Lin, H., Tang, J., Yang, J., Tu, J., Zhang, J., Yang, J., Yang, J., Zhou, J., Zhou, J., Lin, J., Dang, K., Bao, K., Yang, K., Yu, L., Deng, L., Li, M., Xue, M., Li, M., Zhang, P., Wang, P., Zhu, Q., Men, R., Gao, R., Liu, S., Luo, S., Li, T., Tang, T., Yin, W., Ren, X., Wang, X., Zhang, X., Ren, X., Fan, Y., Su, Y., Zhang, Y., Zhang, Y., Wan, Y., Liu, Y., Wang, Z., Cui, Z., Zhang, Z., Zhou, Z., Qiu, Z.: Qwen3 technical report. arXiv preprint arXiv:2505.09388 (2025) 52. Zhang, C., Wang, C., Zhang, J., Xu, H., Song, G., Xie, Y., Luo, L., Tian, Y., Guo, X., Feng, J.: Dream-talk: Diffusion-based realistic emotional audio-driven method for single image talking face generation (2023), https://arxiv.org/abs/2312. 13578 
+
+53. Zhu, Q., Cao, X., Wang, Z., Zheng, Y., Taketomi, T.: Kaolrm: Repurposing pre-trained large reconstruction models for parametric 3d face reconstruction. arXiv preprint arXiv:2601.12736 (2026), https://arxiv.org/abs/2601.12736 
+
+54. Zhu, X., Lei, Z., Liu, X., Shi, H., Li, S.Z.: Face alignment across large poses: A 3d solution. In: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. pp. 146–155 (2016) SemanticFace 21 
+
+# A Evaluation Metrics Detail 
+
+A.1 Mean Squared Error (MSE) 
+
+Let  Vi = {vi,k }Kk=1  denote the vector of ARKit blendshape coefficients for the 
+
+i-th image  Ii, where  vi,k ∈ R is the activation level of the  k-th facial action (K = 61 ). Mean Squared Error (MSE) measures the average squared difference between the predicted coefficients  V pred  
+
+> i
+
+and the ground-truth coefficients  V gt  
+
+> i
+
+.It is computed as 
+
+MSE = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1
+
+K
+
+> K
+
+X
+
+> k=1
+
+
+
+vpred  
+
+> i,k
+
+− vgt 
+
+> i,k
+
+2
+
+.
+
+Lower values indicate higher coefficient prediction accuracy and better fi-delity to the interpretable facial action space. 
+
+A.2 R-Precision 
+
+R-Precision is used to evaluate retrieval performance by examining whether the ground-truth motion corresponding to a given image description appears within the top-K(3) ranked candidates. For a batch of size N (32), we compute a cosine-similarity matrix Sij = sim( Ii, A j ) and determine the rank of the matched motion Ai for each image query Ii. R-Precision@K is then defined as 
+
+R-Precision@K = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1[rank( Ai|I i) ≤ K],
+
+indicating the proportion of queries whose correct matches fall within the top-K.Higher values reflect stronger cross-modal discriminative ability. 
+
+A.3 Multimodal Distance (MMD) 
+
+Multimodal Distance measures the geometric proximity between matched image and motion embeddings in the learned joint space. For each sample pair (Ii, A i),we compute the Euclidean distance between their normalized embeddings and take the average over all pairs: 
+
+MMD = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+∥fimage (Ii) − fmotion (Ai)∥2 .
+
+Lower values indicate that the image and motion embeddings are located closer together, suggesting stronger semantic alignment. 22 Z. Kang et al. 
+
+A.4 Evaluation Model Training Details 
+
+The evaluation model is trained end-to-end using a symmetric InfoNCE loss, which encourages matched image–motion pairs to have high similarity while pushing unmatched samples apart. The loss is defined as 
+
+L = 12 (LI→ A + LA→I ),
+
+with a temperature parameter τ = 0 .07 , this is applied over all image–motion pairs within each batch. Training employs the AdamW optimizer with a learning rate of 1×10 −4 and weight decay of the same magnitude, together with a cosine-annealing learning rate schedule. We train the model for up to 1000 epochs and apply early stopping when the R-Precision@1 on the validation split does not improve for ten consecutive epochs. Both the image encoder and motion encoder are fully trainable during optimization. Motion features are standardized using Z-score statistics computed from the training set, while image descriptions are tokenized with the Qwen3-VL-Embedding-8B [31]. A fixed random seed (42) is used throughout to ensure reproducibility of the results. The evaluation model is trained independently from SemanticFace and does not share parameters or supervision signals with the proposed framework. To avoid bias, evaluation training uses only ground-truth coefficients and image–motion pairs, without exposure to semantic descriptions. 
+
+A.5 Cross-Comparison 
+
+The evaluation matrix [32], illustrated in the Cross-Comparison table, provides a comprehensive benchmark of the proposed statistical blendshape prediction model’s performance against the ARKit baseline [1] only for the 13 most domi-nant and expressive blendshapes (EyeBlinkLeft, EyeLookDownLeft, EyeLookIn-Left, EyeBlinkRight, EyeLookDownRight, EyeLookInRight, JawOpen, Mouth-SmileLeft, MouthSmileRight, MouthUpperUpLeft, MouthUpperUpRight, Brow-DownLeft, BrowDownRight). These 13 coefficients serve as primary indicators of facial expression quality. The table presents cross-comparison measures: P Corr [41] denotes Pearson Correlation, quantifying the linear relationship be-tween the outputs of the two models; S Corr [47] represents Spearman Cor-relation, evaluating the monotonic association; Accuracy indicates the overall prediction correctness based on thresholded expression detection; MSD refers to Mean Squared Deviation, capturing the average squared error from the ARKit reference. MSE measures the average on the total 61 coefficients while MSD foucses on 13 coefficients; and Deviation measures the mean absolute difference between the model predictions and the baseline. 
+
+# B Prompt Design 
+
+Our framework employs carefully designed prompts to enable semantic supervi-sion generation and interpretable ARKit coefficient prediction. The prompts are SemanticFace 23 
+
+designed to guide the large language model (LLM) and multimodal large lan-guage model (MLLM) to reason about facial muscle activations in a structured manner consistent with the Facial Action Coding System (FACS). 
+
+B.1 Stage I: Semantic Supervision Generation 
+
+In Stage I, the LLM converts ground-truth ARKit blendshape coefficients into structured semantic descriptions. The goal of this stage is to bridge the gap between low-level numerical parameters and high-level facial reasoning. Given ARKit coefficients, the model infers the corresponding facial expression category, detailed facial muscle movements, emotional implications when observable, and symmetry properties. The prompt used in Stage I is shown below. You are an expert in facial action coding (FACS). Given ARKit blendshape coefficients, infer: 1. The most likely facial expression category. 2. The detailed facial muscle movements. 3. The emotional implication if clearly observable. 4. The symmetry or asymmetry of the expression. Base your reasoning only on facial muscle movement intensity. Input: ARKit coefficient JSON. The input to this prompt is a JSON object containing all 61 ARKit coeffi-cients, including eye movements, mouth movements, eyebrow actions, and head pose parameters. The LLM then generates a structured semantic description summarizing the facial action configuration implied by these coefficients. These descriptions serve as semantic supervision signals for Stage II training. 
+
+B.2 Stage II: Language-Prior Semantic Distillation 
+
+In Stage II, a multimodal large language model (MLLM) predicts ARKit co-efficients directly from input facial images while being guided by the semantic reasoning paradigm introduced in Stage I. The prompt instructs the model to first analyze facial muscle activations in a structured semantic format and then generate the full set of ARKit coefficients. The output consists of two parts: 
+
+– analysis : structured semantic reasoning about the facial expression. 
+
+– arkit : a complete set of 61 ARKit blendshape coefficients. To ensure deterministic and machine-readable outputs, the prompt enforces strict JSON formatting and requires that all coefficients be included. The prompt used in Stage II is shown below. You are an expert in Facial Action Coding System (FACS) and ARKit facial expression analysis. Given a facial image, provide a two-part analysis. Part 1: “analysis” Analyze the facial expression with the following struc-ture: 24 Z. Kang et al. 
+
+– expression_category: the most likely facial expression category 
+
+– muscle_movements: detailed facial muscle movements with intensity (by region: eyebrows, eyes, cheeks, mouth, jaw) 
+
+– emotional_implication: emotional meaning only if clearly observable from facial muscles 
+
+– symmetry: describe left-right facial symmetry or any notable asym-metry Part 2: “arkit” Generate a complete JSON object mapping every ARKit blendshape coefficient name to a precise value with three decimal places. Requirements: 
+
+– Return only a valid JSON object with two keys: “analysis” and “arkit” .
+
+– The “arkit” field must contain all 61 ARKit coefficients. This structured prompting strategy enables the MLLM to align visual per-ception with interpretable facial action semantics while producing numerically precise ARKit parameters. 
+
+# C Head Pose Analysis 
+
+Table 5: Quantitative comparison of head pose parameters (HeadYaw, HeadPitch, HeadRoll) on the test set. Best values are highlighted in red .                             
+
+> Method Main Cross-Comparison P-Cor S-Cor MSD Deviation
+> HeadYaw(DeadFace [42]) 20.61% 21.03% 0.0074 0.0843 HeadYaw(Ours) 57.69% 55.60% 0.0048 0.0533 HeadPitch(DeadFace) 19.60% 21.36% 0.0350 0.0903 HeadPitch(Ours) 74.89% 72.09% 0.0045 0.0557 HeadRoll(DeadFace) 90.18% 89.60% 0.0009 0.0306 HeadRoll(Ours) 53.40% 50.23% 0.0037 0.0599
+
+To better understand the behavior of rigid head pose parameters, we compare DeadFace [42] and SemanticFace on the test set in Tab. 5. The results show that language-aligned semantic supervision affects the three rotation dimensions differently. For HeadYaw and HeadPitch , our method improves all reported metrics over the baseline. Pearson correlation increases from 20.61% to 57.69% for HeadYaw 
+
+and from 19.60% to 74.89% for HeadPitch , while MSD and Deviation are both reduced. These results suggest that semantic distillation provides useful guidance for yaw and pitch prediction. A likely reason is that yaw and pitch have relatively clear linguistic counter-parts in natural descriptions, such as turning the head left or right, or looking SemanticFace 25 
+
+upward or downward. Therefore, the semantic supervision generated in Stage I can provide meaningful structural priors for these two dimensions. In contrast, HeadRoll shows a clear performance drop, with Pearson corre-lation decreasing from 90.18% to 53.40% and Spearman correlation decreasing from 89.60% to 50.23%. Compared with yaw and pitch, roll corresponds to lat-eral head tilt, which has much weaker semantic grounding in natural language and is rarely emphasized in either everyday facial descriptions or our training scripts. As a result, semantic supervision provides limited useful guidance for roll pre-diction and may introduce additional ambiguity. This observation is consistent with the limitation discussed in the main paper: our framework is most effective for semantically interpretable facial actions, while rigid geometric pose parame-ters, especially HeadRoll , benefit much less from language-aligned supervision. 
+
+# D Fine-Grained Per-Coefficient Evaluation 
+
+Tabs. 6 and 7 report detailed results for all ARKit coefficients in terms of Mean Squared Error (MSE), Pearson correlation (P Corr), Spearman correlation (S Corr), and Deviation. These per-coefficient statistics provide a more fine-grained view of model behavior beyond the overall results in the main paper. 
+
+MouthRight , TongueOut , LeftEyeRoll , and RightEyeRoll are coefficients with undefined Pearson and Spearman correlations, denoted as “-” in the tables. This is because these coefficients are consistently zero in the dataset, and our model also predicts them as zero. Since correlation metrics require non-zero variance, they are undefined in such cases. However, the zero MSE and zero deviation values reflect perfect agreement between the predicted and ground truth values. A similar but less extreme phenomenon appears for several low-activity co-efficients, including JawRight , CheekPuff , and MouthLeft . Although their MSE and Deviation are very small, their correlation scores remain close to zero. This mainly results from their limited variance in the dataset: these actions are rarely activated and stay near zero for most samples. Under such conditions, correla-tion metrics become unstable and are highly sensitive to small fluctuations, while error-based metrics better reflect the numerical closeness of the predictions. Overall, the model performs better on prominent and frequently occurring facial actions, such as JawOpen , MouthClose , MouthFunnel , MouthUpperUpLeft ,
+
+MouthUpperUpRight , and CheekSquint . By contrast, relatively lower performance is observed on subtler and less frequent coefficients, such as MouthFrownLeft ,
+
+MouthFrownRight , MouthDimpleLeft , MouthDimpleRight , and JawLeft . These results suggest that coefficients with clearer semantic meaning, larger activa-tion range, and better training coverage are easier to predict reliably under our semantic distillation framework. 26 Z. Kang et al. 
+
+Table 6: Quantitative evaluation of blendshape parameters (Part 1), sorted in ascend-ing order of MSE. MSE P Corr S Corr Deviation MouthRight 0.0000 - - 0.0000 TongueOut 0.0000 - - 0.0000 LeftEyeRoll 0.0000 - - 0.0000 RightEyeRoll 0.0000 - - 0.0000 JawRight 0.0000 -0.0003 -0.0003 0.0025 CheekPuff 0.0000 -0.0005 -0.0005 0.0032 MouthLeft 0.0001 -0.0031 -0.0031 0.0083 MouthFrownRight 0.0002 0.2529 0.2367 0.0144 MouthFrownLeft 0.0002 0.2159 0.1968 0.0145 EyeLookUpLeft 0.0002 0.3537 0.3341 0.0155 EyeLookUpRight 0.0002 0.3537 0.3341 0.0155 MouthShrugUpper 0.0002 0.6421 0.4816 0.0155 MouthRollLower 0.0003 0.5860 0.5840 0.0167 EyeLookOutLeft 0.0004 0.6045 0.4329 0.0208 MouthRollUpper 0.0005 0.5105 0.4798 0.0227 EyeSquintLeft 0.0008 0.5283 0.4858 0.0276 EyeSquintRight 0.0008 0.5273 0.4849 0.0278 MouthPressRight 0.0008 0.3044 0.2299 0.0276 MouthShrugLower 0.0008 0.6138 0.4356 0.0281 JawLeft 0.0010 0.2012 0.1975 0.0300 MouthPressLeft 0.0010 0.2816 0.2200 0.0298 EyeLookOutRight 0.0010 0.4863 0.3927 0.0311 EyeLookInLeft 0.0014 0.5907 0.5123 0.0370 MouthDimpleLeft 0.0017 0.2240 0.2164 0.0385 MouthClose 0.0018 0.7754 0.7399 0.0429 LeftEyeYaw 0.0020 0.4663 0.4054 0.0424 RightEyeYaw 0.0020 0.4604 0.3985 0.0428 JawForward 0.0023 0.6601 0.6507 0.0454 MouthDimpleRight 0.0025 0.2056 0.1993 0.0451 MouthFunnel 0.0026 0.7588 0.7413 0.0494 CheekSquintRight 0.0029 0.7072 0.6977 0.0532 SemanticFace 27 
+
+Table 7: Quantitative evaluation of blendshape parameters (Part 2), sorted in ascend-ing order of MSE. MSE P Corr S Corr Deviation CheekSquintLeft 0.0029 0.6985 0.6919 0.0531 MouthUpperUpLeft 0.0029 0.7378 0.6936 0.0488 BrowDownRight 0.0032 0.6638 0.5664 0.0544 BrowDownLeft 0.0032 0.6636 0.5664 0.0544 EyeLookInRight 0.0033 0.4145 0.3049 0.0534 MouthUpperUpRight 0.0035 0.7353 0.6903 0.0507 MouthStretchLeft 0.0036 0.6715 0.6399 0.0522 JawOpen 0.0037 0.8282 0.8020 0.0596 HeadRoll 0.0037 0.5340 0.5023 0.0599 MouthStretchRight 0.0038 0.6731 0.6427 0.0531 NoseSneerLeft 0.0040 0.5884 0.5546 0.0509 HeadPitch 0.0045 0.7489 0.7209 0.0557 NoseSneerRight 0.0046 0.6101 0.5772 0.0516 MouthLowerDownRight 0.0047 0.9410 0.9428 0.0674 HeadYaw 0.0048 0.5769 0.5560 0.0533 MouthLowerDownLeft 0.0051 0.9404 0.9423 0.0681 MouthSmileLeft 0.0054 0.8915 0.8351 0.0684 BrowInnerUp 0.0056 0.9431 0.8344 0.0747 MouthPucker 0.0059 0.8556 0.7165 0.0704 MouthSmileRight 0.0061 0.8823 0.8402 0.0728 LeftEyePitch 0.0064 0.7380 0.7181 0.0509 RightEyePitch 0.0064 0.7380 0.7181 0.0509 EyeWideRight 0.0066 0.6728 0.5264 0.0725 EyeWideLeft 0.0067 0.6725 0.5261 0.0725 BrowOuterUpRight 0.0080 0.9075 0.8480 0.0805 BrowOuterUpLeft 0.0080 0.9077 0.8489 0.0804 EyeBlinkLeft 0.0086 0.9165 0.7327 0.0703 EyeBlinkRight 0.0087 0.9162 0.7324 0.0705 EyeLookDownLeft 0.0172 0.8162 0.7961 0.0639 EyeLookDownRight 0.0172 0.8168 0.7965 0.0640 
+
+Average 0.0036 0.5966 0.5429 0.0456
