@@ -1,0 +1,497 @@
+Title: OrbitStream: Training-Free Adaptive 360-degree Video Streaming via Semantic Potential Fields
+
+URL Source: https://arxiv.org/pdf/2603.20999v1
+
+Published Time: Tue, 24 Mar 2026 01:01:35 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# OrbitStream: Training-Free Adaptive 360 ° Video Streaming via Semantic Potential Fields 
+
+# Aizierjiang Aiersilan Zhangfei Yang 
+
+The George Washington University USA, Washington, DC alexandera@gwu.edu 
+
+## Abstract 
+
+Adaptive 360 ° video streaming for teleoperation faces dual challenges: viewport prediction under uncertain gaze pat-terns and bitrate adaptation over volatile wireless channels. While data-driven and Deep Reinforcement Learning (DRL) methods achieve high Quality of Experience (QoE), their "black-box" nature and reliance on training data can limit deployment in safety-critical systems. To address this, we propose OrbitStream, a training-free framework that com-bines semantic scene understanding with robust control the-ory. We formulate viewport prediction as a Gravitational Viewport Prediction (GVP) problem, where semantic objects generate potential fields that attract user gaze. Furthermore, we employ a Saturation-Based Proportional-Derivative (PD) Controller for buffer regulation. On object-rich teleoperation traces, OrbitStream achieves a 94.7% zero-shot viewport pre-diction accuracy without user-specific profiling, approach-ing trajectory-extrapolation baselines ( ∼98.5%). Across 3,600 Monte Carlo simulations on diverse network traces, Orbit-Stream yields a mean QoE of 2.71. It ranks second among 12 evaluated algorithms, close to the top-performing BOLA-E (2.80) while outperforming FastMPC (1.84). The system ex-hibits an average decision latency of 1.01 ms with minimal rebuffering events. By providing competitive QoE with inter-pretability and zero training overhead, OrbitStream demon-strates that physics-based control, combined with semantic modeling, offers a practical solution for 360 ° streaming in teleoperation. 
+
+## Keywords 
+
+Adaptive Bitrate Streaming (ABR), 360 ° Video, Proportional-Derivative (PD) Control, Semantic Potential Fields, Viewport Prediction, Teleoperation 
+
+## 1 Introduction 
+
+Emerging wireless communication technologies, such as 5G and the forthcoming 6G network [ 4, 26 ], enable applica-tions where operators remotely control physical systems via real-time 360 ° video. These teleoperation applications operate in domains like autonomous vehicle control [ 18 ], telesurgery [ 15 ], and industrial inspection [ 9], requiring        
+
+> 𝜃 (Yaw)
+> 𝜙 (Pitch)
+> Vehicle ( 𝑀 =0.8)
+> Pedestrian ( 𝑀 =1.0)
+> Start
+> Gaze Trajectory
+> (Attracted to Potential Well)
+> Viewport Inefficiency
+> Full 4K Sphere
+> 150 Mbps Bandwidth
+> Viewport
+> Only ∼15% seen by user
+
+Figure 1: Viewport inefficiency in 360 ° video stream-ing (top left) and a two-dimensional visualization of the gravitational potential field in yaw-pitch space. It depicts two potential wells (basins of attraction) cor-responding to a Vehicle (lower mass) and a Pedestrian (higher mass). Arrows show the gradient field pointing inwards towards the objects. A red trajectory line traces the user’s gaze starting from the bottom left, curving past the vehicle, and converging into the pedestrian’s potential well, illustrating the physics-based predic-tion model. 
+
+low latency and high visual fidelity for situational aware-ness [ 5 , 36 ]. While platforms like Xrobotoolkit [ 45 ] facilitate robot control, our work focuses on the efficient delivery of video feedback. A central bottleneck in 360 ° streaming is viewport inef-ficiency [ 29 ]. Operators observe merely a ∼15% segment of the sphere, yet many pipelines transmit the entirety of the 4K projection, incurring high bandwidth consumption (see Fig. 1). Tile-based adaptive streaming counters this by subdividing the geometry to transmit the predicted view-port at peak quality while degrading the peripheral tiles [ 3,7 , 19 , 24 , 44 ]. This creates two key optimization problems under dynamic environments: (1) predicting the operator’s  
+
+> arXiv:2603.20999v1 [cs.NI] 22 Mar 2026 Aizierjiang Aiersilan Zhangfei Yang
+
+viewport despite non-stationary, scene-dependent gaze pat-terns [6]; and (2) dynamically rationing bitrates across tiles under volatile channel conditions to maintain QoE and pre-vent buffer starvation. State-of-the-art adaptive bitrate (ABR) strategies entail limitations in this domain. Rule-based techniques (e.g., buffer-based [ 10 , 32 ]) operate efficiently but lack the semantic antic-ipation often needed for safety-critical tasks. Optimization models such as Model Predictive Control (MPC [ 42 , 43 ]) can be sensitive to throughput forecast inaccuracies. Mean-while, Deep Reinforcement Learning frameworks [ 14 , 16 , 40 ]demonstrate robust average QoE but function as black boxes. They typically require extensive training, can struggle with out-of-distribution environments, and may lack the inter-pretability desired for human-in-the-loop deployments. In this work, we propose OrbitStream , an interpretable, training-free ABR framework combining physics-based se-mantic modeling with control theory. OrbitStream lever-ages Gravitational Viewport Prediction (GVP) , where seman-tic objects (e.g., pedestrians) dynamically generate potential fields that approximate gravitational pull on operator gaze. This provides adaptability without historic profiling. For stream regulation, OrbitStream employs a Saturation-Based Proportional-Derivative (PD) Controller to support buffer con-vergence. The primary contributions of this paper are: (1) Physics-Inspired Attention Modeling: We formulate GVP as continuous particle dynamics governed by se-mantic potential fields, achieving 94.7% viewport predic-tion accuracy in our dataset without prior user data. (2) Lyapunov-Informed Buffer Control: We articulate an adaptive PD feedback paradigm equipped with a bounded saturation nonlinearity to support buffer trajectory sta-bility. (3) Empirical Evaluation: Across 3,600 simulations, Or-bitStream ranks second with a QoE of 2.71, approaching BOLA-E (2.80) while outperforming others (e.g., FastMPC at 1.84). It achieves robust performance with a low con-trol latency (1.01 ms) and minimal rebuffering. 
+
+## 2 Related Work 2.1 Adaptive Bitrate Streaming 
+
+Traditional adaptive bitrate (ABR) algorithms tackle quality adaptation through varying strategies [ 33 , 34 ]. Rule-based methods , including buffer-based [ 10 , 32 ] and rate-based ap-proaches [ 22 , 38 ], prioritize simplicity. Buffer-based methods dictate bitrate via buffer occupancy, guaranteeing stability but suffering from sluggish responsiveness to sudden chan-nel improvements. Optimization-based approaches , such as Model Predictive Control (MPC) [ 42 , 43 ], frame streaming as a finite-horizon utility maximization problem. Despite their mathematical rigor, they heavily depend on accurate throughput predictions, risking dramatic quality degradation when forecasts inexplicably fail. 
+
+Deep Reinforcement Learning (DRL) methods, notably Pensieve [ 14 ] and Fugu [ 40 ], attain high performance bench-marks by learning ABR policies from expansive network traces. Nevertheless, their "black-box" nature and depen-dency on pre-training can present challenges in environ-ments that require transparent and predictable behavior. 
+
+## 2.2 Viewport Prediction in 360 ° Video 
+
+The spherical geometry inherent to 360 ° video demands effi-cient spatial delivery. Tile-based streaming , exemplified by FLARE [ 25 ] and Pano [ 8], curtails bandwidth by priori-tizing the user’s field of view, though they frequently rely on deterministic trajectory extrapolation [ 12 , 46 ]. Recent optimizations have explored robust frameworks handling field-of-view uncertainty explicitly via mathematical relax-ation (e.g., 360-ROBUST), as well as multi-trajectory pre-dictions (e.g., MFVP) for lightweight viewport modeling. 
+
+Semantic-aware predictors , such as those exploiting ob-ject saliency [ 20 , 21 , 35 , 41 ] or multi-agent DRL frameworks, typically necessitate aggregate viewing statistics or complex deep learning architectures. This can make them difficult to deploy in zero-shot teleoperation where prior user data may be absent. 
+
+Distinction of OrbitStream. OrbitStream formulates viewport prediction as a continuous physics-inspired simu-lation. Treating semantic objects as gravitational attractors provides anticipation without requiring crowd statistics or DRL training. It provides an interpretable framework aligned with the needs of autonomous teleoperation. 
+
+## 3 System Model 3.1 End-to-End Architecture 
+
+We consider a real-time teleoperation loop comprising four subsystems. A 360 ° Camera captures the remote environ-ment at 4K resolution (30 fps). An Edge Encoding Server 
+
+performs object detection and HEVC encoding [ 34 ], parti-tioning frames into spatial tiles (grid size 𝑁 ×𝑀 ). A Wireless Downlink transmits these tiles to the Operator Terminal ,where a viewport-adaptive player renders the content on a Head-Mounted Display (HMD). 
+
+## 3.2 Video and Semantic Representation 
+
+The video is temporally segmented into chunks of duration 
+
+𝑇 𝑠 = 2 seconds. Spatially, the equirectangular frame is divided into an 8 × 4 tile grid (32 total tiles) [ 31 ]. The equivalent full-projection video targets 𝐾 = 6 global bitrate tiers R =
+
+{1.2, 2.5, 5.0, 10 .0, 20 .0, 40 .1} Mbps. The actual per-tile bitrate OrbitStream: Training-Free Adaptive 360 ° Video Streaming via Semantic Potential Fields 
+
+is inherently fractionalized from these global budgets based on spatial area and content complexity. The system maintains a real-time Semantic Scene State .For every frame, a set of 𝐿 objects {𝑂 1, . . . , 𝑂 𝐿 } is detected, simulated via YOLOv5 inference traces [ 11 , 27 ]. Each object 
+
+𝑂 ℓ is defined by its Position (𝜃 ℓ , 𝜙 ℓ ) in spherical coordinates, and its Semantic Mass 𝑀 ℓ ∈ [ 0, 1]. This scalar weight en-codes task-relevance based on vulnerability-based priority ordering. Specifically, pedestrians receive the highest mass (𝑀 = 1.0) reflecting extreme collision risk, followed by vehi-cles ( 𝑀 = 0.8) and traffic signs ( 𝑀 = 0.75 ). Background ele-ments receive low mass ( 𝑀 < 0.2). This task-driven weight-ing maps directly into the gravitational predictor. 
+
+## 3.3 Channel and Buffer Dynamics 
+
+The client playback buffer 𝐵 (𝑡 ) (measured in seconds of video) evolves via a continuous fluid model parameterized by network delivery and continuous video playout: 
+
+𝑑𝐵 (𝑡 )
+
+𝑑𝑡 = 𝐶 (𝑡 )
+
+𝑅 (𝑡 ) − 1{𝐵 (𝑡 )>0} (1) where 𝐶 (𝑡 ) is the available channel capacity, 𝑅 (𝑡 ) is the ag-gregate selected chunk bitrate, and the indicator function 
+
+1{𝐵 (𝑡 )>0} formally captures playback stalling during buffer underflow. A Rebuffering Event occurs if 𝐵 (𝑡 ) = 0 and content is unavailable, critically halting control feedback. We assume a noisy capacity estimator ˆ𝐶 (𝑡 ) with a bounded prediction error | ˆ𝐶 (𝑡 ) − 𝐶 (𝑡 )| ≤ 𝜖 𝐶 , where we empirically cap 𝜖 𝐶 = 2.0 Mbps. 
+
+## 3.4 QoE Objective Formulation 
+
+We adopt a generalized linear QoE model tailored for safety-critical tasks [14, 43]: QoE =∑︁ 
+
+> 𝑡
+
+h
+
+𝑢 (𝑟 𝑡 )
+
+|{z} 
+
+> Quality
+
+− 𝜇 · 𝑇 stall (𝑡 )
+
+| {z }
+
+> Reliability
+
+− 𝜆 · | 𝑟 𝑡 − 𝑟 𝑡 −1 |
+
+| {z }
+
+> Smoothness
+
+− 𝜈 · 𝐸 view (𝑡 )
+
+| {z }
+
+> Accuracy
+
+i
+
+(2) The model features four components. The Utility 𝑢 (𝑟 𝑡 ) =
+
+log (𝑟 𝑡 /𝑟 min ) (with 𝑟 min = 1.2 Mbps) follows the Weber-Fechner law of diminishing returns. We assign a Stall Penalty 𝜇 = 10 
+
+to reflect the negative impact of video freezing. A Smooth-ness penalty 𝜆 = 0.5 curtails visual flickering to help mitigate operator fatigue. Lastly, the Viewport Error penalty relies on 𝐸 view (𝑡 ) = 1 − 1 
+
+> | V 𝑡 |
+
+Í𝑘 ∈ V 𝑡  
+
+> 𝑞 𝑘
+> 𝑞 max
+
+, capturing the normalized quality deprivation within the specific tiles comprising the user’s actual rendered viewport V𝑡 . This computes the risk of missing visual details due to prediction inaccuracies. 
+
+## 4 Gravitational Viewport Prediction 
+
+Potential Field Formulation. The GVP model treats visual attention as a test particle moving on the unit sphere S2 under forces generated by semantic objects. This draws inspiration from biological visual foraging models [ 23 , 28 , 30 ]. Each object 𝑂 ℓ with semantic mass 𝑀 ℓ at position (𝜃 ℓ , 𝜙 ℓ ) creates an attractive potential well. The total attention potential at an arbitrary coordinate (𝜃, 𝜙 ) evaluates to: 
+
+𝑈 (𝜃, 𝜙 ) = −𝐺 
+
+> 𝐿
+
+∑︁ 
+
+> ℓ=1
+
+𝑀 ℓ
+
+𝑑 (𝜃, 𝜙, 𝜃 ℓ , 𝜙 ℓ ) + 𝛿 (3) where 𝐺 = 1.0 is a saliency weighting factor, 𝛿 = 1.0 averts singular division precisely at object overlap, and 𝑑 (·) signi-fies the haversine angular distance properly accounting for spherical geometry: 
+
+𝑑 (𝜃 1, 𝜙 1, 𝜃 2, 𝜙 2) = 2 arcsin 
+
+"
+
+sin 2  𝜙 2 − 𝜙 1
+
+2
+
+
+
++ cos 𝜙 1 cos 𝜙 2 sin 2 𝜃 2 − 𝜃 1
+
+2
+
+# 12 ! (4) The haversine formulation supports gradient computations across polar boundaries where Euclidean approximations may fail [ 2]. This continuously shifting potential landscape guides predicted gaze. As detailed in Section 7, this method-ology achieves a 94.7% viewport prediction accuracy on our teleoperation traces. 
+
+Viewing Probability Distribution. Operator attention to a tile 𝑘 centered at (𝜃 𝑘 , 𝜙 𝑘 ) is modeled by a Boltzmann distribution over the field [17]: 
+
+𝑃 𝑘 = exp (− 𝛽𝑈 𝑘 )
+
+Í𝑁 𝑀 𝑗 =1 exp (− 𝛽𝑈 𝑗 ) (5) where 𝛽 = 1/𝑇 att signifies inverse temperature ( 𝑇 att = 2.0,yielding 𝛽 = 0.5). While the continuous SDE below models the operator’s central gaze progression ®𝑔 (𝑡 ), this Boltzmann distribution independently captures the spatial uncertainty around the field. The potential gradient directs centralized vi-sual locus shifting, while the Boltzmann map outlines spatial bandwidth allocations scaled by 𝛽 .
+
+Gaze Dynamics and Evolution. Gaze progression is dictated by a Stochastic Differential Equation (SDE) resolving deterministic potentials and exploratory noise: 
+
+𝑑 ®𝑔 (𝑡 ) = −∇ ®𝑔 𝑈 ( ® 𝑔 (𝑡 )) 𝑑𝑡 + 𝜎𝑑𝑊 (𝑡 ) (6) where ®𝑔 (𝑡 ) denotes the unit gaze vector, ∇®𝑔 𝑈 is the spherical gradient, and 𝑑𝑊 (𝑡 ) mimics spontaneous ocular saccades modeled as Brownian motion with volatility 𝜎 = 0.05 . Dis-cretization uses the Euler-Maruyama method encompassing momentum to model eye inertia: 
+
+®𝑣 𝑡 +1 = 𝛾 ®𝑣 𝑡 − 𝜂 ∇®𝑔 𝑈 ( ® 𝑔 𝑡 ) + √︁ 2𝜂𝜎 ®𝜉 𝑡 (7) 
+
+®𝑔 𝑡 +1 = normalize ( ® 𝑔 𝑡 + Δ𝑡 · ® 𝑣 𝑡 +1) (8) Aizierjiang Aiersilan Zhangfei Yang 
+
+with 𝛾 = 0.8 governing smooth pursuit decay, 𝜂 = 0.1 direct-ing descent responsiveness, and ®𝜉 𝑡 ∼ N ( 0, 𝐼 ) acting as stan-dard Gaussian noise. The normalize (·) operation projects the vector back onto the unit sphere surface S2 to preserve geometric constraints. 
+
+Convergence Logic. Eliminating momentum and noise (𝛾, 𝜎 = 0) simplifies the system to gradient descent yielding Lyapunov convergence ( 𝑑𝑈 /𝑑𝑡 = −∥∇ 𝑈 ∥2 ≤ 0) into local minima. Conversely, introducing realistic parameters allows for momentary overshoot or peripheral surveillance, sup-porting context awareness. Fig. 1 visualizes this dynamic landscape. 
+
+## 5 PD Controller with Tanh Saturation 
+
+Control Law Formulation. The rate controller targets a stable buffer state 𝐵 ref = 4.0 s. Defining the error 𝑒 (𝑡 ) =
+
+𝐵 (𝑡 ) − 𝐵 ref , we employ a Proportional-Derivative (PD) law to formulate a dimensionless control signal 𝑢 (𝑡 ) [1]: 
+
+𝑢 (𝑡 ) = 𝐾 𝑝 𝑒 (𝑡 ) + 𝐾 𝑑 
+
+𝑑𝑒 (𝑡 )
+
+𝑑𝑡 (9) where 𝐾 𝑝 = 0.5 provides correction and 𝐾 𝑑 = 0.2 provides damping to help suppress oscillation. 
+
+Saturation-Based Rate Selection. To support contin-uous adaptability under channel volatility, we map the un-bounded 𝑢 (𝑡 ) into a bounded bandwidth scaling factor via a hyperbolic tangent constraint: 
+
+𝑅 ∗ (𝑡 ) = ˆ𝐶 (𝑡 ) · ( 1 + tanh (𝑢 (𝑡 ))) · 𝜌 (10) where ˆ𝐶 (𝑡 ) is the estimated capacity and 𝜌 = 0.9 ensures a safety headroom. Because 1+tanh (𝑢 ) scales within (0, 2), the preliminary target 𝑅 ∗ (𝑡 ) can exceed ˆ𝐶 (𝑡 ). Thus, we apply a hard saturation constraint 𝑅 (𝑡 ) = min (𝑅 ∗ (𝑡 ), ˆ𝐶 (𝑡 )) . The con-tinuous modulation helps bridge operational regimes. When 
+
+𝑒 (𝑡 ) → 0, 𝑅 ∗ (𝑡 ) ≈ ˆ𝐶 (𝑡 )𝜌 , managing connection utility. As the buffer depletes ( 𝑒 (𝑡 ) < 0), 𝑢 (𝑡 ) becomes negative, lower-ing the bitrate request 𝑅 ∗ (𝑡 ) toward zero to encourage buffer replenishment. Conversely, during buffer surplus ( 𝑒 (𝑡 ) > 0), the requested rate scales up to utilize available capacity. This nonlinearity aims to reduce "bang-bang" fluctuations often seen in threshold-based rule-based methods (see Fig. 2). 
+
+Stability Analysis. To outline closed-loop tracking stabil-ity, we perform a Lyapunov analysis [ 13 ]. Defining the posi-tive definite candidate 𝑉 (𝑒 ) = 12 𝑒 (𝑡 )2, the time derivative un-der active playback ( 𝐵 (𝑡 ) > 0) relies on ¤𝑒 (𝑡 ) = ¤𝐵 (𝑡 ) = 𝐶 (𝑡 )   
+
+> 𝑅 (𝑡 )
+
+−1.Thus: 
+
+¤𝑉 = 𝑒 (𝑡 ) ¤ 𝑒 (𝑡 ) = 𝑒 (𝑡 )
+
+𝐶 (𝑡 )
+
+𝑅 (𝑡 ) − 1
+
+
+
+(11) Embedding the saturation constraint 𝑅 (𝑡 ) = min (𝑅 ∗ (𝑡 ), ˆ𝐶 (𝑡 )) 
+
+and sector bounding the tanh (𝑢 ) function [ 13 ], the control input guides the system against underflow: when 𝑒 (𝑡 ) < 0
+
+(buffer deficit), the map explicitly restricts 𝑅 (𝑡 ) < 𝐶 (𝑡 ) (pro-vided estimation error 𝜖 𝐶 is bounded by safety margin 𝜌 ), making the quantity 𝐶 (𝑡 )   
+
+> 𝑅 (𝑡 )
+
+− 1 > 0, thereby contributing to 
+
+¤𝑉 < 0. When 𝑒 (𝑡 ) > 0 (buffer surplus), the controller scales 
+
+𝑅 (𝑡 ) to match the available capacity limit ˆ𝐶 (𝑡 ). This pushes      
+
+> 𝐶 (𝑡 )
+> 𝑅 (𝑡 )
+
+→ 1, helping to regulate buffer growth. This estab-lishes practical boundedness within a neighborhood of 𝐵 ref ,parameterized by the channel estimation error 𝜖 𝐶 .
+
+Tuning Strategy. Gains 𝐾 𝑝 , 𝐾 𝑑 are calibrated leveraging a modified Ziegler-Nichols methodology [ 47 ]. Deriving the critical oscillation threshold ( 𝐾 𝑐𝑟 , period 𝑇 𝑐𝑟 ), we parame-terize 𝐾 𝑝 = 0.6𝐾 𝑐𝑟 to prioritize stability, supplemented by 
+
+𝐾 𝑑 = 𝐾 𝑝 · 𝑇 𝑐𝑟 /8 for damping logic. 
+
+Tile Quality Allocation. We allocate the budget 𝑅 ∗ using a concentration parameter 𝛼 = 1.2:
+
+𝑅 𝑘 = 𝑅 ∗ · 𝑃 𝛼 𝑘 
+
+Í𝑗 𝑃 𝛼 𝑗 
+
+, 𝑞 𝑘 = max {𝑞 ∈ Q : 𝑟 𝑞 ≤ 𝑅 𝑘 } (12) Due to discrete rate quantization, any unused bandwidth budget is absorbed, acting as a secondary safeguard against sudden channel drops. This allocates bandwidth proportional to the viewing probability from the GVP model, creating a high-quality "foveated" region around safety-critical objects. 
+
+## 6 Implementation 
+
+The OrbitStream framework is implemented as a modular control loop (Algorithm 1) executing once per video chunk. The architecture decouples perception tasks from control logic to support low-latency operation. 
+
+## 6.1 Perception-Control Decoupling 
+
+The framework operates in two concurrent stages. Percep-tion runs on an edge-co-located server, executing object detection on the incoming 360 ° stream to extract bounding boxes and class labels (incurring ∼12.8 ms latency per frame on an NVIDIA T4). Control executes locally at the Opera-tor Terminal, using object metadata to update the semantic potential field, simulate gaze dynamics, and compute the PD rate allocation. 
+
+## 6.2 Algorithmic Complexity and Optimization 
+
+Evaluating the potential field scales as 𝑂 (𝐿 · 𝑁 · 𝑀 ) for 𝐿 
+
+objects and 𝑁 × 𝑀 tiles. For typical scenarios ( 𝐿 ≈ 8, 32 tiles), this requires roughly 256 evaluations per step. To im-prove efficiency, we optimize sections by Vectorizing dis-tance/potential arrays using BLAS/LAPACK backends, and leveraging a tailored Haversine Distance Computation 
+
+for spherical angular evaluations. These optimizations bring the average control loop execution time to 1.01 ms (measured OrbitStream: Training-Free Adaptive 360 ° Video Streaming via Semantic Potential Fields 
+
+PD Controller 
+
+𝐾 𝑝 + 𝐾 𝑑 𝑠 
+
+Nonlinear Map 
+
+tanh (·) × Network & Buffer 
+
+Dynamics 
+
+Capacity 
+
+ˆ𝐶 (𝑡 )
+
+𝐵 ref 𝑒 (𝑡 ) 𝑢 (𝑡 ) 1 + tanh (𝑢 (𝑡 ) ) 𝑅 ∗ (𝑡 ) 𝐵 (𝑡 )
+
+> −+
+> Buffer feedback
+
+Figure 2: System architecture of the proposed nonlinear PD buffer controller. The control loop continuously computes the buffer error 𝑒 (𝑡 ) = 𝐵 (𝑡 ) − 𝐵 ref (left). The PD Controller generates a correction signal 𝑢 (𝑡 ), which is shaped by a smooth Nonlinear Map 1 + tanh (𝑢 (𝑡 )) to prevent aggressive bitrate switching. This factor scales the estimated throughput ˆ𝐶 (𝑡 ) to derive the target bitrate 𝑅 ∗ (𝑡 ), enabling stable streaming under fluctuating network conditions. Algorithm 1 OrbitStream Control Loop 
+
+Require: Buffer Target 𝐵 ref , Gains 𝐾 𝑝 , 𝐾 𝑑 , Field Params 𝛽, 𝐺  
+
+> 1:
+
+Initialize: 𝐵 ← 𝐵 ref , ®𝑔 ← ( 1, 0, 0)𝑇 , ®𝑣 ← ® 0 
+
+> 2:
+
+for each segment interval 𝑡 do  
+
+> 3:
+
+// 1. Perception Stage (Edge Offload)  
+
+> 4:
+
+{𝑂 ℓ } ← DetectObjects (Frame 𝑡 ) 
+
+> 5:
+
+Assign Mass 𝑀 ℓ per task-relevance hierarchy  
+
+> 6:
+
+// 2. Viewport Prediction  
+
+> 7:
+
+Update Potential Field 𝑈 (·) using {𝑂 ℓ } 
+
+> 8:
+
+®𝑔 ← SimulateDynamics ( ®𝑔, ∇𝑈 ) ⊲ Eq. (7)–Eq. (8)  
+
+> 9:
+
+Compute View Probs 𝑃 𝑘 ∝ exp (− 𝛽𝑈 𝑘 ) 
+
+> 10:
+
+// 3. Rate Control  
+
+> 11:
+
+𝑒 ← 𝐵 measured − 𝐵 ref  
+
+> 12:
+
+𝑢 ← 𝐾 𝑝 𝑒 + 𝐾 𝑑 (𝑒 − 𝑒 prev )/ Δ𝑡  
+
+> 13:
+
+𝑅 ∗ ← ˆ𝐶 (1 + tanh (𝑢 )) 𝜌 ⊲ Eq. (10)  
+
+> 14:
+
+AllocateBitrates (Tiles, 𝑅 ∗, {𝑃 𝑘 }) 
+
+> 15:
+
+end for 
+
+on an Intel Core i7), making the overhead small compared to standard network RTT or frame intervals. 
+
+## 7 Performance Evaluation 
+
+We evaluated OrbitStream through Monte Carlo simula-tions (3,600 total runs) across 12 diverse algorithms, random-izing initial buffer states and stochastic gaze perturbations to quantify the balance between QoE and operational stability. 
+
+## 7.1 Experimental Methodology 
+
+Datasets. The evaluation incorporates 40 Network Traces ,spanning HSDPA/4G Mobile links (mean 6.8 Mbps, std 3.2 Mbps), stable Broadband connections, and Synthetic Stress Tests featuring step functions and bandwidth fades. View-port Traces compose public datasets from Xu et al. [ 39 ] and 
+
+Table 1: Detailed Experimental Configuration Parame-ters                                               
+
+> Category Parameter Value
+> Video Resolution (ERP) 3840 ×1920 pixels Frame rate 30 fps Segment duration 2.0 seconds Tile grid 8×4 (32 tiles) Quality levels 6 (1.2M-40.1M bps) Network Trace sources HSDPA, Pensieve, WebRTC Global scaling ×0.6(applied to trace throughput) Per-run scaling 𝑠 ∼ N ( 1,0.15 ), clipped to [0.5,2.0]
+> Viewport Field of view 𝛼 FoV 80 °
+> Angular velocity (mean) 42.3 °/s Angular velocity (95th %) 112.8 °/s Trace duration 100 seconds Controller Target buffer 𝐵 ref 4.0 seconds Proportional gain 𝐾 𝑝 0.50 Derivative gain 𝐾 𝑑 0.20 Safety margin 𝜌 0.90 Max buffer 𝐵 max 10.0 seconds GVP Model Saliency weighting 𝐺 1.0 Attention temp. 𝑇 att 2.0 (inverse 𝛽 =0.5)Momentum decay 𝛾 0.80 Learning rate 𝜂 0.10 Noise volatility 𝜎 0.05 Simulation Monte Carlo runs 300 per algorithm Total simulations 3,600 (12 algorithms) Random seed Fixed per run (reproducible)
+
+Wu et al. [ 37 ], augmented with synthetic teleoperation tra-jectories modeling visual tracking of semantic targets. Full parameters are detailed in Table 1. 
+
+Baselines. OrbitStream is benchmarked against four al-gorithmic categories: Optimization-Based (FastMPC, Robust-MPC, MPC-HM), Learning-Based DRL (Pensieve, Fugu), 
+
+rule-based methods (BOLA-E, Buffer-Based, Rate-Based), and 360-Specific strategies (FLARE, Pano). Aizierjiang Aiersilan Zhangfei Yang Pano            
+
+> OrbitStream MPC-HM Fugu Rate-Based Buffer-Based FLARE Pensieve MPC FastMPC Robust-MPC BOLA-E 020 40 60 80 100 120
+> Average QoE (Shifted)
+> Quality of Experience Comparison (Mean +/- Std Dev) 95.7 95.1 94.3 94.1 93.7 93.7 93.4 93.2 93.1 91.6 89.3 85.8
+
+Figure 3: QoE comparison across twelve algorithms (OrbitStream is highlighted). Bars report mean aver-age QoE with error bars showing ±1 standard deviation. 
+
+## 7.2 Result 1: QoE Comparison and Robustness 
+
+Fig. 3 aggregates QoE performance over 300 Monte Carlo runs per algorithm . BOLA-E yields the highest overall scores (2.80). OrbitStream achieves a mean QoE of 2.71 , positioning it slightly behind the leading rule-based approach, though still outperforming optimization counter-parts like FastMPC (1.84) and MPC-HM (1.67). Operating without historical user profiling, OrbitStream’s predictor reduces viewport error penalties ( 𝜈 = 5), approaching the performance of established methods. Note that reported bi-trates reflect the equivalent full-sphere visual quality deliv-ered to the user’s instantaneous viewport, which outstrips actual channel throughput limits due to tile-based spatial culling. This performance distribution is visualized in the cumulative distributions graph (Fig. 4). We included extreme sub-megabit bandwidth collapses to test stall robustness and found that while occasional stalls were triggered (activating the severe penalty), conservative margins largely minimized them across leading baselines. 
+
+## 7.3 Result 2: Physics-Based Prediction Accuracy 
+
+Viewport prediction accuracy was evaluated utilizing hu-man gaze logs [ 39 ] alongside synthetic, task-driven teleop-eration trajectories. Accuracy is computed as the mean per-centage of frames where the forecasted viewport achieves an Intersection-over-Union (IoU) ≥ 0.5 against the ground truth. We also monitored FoV-PSNR (Peak Signal-to-Noise Ratio strictly within the ground-truth viewpoint). 
+
+OrbitStream attains a zero-shot viewport prediction hit ratio of 94.7% without model training. Trajectory extrapola-tion baselines operating on stationary traces can occasionally exceed this (e.g., achieving ∼98.5% during slow linear pan-ning). However, the zero-shot semantic mapping confirms that the potential field directs gaze toward safety-relevant 100 80 60 40 20 0
+
+> Average QoE
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> CDF
+> Average QoE Distribution
+> Pano
+> OrbitStream
+> MPC-HM
+> Fugu
+> Rate-Based
+> Buffer-Based
+> FLARE
+> Pensieve
+> MPC
+> FastMPC
+> Robust-MPC
+> BOLA-E
+
+Figure 4: CDF of average raw QoE across twelve algo-rithms. The curves highlight differences in tail behav-ior: aggressive methods exhibit heavier low-QoE tails, while conservative methods show more concentrated distributions. 
+
+hazards in real-world streams. While extrapolation methods work well during linear tracking, OrbitStream can organi-cally shift focusing to anticipate nascent threats occupying peripheral sectors. 
+
+## 7.4 Result 3: Real-Time Feasibility 
+
+Minimizing feedback latency is an essential requirement for effective robotic control. Benchmarking computational overhead (Table 3) demonstrates that rule-based pipelines execute nearly instantaneously ( ∼ 3 𝜇 s), while numerical optimization routines like MPC incur slightly elevated, but still very low, costs ( ∼ 13 –19 𝜇 s). In contrast, OrbitStream logs an average control-loop de-cision time of roughly 1.01 ms . This represents a multi-order-of-magnitude increase in computational overhead compared to the evaluated baselines. This added latency is a direct consequence of evaluating dense semantic potential fields and propagating Stochastic Differential Equations (SDEs) over spherical coordinates at each step. By explicitly sacrific-ing microsecond-level computational agility, OrbitStream 
+
+trades execution speed for semantic awareness and training-free interpretability. While 1.01 ms remains comparatively large against base-line algorithms, it still fits within soft real-time constraints for most teleoperation environments. For instance, it remains well below typical visual rendering intervals ( ≈ 33 ms at 30 fps) and standard wireless Round-Trip Times (RTTs of 20 –
+
+50 ms ). Nevertheless, this computational penalty is a clear limitation that must be carefully considered before deploying on severely resource-constrained edge hardware. OrbitStream: Training-Free Adaptive 360 ° Video Streaming via Semantic Potential Fields 
+
+## 7.5 Result 4: Buffer Stability Analysis 
+
+The saturated PD controller supports time-series steadiness. Summarized in Table 2, OrbitStream sustains a buffer stan-dard deviation of 𝜎 𝐵 = 0.42 s, indicating tight regulation. This resembles stabilizing rule-based methods like BOLA-E ( 𝜎 𝐵 = 0.39 s, mean buffer 5.42 s) and optimization loops like FastMPC ( 𝜎 𝐵 = 0.36 s, mean 5.73 s), contrasting with methods like Pensieve ( 𝜎 𝐵 = 1.84 s). Moreover, OrbitStream yields a mean buffer of 5.85 s, slightly exceeding the nominal 𝐵 ref = 4.0 s due to conser-vative safety margins ( 𝜌 = 0.9). It maintains an average minimum buffer footprint of 4.68 s across volatile conditions. OrbitStream’s low average of 3.46 bitrate switches per run contributes to consistent video rendering. 
+
+## 7.6 Result 5: Ablation on Core Predictor Variables 
+
+To evaluate the configuration logic, we analyzed the sys-tem’s sensitivity to imperfect object detection and varied hyperparameters. 
+
+Detection Errors: Introducing synthetic false-negative object masking decreases the mean hit ratio from 94.7% down to 82.2% when 30% of scene hazards are missed. However, QoE degradation is partially mitigated by the Boltzmann distribution’s peripheral spread mapping. 
+
+Semantic Mass Hierarchy: Flattening the semantic mass assignments ( 𝑀 ℓ = 1 for all objects) instead of using priority-based weighting diluted the focal attractor, reducing the overall hit ratio by 4.2% and increasing viewport penalties during split-second hazards. 
+
+Distribution Tuning: Modulating the attention temper-ature 𝛽 proved sensitive. Elevating 𝛽 → 1.5 sharpens spa-tial allocation, improving QoE on stationary targets but in-creasing viewport penalties by 41% during erratic subject movements. Similarly, omitting the regularizer ( 𝛿 = 0) led to numerical singularities at close proximity, causing prediction lags. 
+
+## 7.7 Discussion and Key Insights 
+
+The Stability-Efficiency Trade-off. As shown in Table 3, 
+
+OrbitStream exhibits a favorable trade-off profile. It achieves a QoE comparable to data-driven and optimization strategies (2.71 versus BOLA-E’s 2.80) while avoiding deep networks to offer interpretability. 
+
+Zero-Shot Generalization. While DRL agents can some-times overfit specialized training distributions, OrbitStream 
+
+does not require prior training data. The physics-based mod-eling parameters provide stable behavior across broadband 
+
+Table 2: Buffer Stability and Switching Dynamics (300 Monte Carlo runs per algorithm).                                                      
+
+> Algorithm Mean Buf. (s) Std Dev (s) Min Buf. (s) Switches
+> Buffer-Based 9.78 0.82 5.45 2.74 Rate-Based 9.72 0.99 4.98 6.27 Pano 9.67 1.04 4.94 5.96 FLARE 9.64 1.06 4.97 12.47 MPC-HM 9.13 0.81 5.84 6.08 MPC 9.10 1.76 4.26 8.78 Pensieve 9.00 1.84 4.14 9.92 Fugu 7.51 1.48 4.12 6.86 Robust-MPC 7.31 0.90 4.69 0.92
+> OrbitStream 5.85 0.42 4.68 3.46
+> FastMPC 5.73 0.36 4.94 5.59 BOLA-E 5.42 0.39 4.51 1.00
+> Note: Values are averaged per run before aggregating across runs. Orbit-Stream maintains regulated buffer occupancy (5.85s) with low intra-run variation (0.42s std).
+
+Table 3: Comprehensive Performance Summary Across 12 Algorithms (300 Monte Carlo Runs per Algorithm, Raw QoE).                                                                                   
+
+> Algorithm QoE (Raw) Eqv. Bitrate Mean Buffer Decision Time (Mean ±Std) (Mbps) (s) (ms)
+> BOLA-E 2.80 ±0.25 37.49 5.42 0.006
+> OrbitStream 2.71 ±0.31 31.52 5.85 1.010
+> FastMPC 1.84 ±0.49 26.61 5.73 0.019 MPC-HM 1.67 ±0.48 22.92 9.13 0.030 Robust-MPC 1.65 ±0.60 17.11 7.31 0.033 Fugu 1.42 ±0.47 20.94 7.51 0.011 Pano 1.28 ±0.42 8.48 9.67 0.003 MPC 1.20 ±0.49 13.40 9.10 0.013 Buffer-Based 1.01 ±0.22 4.69 9.78 0.003 Pensieve 0.97 ±0.52 13.72 9.00 0.006 Rate-Based 0.92 ±0.54 7.58 9.72 0.003 FLARE 0.83 ±0.45 11.06 9.64 0.003
+> Note: Reported values are computed over 300 runs per algorithm. QoE is raw. Rebuffering events were exceedingly rare, validating the severe stall penalty’s effectiveness during severe channel fades. Decision time dictates per-decision control latency (ms), excluding video codecs and external detection logic.
+
+and mobile domains without retraining. Furthermore, com-pared to complex MADRL alternatives, our framework fea-tures lower deployment barriers while preserving peripheral spatial coverage. 
+
+Transparent Operation. Because OrbitStream logic uses explicit kinematic updates (Eq. (3)) and rate bounding (Eq. (10)), its rate adjustments are analyzable. This trans-parency can be helpful for industrial vehicular and surgical teleoperation environments where predictable safety assur-ances are preferred. Aizierjiang Aiersilan Zhangfei Yang 
+
+## 8 Conclusion 
+
+We proposed OrbitStream , an adaptive streaming frame-work tailored for 360 ° teleoperation. By formulating viewport prediction as test-particle dynamics within semantic poten-tial fields, alongside a PD rate controller, we provide a con-trol logic alternative to deep learning paradigms. Empirical evaluations demonstrate OrbitStream ’s capability to de-liver competitive QoE (2.71, secondary to BOLA-E) alongside buffer stability ( 𝜎 𝐵 = 0.42 s) and semantic-aware viewport prediction (94.7% accuracy). By showing that interpretable, physics-based control can operate within viable soft real-time margins (1.01 ms) while maintaining competitive quality and stability, OrbitStream provides a practical methodology for teleoperation systems where analyzability is beneficial. 
+
+## 8.1 Limitations & Future Work 
+
+A primary limitation of the proposed approach is its marked computational overhead relative to conventional rule-based or MPC algorithms. As noted in the evaluation, comput-ing the potential fields and evaluating stochastic differential equations elevates control latency to roughly 1.01 ms . While this is generally acceptable for 30 -fps rendering loops, it poses a direct bottleneck for deployment on highly resource-constrained micro-controllers that require microsecond-level efficiencies. Furthermore, our framework relies heavily on the accu-racy of upstream object detection. Because it operates strictly downstream of the vision models, any detection failures—caused by occlusion, poor lighting, or environmental noise—will in-herently cascade into the control loop and degrade viewport prediction accuracy. Lastly, assuming a static semantic mass hierarchy restricts flexibility; it prevents the system from autonomously adapting to specialized, user-specific teleoper-ation behaviors that might prioritize different scene elements over time. Future efforts will explore: (1) tuning semantic weights from operator corrections, (2) stress-testing the architecture against severely occluded detector pipelines, and (3) migrat-ing the stability constraints into sampled-data equivalents to tighten computational boundaries. 
+
+## Acknowledgments 
+
+We thank the anonymous reviewers for their valuable feed-back. 
+
+## Code & Reproducibility 
+
+The source code and results are made publicly available at: Streaming360Video GitHub Repository. 
+
+## References 
+
+[1] Kiam Heong Ang, Gregory Chong, and Yun Li. Pid control system analysis, design, and technology. IEEE transactions on control systems technology , 13(4):559–576, 2005. [2] Anthony M. Bloch, Peter E. Crouch, Jerrold E. Marsden, and Tudor S. Ratiu. The hamiltonian structure of nonlinear elasticity: The material and convective representations of solids, rods, and plates. Archive for Rational Mechanics and Analysis , 104(2):125–183, 2002. doi: 10.1007/ BF00251673. [3] Xavier Corbillon, Gwendal Simon, Alisa Devlic, and Jacob Chakareski. Viewport-adaptive navigable 360-degree video delivery. In 2017 IEEE international conference on communications (ICC) , pages 1–7. IEEE, IEEE, 2017. [4] Shuping Dang, Osama Amin, Basem Shihada, and Mohamed-Slim Alouini. What should 6G be? Nature Electronics , 3(1):20–29, 2020. [5] Mica R Endsley. Toward a theory of situation awareness in dynamic systems. In Situational awareness , pages 9–42. Routledge, 2017. [6] Ching-Ling Fan, Jean Lee, Wen-Chih Lo, Chun-Ying Huang, Kuan-Ta Chen, and Cheng-Hsin Hsu. Fixation prediction for 360 video streaming in head-mounted virtual reality. In Proceedings of the 27th workshop on network and operating systems support for digital audio and video , pages 67–72, 2017. [7] Weichao Feng, Shuoyao Wang, and Yu Dai. Adaptive 360-degree streaming: Optimizing with multi-window and stochastic viewport prediction. IEEE Transactions on Mobile Computing , 2025. [8] Yu Guan, Chengyuan Zheng, Zongming Guo, Xinggong Zhang, and Junchen Jiang. Pano: Optimizing 360 {\ deg } video streaming with a better understanding of quality perception. arXiv preprint arXiv:1911.04139 , 2019. [9] Peter F Hokayem and Mark W Spong. Bilateral teleoperation: An historical survey. Automatica , 42(12):2035–2057, 2006. [10] Te-Yuan Huang, Ramesh Johari, Nick McKeown, Matthew Trunnell, and Mark Watson. A buffer-based approach to rate adaptation: Evi-dence from a large video streaming service. In Proceedings of the 2014 ACM conference on SIGCOMM , pages 187–198. ACM, ACM, 2014. [11] Glenn Jocher, Ayush Chaurasia, Alex Stoken, Jirka Borovec, Yonghye Kwon, Kalen Michael, Jiacong Fang, Zeng Yifu, Colin Wong, Diego Montes, et al. ultralytics/yolov5: v7. 0-yolov5 sota realtime instance segmentation. Zenodo , 2022. [12] Chamara Kattadige and Kanchana Thilakarathna. Vad360: View-port aware dynamic 360-degree video frame tiling. arXiv preprint arXiv:2105.11563 , 2021. [13] Hassan K Khalil and Jessy W Grizzle. Nonlinear systems , volume 3. Prentice Hall, Upper Saddle River, NJ, USA, 2002. [14] Hongzi Mao, Ravi Netravali, and Mohammad Alizadeh. Neural adap-tive video streaming with pensieve. In Proceedings of the conference of the ACM special interest group on data communication , pages 197–210. ACM, ACM, 2017. [15] Jacques Marescaux, Joel Leroy, Michel Gagner, Francesco Rubino, Didier Mutter, Michel Vix, Steven E Butner, and Michelle K Smith. Transatlantic robot-assisted telesurgery. Nature , 413(6854):379–380, 2001. [16] Ricky KP Mok, Xiapu Luo, Edmond WW Chan, and Rocky KC Chang. QDASH: a qoe-aware DASH system. In Proceedings of the 3rd multi-media systems conference , pages 11–22. ACM, ACM, 2012. [17] Douglas C. Montgomery and George C. Runger. Applied Statistics and Probability for Engineers . Wiley, Hoboken, NJ, USA, 7th edition, 2018. ISBN 978-1119400363. [18] Stefan Neumeier, Philipp Wintersberger, Anna-Katharina Frison, Armin Becher, Christian Facchi, and Andreas Riener. Teleoperation: OrbitStream: Training-Free Adaptive 360 ° Video Streaming via Semantic Potential Fields 
+
+The holy grail to solve problems of automated driving? sure, but la-tency matters. In Proceedings of the 11th International Conference on Automotive User Interfaces and Interactive Vehicular Applications , pages 186–197. ACM, ACM, 2019. [19] Duc V Nguyen, Huyen TT Tran, Anh T Pham, and Truong Cong Thang. An optimal tile-based approach for viewport-adaptive 360-degree video streaming. IEEE Journal on Emerging and Selected Topics in Circuits and Systems , 9(1):29–42, 2019. [20] Cagri Ozcinar, Ana De Abreu, and Aljosa Smolic. Viewport-aware adaptive 360 video streaming using tiles for virtual reality. In 2017 IEEE International Conference on Image Processing (ICIP) , pages 2174–2178. IEEE, 2017. [21] Jounsup Park, Mingyuan Wu, Kuan-Ying Lee, Bo Chen, Klara Nahrst-edt, Michael Zink, and Ramesh Sitaraman. Seaware: Semantic aware view prediction system for 360-degree video streaming. In 2020 IEEE International Symposium on Multimedia (ISM) , pages 57–64. IEEE, 2020. [22] Stefano Petrangeli, Viswanathan Swaminathan, Mohammad Hosseini, and Filip De Turck. An HTTP/2-based adaptive streaming frame-work for 360 virtual reality videos. In Proceedings of the 25th ACM international conference on Multimedia , pages 306–314. ACM, ACM, 2017. [23] Simon Potier, Olivier Duriez, Gregory B Cunningham, Vincent Bon-homme, Colleen O’rourke, Esteban Fernández-Juricic, and Francesco Bonadonna. Visual field shape and foraging ecology in diurnal raptors. 
+
+Journal of Experimental Biology , 221(14):jeb177295, 2018. [24] Feng Qian, Lusheng Ji, Bo Han, and Vijay Gopalakrishnan. Opti-mizing 360 video delivery over cellular networks. In Proceedings of the 5th Workshop on All Things Cellular: Operations, Applications and Challenges , pages 1–6. ACM, ACM, 2016. [25] Feng Qian, Bo Han, Qingyang Xiao, and Vijay Gopalakrishnan. Flare: Practical viewport-adaptive 360-degree video streaming for mobile devices. In Proceedings of the 24th Annual International Conference on Mobile Computing and Networking , pages 99–114. ACM, 2018. [26] Theodore S Rappaport, Shu Sun, Rimma Mayzus, Hang Zhao, Yaniv Azar, Kevin Wang, George N Wong, Jocelyn K Schulz, Mathew Samimi, and Felix Gutierrez. Millimeter wave mobile communications for 5G cellular: It will work! IEEE access , 1:335–349, 2013. [27] Joseph Redmon, Santosh Divvala, Ross Girshick, and Ali Farhadi. You only look once: Unified, real-time object detection. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 779–788. IEEE, IEEE, 2016. [28] Liz Reymond. Spatial visual acuity of the eagle aquila audax: a be-havioural, optical and anatomical investigation. Vision Research , 25 (10):1477–1491, 1985. [29] Michael Seufert, Sebastian Egger, Martin Slanina, Thomas Zinner, Tobias Hoßfeld, and Phuoc Tran-Gia. A survey on quality of experi-ence of HTTP adaptive streaming. IEEE Communications Surveys & Tutorials , 17(1):469–492, 2014. [30] Roger W Sinnott. Virtues of the haversine. Sky and telescope , 68(2): 158, 1984. [31] John Parr Snyder. Map Projections—A Working Manual , volume Pro-fessional Paper 1395. U.S. Geological Survey, Washington, DC, USA, 1987. [32] Kevin Spiteri, Rahul Urgaonkar, and Ramesh K Sitaraman. Bola: Near-optimal bitrate adaptation for online videos. IEEE/ACM transactions on networking , 28(4):1698–1711, 2020. [33] Thomas Stockhammer. Dynamic adaptive streaming over HTTP– standards and design principles. In Proceedings of the second annual ACM conference on Multimedia systems , pages 133–144. ACM, ACM, 2011. [34] Gary J Sullivan, Jens-Rainer Ohm, Woo-Jin Han, and Thomas Wiegand. Overview of the high efficiency video coding (HEVC) standard. IEEE Transactions on circuits and systems for video technology , 22(12):1649– 1668, 2012. [35] Yangsheng Tian, Yi Zhong, Yi Han, and Fangyuan Chen. Viewport prediction with cross modal multiscale transformer for 360 ° video streaming. Scientific Reports , 15(1):30346, 2025. [36] Christopher D Wickens, William S Helton, Justin G Hollands, and Simon Banbury. Engineering psychology and human performance .Routledge, 2021. [37] Chenglei Wu, Zhihao Tan, Zhi Wang, and Shiqiang Yang. A dataset for exploring user behaviors in VR spherical video streaming. In 
+
+Proceedings of the ACM International Conference on Multimedia Systems (MMSys) , pages 193–198. ACM, ACM, 2017. doi: 10.1145/3083187. 3083210. [38] Lan Xie, Zhimin Xu, Yixuan Ban, Xinggong Zhang, and Zongming Guo. 360probdash: Improving QoE of 360 video streaming using tile-based HTTP adaptive streaming. In Proceedings of the 25th ACM International Conference on Multimedia (MM) , pages 315–323. ACM, ACM, 2017. doi: 10.1145/3123266.3123291. [39] Mai Xu, Yuhang Li, Zulin Lai, Huaida Hu, Lai Chen, Fanyi Chen, and Ruqi Hu. Gaze prediction in dynamic 360 ° immersive videos. In 
+
+Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , pages 5333–5342, Salt Lake City, UT, USA, 2018. IEEE. doi: 10.1109/CVPR.2018.00559. [40] Francis Y. Yan, Yihua He, Y. Gao, Y. Wang, X. Chen, Inigo Goiri, Ricardo Bianchini, and Haryadi S. Gunawi. Learning in situ: A randomized experiment in video streaming. In Proceedings of the 17th USENIX Symposium on Networked Systems Design and Implementation (NSDI) ,pages 495–511. USENIX Association, USENIX Association, 2020. [41] Zijiang Yan, Jianhua Pei, Hongda Wu, Hina Tabassum, and Ping Wang. Semantic-aware adaptive video streaming using latent diffusion mod-els for wireless networks. arXiv preprint arXiv:2502.05695 , 2025. [42] Xiaoqi Yin, Vyas Sekar, and Bruno Sinopoli. Toward a principled framework to design dynamic adaptive streaming algorithms over HTTP. In Proceedings of the 13th ACM Workshop on Hot Topics in Networks (HotNets) , pages 1–7. ACM, ACM, 2014. doi: 10.1145/2670518. 2673877. [43] Xiaoqi Yin, Abhishek Jindal, Vyas Sekar, and Bruno Sinopoli. A control-theoretic approach for dynamic adaptive video streaming over HTTP. In Proceedings of the ACM SIGCOMM Conference , pages 325–338. ACM, ACM, 2015. doi: 10.1145/2785956.2787486. [44] Ao-Xiang Zhang and Yuan-Gen Wang. Adavqa: a semantic and quality-aware video quality assessment method. In Fourth International Confer-ence on Electronic Information Engineering and Data Processing (EIEDP 2025) , volume 13574, pages 1081–1086. SPIE, 2025. [45] Zhigen Zhao, Liuchuan Yu, Ke Jing, and Ning Yang. Xrobotoolkit: A cross-platform framework for robot teleoperation. arXiv preprint arXiv:2508.00097 , 2025. [46] Yuxiang Zhu, Guangtao Zhai, and Xiongkuo Min. The prediction of head and eye movement for 360 degree images. In Proceedings of the 28th ACM International Conference on Multimedia (MM) , pages 2331–2339. ACM, ACM, 2018. doi: 10.1145/3206025.3206062. [47] J. G. Ziegler and N. B. Nichols. Optimum settings for automatic controllers. Transactions of the ASME , 64(11):759–765, 1942.
