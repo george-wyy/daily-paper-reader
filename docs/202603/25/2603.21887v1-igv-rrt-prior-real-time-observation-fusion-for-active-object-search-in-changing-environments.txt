@@ -1,0 +1,444 @@
+Title: IGV-RRT: Prior-Real-Time Observation Fusion for Active Object Search in Changing Environments
+
+URL Source: https://arxiv.org/pdf/2603.21887v1
+
+Published Time: Tue, 24 Mar 2026 02:57:12 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# IGV-RRT: Prior-Real-Time Observation Fusion for Active Object Search in Changing Environments 
+
+Wei Zhang 1,2,†, Ping Gong 1,†, Yujie Wang 1, Minghui Bai 1, Rongfeng Ye 1, Yinchuan Wang 1, Yachao Wang 1,Leilei Yao 1, Teng Chen 1, Chen Sun 2, Chaoqun Wang 1,∗
+
+Abstract —Object Goal Navigation (ObjectNav) in temporally changing indoor environments is challenging because object relocation can invalidate historical scene knowledge. To address this issue, we propose a probabilistic planning framework that combines uncertainty-aware scene priors with online target relevance estimates derived from a Vision Language Model (VLM). The framework contains a dual-layer semantic mapping module and a real-time planner. The mapping module includes an Information Gain Map (IGM) built from a 3D scene graph (3DSG) during prior exploration to model object co-occurrence relations and provide global guidance on likely target regions. It also maintains a VLM score map (VLM-SM) that fuses confidence-weighted semantic observations into the map for local validation of the current scene. Based on these two cues, we develop a planner that jointly exploits information gain and semantic evidence for online decision making. The planner biases tree expansion toward semantically salient regions with high prior likelihood and strong online relevance through IGV-RRT, while preserving kinematic feasibility during online planning. Simulation and real-world experiments demonstrate that the proposed method effectively mitigates the impact of object rearrangement, achieving higher search efficiency and success rates than representative baselines in complex indoor environments. 
+
+I. I NTRODUCTION 
+
+Reliable target search in temporally changing indoor en-vironments remains a fundamental challenge, especially for robots that operate over long periods in previously visited spaces. To provide prompt service, the robot operating in an indoor environment accumulates knowledge about the envi-ronment, including room layouts, objects, and their context relations. Such historical experience can provide valuable global guidance for the search. However, indoor environ-ments are rarely static over time: objects may be moved, oc-cluded, or rearranged, causing a mismatch between historical knowledge and the current scene. Therefore, for ObjectNav [1] in long-term deployments, a central challenge is how to effectively exploit accumulated historical experience while remaining adaptive to temporal scene evolution, so that target search can be performed efficiently and reliably. Long-horizon object goal navigation in temporally chang-ing indoor environments inherently relies on the coordination of multiple information sources. Historical environmental knowledge accumulated from previous exploration can pro-vide coarse global guidance for target search. Commonsense 
+
+> 1
+
+The School of Control Science and Engineering, Shandong University 
+
+> 2
+
+Department of Data and Systems Engineering, HKU 
+
+> ∗
+
+Corresponding author. Email: chaoqunwang@sdu.edu.cn 
+
+> †
+
+The first two authors contributed equally to this work. Target object: horse statue 
+
+> Start
+> 2
+> high value
+> low value
+> 1
+> 2
+> 3
+> Entry point to the high-likelihood
+> region guided by the IGM prior
+> Target location confirmed by
+> VLM guidance
+> IGM-only destination
+> High-probability location from IGM
+> 1
+> 3
+> RRT Tree-Based
+> Motion Guidance
+> Information Gain
+> Map Prior
+> high-likelihood region for the traget object
+
+Fig. 1. Active object search in a time-varying indoor scene. The static IGM prior guides global navigation toward a high-likelihood region for the target. Online observations are processed by BLIP-2 and fused into a VLM-SM to refine local motion toward the true target. The IGM-only endpoint indicates prior bias. 
+
+knowledge embedded in foundation models further supports inferring plausible target regions from semantic context. After entering a plausible target region, the robot leverages real-time local observations to acquire up-to-date evidence of the current object distribution and scene state, thereby mitigating the impact of stale historical knowledge caused by temporal changes and ensuring robust and efficient target object search. Existing methods exploit these sources in different ways. One class of approaches introduces historical knowledge in advance to bias navigation, for example, through offline-constructed probability map [2], [3] or by leveraging 3DSG to infer likely target locations [4], [5], [6]. Such methods can incorporate environment structure and contextual relations into search and reduce invalid exploration. Nonetheless, such priors are often constructed in an offline manner and remain fixed during deployment. As indoor environments change over time, objects can be relocated or reconfigured, which may cause previously reliable historical knowledge to become stale and potentially misdirect the navigation policy. This issue is particularly pronounced for methods that rely on explicit 3D scene representations, as constructing and main-taining an accurate scene graph under object displacement is a challenging task in itself. Another class of approaches [7], [8], [9] relies more heavily on local observation, combined with VLM-based semantic reasoning, to guide exploration and verification. These methods are more responsive to the current scene, but they can still exhibit unstable planning  
+
+> arXiv:2603.21887v1 [cs.RO] 23 Mar 2026 Fig. 2. Overview of the proposed active search pipeline. The framework combines an IGM derived from the scene graph and commonsense knowledge with an incrementally updated VLM map informed by RGB-D observations and offline LLM reasoning. These two cues jointly guide the selection of local sub-goals, global targets, and the execution of the path.
+
+behavior in the presence of clutter, occlusion, or ambiguous context. The limitation becomes more severe for common small objects whose locations are not fixed and whose seman-tic context is highly variable, since the target may appear in different rooms and cannot always be reliably localized from local semantic cues alone. In such cases, observation-driven semantic guidance can undermine exploration efficiency by inducing revisits and inflating verification costs. To address these limitations, we propose an active search framework that unifies historical knowledge and online se-mantic evidence within a single planning loop. Specifically, historical environmental experience is transformed into an IGM, which provides probabilistic global guidance toward regions that are more likely to contain the target under object context relations and commonsense priors. At the same time, current observations are processed by a VLM and fused over time into a VLM-SM, so that target-related evidence in the present scene can be incrementally accumulated rather than inferred from isolated frames. Building on these two se-mantic layers, we develop an IGV-RRT planner that couples prior target-discovery potential with online semantic support during tree expansion and sub-goal selection, enabling the robot to preserve efficient global search behavior while correcting outdated priors during execution. In this way, the proposed method explicitly addresses the mismatch between prior knowledge and the current environment, and provides a unified solution for active target search in temporally changing indoor scenes. The contributions of this paper are as follows.  
+
+> •
+
+We establish a dual-layer semantic mapping architecture comprising an IGM and a VLM-SM to jointly encode prior uncertainty and real-time semantic evidence in temporally changing environments.  
+
+> •
+
+We propose an IGV-RRT navigation algorithm jointly guided by information gain and VLM scores for active target search.  
+
+> •
+
+We implement the proposed framework on a real robotic platform and validate its effectiveness in real-world indoor environments. The remainder of this paper is organized as follows. Section. II presents the proposed IGV-RRT method and its real-time planning mechanism driven by information gain and VLM scores. Section. III reports the experimental setup and evalu-ation results in both simulation and real-world environments. Finally, Section IV concludes the paper and discusses future work. II. M ETHODOLOGY 
+
+This study proposes an active object search framework that integrates prior scene knowledge and real-time semantic perception in a unified closed loop, as illustrated in Fig. 2. The framework takes prior time observation and real-time observation as two inputs. From prior observations, a 3D scene graph and ConceptNet commonsense knowledge are used to construct an Information Gain Map for global guidance. From real-time RGB-D observations, target-related semantic measurements are inferred by the vision language model and incrementally fused into a VLM score map for online scene validation. Based on these two maps, the planner performs sampling, sub-goal selection, and path generation within the IGV-RRT framework. When local guidance is insufficient, the global graph further provides region-level living   
+
+> room
+> sofa sofa sofa
+
+(a) 
+
+a temporal interval 
+
+(b)  
+
+> sofa
+> living
+> room
+> Chair
+> Sit
+> Furnit
+> ure
+> AtLocation
+> IsA
+> UsedFor
+> HasPrerequisite
+> Bedroom
+> AtLocation
+> Cusion Room
+> HasA
+> AtLocation
+> House
+> PartOf
+> Conc ept:S ofa
+> Conceptnet
+> GMM
+
+sofa move d
+
+> 3D Scene Graph
+
+## + 
+
+> same as (a) Fig. 3. Static IGM construction. The figure illustrates the construction of the IGM from a 3DSG through ConceptNet-based semantic association and GMM-based spatial propagation. Panels (a) and (b) show the same IGM at different times, emphasizing that once constructed, the map remains unchanged even when object arrangements in the scene vary over time.
+
+guidance. Through repeated map updating, planning, execu-tion, and verification, the system enables active target search in temporally changing indoor environments. 
+
+A. Information Gain Map 
+
+This paper represents the potential existence location of the target object ot as a probability density field over a 2D space X , referred to as the IGM P (x | ot), where x ∈ X . To construct this probability field, we first develop a perception-to-anchor generation pipeline. Specifically, YOLOv7 [11] is used to detect furniture and recognizable objects in the environment, and multi-frame observations are fused in a unified world coordinate system to build a 3DSG G = ( V, E)
+
+[12]. Each node vk ∈ V corresponds to an anchor object instance lk, and stores its semantic category, observation confidence C(k) 
+
+> conf
+
+, and geometric center location; because the IGM is defined over the ground plane, we project the instance center onto the ground plane and use this projection as the 2D anchor location, denoted as μk ∈ R2. Here, the subscript k ∈ { 1, . . . , K } indexes anchor object instances, and K denotes the total number of anchors. The edge set E
+
+encodes topological or spatial context relations among anchor instances, providing structured contextual cues for subsequent commonsense scoring. Given the constructed scene graph, we quantify common-sense relevance between the target category and each anchor instance using ConceptNet Numberbatch [13] embeddings. Let the target category embedding be vtarget ∈ Rd, where d
+
+denotes the embedding dimensionality determined by Con-ceptNet Numberbatch; the category embedding of anchor instance lk be v(k) 
+
+> cat
+
+∈ Rd, and its spatial-context embedding be v(k) 
+
+> space
+
+∈ Rd. The cosine similarity is defined as 
+
+sim (u, v ) = u · v
+
+∥u∥∥ v∥ , (1) to measure semantic proximity in the embedding space. The semantic association score S(ot, l k) is then defined as a weighted combination of observation confidence and two similarity terms: 
+
+S(ot, l k) = C(k) 
+
+> conf
+
+· exp 
+
+
+
+sim (vtarget , v(k)
+
+> cat
+
+)+ 
+
+sim (vtarget , v(k)
+
+> space
+
+)
+
+
+
+.
+
+(2) where C(k) 
+
+> conf
+
+serves as an observation-confidence factor that modulates the overall semantic association strength. Here, 
+
+sim (vtarget , v(k)
+
+> cat
+
+) denotes the cosine similarity between the target category embedding and the anchor’s category embed-ding, and sim (vtarget , v(k)
+
+> space
+
+) denotes the cosine similarity between the target category embedding and the anchor’s spatial-context embedding. Based on the resulting discrete anchor set {lk}Kk=1 and their association scores, following [14], we employ a Gaussian Mixture Model (GMM) to extend these discrete anchors into a continuous probability density field over the entire space, yielding the IGM: 
+
+P (x | ot) = 
+
+> K
+
+X
+
+> k=1
+
+ϕk · N (x | μk, Σk), (3) where the mixture weights are obtained by normalizing the association scores: 
+
+ϕk = S(ot, l k)
+
+PKj=1 S(ot, l j ) , (4) and each 2D Gaussian component is given by 
+
+N (x | μk, Σk) = 12πp|Σk| exp 
+
+
+
+− 12 (x − μk)T Σ−1 
+
+> k
+
+(x − μk)
+
+
+
+, (5) Move here 
+
+high value 
+
+low value prior target location path with VLM score map   
+
+> path without VLM score map target prior location
+> actual target location
+> Q1:Seems there is a statue?
+> Q2:There is a statue here?
+> Q3:Is this a living_room?
+> Q4:Is there furniture or
+> objects related to statue?
+> Score:0.143
+> Score:0.190
+> Score:0.319
+> Score:0.260
+> Seems there is a
+> statue?
+> RGB actual target-region
+> score:
+> 0.143
+> actual target-region
+> score:
+> 0.263
+
+(b) 
+
+(c) 
+
+low VLM scores region 
+
+high VLM scores region 
+
+(a) 
+
+multi-prompt strategy Fig. 4. VLM correction and multi-prompting. (a) illustrates the corrective role of the VLM score map under a biased prior. When the prior indicates an incorrect target region, the robot is steered toward areas with higher VLM scores that reflect a higher likelihood of target presence, leading to effective progress toward the true object location.(b) and (c) highlight the impact of the prompting strategy. With a single prompt, the score response shows weak regional contrast and provides insufficient guidance for navigation. With multi-prompt querying, the score map exhibits stronger spatial discriminability, providing clearer guidance and enabling the robot to reach the target location more effectively. 
+
+where μk ∈ R2 is the projected geometric center of anchor instance lk, and Σk ∈ R2×2 characterizes the spatial dis-persion of the target around this anchor, and is specified in relation to the physical scale of the anchor object and the plausible spatial extent of the target distribution. Note that the IGM, denoted as P (x | ot), is computed from a snapshot of the environment at time T and is subsequently used for planning at later times t > T . In real deployments, indoor scenes are time-varying; Therefore, we treat the IGM as an informative but potentially biased prior, and do not assume it remains perfectly accurate over time. 
+
+B. VLM Score Map 
+
+We construct a VLM Score Map using target-relevance scores inferred by a vision-language model [8], and maintain a grid-based representation of the target-related score over spatial locations. The map is updated incrementally in a unified coordinate frame. For each grid cell x, its state is characterized by the accumulated confidence Ct(x) and the semantic score Vt(x), thereby fusing measurements collected at different times and viewpoints into a queryable evidence layer. The map is exposed through a persistent grid interface, and its outputs serve as one of the semantic inputs to downstream decision making. Semantic observations are produced by BLIP-2 via image-text relevance evaluation. To improve the stability of BLIP-2 inference in object search, we employ an LLM in an offline stage to infer target-related contextual knowledge and convert it into a set of semantic queries. The generated knowledge captures contextual regularities associated with the target and is embedded into multi-granularity prompt templates, so that BLIP-2 can assess the current image not only with respect to direct target presence, but also through semantically re-lated context. Based on this process, we construct a multi-prompt query set T = {Q1, Q 2, Q 3, Q 4}, where each Qk
+
+corresponds to a semantic query template at a different gran-ularity and provides complementary information spanning direct existence descriptions and scene-context cues. For each image frame It, BLIP-2 outputs similarity scores between the image and each prompt, and we obtain the per-frame semantic observation score vobs by weighted aggregation, 
+
+vobs =
+
+> 4
+
+X
+
+> k=1
+
+wk · sim BLIP (It, Q k). (6) Here, wk denotes the weight of each prompt, reflecting the contribution of different semantic cues to target relevance. The effect of this multi-prompt design is illustrated in Fig. 4. As shown in Fig. 4(a), querying BLIP-2 with a single prompt often yields low spatial discriminability, which can be insufficient to reliably guide navigation in some cases. In contrast, the multi-prompt formulation in Fig. 4(b) produces a more distinctive response that better separates high-likelihood and low-likelihood regions for the target, thereby providing a stronger semantic signal to steer the robot toward the correct location. To project semantic observations from the 2D image space to a 2D grid map, we adopt an instantaneous confidence model based on field-of-view geometry and perform recursive fusion at the grid level. Given the robot pose ξt and a grid cell 
+
+x, the instantaneous confidence of a single-frame observation for that cell is defined as 
+
+cinst (x, ξ t) = 
+
+
+
+cos 
+
+ θrel   
+
+> θf ov /2
+
+· π
+
+> 2
+
+ 2
+
+if |θrel | ≤ θf ov 
+
+> 2
+
+0 otherwise 
+
+, (7) where θrel is the angular deviation of the cell center relative to the camera optical axis, and θf ov is the horizontal field-of-view angle. The map state is represented by (Ct(x), V t(x)) 
+
+and updated incrementally through the following recursions, 
+
+Ct(x) = C2
+
+> t−1
+
+(x) + c2
+
+> inst
+
+(x, ξ t)
+
+Ct−1(x) + cinst (x, ξ t) , (8) 
+
+Vt(x) = Ct−1(x) · Vt−1(x) + cinst (x, ξ t) · vobs 
+
+Ct−1(x) + cinst (x, ξ t) . (9) Here, Ct(x) denotes the accumulated observation confidence of grid cell x up to time t. Vt(x) denotes the target relevance estimate of cell x, obtained by recursively fusing historical semantic estimates with the current observation. vobs is the target relevance score inferred from the current image frame and serves as the instantaneous semantic measurement used in the map update. As a result, the VLM-SM incrementally fuses multi-temporal semantic observations on a unified grid, providing a queryable representation of semantic evidence along with its associated confidence. 
+
+C. IGV-RRT Planning with Semantic and Information Gain 
+
+The planning module employs IGV-RRT to perform online planning in continuous free space, and incrementally expands and maintains a sampling tree T at each planning cycle [15]. The root of the tree is synchronized with the robot’s current state. During local expansion, feasible branches are generated under kinematic and collision constraints. The tree is further maintained through rewiring and root-rewiring mechanisms to preserve connectivity to the current root and consistency of path costs [16], thereby enabling real-time responsiveness under continuous motion. In addition, the framework maintains a global graph composed of historical vertices and connectivity edges, which preserves a large-scale traversability structure and provides region-level guidance beyond the current local tree. Beyond this standard IGV-RRT framework, our key design is to incorporate the IGM and the VLM-SM as two complementary information sources within the same decision loop, such that both the expansion direction and sub-goal selection are jointly constrained by prior target-discovery potential and online semantic evidence. Specifically, the planner evaluates each candidate node v
+
+using a joint utility that balances directional guidance, prior information gain, and online semantic evidence: 
+
+Uf inal (v) = λd · (1 − D(v))+ 
+
+I(v / ∈ M exp ) · [λe · E(v) + λs · S(v)] , (10) U(v) =0*VLM score + 0*                             
+
+> IGMscore+1/distance
+> U(v)=VLMscore+IGM
+> score+1/distance
+> Searchedarea
+> RRTedge
+> RRTnode
+> candidatenode
+> Exploredarea
+> lowvalue
+> highvalue
+> Trajectory
+> highinformationgain
+> lowinformationgain
+> C
+> A
+> B
+> priortargetlocation
+> calculate
+> calculate
+> Finalscore(withexploredarea)
+> Final score (without explored area): C>B>A
+> :A>B>C
+> prior target location
+> Fig. 5. Utility-based frontier scoring with explored-region gating in IGV-RRT. The figure shows how IGV-RRT scores candidate frontiers by com-bining distance, IGM entropy, and VLM-SM evidence into a joint utility. An explored-region mask reduces the utility of previously observed areas to only the distance heuristic, encouraging selection of informative, unexplored frontiers. Without this gating, the planner may repeatedly choose already observed areas and miss the target. With the mask, it prefers the truly target approaching frontier A
+
+where D(v) denotes the normalized spatial distance from 
+
+v to the prior high-probability target point inferred from the IGM, and λd · (1 − D(v)) provides a weak but stable directional bias toward the prior target region. Mexp denotes the explored-region mask accumulated from the sensor field of view projected into the map frame, and I(·) is the indicator function. When v ∈ M exp , both the prior gain term and the semantic support term are suppressed, so that the utility is determined only by the distance heuristic. The effect of explored-region gating on the utility evaluation is illustrated in Fig. 5. To characterize the prior target-discovery potential around 
+
+v, we compute the information-gain term over a local neigh-borhood Ω( v) as 
+
+E(v) = X
+
+> x∈Ω( v)
+
+I(x / ∈ M exp ) ·
+
+
+
+− P (x | ot) log 2 P (x | ot)
+
+
+
+,
+
+(11) which accumulates the entropy contribution of unexplored cells under the IGM prior. In the same neighborhood, the semantic support term is defined as 
+
+S(v) = X
+
+> x∈Ω( v)
+
+I(x / ∈ M exp ) · Vt(x), (12) where Vt(x) is the fused target-relevance estimate provided by the VLM score map. In our implementation, Ω( v) is taken as a circular neighborhood centered at v, so that S(v)
+
+measures the accumulated online semantic evidence in the local region rather than the score of a single cell. The weighting coefficients λe, λs, and λd govern the relative contributions of prior information gain, online se-mantic evidence, and directional bias. Since E(v) is de-rived from historical knowledge and may become biased under temporal scene changes, while S(v) reflects current observations, λs is assigned a larger value than λe. The coefficient λd is set smaller than both so that the distance term remains auxiliary. At each planning cycle, the planner selects v∗ = arg max v Uf inal (v) as the current sub-goal and generates a locally feasible trajectory toward v∗ for execution. As the robot moves and new observations arrive, both the tree structure and the utility values are updated continuously, forming a closed-loop process of expansion, evaluation, execution, and replanning. During execution, the system performs target detection using GroundingDINO [17] and MobileSAM [18], followed by a three-stage verification process consisting of trigger, near-range recheck, and arrival termination. In cluttered indoor environments, although IGV RRT can generate locally feasible paths in continuous free space, the robot may still become trapped due to narrow passages, densely arranged furniture, or locally congested obstacles. To improve execution robustness, we further incorporate a stuck detection and escape mechanism into the IGV RRT framework. Specifically, the system detects a stuck state by monitoring the robot’s displacement within a predefined temporal window. If 
+
+∥p(t) − p(t − τs)∥2 < ϵ s, (13) The robot is regarded as locally trapped, where τs denotes the detection time window and ϵs denotes the minimum effective displacement threshold. In response, the space around the robot is discretized into eight candidate directions with an angular resolution of 45 ◦, and the number of occupied grid cells in each directional neighborhood is counted. The escape direction is then selected as 
+
+ρ∗ = arg min  
+
+> ρi∈R
+
+Nobs (ρi), (14) where R denotes the set of candidate directions and Nobs (ρi)
+
+is the number of occupied grid cells in the local neighborhood associated with direction ρi. The robot then performs a short escape motion along the least obstructed direction and resumes the normal IGV RRT planning and execution process once effective motion is recovered. In addition, when the number of valid local sub-goals in the current region becomes insufficient, the planner invokes the global graph to provide region-level guidance and steer the robot out of the current area. In this sense, the escape mechanism handles local deadlock at a specific blocked po-sition, whereas the global graph addresses regional stagnation caused by insufficient local guidance. This design improves robustness in cluttered indoor scenes without introducing significant planning overhead. Overall, the system performs target object search under temporal scene changes by explicitly addressing the mis-match between the prior construction time T and the exe-cution observation time t > T . The IGM provides a coarse global bias that allocates the search budget to regions that are more consistent with commonsense under the anchor-object context, thereby preventing the process from degenerating into purely geometric coverage. The VLM-SM incrementally goal   
+
+> vase
+> IGV-RRT trajectory(ours) VLFM trajectory
+> Start
+> Fig. 6. Execution trajectory comparison on the same task. The figure compares executed trajectories on the same task: VLFM in green and our IGV-RRT in red. IGV-RRT is first guided by the IGM toward a high-prior region, then uses online VLM-SM evidence to correct prior bias and converge to the true target.
+
+accumulates online semantic observations via confidence-weighted fusion, enabling prior validation at execution time and reducing the misleading effect of obsolete priors. Build-ing on this, IGV-RRT incorporates the above prior and evidence into utility evaluation to guide tree expansion and sub-goal selection, while an explored-region mask suppresses revisits, thus enabling kinematically feasible, target-directed exploration. III. E XPERIMENTS AND EVALUATION 
+
+A. Simulation Experiments 
+
+We evaluate in the HM3D [19] simulation under atemporal-change ObjectNav protocol. Starting from HM3D, we import additional objects and construct a new task set with these imported objects as navigation targets. We then decouple prior construction from execution: the IGM is constructed and frozen from a scene snapshot at time T , and the imported objects are moved during execution to emulate temporal rearrangement and prior–reality mismatch. Under this setting, the prior can become biased at t > T . We therefore integrate the IGM and the VLM-SM within the same IGV-RRT planning loop to retain guidance toward high-likelihood regions while enabling online correction under temporal changes. As shown in Table I, IGV-RRT achieves substantially higher SR and SPL than VLFM, indicating improved reliabil-ity and path efficiency under temporal object displacement. Beyond the quantitative metrics, we visualize the navi-gation process on a representative task. Fig. 6 shows the trajectories executed by our method and VLFM. In Fig. 6, the red trajectory corresponds to our method and the green trajectory corresponds to VLFM. The trajectory suggests Trajectory 
+
+Start 
+
+> High prior-probability region for the target object
+
+(a) prior target location  
+
+> erroneous prior-indicated region
+> actual target location
+> (b)
+
+(c) (d) 
+
+(e) 
+
+(f) 
+
+Trajectory  
+
+> target :basketball Fig. 7. In real-world navigation using IGV-RRT. (a)-(c) show that, in the early stage, the robot is rapidly driven by the prior IGM toward high probability regions where the target is likely to exist. During this stage, even when the VLM score map varies across regions, it does not dominate the motion unless the score differences become sufficiently pronounced. (d) and (e) indicate that, after entering the high probability region, the robot increasingly follows the VLM score map and progresses toward the true target location. (f) further reveals the mismatch and bias that can arise from the prior IGM.
+
+that our method follows the global IGM guidance in the early phase to quickly reach a high-prior region, and then increasingly leverages online evidence from the VLM-SM to correct prior-induced bias and converge to the true target location. This observation reflects the complementary roles of global prior guidance and online local correction within the planning loop.         
+
+> TABLE I SIMULATION RESULTS ON HM3D UNDER TEMPORAL CHANGES
+> Method HM3D
+> SR (%) SPL (%) VLFM 34.4 16.7
+> IGV-RRT (Ours) 42.9 26.3
+
+B. Ablation Study 
+
+To evaluate the roles of individual components specifically under prior mismatch, we conduct the ablation on the same temporal-change benchmark, which is built on the modified HM3D scenes with imported objects as target instances and with their locations shifted after the IGM is constructed. This benchmark is intentionally used because when the prior remains accurate, a static IGM alone can be sufficient and the marginal benefits of online semantic correction and revisit suppression become difficult to reveal. In contrast, temporal mismatch provides a controlled setting where the corrective and efficiency-related contributions of these components can be quantified. where the corrective and efficiency-related contributions of these components can be quantified. We compare four strategies that all use the information gain map as the base signal, and differ in whether the VLM-based semantic map is included and whether explored region suppression is enabled. Results are summarized in Table II. Table II suggests a complementary interplay among the components. Using the information gain map alone under            
+
+> TABLE II ABLATION RESULTS ON THE TEMPORAL -CHANGE BENCHMARK
+> Strategy SR (%) SPL (%) (a) IGM only 31.87 22.03 (b) IGM + explored-region 33.92 23.62 (c) IGM + VLM-SM 36.28 23.17 (d) Ours 42.9 26.32
+
+temporal mismatch is susceptible to outdated prior bias, which can steer sub-goal selection toward prior-favored but incorrect regions and incur unnecessary verification. In this setting, enabling explored region suppression without adding VLM-based online semantic evidence typically does not yield a pronounced benefit, because the underlying guidance signal remains misleading, and suppression by itself cannot provide a correct directional cue for recovery. Adding the VLM-based semantic map introduces online semantic evidence that cor-rects prior induced bias during execution, enabling faster re-covery from misleading priors and improving both reliability and efficiency. Enabling explored region suppression is most effective when paired with sufficiently informative guidance, where it reduces revisits and loop-like traversal, promotes forward progress, and improves path efficiency. Combining both VLM-based correction and revisit suppression in the full strategy, therefore, provides the most robust overall performance under temporal object displacement, typically achieving the best or near-best success rate and success weighted by path length jointly. 
+
+C. Real-World Experiments 
+
+Real-world experiments are conducted on a Wheeltec R550 ROS mobile robot. The compute side is a desktop workstation equipped with an NVIDIA GeForce RTX 5060 Ti GPU and a 12th Gen Intel(R) Core(TM) i7-12700KF CPU, serving as the ROS master to run perception, semantic inference, and planning, while the robot side operates as a ROS slave for motion execution and state feedback. This master–slave deployment decouples high-load computation from onboard actuation, helping maintain both online planning throughput and control-loop stability. Mapping and localization are pro-vided by FAST-LIO [20], which supplies continuous pose estimation and odometry references for closed-loop planning. Fig. 7(a) shows that the robot starts from the initial position and that the early trajectory moves toward the high-likelihood region indicated by the prior information gain, providing global guidance. Fig. 7(b) shows that after the robot enters this region, the trajectory does not proceed to the outdated, incorrect prior-indicated location; instead, it is progressively adjusted as online semantic observations are updated, where the VLM-SM provides fine-grained guidance. The trajectory then further departs from the prior-biased location, turns toward the true target, and finally converges near the ac-tual object position. This figure directly illustrates the full execution process from the prior-guided approach to online correction, confirming the effectiveness and robustness of the proposed method in real, temporally changing environments. IV. C ONCLUSION AND FUTURE WORK 
+
+We presented a probabilistic planning framework for active target search in indoor environments where target objects may be relocated over time, making purely static assumptions insufficient for reliable navigation. The framework integrates two complementary semantic cues: an IGM derived from scene-graph and commonsense reasoning to provide coarse global guidance, and an incrementally updated VLM-SM to inject real-time semantic evidence for local validation. Build-ing on these maps, we proposed IGV-RRT, which unifies information gain, VLM scores, and navigation cost in a joint utility for tree expansion and sub-goal selection, while an explored-region mask suppresses revisits to improve search efficiency. Simulation and real-world experiments show that the proposed method achieves robust target-directed explo-ration and improves both success rate and path efficiency in challenging indoor scenes with object relocation. Future work will focus on making the IGM updateable for long-term autonomy: the robot will detect persistent scene changes online and revise the IGM accordingly, keeping long-term guidance consistent with the evolving environment. REFERENCES [1] J. Sun, J. Wu, Z. Ji, and Y.-K. Lai, “A survey of object goal navigation,” 
+
+IEEE Transactions on Automation Science and Engineering , vol. 22, pp. 2292–2308, 2024. [2] W. Yang, X. Wang, A. Farhadi, A. Gupta, and R. Mottaghi, “Visual semantic navigation using scene priors,” arXiv preprint arXiv:1810.06543 , 2018. [3] Y. Zhang, G. Tian, J. Lu, M. Zhang, and S. Zhang, “Efficient dynamic object search in home environment by mobile robot: A priori knowledge-based approach,” IEEE Transactions on Vehicular Technology , vol. 68, no. 10, pp. 9466–9477, 2019. [4] Q. Gu, A. Kuwajerwala, S. Morin, K. M. Jatavallabhula, B. Sen, A. Agarwal, C. Rivera, W. Paul, K. Ellis, R. Chellappa, et al. ,“Conceptgraphs: Open-vocabulary 3d scene graphs for perception and planning,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 5021–5028. [5] X. Zhou, T. Xiao, L. Liu, Y. Wang, M. Chen, X. Meng, X. Wang, W. Feng, W. Sui, and Z. Su, “Fsr-vln: Fast and slow reasoning for vision-language navigation with hierarchical multi-modal scene graph,” 
+
+arXiv preprint arXiv:2509.13733 , 2025. [6] A. Gassol Puigjaner, A. Zacharia, and K. Alexis, “Relationship-aware hierarchical 3d scene graph for task reasoning,” arXiv e-prints , pp. arXiv–2602, 2026. [7] H. Yin, X. Xu, Z. Wu, J. Zhou, and J. Lu, “Sg-nav: Online 3d scene graph prompting for llm-based zero-shot object navigation,” Advances in neural information processing systems , vol. 37, pp. 5285–5307, 2024. [8] N. Yokoyama, S. Ha, D. Batra, J. Wang, and B. Bucher, “Vlfm: Vision-language frontier maps for zero-shot semantic navigation,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) .IEEE, 2024, pp. 42–48. [9] C. Peng, Z. Zhang, C. Chi, X. Wei, Y. Zhang, H. Wang, P. Wang, Z. Wang, J. Liu, and S. Zhang, “Pigeon: Vlm-driven object navigation via points of interest selection,” arXiv preprint arXiv:2511.13207 ,2025. [10] J. Li, D. Li, S. Savarese, and S. Hoi, “Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models,” in International conference on machine learning . PMLR, 2023, pp. 19 730–19 742. [11] C.-Y. Wang, A. Bochkovskiy, and H.-Y. M. Liao, “Yolov7: Trainable bag-of-freebies sets new state-of-the-art for real-time object detectors,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 7464–7475. [12] N. Hughes, Y. Chang, and L. Carlone, “Hydra: A real-time spatial perception system for 3d scene graph construction and optimization,” 
+
+arXiv preprint arXiv:2201.13360 , 2022. [13] R. Speer, J. Chin, and C. Havasi, “Conceptnet 5.5: An open mul-tilingual graph of general knowledge,” in Proceedings of the AAAI conference on artificial intelligence , vol. 31, no. 1, 2017. [14] C. Wang, J. Cheng, W. Chi, T. Yan, and M. Q.-H. Meng, “Semantic-aware informative path planning for efficient object search using mobile robot,” IEEE Transactions on Systems, Man, and Cybernetics: Systems , vol. 51, no. 8, pp. 5230–5243, 2019. [15] Y. Wang, N. Du, Y. Qin, X. Zhang, R. Song, and C. Wang, “History-aware planning for risk-free autonomous navigation on unknown uneven terrain,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2024, pp. 7583–7589. [16] I. Noreen, A. Khan, Z. Habib, et al. , “Optimal path planning using rrt* based approaches: a survey and future directions,” International Journal of Advanced Computer Science and Applications , vol. 7, no. 11, pp. 97–107, 2016. [17] S. Liu, Z. Zeng, T. Ren, F. Li, H. Zhang, J. Yang, Q. Jiang, C. Li, J. Yang, H. Su, et al. , “Grounding dino: Marrying dino with grounded pre-training for open-set object detection,” in European conference on computer vision . Springer, 2024, pp. 38–55. [18] C. Zhang, D. Han, Y. Qiao, J. U. Kim, S.-H. Bae, S. Lee, and C. S. Hong, “Faster segment anything: Towards lightweight sam for mobile applications,” arXiv preprint arXiv:2306.14289 , 2023. [19] S. K. Ramakrishnan, A. Gokaslan, E. Wijmans, O. Maksymets, A. Clegg, J. Turner, E. Undersander, W. Galuba, A. Westbury, A. X. Chang, et al. , “Habitat-matterport 3d dataset (hm3d): 1000 large-scale 3d environments for embodied ai,” arXiv preprint arXiv:2109.08238 ,2021. [20] W. Xu, Y. Cai, D. He, J. Lin, and F. Zhang, “Fast-lio2: Fast direct lidar-inertial odometry,” IEEE Transactions on Robotics , vol. 38, no. 4, pp. 2053–2073, 2022.
