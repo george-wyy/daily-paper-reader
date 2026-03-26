@@ -6,57 +6,35 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-25
-- 运行时间：2026-03-25 19:56:31 UTC
+- 最新运行日期：2026-03-26
+- 运行时间：2026-03-26 19:45:43 UTC
 - 运行状态：成功
-- 本次总论文数：12
-- 精读区：5
-- 速读区：7
+- 本次总论文数：4
+- 精读区：0
+- 速读区：4
 
 ### 今日简报（AI）
-今日重点探索视线正则化技术，通过引入人类注视点显著提升了第一视角行为理解与机器人操控模型的精度。
-研究
-- 详情：[/202603/25/README](/202603/25/README)
+今日聚焦具身智能与精细动作识别，探索从第一视角视频到主动协作机器人的前沿应用。
+重点关注结合视觉语言规划的主动辅助操控，以及利用专家混合模型（MoE）实现“全肢体参与”的微动作精准识别。
+建议关注机器人如何通过理解人类意图实现主动服务，并探索第一视角数据在自动化网页代理中的跨域潜力。
+- 详情：[/202603/26/README](/202603/26/README)
 
 ### 精读区论文标签
-1. [Gaze-Regularized VLMs for Ego-Centric Behavior Understanding](/202603/25/2603.23190v1-gaze-regularized-vlms-for-ego-centric-behavior-understanding)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：针对人类意图和未来行动的眼动正则化框架
-2. [Gaze-Regularized Vision-Language-Action Models for Robotic Manipulation](/202603/25/2603.23202v1-gaze-regularized-vision-language-action-models-for-robotic-manipulation)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：人类注视编码了机器人操作的意图和规划
-3. [From Scores to Strategies: Towards Gaze-Informed Diagnostic Assessment for Visualization Literacy](/202603/25/2603.21898v2-from-scores-to-strategies-towards-gaze-informed-diagnostic-assessment-for-visualization-literacy)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：眼动指标作为认知负荷和策略的隐式过程信号
-4. [CanViT: Toward Active-Vision Foundation Models](/202603/25/2603.22570v1-canvit-toward-active-vision-foundation-models)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：通过序列化局部窥视实现生物学合理的感知
-5. [Foveated Diffusion: Efficient Spatially Adaptive Image and Video Generation](/202603/25/2603.23491v1-foveated-diffusion-efficient-spatially-adaptive-image-and-video-generation)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：基于视线的自适应图像生成交互
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Spiking Personalized Federated Learning for Brain-Computer Interface-Enabled Immersive Communication](/202603/25/2603.22727v1-spiking-personalized-federated-learning-for-brain-computer-interface-enabled-immersive-communication)  
+1. [Event-Driven Proactive Assistive Manipulation with Grounded Vision-Language Planning](/202603/26/2603.23950v1-event-driven-proactive-assistive-manipulation-with-grounded-vision-language-planning)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：基于脑机接口的沉浸式通信用于推断用户意图
-2. [Continual Multimodal Egocentric Activity Recognition via Modality-Aware Novel Detection](/202603/25/2603.16970v1-continual-multimodal-egocentric-activity-recognition-via-modality-aware-novel-detection)  
+   evidence：基于人机交互的前瞻性辅助
+2. [B-MoE: A Body-Part-Aware Mixture-of-Experts "All Parts Matter" Approach to Micro-Action Recognition](/202603/26/2603.24245v1-b-moe-a-body-part-aware-mixture-of-experts-all-parts-matter-approach-to-micro-action-recognition)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：识别包括扫视在内的具有社会含义的微动作
+3. [Ego2Web: A Web Agent Benchmark Grounded in Egocentric Videos](/202603/26/2603.22529v1-ego2web-a-web-agent-benchmark-grounded-in-egocentric-videos)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：结合视觉和惯性信号的多模态第一视角活动识别
-3. [Would You Like to Visit My World? Cultivating Perceived Equality in Human-Agent Interaction via Observable Social Life Spaces](/202603/25/2603.21505v1-would-you-like-to-visit-my-world-cultivating-perceived-equality-in-human-agent-interaction-via-observable-social-life-spaces)  
+   evidence：通过AR眼镜的第视角视觉感知来识别物体和任务
+4. [Implicit Turn-Wise Policy Optimization for Proactive User-LLM Interaction](/202603/26/2603.23550v1-implicit-turn-wise-policy-optimization-for-proactive-user-llm-interaction)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于前瞻性和关系型人机交互的可观察生活空间
-4. [IGV-RRT: Prior-Real-Time Observation Fusion for Active Object Search in Changing Environments](/202603/25/2603.21887v1-igv-rrt-prior-real-time-observation-fusion-for-active-object-search-in-changing-environments)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：具有在线目标相关性估计的概率规划框架
-5. [Describe-Then-Act: Proactive Agent Steering via Distilled Language-Action World Models](/202603/25/2603.23149v1-describe-then-act-proactive-agent-steering-via-distilled-language-action-world-models)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：前瞻性智能体引导与后果预测
-6. [A Multimodal Framework for Human-Multi-Agent Interaction](/202603/25/2603.23271v1-a-multimodal-framework-for-human-multi-agent-interaction)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：人机交互中的多模态感知与协调决策
-7. [Information-Driven Active Perception for k-step Predictive Safety Monitoring](/202603/25/2603.23450v1-information-driven-active-perception-for-k-step-predictive-safety-monitoring)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：随机系统中预测性安全监测的概率建模
+   evidence：前瞻性用户与大模型交互的策略优化
 
 
 <div class="dpr-home-promo-card">
