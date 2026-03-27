@@ -1,0 +1,1650 @@
+Title: Rao-Blackwellized Stein Gradient Descent for Joint State-Parameter Estimation
+
+URL Source: https://arxiv.org/pdf/2603.23039v1
+
+Published Time: Wed, 25 Mar 2026 01:12:07 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+> 1
+
+# Rao–Blackwellized Stein Gradient Descent for Joint State–Parameter Estimation 
+
+Milad Banitalebi Dehkordi, Manas Mejari, Dario Piga 
+
+Abstract —We present a filtering framework for online joint state estimation and parameter identification in nonlinear, time-varying systems. The algorithm uses Rao–Blackwellization tech-nique to infer joint state–parameter posteriors efficiently. In particular, conditional state distributions are computed analyt-ically via Kalman filtering, while model parameters—including process and measurement noise covariances—are approximated using particle-based Stein Variational Gradient Descent (SVGD), enabling stable real-time inference. We prove a theoretical consis-tency result by bounding the impact of the SVGD approximated parameter posterior on state estimates, relating the divergence between the true and approximate parameter posteriors to the total variation distance between the resulting state marginals. Performance of the proposed filter is validated on two case studies: a bioreactor with Haldane kinetics and a neural-network-augmented dynamic system. The latter demonstrates the filter’s capacity for online neural network training within a dynamical model, showcasing its potential for fully adaptive, data-driven system identification. 
+
+Index Terms —Rao-Blackwellized Filtering, Stein Variational Gradient Descent, joint State–parameter estimation. 
+
+I. I NTRODUCTION 
+
+# ACCURATE state estimation requires a well-specified process model and known measurement noise statistics. In practice, however, model parameters and noise covariances are typically unknown and may change over time due to changing operating conditions. Such uncertainties can degrade the performance of the classical filters that assume fixed, known models, leading to substantial state estimation errors from model mismatch [1]. This motivates methods that infer the joint posterior over both states and unknown parameters, enabling improved real-time estimates and principled uncer-tainty quantification essential for robust control, monitoring, and decision-making [2]. Traditional approaches for joint state and parameter estima-tion often rely on augmented Extended Kalman Filters (EKF), where the parameters are appended to the state vector and updated with the system states. Although augmented EKF have been widely used [3], they are known to perform poorly for highly nonlinear systems. Moreover, learning additional quantities such as process and measurement noise statistics is numerically delicate and may lead to instability or even filter divergence [4]. Several adaptive Kalman filtering meth-ods have been proposed to estimate noise covariances (see, e.g, [5]–[7]), but they typically suffer from sensitivity to model mismatch and tuning issues. Beyond joint estimation settings,  
+
+> Milad Banitalebi Dehkordi, Manas Mejari, and Dario Piga are with the ID-SIA Dalle Molle Institute for Artificial Intelligence, SUPSI-USI, 6962 Lugano, Switzerland (e-mail: {milad.banitalebi, manas.mejari, dario.piga }@supsi.ch) This preprint is submitted to the IEEE Transactions on Automatic Control.
+
+Kalman-based techniques have also been applied to learning problems involving parameter inference alone. For instance, [8] reformulates the training of recurrent neural networks as a state–estimation problem and applies the Extended Kalman Filter (EKF) to obtain second-order–like updates. Variational Inference (VI) methods can also approximate the joint posterior distribution over states and parameters [9], but they are typically computationally intensive and less suited for real-time applications. Monte Carlo methods, such as Particle Filters (PFs), offer a more flexible framework for approximating complex, potentially non-unimodal distri-butions [10], [11]. However, a na¨ ıve application of PFs to jointly propagate both states and parameters is restrictive for high dimensional systems and often fails to exploit the known structure of the state-space model. Rao–Blackwellized Particle Filters (RBPFs) address this limitation by analytically evaluating the conditional distribution of the states given the parameters and using a Monte Carlo approximation for the parameter distribution [12]–[15]. This approach leverages the prior knowledge encoded in the state-space model while retaining the flexibility of particle-based methods for param-eter inference. In standard RBPFs, the temporal evolution of parameters is usually modeled as a stochastic process with additive noise, which is chosen as proposal distribution from which the particles are sampled. This introduces an additional hyperparameter, namely the noise covariance for parameter propagation. This often requires careful tuning and can affect the accuracy of both state and parameter estimates. Recently, Stein Variational Gradient Descent (SVGD) has emerged as a promising deterministic alternative for approxi-mating probability distributions [16]. Unlike PFs, which prop-agate particles stochastically, weighted based on likelihoods, SVGD evolves particles deterministically along directions that minimize the Kullback–Leibler (KL) divergence between the approximate and true posterior. This makes SVGD appealing in a Rao–Blackwellized framework, where the states can be estimated analytically (e.g., via the EKF) and the pa-rameter distribution is approximated deterministically using SVGD. Building on this, in this paper we introduce the 
+
+Rao–Blackwellized Stein Gradient Descent (RBSGD) filter ,where the measurements deterministically steer the particles toward the true parameter distribution. This allows for accurate state estimation, avoiding the need to carefully tune proposal parameters. To the best of our knowledge, the integration of Rao-Blackwellizion concepts and SVGD for joint state-parameter estimation has not been proposed before. In addition, curvature information in the parameter space has been incorporated in variants of SVGD, such as New-ton SVGD or L-BFGS SVGD, to improve convergence by 
+
+> arXiv:2603.23039v1 [eess.SY] 24 Mar 2026 2
+
+adapting the step size according to the local geometry of the likelihood [17]–[19]. While effective, these approaches typically rely on computing the Hessian of the log-posterior, which introduces significant computational overhead. To ad-dress this, in this paper we also propose the Rao–Blackwellized Fisher Stein Gradient Descent (RBFSGD) filter , an extension of RBSGD that incorporates the Fisher Information Matrix (FIM) as an indicator of the local parameter space geometry [20]–[22]. The FIM is utilized in two ways: (i) in updating the parameters using a Fisher-adapted Adam scheme, and (ii) in the kernel formulation of SVGD, where the standard Euclidean distance is replaced by a Fisher-informed distance in the RBF kernel. This approach improves the scaling and directionality of parameter updates while maintaining compu-tational tractability. Finally, we analyze the theoretical properties of the pro-posed RBSGD and RBFSGD filters. In particular, we establish an upper bound on the ℓ1-norm error between the approximate and true marginal state distributions. Furthermore, we prove that under mild assumptions, this bound (i) is related to the KL divergence between the approximate and true parameter posteriors and (ii) monotonically decreases along the SVGD iterations. The remainder of this paper is organized as follows. In Section II, we formulate the joint estimation problem for states and model parameters. Section III reviews Rao–Blackwellized Particle Filters and their application in state-space models. Building on this foundation, Section IV-A introduces the proposed RBSGD filter, and Section IV-B presents its Fisher-informed extension, the RBFSGD filter. Finally, Section VI demonstrates the performance of the proposed methods on two case studies: a highly nonlinear fed-batch bioreactor and a nonlinear system modelled with neural network. 
+
+Notation: Let Rn denote the set of real vectors with dimen-sion n. The sequence of time-indexed vectors {u1, . . . , u t}
+
+is denoted as u1: t and zt|k denotes the estimate of signal z
+
+at time t, given the observations up to and including time k.The Dirac delta function centered at ¯θ is denoted by δ¯θ (θ).A random variable x sampled from a Gaussian distribution with mean μ and covariance Σ is denoted by x ∼ N (μ, Σ) .The expected value of a random variable is denoted by 
+
+E [x]. Given two probability density functions p and q, the KL divergence is denoted as KL( p|| q), which is defined as 
+
+KL( p|| q) = R p(x) ln p(x) 
+
+> q(x)
+
+dx .II. P ROBLEM STATEMENT 
+
+We consider the following discrete-time nonlinear parameter-varying state–space model, 
+
+xt+1 = f (xt, u t, θ t) + qt, (1a) 
+
+yt = h(xt, θ t) + rt, (1b) where t ∈ N denotes the time index, xt ∈ Rnx , yt ∈ Rny ,and ut ∈ Rnu denote the system state, output, and input, respectively. The functions f and h describe the nonlinear state transition and measurement mappings and are param-eterized by an unknown parameter θt ∈ Rnθ . The process and measurement noise are modeled as zero-mean Gaussian random variables, qt ∼ N (0 , Q (θt)) and rt ∼ N (0 , R (θt)) ,with corresponding positive definite covariance matrices Q(θt)
+
+and R(θt) parameterized by θt.Given the sequence of output measurements y1: t and inputs 
+
+u1: t up to time t, our objective is to estimate the joint posterior distribution over states and time-varying model parameters 
+
+p(xt, θ t|y1: t, u 1: t), at time t. We seek a recursive filter that updates this posterior online, from previous posterior estimate 
+
+p(xt−1, θ t−1|y1: t−1, u 1: t−1). The posterior distribution can be then utilized to compute the point estimates ( e.g. , maximum a-posteriori (MAP)) of the unknown states xt, and model parameters θt, or to provide marginal state (or parameter) posterior to quantify the uncertainty at each time instance. We note that in a classical Kalman or Bayesian filtering methods, the dynamic models f and g, as well as covari-ance matrices Q, R , are typically assumed to be known . The performance of the filtering algorithms is thus sensitive to the accuracy of the model and choice of covariances. The estimation of the model as well as covariances is therefore critical for accurate state estimation. In this work, we address this problem by joint estimation of the states xt and unknown parameters (dynamic model and covariances) encoded via the parameter vector θt.We remark that an exact evaluation of the posterior 
+
+p(xt, θ t|u1: t, y 1: t) is computationally intractable, and closed-form solutions exist only in specialized cases, e.g. , linear time-invariant dynamics with Gaussian noises. In the following sections, we develop Rao-Blackwellized Particle Filtering al-gorithms that compute an approximation of the joint posterior 
+
+p(xt, θ t|u1: t, y 1: t) and update it online as new observations become available. III. R AO –B LACKWELLIZED FILTERING FOR JOINT STATE -PARAMETER ESTIMATION 
+
+The posterior p(xt, θ t|y1: t, u 1: t) can be approximated us-ing Monte Carlo sampling-based methods, which typically consists of generating a sequence of N random samples 
+
+{x(i) 
+
+> t
+
+, θ (i) 
+
+> t
+
+}Ni=1 , from a Markov chain, whose stationary distri-bution is the target posterior p(xt, θ t|u1: t, y 1: t), which can be then approximated with the following empirical distribution, 
+
+p(xt, θ t|u1: t, y 1: t) ≈ 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+δ x(i) 
+
+> t,θ (i)
+> t
+
+ xt, θ t
+
+.
+
+A potential drawback of this naive implementation is that it requires to draw samples from a high-dimensional joint parameter space (x, θ ), which is computationally restrictive for high dimensions. Instead, in this work, we employ a 
+
+Rao-Blackwellization (RB) approach in which part of the posterior is computed analytically, while only the remaining part is approximated using sampling-based algorithms. The advantage of the RB strategy is that it reduces the size of the space over which the sampling is required. In particular, in the proposed RB filtering framework, after the joint posterior is factorized as, 
+
+p(xt, θ t|y1: t, u 1: t) = p(xt|θt, y 1: t, u 1: t) p(θt|y1: t, u 1: t), (2) 3
+
+the conditional distribution p(xt|θt, y 1: t, u 1: t) is computed analytically via Kalman filtering, while the marginal posterior over the parameters, p(θt|y1: t, u 1: t), is approximated using variants of particle filters. Particle filters allow us to treat any type of probability dis-tribution and nonlinearity, without being restricting to linear-Gaussian models. In this setting, we introduce the following two variants of the RB particle filters: Rao–Blackwellized Stein Gradient Descent (RBSGD) and Rao–Blackwellized Fisher Stein Gradient Descent (RBFSGD) filters. We first review the standard RB particle filter algorithm, and then build upon this framework to preset RBSGD and RBFSGD filters. For brevity, we drop the dependence of the conditional distributions on inputs u1: t in the rest of the paper. 
+
+Rao–Blackwellized Particle Filters 
+
+In Rao–Blackwellized Particle Filters (RBPFs), [12] aweighted set of N particles {w(i) 
+
+> t
+
+, θ (i) 
+
+> t
+
+}Ni=1 , i.e. , samples from a proposal distribution q(·) and their weights, are used to approximate the parameter posterior p(θt|y1: t) in (2) by the empirical point-mass distribution as follows, 
+
+p(θt|y1: t) ≈
+
+> N
+
+X
+
+> i=1
+
+w(i) 
+
+> t
+
+δθ(i)
+
+> t
+
+(θt),
+
+> N
+
+X
+
+> i=1
+
+w(i) 
+
+> t
+
+= 1 , (3) and for each particle θ(i) (representing the i-th model), an 
+
+Extended Kalman Filter (EKF) is employed to compute the corresponding conditional state distribution p(x(i) 
+
+> t
+
+|θ(i) 
+
+> t
+
+, y 1: t).Note that marginalizing out the state variable allows analytic computation of state posterior, p(x(i) 
+
+> t
+
+|θ(i) 
+
+> t
+
+, y 1: t) which is the Gaussian posterior distribution derived from EKF given as, 
+
+p(x(i) 
+
+> t
+
+|θ(i) 
+
+> t
+
+, y 1: t) = N (x(i) 
+
+> t
+
+; ˆ x(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+), (4) where ˆx(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+denote the mean and covariance of the state associated with the i-th particle respectively. RBPFs proceed in three stages: prediction, update, and resampling, as summarized in Algorithm 1. At the initial Step 1, the particles and their weights as well as Kalman filter’s mean and covariances are initalized according to prior distributions and initial values. In the prediction Step 2-3, both state and parameter distri-butions are propagated forward in time. The parameters evolve according to the following stationary stochastic transition model with additive Gaussian noise, 
+
+θ(i) 
+
+> t
+
+= θ(i) 
+
+> t−1
+
++ η(i) 
+
+> t
+
+, η(i) 
+
+> t
+
+∼ N (0 , Σθ ), (5) where Σθ controls the degree of parameter drift, allowing adaptation to time-varying dynamics. In common practice, the parameter proposal distribution q(θt|θ(i)
+
+> t−1
+
+) is taken as the transition model p(θt|θ(i)
+
+> t−1
+
+). Thus, the proposal q(θt|θ(i)
+
+> t−1
+
+) is Gaussian, with mean θ(i) 
+
+> t−1
+
+and covariance Σθ . For each particle 
+
+θ(i) 
+
+> t
+
+, an EKF is run for state estimation. The state prediction in the EKF follows the system dynamics by linearizing the model (1) as follows, 
+
+ˆx(i) 
+
+> t|t−1
+
+= f  ˆx(i)
+
+> t−1|t−1
+
+, u t−1, θ (i)
+
+> t−1
+
+, (6a) 
+
+P (i) 
+
+> t|t−1
+
+= F (i)
+
+> t−1
+
+P (i)
+
+> t−1|t−1
+
+(F (i)
+
+> t−1
+
+)⊤ + Q(θ(i)
+
+> t−1
+
+), (6b) where ˆx(i) 
+
+> t|t−1
+
+and ˆx(i) 
+
+> t−1|t−1
+
+denote the predicted and previous state means, P (i)
+
+> t|t−1
+
+, P (i) 
+
+> t−1|t−1
+
+are the corresponding state covariance matrices, and F (i) 
+
+> t−1
+
+= ∂f ∂x is the Jacobian of the dynamics f , evaluated at ˆx(i) 
+
+> t−1|t−1
+
+and θ(i)
+
+> t−1
+
+.Upon receiving the observation yt, the Kalman gain for each particle is computed as 
+
+K(i) 
+
+> t
+
+= P (i)
+
+> t|t−1
+
+(H(i) 
+
+> t
+
+)⊤ H(i) 
+
+> t
+
+P (i)
+
+> t|t−1
+
+(H(i) 
+
+> t
+
+)⊤ + R(θ(i)
+
+> t−1
+
+)−1,
+
+(7) where Jacobian H(i) 
+
+> t
+
+= ∂h ∂x of the measurement model g is evaluated at ˆx(i) 
+
+> t|t−1
+
+and θ(i)
+
+> t−1
+
+, and the innovation covariance is defined as 
+
+S(i) 
+
+> t
+
+= H(i) 
+
+> t
+
+P (i)
+
+> t|t−1
+
+(H(i) 
+
+> t
+
+)⊤ + R(θ(i)
+
+> t−1
+
+). (8) Next, in the update Step 5, the mean and covariance update of the state x(i) 
+
+> t
+
+, which form the Gaussian posterior (4) are computed as, 
+
+ˆx(i) 
+
+> t|t
+
+= ˆ x(i) 
+
+> t|t−1
+
++ K(i)
+
+> t
+
+ yt − h(ˆ x(i)
+
+> t|t−1
+
+, θ (i)
+
+> t−1
+
+), (9a) 
+
+P (i) 
+
+> t|t
+
+=  I − K(i) 
+
+> t
+
+H(i)
+
+> t
+
+P (i)
+
+> t|t−1
+
+. (9b) In the particle weight update Step 4, the importance weights are updated according to the likelihood of the new measure-ment as 1,
+
+w(i) 
+
+> t
+
+∝ w(i) 
+
+> t−1
+
+p yt | θ(i)1: t, y 1: t−1
+
+ p(θ(i) 
+
+> t
+
+|θ(i)
+
+> t−1
+
+)
+
+q(θ(i) 
+
+> t
+
+|θ(i)
+
+> t−1
+
+) , (10a) 
+
+p yt | θ(i)1: t, y 1: t−1
+
+ = N  yt; h(ˆ x(i)
+
+> t|t−1
+
+, θ (i) 
+
+> t
+
+), S (i)
+
+> t
+
+. (10b) To prevent particle degeneracy, resampling Step 6 is per-formed when the effective sample size (ESS) falls below a given threshold nthr . Particles with higher weights are replicated by sampling from a new probability distribution 
+
+θ ∼ PNj=1 w(i) 
+
+> t
+
+δθ(j)
+
+> t
+
+(θ), while those with negligible weights are discarded, and all resampled particles are assigned uni-form weights, w(i) 
+
+> t
+
+= 1 /N , preserving a consistent particle population. In summary, the RBPF Algorithm 1 produces at each time step t a set of weighted samples {w(i) 
+
+> t
+
+, θ (i) 
+
+> t
+
+, ˆx(i) 
+
+> t|t
+
+, P it|t}Ni=1 .
+
+Then, from (3) and (4), the joint posterior in (2) is approxi-mated with RBPF as, 
+
+p(xt, θ t|y1: t) ≈
+
+> N
+
+X
+
+> i=1
+
+w(i) 
+
+> t
+
+δθ(i)
+
+> t
+
+(θt)N (xt; ˆ x(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+). (11) IV. R AO –B LACKWELLIZED FILTERING WITH STEIN 
+
+GRADIENT DESCENT 
+
+The RBPF framework discussed in the previous section combines analytical filtering for state estimation with a particle filters approximation for parameter inference, achieving abalance between computational tractability and flexibility in representing non-Gaussian parameter distributions. However, the performance of the algorithm critically depends on choosing an appropriate proposal distribution   
+
+> 1In the derivation of RBPF, we typically work on the full trajectory posterior
+> p(x0: t, θ 0: t|y1: t)and then marginalize to get p(xt, θ t|y1: t).4
+
+Algorithm 1 Rao–Blackwellized Particle Filter 
+
+Require: Number of particles N , priors for intital parameter and state: p(θ0), p (x0); intial state covariance ¯P0; proposal distribution q(θt|θt−1), resampling threshold nthr . 
+
+> 1:
+
+Initialization: for i = 1 to N
+
+Sample θ(i)0 ∼ p(θ0)
+
+Set ˆx(i)0 ∼ p(x0), P (i)0 = ¯P0 ▷ Initial KF state 
+
+w(i)0 ← 1/N 
+
+end for for t = 1 to T
+
+for i = 1 to N 
+
+> 2:
+
+Particle prediction: θ(i) 
+
+> t
+
+∼ q(θt | θ(i)
+
+> t−1
+
+) (5)  
+
+> 3:
+
+Kalman prediction: Compute ˆx(i)
+
+> t|t−1
+
+, P (i) 
+
+> t|t−1
+
+(6)  
+
+> 4:
+
+Weight update: ˜w(i) 
+
+> t
+
+as in (10a)  
+
+> 5:
+
+Kalman update: Compute ˆx(i) 
+
+> t
+
+, P (i) 
+
+> t
+
+: eq. (9) 
+
+end for 
+
+Normalize w(i) 
+
+> t
+
+= ˜ w(i)
+
+> t
+
+ P Nj=1 ˜w(j) 
+
+> t
+
+, i = 1 , . . . , N.  
+
+> 6:
+
+Resample particles according to the weight w(i) 
+
+> t
+
+if 
+
+ESS = 1 / PNi=1 (w(i) 
+
+> t
+
+)2 < n thr 
+
+for i = 1 to N
+
+resample θ(i) 
+
+> t
+
+from the pdf PNj=1 w(j) 
+
+> t
+
+δθ(j)
+
+> t
+
+(θ(i) 
+
+> t
+
+)
+
+set w(i) 
+
+> t
+
+← 1/N 
+
+end for end for return {{ ˆx(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+, θ (i) 
+
+> t
+
+}Ni=1 }Tt=1 
+
+q(θt|θt−1), which can be chosen based on the stochastic transition model (5) for the parameters. This, in turn, requires careful tuning of the noise covariance Σθ , to reflect the tem-poral variability in the parameters. A high-variance proposal spreads particles into low-probability regions, causing weight degeneracy, while a low-variance proposal restricts exploration and yields an overly concentrated and inaccurate posterior approximation. Determining the optimal proposal parameters for a specific target posterior distribution is therefore nontrivial in particle filtering. In addition, accurate approximation of the parameter posterior (3) may require a large number of parti-cles, which can lead to significant computational overhead. To address these challenges, we adopt a deterministic Stein Variational Gradient Descent (SVGD) [16] framework, where particles evolve via a gradient-based update that minimizes the Kullback–Leibler (KL) divergence between the true pos-terior and its particle approximation. This automatically bal-ances particle exploration and concentration in high-posterior-density regions, eliminating the need to tune the variance parameter Σθ to trade off these effects. In the next sections, we introduce two variants of RBPFs where the SVGD method [16] is employed to govern the particle evolution and approxi-mation of the parameter posterior p(θt|y1: t) within a Rao-Blackwellization framework, offering an efficient alternatives to the classical RBPFs. 
+
+A. Rao–Blackwellized Stein Gradient Descent Filter 
+
+In this section, we discuss how to integrate SVGD into the Rao-Blackwellization framework with a Kalman filter for joint state-parameter posterior computation. The SVGD [16] is a deterministic, particle-based variational inference method for approximating posterior distributions. In SVGD, instead of a stochastic transition model as in (5), the particles θ(i) 
+
+> t
+
+evolve via a specific transport map ,
+
+i.e. , a small perturbation of the identity map: θ + ϵϕ (θ),where ϵ is a small constant and ϕ is a smooth function. This transformation iteratively transport proposal distribution 
+
+θ ∼ q(θ) = PNi=1 δθ(j) (θ) of the particles toward the target posterior p(θ|y1: t). Specifically, SVGD considers the following transformation of the particles: 
+
+Tϵϕ : θ(i) 7 → θ(i) + ϵ ϕ ∗
+
+> q,p
+
+(θ(i)), (12) where ϵ > 0 is a step size representing perturbation magnitude and ϕ∗
+
+> q,p
+
+(·) ∈ H is the optimal perturbation direction that lies in a vector-valued Reproducing Kernel Hilbert Space H
+
+(RKHS 2) with associated positive definite kernel k(θ, θ ′). We next explain the intuition behind ϕ∗
+
+> q,p
+
+(·) and show that it maximally decreases the KL divergence between the proposal 
+
+q and target posterior p. The optimal perturbation direction 
+
+ϕ∗
+
+> q,p
+
+(θ) in (12) (which depends on both proposal and target distributions q, p as emphasized in the subscript), is given by the following expectation [16], 
+
+ϕ∗
+
+> q,p
+
+(θ) = Eθ′∼q(θ)
+
+h
+
+k(θ′, θ ) ∇θ′ log p(θ′|y1: t) + ∇θ′ k(θ′, θ )
+
+i
+
+,
+
+(13) where k(θ, θ ′) is a user-defined positive-definite kernel, e.g. ,the radial basis function k(θ, θ ′) = exp   −1 
+
+> h
+
+∥θ − θ′∥2, and 
+
+∇θ′ log p(θ′|y1: t) is the gradient of the log-posterior evaluated at θ′
+
+. In (13), the first term drives the particles toward regions of high posterior probability, while the second term introduces repulsion to maintain particle spread, preventing all particle to collapse into local modes of the posterior. This automatically balances particle exploration with concentration in high-density areas. It can be proved that ϕ∗ 
+
+> q,p
+
+in (13) is the optimal perturbation direction that gives the steepest descent on the KL divergence between proposal and target posterior. The result is formally stated in the following lemma from [16]. 
+
+Lemma 1. Consider the transformation in (12) : Tϵϕ (θ) = θ +
+
+ϵϕ (θ) and transformed particles z = Tϵϕ (θ) with θ ∼ q(θ). Let 
+
+q[Tϵϕ ](z) denote the probability density of the particles after this transformation 3. Then at the population limit ( N → ∞ ), the perturbation direction ϕ∗ 
+
+> q,p
+
+in (13) is, 
+
+ϕ∗ 
+
+> q,p
+
+= arg max 
+
+> ϕ∈H ,∥ϕ∥H≤1
+
+n
+
+−∇ ϵKL( q[Tϵϕ ] ∥ p) ϵ=0 
+
+o
+
+, (14) 
+
+i.e., ϕ∗ 
+
+> q,p
+
+is the direction of the steepest descent that maximizes the negative gradient of the KL term.                                
+
+> 2The RKHS of a positive definite kernel k(x, x ′)is the closure of the linear span {f:f(x) = Pmi=1 aik(x, x i), a i∈R}, equipped with inner products
+> ⟨f, g ⟩H=P
+> ij aibjk(xi, x j)for g(x) = P
+> ibik(x, x i).
+> 3The density for z=T(θ)is q[T](z) = q(T−1(z)) · | det(( ∇zT−1(z)) |.5
+
+We refer the reader to [16, Theorem 3.1, Lemma 3.2] for details and proofs. Lemma 1 states that the optimal perturbation direction 
+
+ϕ∗ 
+
+> q,p
+
+maximally decreases the KL divergence between the transformed proposal q after the infinitesimal transformation of the particles θ 7 → θ + ϵϕ (θ) and the target posterior p. This result allows for an iterative procedure that transforms initial proposal q0(θ) towards the target p(θ): starting from applying the transform T0(θ) = θ + ϵϕ ∗ 
+
+> q0,p
+
+on q0 decreases the KL divergence. This would give a new distribution q1, on which again applying the transformation T1(θ) = θ + ϵϕ ∗ 
+
+> q1,p
+
+would further decrease the KL divergence. Repeating this process results in a sequence of distributions {qm}Mm=1 between q0
+
+and p via Tm(θ) = θ + ϵϕ ∗
+
+> qm,p
+
+(θ) for m = 1, . . . , M .The following proposition establishes that, under standard smoothness assumptions, each SVGD step decreases the KL divergence to the target posterior for sufficiently small step sizes. 
+
+Proposition 1. Assume that target distribution πt(θ) =
+
+p(θt|y1: t) at time t is twice continuously differentiable with bounded Hessian and that the SVGD kernel k(θt, θ ′
+
+> t
+
+) is bounded and smooth. Consider a sequence of proposal dis-tributions {qt,m }m≥0 where qt,m denotes the proposal distri-bution at time t for the m-th iteration. Then at the population limit ( N → ∞ ), when qt,m −1̸ = πt, there exists ϵ0 > 0, such that for all step sizes ϵ : 0 < ϵ < ϵ 0,
+
+KL( qt,m ∥ πt) < KL( qt,m −1 ∥ πt) . (15) We refer to Appendix A for the proof of Proposition 1. The result in Proposition 1 allows to formulate the following iterative update of the particles at time t,
+
+θ(i) 
+
+> t,m
+
+= θ(i) 
+
+> t,m −1
+
++ ϵ ˆϕ∗(θ(i)
+
+> t,m −1
+
+), (16) where θ(i) 
+
+> t,m
+
+denotes the i-th particle at iteration m, at time t
+
+and ˆϕ∗(·) is an empirical approximation of the perturbation direction in (13), computed based on averages taken over N
+
+particles as follows, 
+
+ˆϕ∗(θ) = 1
+
+N
+
+> N
+
+X
+
+> j=1
+
+k(θ(j)
+
+> t,m
+
+, θ ) ∇θ(j)
+
+> t,m
+
+log p(θ(j)
+
+> t,m
+
+|y1: t)+ ∇θ(j)
+
+> t,m
+
+k(θ(j)
+
+> t,m
+
+, θ ). (17) Note that the target posterior is unknown due to its in-tractable normalization constant, however, as the gradient of the log-posterior is unaffected by additive constants, 
+
+∇θ(j)
+
+> t,m
+
+log p(θ(j)
+
+> t,m
+
+|y1: t) in (17) can be computed directly from the unnormalized posterior as follows 4,
+
+∇θ log p(θ|y1: t) = ∇θ log p(yt|θ, y 1: t−1)+ ∇θ log p(θ|y1: t−1),
+
+where the first term p(yt|θ, y 1: t−1) is the marginal likelihood computed from the Kalman filter iterations as in (10b), and the second term is the gradient of the log-posterior computed at the previous time step t − 1. Thus, at the next SVGD iteration   
+
+> 4dropping the time and iteration index t, m for brevity
+
+m, the particles are updated via the empirical version of the de-terministic transformation Tm(θ(i)
+
+> t,m
+
+) := θ(i) 
+
+> t,m −1
+
++ ϵ ˆϕ⋆(θ(i)
+
+> t,m −1
+
+)
+
+as in (16) with perturbation direction as in (17). We now integrate the SVGD in our Rao-Blackwellization framework to approximate the joint posterior p(xt, θ t|y1: t).The iterative algorithm is referred to as Rao-Blackwellized Stein Gradient Descent (RBSGD). The RBSGD procedure at time step t is summarized in Algorithm 2. In the RBSGD Algorithm 2, at each time step, the conditional state mean and covariance are first updated via the EKF, followed by a deterministic SVGD update of the parameter particles for M
+
+iterations. In particular, in the Kalman prediction and update steps state mean and covariance ˆxt|t, P t|t are computed. Next, starting from the particle intialization θ(i) 
+
+> t−1
+
+obtained at t − 1,the particles {θ(i) 
+
+> t
+
+}Ni=1 are iteratively updated according to the SVGD transformation (16) for M iterations, where the perturbation direction ˆϕ∗ depends on the gradient of the log-likelihood of the Kalman filter as in (10b) and a user-chosen kernel function k(θ, θ ′). For each particle, the conditional state distribution p(x(i) 
+
+> t
+
+|θ(i) 
+
+> t
+
+, y 1: t) is computed analytically as in (4) using an EKF. Consequently, the RBSGD maintains the Rao–Blackwellized decomposition, but replaces the stochastic propagation of parameters with a deterministic SVGD-based update, thereby eliminating the need for manual tuning of Σθ
+
+in (5). The resulting algorithm combines the analytical effi-ciency of Kalman filtering with the deterministic convergence properties of SVGD, offering improved sample efficiency and stability in tracking time-varying parameters. 
+
+Algorithm 2 Rao–Blackwellized Stein Gradient Descent Filter 
+
+Require: Measurement yt, State mean and covariance 
+
+{ˆx(i)
+
+> t−1|t−1
+
+, P (i)
+
+> t−1|t−1
+
+}Ni=1 , previous particles {θ(i)
+
+> t−1
+
+}Ni=1 , RBF kernel k(θ, θ ′), SVGD step size ϵ > 0
+
+for i = 1 to N do Kalman Prediction: ˆx(i)
+
+> t|t−1
+
+, P (i) 
+
+> t|t−1
+
+using (6) 
+
+Kalman Update: ˆx(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+using (9) 
+
+Particle Update: 
+
+θ(i) 
+
+> t, 0
+
+← θ(i)
+
+> t−1
+
+, i = 1 , . . . , N 
+
+for m = 1 to M do 
+
+θ(i) 
+
+> t,m
+
+← θ(i) 
+
+> t,m −1
+
++ ϵ ϕ ∗(θ(i)
+
+> t,m −1
+
+) using (16)-(17) 5
+
+end for 
+
+θ(i) 
+
+> t
+
+← θ(i)
+
+> t,M
+
+end for return {ˆx(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+, θ (i) 
+
+> t
+
+}Ni=1 
+
+B. Rao–Blackwellized Fisher Stein Gradient Descent Filter 
+
+While the RBSGD filter mitigates particle degeneracy and enhances stability by eliminating the dependence on the proposals with deterministic SVGD updates, its first-order 
+
+optimization dynamics (16) may be slow or poorly conditioned when the posterior exhibits strong curvature or parameter cor-relations. To address this, we introduce the Rao–Blackwellized  
+
+> 5Parameter update can be optionally done with an adaptive step size ϵ
+> provided by the Adam algorithm. 6
+
+Fisher Stein Gradient Descent (RBFSGD) filter, which incor-porates second-order information via the Fisher Information Matrix (FIM). Similar to natural-gradient and Fisher-based optimization methods [20], [21], RBFSGD uses the FIM as a positive semi-definite curvature approximation of the log-likelihood, preconditioning gradient directions to achieve better-conditioned, directionally informed updates without the computational cost of full Hessian evaluation [23]–[25]. In FSGD, the SVGD particle update in (16) is modified by incorporating second-order information as follows [21], 
+
+θ(i) 
+
+> t,m
+
+= θ(i) 
+
+> t,m −1
+
++ ϵF(θ(i)
+
+> t,m −1
+
+) ˆϕ∗(θ(i)
+
+> t,m −1
+
+) (18) where F(θ) ∈ Rnθ ×nθ is the symmetric positive semi-definite FIM with respect to the parameters θ, defined based on the marginal likelihood as follows, 
+
+F(θ) = Eyt∼p(yt|θ,y 1: t−1)
+
+h
+
+∇θ log p(yt|θ, y 1: t−1)
+
+×  ∇θ log p(yt | θ, y 1: t−1)⊤i
+
+, (19) In practice, the expectation in (19) is generally intractable, thus it is approximated empirically using the available particles θ(i)
+
+as, 
+
+bFlik = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+∇θ(i) log p(yt|θ(i), y 1: t−1; ˆ x(i)
+
+> t|t−1
+
+, S (i) 
+
+> t
+
+)
+
+×  ∇θ(i) log p(yt|θ(i), y 1: t−1; ˆ x(i)
+
+> t|t−1
+
+, S (i) 
+
+> t
+
+)⊤.
+
+(20) where bFlik captures the local curvature of the Gaussian log-likelihood of the Kalman filter in (10b) with respect to the parameters. Further, the empirical FIM in (20) is employed to construct the Fisher-informed RBF kernel kF (θ, θ ′) as follows, 
+
+kF (θ(i), θ (j)) = exp 
+
+
+
+− 1
+
+h (θ(i)−θ(j))⊤ bFlik (θ(i)−θ(j))
+
+
+
+, (21) which, in turn, is employed in the computation of the pertur-bation direction ˆϕ∗(θ) in the FSGD update (18). With respect to the RBF kernel k(θ, θ ′) used in SVGD, the Fisher-informed kernel kF (θ(i), θ (j)) in (21) accounts for the anisotropic pa-rameter sensitivities by adapting the similarity metric between particles according to local curvature. Similar to Flik in (20), an empirical FIM can be defined using the SVGD perturbation direction as follows, 
+
+bFsvgd = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ˆϕ∗(θ(i)) ˆϕ∗(θ(i))⊤, (22) where ˆϕ∗(θ(i)) is the update direction expressed as in (17), replacing the RBF with the Fisher-informed RBF given in (21). We now present FSGD algorithm for parameter updates incorporating Fisher information matrices (20)-(22). The pa-rameter particles are updated using a Fisher-preconditioned variant of the Adam optimizer, known as Fisher–Adam [21]. The iterative update for particle θ(i) at the m-th iteration at time t is given by, 
+
+θ(i) 
+
+> t,m
+
+= θ(i) 
+
+> t,m −1
+
++ ϵ (l(i)
+
+> t,m
+
+)−1 ˆg(i)
+
+> t,m
+
+, (23) where ϵ is the step size, and the auxiliary variables lt,m , ˆgt,m 
+
+evolve according to the following update rules: 
+
+g(i) 
+
+> t,m
+
+= β1g(i) 
+
+> t,m −1
+
++ (1 − β1) ˆϕ∗(θ(i)
+
+> t,m −1
+
+), (24a) 
+
+v(i) 
+
+> t,m
+
+= β2v(i) 
+
+> t,m −1
+
++ (1 − β2) bFsvgd , (24b) 
+
+ˆg(i) 
+
+> t,m
+
+= g(i)
+
+> t,m
+
+1 − β1m , (24c) 
+
+ˆv(i) 
+
+> t,m
+
+= v(i)
+
+> m
+
+1 − β2m , (24d) 
+
+l(i)
+
+> t,m
+
+l(i)⊤ 
+
+> t,m
+
+= ˆ v(i)
+
+> t,m
+
+. (24e) Here, g(i) 
+
+> t,m
+
+and v(i) 
+
+> t,m
+
+denote the first and second moment esti-mates of the parameter θ(i)
+
+> t,m
+
+, respectively, and ˆg(i) 
+
+> m
+
+and ˆv(i) 
+
+> m
+
+are their bias-corrected counterparts. The term l(i) 
+
+> t,m
+
+is the Cholesky factor of ˆv(i)
+
+> t,m
+
+. The parameters β1 and β2 are exponential decay rates (typically set to β1 = 0 .9 and β2 = 0 .999 ), ϕ∗(θ(i)) is the FSGD update direction as in (17) with fisher-informed kernel in (21), and bFsvgd is the empirical FIM computed as in (22). This formulation allows the parameter updates to incorporate local curvature information efficiently, improving convergence and stability compared to standard first-order SVGD updates (16). As in RBSGD, we integrate the FSGD particle update (23) in the Rao-Blackwellized framework. The resulting RBFSGD procedure at time t is summarized in Algorithm 3. At each time step t, the conditional state mean ˆxt|t and covariance Pt|t
+
+are first updated via the Kalman filter, followed by calculation of the FIMs (20)–(22). Finally, the parameters are updated by taking M Fisher–Adam steps as in (23). 
+
+Algorithm 3 Rao–Blackwellized Fisher Stein Gradient De-scent Filter 
+
+Require: Measurement yt, EKF mean state and covariance {ˆx(i)
+
+> t−1|t−1
+
+, P (i)
+
+> t−1|t−1
+
+}Ni=1 , particles {θ(i)
+
+> t−1
+
+}Ni=1 ,Fisher informed kernel kF (·, ·), step size ϵ
+
+for i = 1 to N do Kalman Predict ˆx(i)
+
+> t|t−1
+
+, P (i) 
+
+> t|t−1
+
+via (6) 
+
+Kalman Update ˆx(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+via (9) 
+
+end for Compute bFlik and bFsvgd using (20) and (22) 
+
+Particle Update: 
+
+θ(i) 
+
+> t, 0
+
+← θ(i)
+
+> t−1
+
+, i = 1 , . . . , N 
+
+for i = 1 to N do for m = 1 to M do 
+
+Update θ(i) 
+
+> t,m
+
+using Fisher–Adam step (23) 
+
+end for 
+
+θ(i) 
+
+> t
+
+← θ(i)
+
+> t,M
+
+end for return {ˆx(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+, θ (i) 
+
+> t
+
+}Ni=1 
+
+V. T HEORETICAL BOUNDS ON POSTERIOR 
+
+APPROXIMATION ERROR 
+
+Once the joint posterior is approximated with RBSGD or RBFSGD algorithms, we can compute the marginal state pos-terior. In this section, we derive bounds on the approximation 7
+
+error in the marginal state posterior due to the approximate parameter posterior. As in the RBPF (11), we can obtain an approximation of the joint posterior with RBSGD and RBFSGD filters as, 
+
+˜p(xt, θ t|y1: t) = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+δθ(i)
+
+> t
+
+(θt)N (xt; ˆ x(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+), (25) where {θ(i) 
+
+> t
+
+}Ni=1 are the particles (with equal weights 1 
+
+> N
+
+) deter-ministically transported towards the target posterior p(θt|y1: t).From (25) we can compute the marginal state posterior approximation by integrating out the particles, 
+
+˜p(xt | y1: t) = 
+
+> N
+
+X
+
+> i=1
+
+˜p(xt, θ (i) 
+
+> t
+
+|y1: t) = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+N xt; ˆ x(i) 
+
+> t|t
+
+, P (i)
+
+> t|t
+
+,
+
+(26) as δθ(i)
+
+> t
+
+(θ(i)) = 1 and 0 otherwise. 
+
+Remark 1. The representation in (26) highlights a key ad-vantage of the RBSGD/RBFSGD framework: the marginal approximated state posterior is a Gaussian mixture , in contrast to augmented EKF approaches, which impose a Gaussian ap-proximation on the joint state–parameter vector and thus force the marginal state posterior to remain Gaussian. The mixture form in (26) naturally captures multi-modality, skewness, and other nonlinear effects induced by parameter uncertainty, re-sulting in a more expressive and often more accurate posterior representation. 
+
+Remark 2 (MAP estimates) . The joint posterior can also be used to compute the maximum a-posterioiri (MAP) estimates 
+
+xMAP  
+
+> t
+
+, θ MAP  
+
+> t
+
+as, 
+
+xMAP , θ MAP = arg max 
+
+> xt,θ t
+
+˜p(xt, θ t|y1: t)= arg max  
+
+> xt,{θ(i)
+> t}Ni=1
+
+N (xt; ˆ x(i) 
+
+> t|t
+
+, P (i) 
+
+> t|t
+
+).
+
+To assess the reliability of the approximated posteriors with the particle methods, in this section, we establish a bound on how the approximation error in the parameter posterior affects the resulting state estimates. The following Proposition formalizes the result by relating the KL divergence between the true and approximate parameter posteriors to the total variation distance between the corresponding marginal state posteriors. 
+
+Proposition 2. Let πt(θ) = p(θt|y1: t) denote the true param-eter posterior and let qt(θ) be its SGD/FSGD based particle approximation at time t. Let p(xt|y1: t) and ˜p(xt|y1: t) denote the true and approximate marginal state posteriors, obtained by marginalizing the joint posterior p(xt, θ t|y1: t), over πt and 
+
+qt, respectively. Then, 
+
+∥p(xt|y1: t) − ˜p(xt|y1: t)∥1 ≤
+
+q
+
+2KL  qt(θ) ∥ πt(θ), (27) 
+
+where ∥ · ∥ 1 denotes the L1 norm on the measurable space. Proof. By definition we have, 
+
+p(xt|y1: t) = 
+
+Z
+
+p(xt|θ, y 1: t) πt(θ) dθ, 
+
+˜p(xt|y1: t) = 
+
+Z
+
+p(xt|θ, y 1: t) qt(θ) dθ, 
+
+and the L1 distance between the marginals is, 
+
+∥p(xt | y1: t) − ˜p(xt | y1: t)∥1 =
+
+Z Z
+
+p(xt | θ, y 1: t) [ πt(θ) − qt(θ)] dθ dx t.
+
+Applying the triangle inequality in the integral above yields, 
+
+∥p(xt | y1: t) − ˜p(xt | y1: t)∥1 ≤
+
+Z Z
+
+p(xt | θ, y 1: t)[ πt(θ) − qt(θ)] dθ dx t.
+
+(28) The integrand on the right-hand side in (28) is nonnegative, thus we can exchange the order of integration: 
+
+Z Z
+
+p(xt|θ, y 1: t)[ πt(θ) − qt(θ)] dθ dx t
+
+=
+
+Z  Z
+
+p(xt | θ, y 1: t) dx t
+
+
+
+|πt(θ) − qt(θ)| dθ 
+
+=
+
+Z
+
+|πt(θ) − qt(θ)| dθ, (29) as p(xt|θ, y 1: t) is a probability density in xt for a fixed θ, it integrates to one. Combining (29) with (28) yields, 
+
+∥p(xt|y1: t) − ˜p(xt|y1: t)∥1 ≤ ∥ πt(θ) − qt(θ)∥1. (30) Finally, Pinsker’s inequality [26] relates the L1 norm and the KL divergence as follows, 
+
+∥πt(θ) − qt(θ)∥1 ≤ p2 KL( qt(θ)∥πt(θ)) .
+
+Combining the above inequality with (30), we obtain, 
+
+∥p(xt|y1: t) − ˜p(xt|y1: t)∥1 ≤
+
+q
+
+2KL  qt(θ) ∥ πt(θ).
+
+Proposition 2 provides a theoretical guarantee on the fidelity of the proposed SVGD-based parameter inference: if the divergence between the approximate and true parameter pos-teriors is small, then the corresponding marginal state estimate remains close in total variation. Combining the error bound from Proposition 2 with Propo-sition 1 allows us to establish that sufficiently large number of SVGD iterations M , with sufficiently small step-sizes ϵ,monotonically tighten the upper bound on the total variation distance between the true and approximate marginal state posteriors. The following proposition formalizes this result. 
+
+Proposition 3. Let πt(θ) = p(θt|y1: t) denote the true param-eter posterior and let {qt,m }m≥0 be the sequence of proposal with SVGD iterates produced with a stepsize 0 < ϵ ≤ ϵ0
+
+as in Proposition 1 at time t. Let p(xt|y1: t) be the true marginal state posterior and let ˜pm(xt|y1: t) be the approx-imated marginal state posterior obtained by integrating w.r.t. 
+
+qt,m . Then at the population limit ( N → ∞ ), for all m ≥ 0,
+
+p(xt|y1: t) − ˜pm(xt|y1: t) 1 ≤
+
+q
+
+2KL( qt,m ∥ πt)
+
+<
+
+q
+
+2KL( qt,m −1 ∥ πt).
+
+Thus, each SVGD update with 0 < ϵ ≤ ϵ0 strictly reduces the upper bound on the L1 error of the approximate state marginal unless qt,m = πt.Proof. The proof straightforwardly follows from applying Proposition 1 to Proposition 2. 8
+
+Proposition 3 shows that the refinement of the parameter posterior via SVGD directly improves the theoretical upper bound on the resulting state approximation error. Hence, under sufficiently small stepsizes, repeated SVGD updates jointly tighten the parameter and state posteriors in a monotone manner. 
+
+Remark 3. Although the practical SVGD implementation is based on a finite set of N particles, the theoretical analysis in Propositions 1–2, and Proposition 3, is carried out in asymp-totically, assuming N → ∞ . In this regime, the particle system is interpreted as an empirical approximation to an underlying smooth density qt, which evolves under the deterministic trans-port map θ 7 → θ + ϵϕ (θ). This viewpoint is standard in SVGD theory (see, e.g., [16], [27]). The particle-based algorithm therefore serves as a finite-dimensional discretization of the mean-field SVGD dynamics analysed here. VI. C ASE STUDIES 
+
+In this section, we evaluate the performance of the proposed filtering algorithms on two case studies. The first one considers a nonlinear batch bioreactor process, highlighting the proposed filtering algorithm’s capability to handle time-varying nonlin-earities and process uncertainties. In the second case study, we consider the problem of online training of a neural network to learn unknown dynamics of a nonlinear system. 
+
+A. Batch Bioreactor System 
+
+In this case study, we consider a nonlinear batch bioreactor model, commonly used to describe microbial fermentation processes. The reactor dynamics is governed by three state variables: biomass concentration Xt, substrate concentration 
+
+St, and product concentration Pt. The continuous-time model of the system is obtained via mass balance equations (see [28]) and is described by: 
+
+dX t
+
+dt = μ(St, η t)Xt, (31a) 
+
+dS t
+
+dt = − 1
+
+Yxs 
+
+μ(St, η t)Xt, (31b) 
+
+dP t
+
+dt = Ypx μ(St, η t)Xt, (31c) where μ(St, η t) denotes the specific growth rate, Yxs is the yield coefficient of biomass on substrate, Ypx is the yield coefficient of product on biomass, and ηt is the mixing efficiency parameter. The specific growth rate μ(St, η t) follows the Haldane kinetics model, which accounts for substrate inhibition and dissolved oxygen effects: 
+
+μ(St, η t) = μmax 
+
+St
+
+Ks + St + S2
+
+> t
+> Ki
+
+ηt, (32) where μmax is the maximum growth rate, Ks and Ki are the half-saturation and inhibition constants, respectively. The mixing efficiency parameter ηt is modeled as a stochas-tic, time-varying variable to capture gradual changes in reactor                                 
+
+> TABLE I MODEL AND SIMULATION PARAMETERS FOR THE BATCH BIOREACTOR SYSTEM .
+> Parameter Symbol Value
+> Maximum specific growth rate μmax 0.4h−1
+> Half-saturation constant Ks0.1
+> Inhibition constant Ki10 .0
+> Yield coefficient (biomass/substrate) Yxs 0.5
+> Yield coefficient (product/biomass) Ypx 0.6
+> Initial mixing efficiency η01.0
+> Final mixing efficiency ηf0.6
+> Sigmoid slope α0.05
+> Sigmoid shift β5.0
+> Process noise covariance Q1×10 −6I3
+> Measurement noise covariance R1×10 −6
+> Sampling period ts0.2h
+
+performance, such as varying oxygen transfer or mixing con-ditions. Its evolution over time is described by, 
+
+ηt ∼ N (μη,t , σ 2 
+
+> η
+
+), μ η,t = (1 − σ(αt − β)) η0 + σ(αt − β)ηf ,
+
+(33) where σ(·) denotes the sigmoid function, η0 and ηf define the initial and final expected efficiency values, and (α, β ) control the transition rate and timing of the change, respectively. The model parameters and simulation settings used in this study are summarized in Table I. The continuous-time model (31) is discretized using afourth-order Runge–Kutta (RK4) method, and process and measurement noise terms are incorporated to yield the discrete-time state–space representation consistent with (1). The objective of this case study is to jointly estimate the system states xt = [ Xt St Pt]⊤ ∈ R3 and the time-varying mixing efficiency parameter θt = ηt ∈ R from noisy measurements of the product concentration yt = Pt ∈ R. The performance of the proposed RBSGD and RBFSGD filters is benchmarked against an Extended Kalman Filter (EKF) and a Rao–Blackwellized Particle Filter (RBPF) (Algorithm 1). The RBSGD and RBFSGD filters employs N = 5 particles, each performing a single Fisher–Adam update ( M = 1 ) per time step with a step size ϵ = 0 .001 . For fair comparison, the RBPF is also implemented with 5 particles, and the parameter covariance Σθ is tuned empirically via trial and error. All of the filters considered are initialized with the same parameter estimates, state means and covariances. The filters’ performances are assessed using the Continuous Ranked Probability Score (CRPS), which provides a scoring rule for evaluating the accuracy of probabilistic estimates. For a scalar measurement y and a predicted cumulative distribution function (CDF) F , the CRPS is defined as 
+
+CRPS( F, y ) = 
+
+Z ∞−∞ 
+
+ F (z) − I{z ≥ y}2 dz, (34) where I{·} denotes the indicator function. Lower CRPS values indicate more accurate predictive distribution. The CRPS for Gaussian (EKF) and Gaussian–mixture (proposed filters) pos-terior predictive distributions can be computed using closed-form expressions. 9
+
+Figure 1 compares the performance of the proposed RB-SGD, RBFSGD filters with the EKF and RBPF in estimating the reactor states Xt and St. The estimated product concen-tration Pt is not reported as it is considered as a measured state. The proposed filters demonstrate superior tracking per-formance in terms of CRPS, with tighter uncertainty bounds. Figure 2 illustrates the estimated mixing efficiency ηt, where the proposed methods accurately captures the time-varying transition while maintaining lower estimation variance com-pared to the RBPF. To evaluate the impact of incorporating Fisher information into the proposed algorithm, a Monte Carlo study was per-formed using 50 independent realizations of the stochastic parameter ηt. Figure 3 illustrates the comparative performance of the RBFSGD, RBSGD, and RBPF filters in terms of CRPS. The results show that both SVGD–based methods outperform the RBPF baseline, achieving lower CRPS values. Further-more, the Fisher-informed variant of the proposed filter (RBF-SGD) outperforms its non-informed counterpart (RBSGD), demonstrating the benefits of incorporating Fisher information for improved gradient scaling and uncertainty calibration. For fair comparison, identical hyperparameter settings were used for the RBFSGD and RBSGD filters. 
+
+B. Online training of neural networks 
+
+In the second case study, we consider a three-state nonlinear dynamical system governed by 
+
+dx t, 1
+
+dt = xt, 2, (35a) 
+
+dx t, 2
+
+dt = xt, 3, (35b) 
+
+dx t, 3
+
+dt = −2xt, 1 − 3xt, 2 − 4xt, 3 + ut + fnl (xt, 1, x t, 2, x t, 3),
+
+(35c) where the nonlinear term fnl is defined as 
+
+fnl (xt, 1, x t, 2, x t, 3) = xt, 1ext, 3 +0 .2 sin( xt, 2xt, 3)+ xt, 3 +xt, 2.
+
+(35d) Only the state xt, 1 is assumed to be measurable. The equations (35) are discretized using RK4 scheme with sampling time ts = 0 .01 , and additive process noise ( Qt =1 × 10 −4I3) and measurement noise ( Rt = 0 .1) are included to account for model uncertainties and sensor noise. The objective of this benchmark is to jointly estimate the system states (xt, 1, x t, 2, x t, 3), the measurement noise covari-ance Rt, and the parameters of a neural network that approx-imates the nonlinear mapping fnl from the noisy observations of xt, 1. The neural network comprises two hidden layers with four neurons each, using hyperbolic tangent ( tanh ) activations, resulting in a total of 42 trainable parameters θt.Online learning of the neural network parameters is achieved using the proposed RBFSGD filter. The parameter posterior is represented by N = 10 particles, each updated through M = 15 Fisher–Adam steps (Algorithm 3) at every time instance with the step size of ϵ = 2 × 10 −2. For comparison, an Extended Kalman Filter (EKF), in which fnl is considered as a part of the process noise, is also implemented as a baseline. All of the filters considered are initialized with the same parameter estimates. Figure 4 depicts the state estimation results. The proposed RBFSGD filter exhibits better tracking accuracy (in terms of CRPS) compared to the EKF, as the nonliner term fnl 
+
+is progressively learned by the RBFSGD filter from the measurement data. Figure 5 presents the performance of the trained neural network, trained online by RBFSGD filter, in estimating 
+
+fnl (xt, 1, x t, 2, x t, 3) along with the filter performance in esti-mating the noise measurement covariance Rt. The filter is able to track the trend in the variation of fnl and also to approximate the true value of the covariance Rt.VII. C ONCLUSION 
+
+This work introduced a Rao–Blackwellized filtering frame-work that integrates deterministic SVGD updates for online Bayesian parameter inference with Kalman-based state esti-mation. The resulting RBSGD and RBFSGD filters enable efficient joint state–parameter estimation in nonlinear, time-varying systems, without requiring manual tuning of pro-posal distributions. We established a theoretical bound linking the divergence between the true and approximate parameter posteriors to the total variation error in the marginal state distribution, providing a basic consistency guarantee for the proposed approximation. Two case studies demonstrated that the filters outperform classical EKF and RBPF benchmarks in terms of tracking accuracy and parameter identification, while yielding more expressive posterior representations. Future research will investigate the integration of the es-timated state–parameter distributions into probabilistic and robust control schemes. APPENDIX 
+
+A. Proof of Proposition 1 
+
+The proof is based on the SVGD contraction argument from [16, Theorem 3.1, Lemma 3.2]. For brevity, in this proof, we drop the time index t and only consider the iteration index m. Recall that qm is the dis-tribution associated with updated parameters θ(i) 
+
+> m
+
+transported via θ(i) 
+
+> m
+
+= θ(i) 
+
+> m−1
+
++ ϵϕ ∗
+
+> qm−1,p
+
+(θ(i)
+
+> m−1
+
+). Thus, for a given set of parameters {θ(i)
+
+> m−1
+
+}Ni=1 , we can view qm as a function of ϵ and let us denote it as qm(ϵ). Consequently, we note that the proposal at the previous step is qm−1 = qm(0) . A second-order Taylor expansion of the KL divergence under smoothness assumptions yields, 
+
+KL( qm(ϵ)∥π) =KL( qm−1∥π) + ϵ ddϵ KL( qm(ϵ)∥π)
+
+> ϵ=0
+
++ ϵ2
+
+2
+
+d2
+
+dϵ 2 KL( qm(ϵ)∥π)
+
+> ϵ=ξ
+
+, (36) for some 0 ≤ ξ ≤ ϵ.Following [16, Lemma 3.2], at the population limit ( N →∞), the first derivative equals 
+
+ddϵ KL( qm(ϵ)∥π)
+
+> ϵ=0
+
+= −D(qm−1∥π)2, (37) 10 
+
+Fig. 1. State estimation performance: true states (dotted black), filter means (solid lines) and 95% confidence intervals (shaded areas). State Xt (top panels) and St (bottom panels). 
+
+Fig. 2. Mixing efficiency estimation: true ηt (dotted black), filter means (solid lines) and uncertainty (shaded areas). 
+
+where D(qm−1∥π)2 is the Kernel Stein Discrepancy. Thus, when qm−1̸ = π, we can define Bm−1 > 0 as the following: 
+
+Bm−1 := D(qm−1∥π)2 (38) Boundedness of the Hessian of log π and smoothness of the kernel k ensure the second derivative in (36) is uniformly bounded by a constant C < ∞. Thus via (36), (37), and (38), we have 
+
+KL( qm(ϵ)∥π) ≤ KL( qm−1∥π) − ϵB m−1 + ϵ2
+
+2 C, (39) 
+
+Fig. 3. Filter performance on the Monte Carlo study: The left panel shows the log-scaled CRPS comparison for the RBFSGD filter, RBSGD filter, and RBPF across 50 independent realizations of ηt. The right panel shows the zoomed-in boxplot from the left panel for RBFSGD and RBSGD. 
+
+Finally, by choosing ϵ < ϵ 0 = 2Bm−1 
+
+> C
+
+, we obtain (15). This completes the proof. REFERENCES [1] Y. Huang, Y. Zhang, Z. Wu, N. Li, and J. Chambers, “A novel adaptive Kalman filter with inaccurate process and measurement noise covariance matrices,” IEEE Transactions on Automatic Control , vol. 63, no. 2, pp. 594–601, 2017. [2] S. S¨ arkk¨ a and L. Svensson, Bayesian filtering and smoothing , vol. 17. Cambridge University Press, 2023. [3] R. Van Der Merwe and E. A. Wan, “The square-root unscented Kalman filter for state and parameter-estimation,” in 2001 IEEE International Conference on Acoustics, Speech, and Signal Processing. , vol. 6, pp. 3461–3464, IEEE, 2001. [4] Q. Ge, T. Shao, Z. Duan, and C. Wen, “Performance analysis of the Kalman filter with mismatched noise covariances,” IEEE Transactions on Automatic Control , vol. 61, no. 12, pp. 4014–4019, 2016. [5] B. J. Odelson, M. R. Rajamani, and J. B. Rawlings, “A new autocovari-ance least-squares method for estimating noise covariances,” Automatica ,vol. 42, no. 2, pp. 303–308, 2006. [6] M. Karasalo and X. Hu, “An optimization approach to adaptive Kalman filtering,” Automatica , vol. 47, no. 8, pp. 1785–1793, 2011. 11 
+
+Fig. 4. State estimation performance: true states (dotted black), RBFSGD filter mean (solid green) and uncertainty (shaded green), EKF mean (solid orange) and uncertainty (shaded orange). 
+
+Fig. 5. Parameter estimation performance for the nonlinear system: true pa-rameter (dotted black), RBFSGD filter mean estimate (solid green), estimated uncertainty (shaded green) [7] Q. Ge, Y. Li, Y. Wang, X. Hu, H. Li, and C. Sun, “Adaptive Kalman filtering based on model parameter ratios,” IEEE Transactions on Automatic Control , vol. 69, no. 9, pp. 6230–6237, 2024. [8] A. Bemporad, “Recurrent Neural Network Training with Convex Loss and Regularization Functions by Extended Kalman Filtering,” IEEE Transactions on Automatic Control , vol. 67, no. 12, pp. 6330–6345, 2022. [9] E. Archer, I. M. Park, L. Buesing, J. Cunningham, and L. Paninski, “Black box variational inference for state space models,” arXiv preprint arXiv:1511.07367 , 2015. [10] S. S. J. Hartikainen, “Variational Bayesian adaptation of noise covari-ances in non-linear Kalman filtering,” arXiv preprint arXiv:1302.0681 ,2013. [11] M. S. Arulampalam, S. Maskell, N. Gordon, and T. Clapp, “A tutorial on particle filters for online nonlinear/non-Gaussian Bayesian tracking,” 
+
+IEEE Transactions on Signal Processing , vol. 50, no. 2, pp. 174–188, 2002. [12] K. Murphy and S. Russell, “Rao-Blackwellised particle filtering for dynamic Bayesian networks,” in Sequential Monte Carlo methods in practice , pp. 499–515, Springer, 2001. [13] M. Mejari and D. Piga, “Maximum-A-Posteriori Estimation of Linear Time-Invariant State-Space Models via Efficient Monte-Carlo Sam-pling,” ASME Letters in Dynamic Systems and Control , vol. 2, no. 1, 2022. [14] T. Schon, F. Gustafsson, and P.-J. Nordlund, “Marginalized particle filters for mixed linear/nonlinear state-space models,” IEEE Transactions on Signal Processing , vol. 53, no. 7, pp. 2279–2289, 2005. [15] T. Badar, S. S¨ arkk¨ a, Z. Zhao, and A. Visala, “Rao–Blackwellized particle filter using noise adaptive Kalman filter for fully mixing state-space models,” IEEE Transactions on Aerospace and Electronic Systems ,vol. 60, no. 5, pp. 6972–6982, 2024. [16] Q. Liu and D. Wang, “Stein variational gradient descent: A general purpose bayesian inference algorithm,” Advances in Neural Information Processing Systems , vol. 29, 2016. [17] C. Liu and J. Zhu, “Riemannian Stein variational gradient descent for Bayesian inference,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 32, 2018. [18] G. Detommaso, T. Cui, Y. Marzouk, A. Spantini, and R. Scheichl, “A Stein variational Newton method,” Advances in Neural Information Processing Systems , vol. 31, 2018. [19] F. A. Maken, F. Ramos, and L. Ott, “Stein particle filter for nonlinear, non-Gaussian state estimation,” IEEE Robotics and Automation Letters ,vol. 7, no. 2, pp. 5421–5428, 2022. [20] S.-I. Amari, “Natural gradient works efficiently in learning,” Neural Computation , vol. 10, no. 2, pp. 251–276, 1998. [21] D. Hwang, “FAdam: Adam is a natural gradient optimizer using diagonal empirical Fisher information,” arXiv preprint arXiv:2405.12807 , 2024. [22] D. M. Gomes, Y. Zhang, E. Belilovsky, G. Wolf, and M. S. Hosseini, “AdaFisher: Adaptive Second Order Optimization via Fisher Informa-tion,” in 13th International Conference on Learning Representations ,2025. [23] N. N. Schraudolph, “Fast curvature matrix-vector products for second-order gradient descent,” Neural Computation , vol. 14, no. 7, pp. 1723– 1738, 2002. [24] J. Martens, “Deep learning via Hessian-free optimization,” in Proceed-ings of the 27th International Conference on International Conference on Machine Learning , ICML’10, (Madison, WI, USA), p. 735–742, Omnipress, 2010. [25] O. Vinyals and D. Povey, “Krylov subspace descent for deep learning,” in Artificial Intelligence and Statistics , pp. 1261–1268, PMLR, 2012. [26] M. S. Pinsker, “Information and information stability of random vari-ables and processes,” Holden-Day , 1964. [27] A. Korba, P.-C. Aubin-Frankowski, S. Majewski, and P. Ablin, “Kernel Stein discrepancy descent,” in International Conference on Machine Learning , pp. 5719–5730, PMLR, 2021. [28] N. Marcos, M. Guay, D. Dochain, and T. Zhang, “Adaptive extremum-seeking control of a continuous stirred tank bioreactor with Haldane’s Kinetics,” Journal of Process Control , vol. 14, no. 3, pp. 317–328, 2004.

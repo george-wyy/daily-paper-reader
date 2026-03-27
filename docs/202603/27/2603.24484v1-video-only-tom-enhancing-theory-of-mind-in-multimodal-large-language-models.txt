@@ -1,0 +1,526 @@
+Title: Video-Only ToM: Enhancing Theory of Mind in Multimodal Large Language Models
+
+URL Source: https://arxiv.org/pdf/2603.24484v1
+
+Published Time: Thu, 26 Mar 2026 01:21:39 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# Video-Only ToM: Enhancing Theory of Mind in Multimodal Large Language Models 
+
+# Siqi Liu, Xinyang Li, Bochao Zou †, Junbao Zhuo, Huimin Ma, Jiansheng Chen †
+
+# University of Science and Technology Beijing 
+
+{liusq, lxyyy }@xs.ustb.edu.cn, {zoubochao, junbaozhuo, mhmpub, jschen }@ustb.edu.cn 
+
+# Abstract 
+
+As large language models (LLMs) continue to advance, there is increasing interest in their ability to infer human mental states and demonstrate a human-like Theory of Mind (ToM). Most existing ToM evaluations, however, are cen-tered on text-based inputs, while scenarios relying solely on visual information receive far less attention. This leaves a gap, since real-world human–AI interaction typically re-quires multimodal understanding. In addition, many cur-rent methods regard the model as a black box and rarely probe how its internal attention behaves in multiple-choice question answering (QA). The impact of LLM hallucina-tions on such tasks is also underexplored from an inter-pretability perspective. To address these issues, we intro-duce VisionToM, a vision-oriented intervention framework designed to strengthen task-aware reasoning. The core idea is to compute intervention vectors that align visual repre-sentations with the correct semantic targets, thereby steer-ing the model’s attention through different layers of visual features. This guidance reduces the model’s reliance on spurious linguistic priors, leading to more reliable mul-timodal language model (MLLM) outputs and better QA performance. Experiments on the EgoToM benchmark—an egocentric, real-world video dataset for ToM with three multiple-choice QA settings—demonstrate that our method substantially improves the ToM abilities of MLLMs. Fur-thermore, results on an additional open-ended generation task show that VisionToM enables MLLMs to produce free-form explanations that more accurately capture agents’ mental states, pushing machine–human collaboration to-ward greater alignment. 
+
+# 1. Introduction 
+
+Theory of Mind (ToM) refers to the ability to impute men-tal states to self and others, including desires, beliefs, and  
+
+> Project Page: https://founce.github.io/VisionToM
+> †Corresponding authors.
+
+intentions, in order to predict behavior [4]. ToM is an es-sential component of human social intelligence, support-ing complex interactions including communication, coop-eration, empathy, and deception. In humans, ToM typically develops gradually during early childhood through social experience. Over the past few decades, psychologists have developed a range of paradigms to study the development of ToM, such as the false belief task [4, 51], implicit inference paradigms [35], and eye-tracking techniques [43]. These paradigms in-spire machine psychology, which compares AI and human mental-state reasoning on similar tasks [38]. Recent studies offer mixed views on whether LLMs possess ToM abilities. While models like GPT-4 show human-like reasoning in some text-based tasks [44], these abilities are fragile and disrupted by minor input changes or added modalities [48], suggesting reliance on surface patterns rather than interpretable psychological representa-tions. Current evaluations remain limited to text inputs [41], despite real-world ToM relying on multimodal, dynamic perception. Human social cognition unfolds over time in natural settings, indicating that first-person video may offer a more ecologically valid testbed for ToM reasoning [8]. Most multimodal ToM benchmarks rely on simulated en-vironments—such as grid-worlds or controlled 3D scenes [10, 21, 25, 29, 42]—which, despite offering experimental control, lack the perceptual richness of real-world settings. As a result, findings may not generalize to embodied agents operating in natural environments. In contrast, egocentric video provides more ecologically valid scenarios, requir-ing inference from partial, dynamic visual input. Moreover, multimodal large models (MLLMs) are prone to hallucina-tion, generating ungrounded responses in ToM tasks. Some approaches have explored using interpretability techniques to enhance machine ToM capabilities, but these remain lim-ited to the textual modality [60]. To address these limitations, we propose integrating learnable intervention vectors into the model’s attention layers, as illustrated in Figure 1(B). These vectors guide the model to attend to critical visual regions and features, 1    
+
+> arXiv:2603.24484v1 [cs.CV] 25 Mar 2026 Environment
+> Belief
+> Percept
+> Goal
+> Action
+> Inferred
+> Observed
+> (A )ToM Causal Model
+> EgoToM
+> +Question
+
+MLLM    
+
+> (B )MLLMs Visual Reasoning
+> What is C's
+> future goal?
+> ☞
+> VisionToM
+> (incorrect) To prepare
+> the pottery for firing
+> in the kiln.
+> (correct) To finalize
+> and clean up the
+> pottery piece .
+> Attention head
+> intervention
+> before
+> after
+
+Figure 1. (A). ToM Causal Model [30] (B). An overview of our method: MLLMs’ visual reasoning with VisionToM intervention on the EgoToM benchmark. Given an egocentric video and a ToM question (e.g., “What is C’s future goal?”), a MLLM may produce an incorrect answer based on its default attention. VisionToM extracts representations from the MLLM for visual attention and ToM reasoning, identifies attention heads sensitive to visual input and task-specific reasoning, and performs targeted interventions on these heads. This process guides the model toward accurate, goal-consistent inferences aligned with ToM reasoning. 
+
+thereby enhancing reasoning accuracy. Learned in the latent space, the intervention vectors are optimized to serve two primary objectives: enhancing visual attention and guiding ToM reasoning. Our method does not rely on handcrafted prompts or external linguistic annotations, and is compat-ible with arbitrary multi-class tasks, whereas traditional methods only handle binary ToM tasks. Since interven-tion vectors are computed once with the MLLM backbone frozen and reused at inference time, our method demon-strates strong task generalizability. We evaluate three core ToM reasoning tasks in the EgoToM benchmark—goal, belief, and action inference—and observe substantial per-formance gains (see Section 4.4). More experiments in the Supplementary Material further verify transferability. These tasks align closely with the causal reasoning struc-ture underlying cognitive models of ToM (see Section 2.1). In summary, our main contributions are: (1) We pro-vide an interpretable analysis showing that MLLMs ex-hibit cross-task consistency in visual attention across mul-tiple ToM tasks, while their internal ToM reasoning rep-resentations in hidden space diverge across tasks yet re-main coherent within each task. This cross-task consis-tency of visual attention enables its targeted enhancement, and the intra-task uniformity of ToM reasoning internal rep-resentations allows VisionToM to probe task-specific ToM embeddings. (2) We introduce VisionToM, a lightweight backbone-frozen multimodal intervention framework that jointly enhances visual attention and ToM reasoning, re-quires no MLLM fine-tuning, handcrafted prompts, or ex-ternal language annotations, and operates solely on raw video inputs without textual descriptions. (3) We concen-trate on visual reasoning in ToM and on open-ended ques-tion answering performance. On the real-world ToM eval-uation dataset EgoToM, our method significantly enhances MLLMs’ ToM capabilities and demonstrates more accurate natural-language answers to open-ended questions. 
+
+# 2. Related Works 
+
+2.1. Machine Theory of Mind 
+
+2.1.1. Text-Based Machine ToM Evaluation. 
+
+Text-based ToM reasoning has become a crucial direction for evaluating the social intelligence of LLMs. Early stud-ies proposed several datasets to test models’ abilities to in-fer beliefs and intentions from narrative texts. For exam-ple, the ToM Task dataset [34] offers short stories with tar-geted mental state questions, serving as a benchmark for assessing belief and desire inference. Similarly, the GLU-COSE dataset [33] provides narrations annotated with com-monsense knowledge to support evaluation of causal and intentional reasoning capabilities. The Neural Theory-of-Mind (TOMI) dataset [41] further explores the boundaries of LLMs in attributing mental states, indicating that even state-of-the-art models face challenges in maintaining con-sistent and stable ToM reasoning. To enhance ToM abilities, researchers have explored prompt engineering strategies to guide models toward more effective mental state inference [50]. However, the current performance of LLMs remains questionable, often unstable and easily disrupted [22, 49]. 
+
+2.1.2. Theory of Mind Benchmarks for MLLMs. 
+
+Multimodal datasets extend ToM evaluation into richer scenarios involving the fusion of video, image, and lan-guage inputs. These benchmarks typically require the model to observe video segments and answer reason-ing questions related to characters’ intentions, beliefs, or emotions. For instance, the Social-IQ dataset [54] fea-tures YouTube interactions from real-life scenarios, using multiple-choice questions to assess social perception under-standing. Other datasets, such as TVQA [26], PororoQA [23], and MovieQA [46], focus on narrative comprehen-sion in visual media, containing elements of social reason-ing but primarily targeting event understanding rather than 2explicit mental state attribution. Unlike VQA tasks—which involve answering factual or descriptive questions about an image or video—ToM evaluation of MLLMs aims to emu-late human ToM capabilities, focusing on high-level cog-nitive reasoning such as inferring others’ intentions, be-liefs, and knowledge states. This emphasis on causal rea-soning distinguishes ToM tasks from traditional VQA or vision-language alignment tasks and highlights the hallu-cination challenges faced by MLLMs during such reason-ing. Some recent works have begun constructing spe-cialized benchmarks targeting multimodal ToM reasoning. MMToM-QA [21] fills a gap by specifically evaluating mental state inference from multimodal inputs, though its scenarios are limited to single-agent behavior. Muma-ToM introduces a more complex framework for multi-agent, mul-timodal ToM evaluation, incorporating rich social contexts and behavioral trajectories [42]. GridToM [29] proposes a novel benchmark that incorporates diverse belief testing tasks and perceptual information from multiple perspec-tives. However, existing MLLM ToM benchmarks still largely rely on textual input. Models’ performance drops significantly when evaluated under video-only conditions (e.g., EgoToM). Our proposed method, VisionToM, intro-duces a method to enhance ToM ability from a visually dominant perspective. By injecting intervention vectors into the model’s internal representational space to influence at-tention mechanisms, VisionToM significantly boosts rea-soning accuracy and social cognition in video-only settings. 
+
+2.2. Hallucination Phenomena in MLLMs 
+
+Hallucination is a widespread issue in both LLMs and MLLMs. It was initially extensively studied in the context of LLMs, referring to the generation of information that is inconsistent with factual knowledge or is unconstrained by the input context. The causes of such hallucinations are typically linked to the model’s data, training, and inference processes [18]. With the rapid advancement of MLLMs, the hallucination problem becomes even more complex in visual-language tasks. These models integrate visual en-coders with language models and are capable of handling complex tasks such as visual question answering (VQA), video QA, and instruction [12, 27]. Vision-language mod-els such as CLIP [39] and Flamingo [1] jointly model im-age and text, enabling stronger cross-modal representation learning and reasoning across visual and linguistic inputs. However, generative large multimodal models remain sus-ceptible to hallucinations in image description, such as object-existence hallucinations in detailed captioning [55]. Current mitigation strategies are mainly categorized into three types: (1) Data-level optimization, such as pretraining or fine-tuning on high-quality video-text pairs [2, 17, 53]. (2) Architectural enhancements, including the introduction of finer-grained modality alignment mechanisms such as Connection Module Enhancing [7] and Alignment Training Optimization [13, 20, 45, 57]. (3) Interpretability and post-processing techniques, which involve analyzing the model’s behavior for explainability and correcting the outputs at in-ference time [6, 19, 28, 29, 52, 58, 59]. Despite progress, current methods still face limitations when addressing complex reasoning tasks involving ToM. Our proposed approach leverages an explainability-driven post-processing approach, specifically probing and inter-vening in attention heads that are sensitive during visual and ToM reasoning processes in MLLMs to reduce hallu-cinations. Our method significantly improves performance on the EgoToM benchmark, including goal inference, be-lief reasoning, and action inference. Notably, our method is backbone-frozen and applicable to multi-class scenarios. 
+
+# 3. VisionToM 
+
+3.1. Models 
+
+In the probing and intervention stages, we employ the LLaVA-Next-Video [56] and Qwen2.5-VL [3] mod-els—both MLLMs were specifically designed for video un-derstanding and generation tasks. To maintain clarity in our methodological exposition, this subsection focuses primar-ily on the LLaVA-Next-Video model; in Section 4.4 and the Supplementary Material, we further demonstrate that our approach is equally effective when applied to the Qwen2.5-VL model. Figure 2 outlines our method, specifically con-sisting of four parts in Sections 3.2 - 3.5. 
+
+3.2. Extract Internal Representations 
+
+We begin by examining whether and how MLLMs represent different aspects of our tasks, encompassing both visual and textual dimensions. Since our task is primarily a vision-based reasoning problem—with inputs consisting solely of video and text-based questions, and no accompanying tex-tual annotations—our goal is to decompose the visual ToM reasoning task into two components: visual representation and belief representation. We then decode these representa-tions from the activations of attention heads. Specifically, in our task, the visual input comprises video frames, while the textual input consists solely of the posed questions. We intentionally omit any textual annotations both to rigorously assess the visual reasoning capabilities of MLLMs and to minimize textual interference in the infer-ence process. MLLMs begins by projecting its multimodal inputs into high-dimensional representations. Visual inputs 
+
+V = v1, v 2, . . . , v m and textual inputs  X = x1, x 2, . . . , x n
+
+are embedded separately, where  m and  n are their respec-tive token counts. These embeddings are then concatenated into a single sequence  T = concat (V, X ) ∈ R(m+n)×DH 
+
+with  D being the dimensionality per attention head and  H
+
+the total number of heads. This combined input is fed into 3Correct:  
+
+> •C holds the rock, climbs the mountain,
+> and stretches his left arm.
+> N×
+> 𝛿 !
+
++
+
+FFN 
+
++          
+
+> What will C most
+> likely do next? ℎ"
+> ...
+> 𝑥 #=𝑥 +
+> 𝛼 (𝛿 !+𝛿 $(𝑥 ))
+> ℎ%
+> C holds the
+> rock, climbs
+> the mountain,
+> and stretches
+> his left arm.
+> Incorrect:
+> •C examines the ropes, pulls on them,
+> and ties a knot.
+> •C checks the snap hooks, locks them,
+> and checks the connection to the belt.
+> •...
+> 𝑥 !"#
+> 𝑥 $%&
+> Encoder
+> Probing
+> Intervention
+> INPUT OUTPUT
+> Clean
+> PGD
+> 𝑥 !"#
+> 𝑥 $%& 𝛿 &
+
+Figure 2. An overview of our method: we extract internal MLLMs representations along both visual and textual dimensions and identify attention heads that are sensitive to visual inputs and task reasoning. During inference, we then apply targeted interventions to these sensitive attention heads to enhance the MLLMs’ truthfulness. 
+
+the Transformer of  L layers to perform attention dot prod-uct. Within each layer, the sequence  Tl is updated via multi-head attention. The update from layer  Tl to  Tl+1  is 
+
+Tl+1 = Tl +
+
+> H
+
+X
+
+> h=1
+
+Attn hl (P hl Tl) · W ol , (1) where  Attn hl is the attention operation of head  h at layer 
+
+l, P hl ∈ RD×DH  projects the layer’s activations into the  D-dimensional subspace for head  h, and  W ol ∈ RD×DH  maps the aggregated head outputs back into the model’s hidden space. Probing and intervention occur immediately after the attention computation and before the output projection. Our approach decomposes the multimodal reasoning task into two fine-grained modules. The first module en-courages the model to attend to visual inputs, thereby reduc-ing its over-reliance on linguistic priors. The second mod-ule enhances ToM reasoning capabilities. In this section, we focus on the preliminary extraction of internal represen-tations; the specific probing and intervention techniques are detailed in Sections 3.3 and 3.5. Concretely, we construct positive and negative sample pairs tailored to each module. 
+
+3.2.1. Visual Attention Enhancement. 
+
+For the visual modality, unlike using random noise to guide attention [6], we use the standard  ℓ∞ bounded projected gradient descent (PGD) attack [32] on MLLM, making it outputs incorrect information, thereby generating adversar-ial examples. For the textual modality, we fix the ques-tion (e.g., for the “Actions” task, the prompt “What will C most likely do next?”) and construct positive/negative pairs by varying adversarial noise. For each sample pair, we regard the representation of the final token as the fused multimodal embedding and extract the activations of atten-tion heads that capture visual focus. There are  H × L at-tention heads over  L layers for both positive and negative samples, denoted as  Xpos V = {Attn hl (P hl T pos l )}H,L h=1 ,l =1 
+
+and  Xneg V = {Attn hl (P hl T neg l )}H,L h=1 ,l =1 . For all posi-tive–negative activation pairs across S samples, we com-pute an activation offset vector  {δhV,l }H,L h=1 ,l =1 , encouraging the model to focus more on visual information: 
+
+{δhV,l } = 1
+
+S
+
+> S
+
+X
+
+> i=1
+
+(Xpos,h V,i,l − Xneg,h V,i,l ), (2) 
+
+3.2.2. ToM Reasoning Guidance. 
+
+In this phase, we fix the visual input to eliminate the in-fluence from the images and vary only the textual inputs. We treat the correct answer as the positive sample and the set of incorrect answers as the negative samples. From these positive and negative samples, we again extract the attention-head activations associated with visual focus, de-noted as  Xpos T = {Attn hl (P hl T pos l )}H,L h=1 ,l =1  and  Xneg T =
+
+{Attn hl (P hl T neg l )}H,L h=1 ,l =1 . Because the semantic variation among negative samples leads to a non-uniform distribution of their attention representations in the hidden space, it is infeasible to derive a single offset vector from the negative-sample set toward the positive sample (see Figure 2). Con-sequently, we employ an encoder to separate the represen-tations of positive and negative samples in Section 3.4. 4(A) (C) (B) (D) 
+
+> Layer
+> Head Head
+> Layer Figure 3. (A) Linear-probing accuracy for every head and layer of LLaVA-Next-Video on the visual-attention stage, incorporating internal representations from all three tasks. Darker green indicates higher accuracy, with 50% marked as the chance baseline. (B) Linear-probing validation accuracy for every head and layer of LLaVA-Next-Video on the ToM-reasoning stage, incorporating internal representations from all three tasks. (C) Kernel density estimate (KDE) of LLaVA-Next-Video’s visual-attention activations, projected onto the first two “true” directions, showing the distributions for true (green) and false (orange) sample pairs. Marginal distributions are plotted along the top and right axes. (D) Principal component analysis (PCA) plot of LLaVA-Next-Video’s internal representations in the ToM-reasoning stage.
+
+3.3. Probing 
+
+Probing involves training a lightweight classifier on a net-work’s activations to reveal how it encodes particular input or output characteristics [14, 24, 29] as follows: 
+
+f hl = 11 + e−(θT x+b) , (3) where  θ ∈ RD and  b ∈ R represent the weight vector and bias, while  f hl denotes a logistic sigmoid function for 
+
+(θT x + b), respectively. The parameters  θ and  b are opti-mized by minimizing the cross-entropy loss. The probing experiments results are shown in Figure 3. More probing results are provided in the Supplementary Material. For each attention head, we train a separate linear bi-nary probe to fit the internal representations from each task. Specifically, we use a logistic regression model to predict the probability of the answer being true. The aim is to iden-tify which heads are most task-sensitive—i.e., to determine which heads can distinguish  (< X pos V , X neg V > and which heads can distinguish  < X pos T , X neg T >). Figures 3(A) and (B) show the validation accuracies of this probe on the two sets of positive/negative samples. Figure 3(A) indicates that many heads accurately capture the effect of visual noise, with these signals distributed across different layers and heads; by contrast, Figure 3(B) shows that heads sensitive to ToM reasoning tasks are concentrated in the middle layers, and their ability to discriminate positive from negative sam-ples degrades as representations are forwarded. The results in the Supplementary Material further confirm this: for the three ToM tasks, the middle layers are most discriminative. Especially for the Goal task of achieving high precision in the baseline, the middle layers peak in sensitivity, indicat-ing that the model is more sensitive to the ToM reasoning for the Goal task, thus yielding higher accuracy on QA. To better understand belief encoding in attention-head activation space, we visualize the geometric structure of the visual activations for all tasks in Figure 3(C). Specifically, we apply principal component analysis to reduce the acti-vation vectors to two dimensions and select the two orthog-onal directions of greatest variance to separate “true” from “false” features. The projected geometry reveals partially overlapping yet distinct distributions; notably, the second principal direction still exhibits a unique spread, suggest-ing that the notions of “true” and “false” inhabit a subspace within the attention space rather than a single unified axis. We also perform PCA on the internal representations of the Goal task in Figure 3(D), finding that some negative sam-ples overlap with other positive samples within the same task group, though the overall distribution remains cohe-sive—explaining why certain heads, despite lower probe ac-curacy, nonetheless retain discriminative power. In summary, the probing results provide an interpretable demonstration that MLLMs exhibit cross-task consistency in visual attention across multiple ToM tasks, while their multimodal internal representations in hidden space diverge across tasks yet remain coherent within each task. There-fore, in Section 3.5, we directly intervene on the K atten-tion heads that are most sensitive across all tasks based on this visual-attention consistency introduced above. In Sec-tion 3.4, we go beyond the strategy adopted by GridToM [29], which derives intervention directions from the coef-ficient vectors of binary logistic-regression classifiers. In contrast, we implement a finer-grained procedure: for each ToM reasoning task we first embed each positive/negative sample pair with the encoder, obtain the pair-wise separa-tion direction in representation space, and then intervene on the same top-K sensitive heads identified for that task. 53.4. Seperating ToM Reasoning Representations 
+
+Building upon the findings from Section 3.3, we adopt a more fine-grained strategy that addresses the heterogene-ity among different sample representations within the same task. Recognizing that different types of reasoning fail-ures require distinct directional interventions, we employ a clustering-based approach to extract prototypes from neg-ative samples and utilize encoders to disentangle the se-mantic spaces between each prototype cluster and positive samples. The encoder learns to provide translation vectors from representations, moving prototype cluster embeddings toward their corresponding positive sample embeddings to achieve more stable alignment between representations. We begin by analyzing the internal representation space of negative samples to identify prototype clusters corre-sponding to different types of reasoning failures. For each attention head h identified as predictive during the prob-ing phase, we collect all negative sample representations 
+
+{xneg ,h T,i }Nh
+
+> i=1
+
+, where Nh denotes the number of negative samples for attention head h. To adapt to the attention head representations, we employ multiple clustering quality met-rics to automatically determine the optimal number of clus-ters: (1) Silhouette Analysis [40], (2) Elbow Method [47], and (3) Calinski-Harabasz Index [5]. The optimal cluster number k∗ 
+
+> h
+
+is jointly determined by the three aforementioned objectives. Specifically, we com-prehensively consider the cluster numbers that optimize the three metrics. In case of ties, we prefer smaller cluster num-bers to avoid over-segmentation. The cluster number is con-strained within the range k∗ 
+
+> h
+
+∈ [2 , 15] , ensuring each cluster contains at least 5 samples to guarantee statistical reliability. After determining k∗ 
+
+> h
+
+clusters for each attention head h,we train encoders for each attention head to learn transfor-mation patterns from various prototype clusters. Let Ch,c 
+
+denote the set of negative samples assigned to cluster c for attention head h. The objective loss function is defined as: 
+
+Ltotal = X
+
+> hk∗
+> h
+
+X
+
+> c=1
+
+1
+
+|Ch,c |
+
+X
+
+> i∈Ch,c
+
+ xneg ,h T,i + δh,c,i 
+
+ − xpos ,h T,i 
+
+> 2
+
+,
+
+where the outer summation traverses all predictive atten-tion heads h, the inner summation iterates over all clusters 
+
+c for head h, and k∗ 
+
+> h
+
+denotes the optimal cluster number for head h, xneg ,h T,i represents the i-th negative sample represen-tation for head h, xpos ,h T,i denotes the corresponding positive sample representation, δh,c,i = fh,c (xneg ,h T,i ) is the correc-tion vector output by the cluster-specific encoder network, 
+
+fh,c represents the specialized encoder network for the c-th cluster of head h, and |Ch,c | indicates the number of sam-ples in cluster c.This loss function ensures that the corrected negative samples (xneg ,h T,i + δh,c,i ) approximate their corresponding positive sample representations as closely as possible. This design allows each cluster-specific network to focus on cor-recting its corresponding type of reasoning failure while maintaining intra-cluster consistency. During the intervention inference phase, the framework identifies the nearest cluster center using Euclidean dis-tance, then employs the corresponding directional network for intervention. This framework ensures that each inter-vention targets the specific type of reasoning failure ex-hibited by the input, thereby achieving more precise and effective corrections, yielding interpretable intervention di-rections that enhance downstream QA performance. 
+
+3.5. Intervention 
+
+Despite the probing results demonstrating that MLLMs pos-sess internal representations, we further seek to validate the practical effectiveness of these classifier-derived representa-tion directions by intervening on attention heads. We derive the intervention direction  ∆ from visual-attention and ToM-reasoning textual-representation separation as follows: 
+
+∆ = δhV,l + δhT,l . (4) Then, we select the top  K most sensitive attention heads identified during probing, separately for visual attention and for ToM reasoning, which are most attuned to distinctions between “true” and “false” representations. For the visual attention part, due to the existence of cross-task consistency, we maintain a common sensitive attention head, whereas for the ToM reasoning part we use separate sensitive attention heads for each task. During the MLLM inference phase, we apply interventions on these chosen heads immediately after the multi-head attention computation but before the projection back to the output layer, computed as follows: 
+
+Tl+1 = Tl +
+
+> H
+
+X
+
+> h=1
+
+(Attn hl (P hl Tl) + α × ∆) · W ol , (5) where  α is a scalar of intervention strength. 
+
+# 4. Experiments 
+
+4.1. Baselines 
+
+We conduct our experiments on EgoToM [30], a new bench-mark consisting of egocentric videos for real-world ToM evaluation. Unlike traditional action-recognition and VQA datasets, EgoToM specifically benchmarks agents’ ToM abilities. Each instance in the dataset is paired with care-fully curated question-answer pairs, including goal infer-ence, belief reasoning, and action inference. The dataset covers diverse scenarios, capturing rich social interactions that challenge both perception and high-level reasoning, 6making it a suitable benchmark for evaluating embodied and cognitively grounded AI models. In our experiments, we focus on video-only complete contextual information input (fullcontext in the EgoToM). In addition to the multiple models and two modalities pro-vided in the EgoToM benchmark, we also tested several newer MLLMs, including both closed-source and open-source models. We then selected two open-source mod-els to evaluate the effectiveness of our approach: LLaVA-Next-Video [56], specifically designed for video-based in-struction following and question answering, and Qwen2.5-VL [3], a large-scale multilingual vision-language model that excels in cross-lingual and multimodal understanding. More models are detail in the Supplementary Material. 
+
+4.2. Settings 
+
+4.2.1. Visual Attention Enhancement. 
+
+To obtain informative negative samples that expose atten-tion failures, we generate adversarially perturbed frames and use them to approximate a correction direction in the latent space. We use an  ℓ∞-bounded PGD attack that maxi-mizes the cross-entropy loss on the ground-truth answer by backpropagating to the normalized 24-frame video tensor before vision encoding. We parameterize the PGD attack with a perturbation bound of ϵ = 16 255 , a step size of 1255 ,and a total of T = 300 iterations. To benchmark the ef-fectiveness of this attack, we also ran a set of experiments using random Gaussian noise, where the noise standard de-viation σ ∈ [50 , 80] , and all perturbed pixel values were clipped to remain within the valid range. 
+
+4.2.2. ToM Reasoning Guidance. 
+
+The encoder consists of two linear layers—each followed by a GELU activation and layer normalization—and, for each attention head, maps dimensions 128 → 256 → 128. During training, we use the Adam optimizer with a learn-ing rate of  1 × 10 −3, and each cluster learns a dedicated directional correction tailored to its corresponding reason-ing failure patterns. The probe and encoder are trained once while the MLLM backbone stays frozen. 
+
+4.2.3. Intervention. 
+
+We set our best performance configuration as edit heads k =64 , intervention strength α = 1 .0, with the performance impact of parameters analyzed in Section 4.4. During the model inference process, we only input the video, question, and options, without providing any additional prompts. The model settings remain consistent with previous works [29, 60], following a zero-temperature zero-shot setting. 
+
+4.3. Evaluation Protocol 
+
+For each EgoToM task, we train the probe and encoder on a 30% calibration split, then keep the resulting interven-tion vectors fixed for inference on a disjoint 70% evalua-                           
+
+> Table 1. Comparison of the effectiveness of random Gaussian noise attacks and PGD attack methods on LLaVA-Next-Video. Method Acc (%) ↑Acc after +α∆(%) ↑
+> Goal Belief Actions Goal Belief Actions Baseline 61.5 38.9 24.0 -Random 47.0 35.3 25.1 70.4 39.2 24.9 PGD 29.1 22.2 16.4 74.5 45.3 29.7
+
+tion split without using its labels or answers. We follow the official evaluation and report Top-1 accuracy on the three subtasks: goal inference, belief reasoning, and action in-ference. Each video-question pair is associated with multi-ple candidate answers, and the model is required to output one final choice; for open-ended generation we additionally score the responses with the TruthfulQA-style [31] rubric described in Section 4.4. We also ensure that the interven-tion strength and edited heads are fixed across models when comparing different backbones, so that improvements can be attributed to the proposed VisionToM procedure rather than model-specific tuning. On the hardware reported in the Supplementary Material, the one-time calibration stage takes approximately 0.2 hours for probe training and 1 hour for encoder training. 
+
+4.4. Results 
+
+First, we compared the effects of random Gaussian noise and PGD attacks on LLaVA-Next-Video model using the EgoToM dataset, as shown in Table 1. The results indicate that PGD attacks are more effective than random noise in reducing the model’s reasoning accuracy for each task. Fur-thermore, we used two types of images as negative samples for visual attention enhancement. The results show that ad-versarial samples generated by PGD attacks provide more accurate guidance directions compared to random noise. In other words, feature direction estimation guided by adver-sarial samples is more valuable for improving ToM. Table 2 shows the most representative baseline results on the EgoToM dataset, baselines for additional newer MLLMs including LLaVA-Next-Video and Qwen2.5-VL models, the performance improvements achieved by our method, and ablation experiment results. First, all MLLMs, including LLaVA-Next-Video and Qwen2.5-VL, perform poorly on Belief and Actions tasks, with a significant gap compared to human baselines of 72% and 78%, indicating that ToM reasoning tasks remain challenging for MLLMs. Some models approach human baselines on the Goal task, for example, Gemini-2.5-Flash and Qwen2.5-VL achieve 86.0% and 86.9% accuracy on the Goal task, respectively. Our method brings significant improvements: apply-ing both visual attention and ToM reasoning interventions (+α) can produce substantial gains, such as the LLaVA-7Table 2. Performance comparison of VisionToM with human base-lines and multiple MLLMs’ baselines on ToM tasks in the Ego-ToM benchmark. Method Setting Nframe Accuracy (%) ↑                                                                   
+
+> Goal Belief Actions Humans Baseline last 30s 88 72 78 last 5s 89 71 77 GPT-4-Turbo Baseline 20 83 45 42 Video-Llama2-72B 885 46 40 CogVLM2 24 73 39 36 GPT-4o 24 68.7 20.4 22.6 Gemini-2.5-Flash 24 86.0 46.7 40.1 LLaVA-Next-Video-7B Baseline 24 61.5 38.9 24.0 w/o δhT,l 73.2 39.2 25.3 w/o δhV,l 72.6 45.3 29.0 Rnd-∆62.1 39.2 25.4
+> −α∆50.6 20.6 10.1
+> +α∆74.5 45.3 29.7
+> Qwen2.5-VL-7B Baseline 24 86.9 35.6 31.1 w/o δhT,l 88.9 35.6 33.2 w/o δhV,l 88.4 40.6 37.5 Rnd-∆87.1 36.0 31.9
+> −α∆60.3 24.3 14.3
+> +α∆88.9 42.0 37.6
+
+Next-Video model improving by 13.0%, 6.4%, and 5.7% on the three tasks respectively, and Qwen2.5-VL’s results on the Goal task even match human level. In compari-son, we selected the best results using random  ∆ with the same settings, which showed no significant changes. To more clearly demonstrate the effects of visual attention and ToM reasoning interventions, we conducted ablation ex-periments, as shown in Table 2. The results indicate that using only visual attention intervention or only ToM rea-soning intervention can both effectively improve accuracy, and the accuracy is less than the result when both are ap-plied simultaneously. This shows that the hidden layer fea-tures detected by visual attention and ToM reasoning re-spectively guide the visual and reasoning parts, operating along their respective effective directions, and the action di-rections are consistent with theoretical expectations, rather than canceling each other out. Notably, visual attention in-terventions are particularly effective for the Goal task; in contrast, the more challenging Belief and Action tasks in the ToM causal model (Figure 1A) require reasoning in-terventions to produce effects. Additional large-model and cross-dataset results are deferred to the Supplementary Ma-terial. The hyperparameter impact analysis of the number of editing heads  K and intervention strength  α is in the Sup-plementary Material, and the results demonstrate the effec-tiveness of our method.                                                                           
+
+> Table 3. Comparison of VisionToM’s open-ended generation test performance on the EgoToM dataset. Method Task Baseline /+α∆
+> True (%) ↑Info (%) ↑True ∧Info (%) ↑
+> Gemini-2.5-Flash Goal 75.5 35.3 20.2 Belief 28.1 99.7 28.1 Action 21.8 100.0 21.8 LLaVA-Next-Video-7B Goal 8.5 /27.3 100.0 /99.9 8.5 /27.2 Belief 19.5 /32.9 99.7 /99.8 19.2 /30.8 Action 14.4 /25.9 99.7 /99.5 14.4 /25.8 Qwen2.5-VL-7B Goal 76.1 /78.2 14.2 /45.9 9.4 /35.4 Belief 29.0 /33.8 92.5 /90.6 23.7 /27.9 Action 19.2 /24.0 98.9 /95.7 18.6 /22.7
+
+We also tested the open-ended generation capabilities of models after VisionToM intervention. Specifically, we adopt the TruthfulQA [31] rubric: true measures whether every factual claim is correct, info measures whether the answer provides substantive information, and true ∧ info is the proportion of answers that are both correct and in-formative. Two independent DeepSeek-R1 models act as judges, and a judgment is accepted only when the two mod-els agree. Manual verification with three volunteers yields human–LLM agreement rates of 96.2% for the “true” la-bel and 93.5% for the “info” label. The resulting scores are reported in Table 3. The specific open-ended generation re-sults and judge details are shown in the Supplementary Ma-terial. The results indicate that our method is also helpful for improving open-ended generation results, showing that our method can extend from QA tasks to natural language generation tasks. 
+
+# 5. Conclusion 
+
+In this paper, we propose VisionToM, a framework that relies solely on visual input without depending on ad-ditional information supplements, enhancing the truthful-ness of MLLMs through visual attention enhancement and ToM reasoning guidance. The results demonstrate that VisionToM significantly enhances the ToM capabilities of MLLMs and exhibits more accurate natural language an-swers on open-ended generation tasks. We believe that Vi-sionToM can bring stronger psychological attribution ca-pabilities to MLLMs, enabling more trustworthy human-AI interactions in cognitively demanding social environ-ments. By explicitly aligning visual evidence with task-specific mental-state inference, VisionToM also offers a new perspective for connecting interpretability methods with performance-oriented multimodal reasoning. We ex-pect this work to facilitate richer socially aware agents that operate robustly in egocentric, dynamic environments. 8Acknowledgments 
+
+This work was supported by the National Natural Science Foundation of China (62376024, 62576032, U25B2073), the National Science and Technology Major Project (2022ZD0117902), and the Fundamental Research Funds for the Central Universities (FRF-TP-22-043A1). We thank the anonymous reviewers for insightful discus-sions. 
+
+# References 
+
+[1] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Men-sch, Katherine Millican, Malcolm Reynolds, et al. Flamingo: a visual language model for few-shot learning. Advances in neural information processing systems , 35:23716–23736, 2022. 3 [2] Jinze Bai, Shuai Bai, Shusheng Yang, Shijie Wang, Sinan Tan, Peng Wang, Junyang Lin, Chang Zhou, and Jingren Zhou. Qwen-vl: A frontier large vision-language model with versatile abilities. arXiv preprint arXiv:2308.12966 , 1(2):3, 2023. 3 [3] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhao-hai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng Xu, Jiabo Ye, Xi Zhang, Tianbao Xie, Zesen Cheng, Hang Zhang, Zhibo Yang, Haiyang Xu, and Jun-yang Lin. Qwen2.5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. 3, 7, 1 [4] Simon Baron-Cohen, Alan M Leslie, and Uta Frith. Does the autistic child have a “theory of mind”? Cognition , 21(1): 37–46, 1985. 1 [5] Tadeusz Cali´ nski and Jerzy Harabasz. A dendrite method for cluster analysis. Communications in Statistics-theory and Methods , 3(1):1–27, 1974. 6 [6] Junzhe Chen, Tianshu Zhang, Shiyu Huang, Yuwei Niu, Lin-feng Zhang, Lijie Wen, and Xuming Hu. Ict: Image-object cross-level trusted intervention for mitigating object halluci-nation in large vision-language models. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 4209–4221, 2025. 3, 4 [7] Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong Zhang, Xizhou Zhu, Lewei Lu, et al. Internvl: Scaling up vision foundation mod-els and aligning for generic visual-linguistic tasks. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 24185–24198, 2024. 3 [8] Zhanwen Chen, Tianchun Wang, Yizhou Wang, Michal Kosinski, Xiang Zhang, Yun Fu, and Sheng Li. Through the theory of mind’s eye: Reading minds with multimodal video large language models. In 2025 International Joint Confer-ence on Neural Networks (IJCNN) , pages 1–8. IEEE, 2025. 1[9] Zesen Cheng, Sicong Leng, Hang Zhang, Yifei Xin, Xin Li, Guanzheng Chen, Yongxin Zhu, Wenqi Zhang, Ziyang Luo, Deli Zhao, and Lidong Bing. Videollama 2: Advancing spatial-temporal modeling and audio understanding in video-llms. arXiv preprint arXiv:2406.07476 , 2024. 1 [10] Maxime Chevalier-Boisvert, Bolun Dai, Mark Towers, Ro-drigo Perez-Vicente, Lucas Willems, Salem Lahlou, Suman Pal, Pablo Samuel Castro, and J K Terry. Minigrid & mini-world: Modular & customizable reinforcement learning en-vironments for goal-oriented tasks. Advances in Neural In-formation Processing Systems , 36:73383–73394, 2023. 1 [11] Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, et al. Gemini 2.5: Pushing the frontier with advanced reasoning, multimodality, long con-text, and next generation agentic capabilities, 2025. 1 [12] Peng Gao, Jiaming Han, Renrui Zhang, Ziyi Lin, Shijie Geng, Aojun Zhou, Wei Zhang, Pan Lu, Conghui He, Xi-angyu Yue, et al. Llama-adapter v2: Parameter-efficient vi-sual instruction model. arXiv preprint arXiv:2304.15010 ,2023. 3 [13] Anisha Gunjal, Jihan Yin, and Erhan Bas. Detecting and preventing hallucinations in large vision language models. In Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 18135–18143, 2024. 3 [14] Abhijeet Gupta, Gemma Boleda, Marco Baroni, and Se-bastian Pad´ o. Distributional vectors encode referential at-tributes. In Proceedings of the 2015 Conference on Empiri-cal Methods in Natural Language Processing , pages 12–21, 2015. 5 [15] Wenyi Hong, Weihan Wang, Ming Ding, Wenmeng Yu, Qingsong Lv, Yan Wang, Yean Cheng, Shiyu Huang, Jun-hui Ji, Zhao Xue, et al. Cogvlm2: Visual language mod-els for image and video understanding. arXiv preprint arXiv:2408.16500 , 2024. 1 [16] Wenyi Hong, Wenmeng Yu, Xiaotao Gu, Guo Wang, Guob-ing Gan, Haomiao Tang, Jiale Cheng, Ji Qi, Junhui Ji, Li-hang Pan, et al. Glm-4.1 v-thinking: Towards versatile multi-modal reasoning with scalable reinforcement learning. arXiv e-prints , pages arXiv–2507, 2025. 1 [17] Hongyu Hu, Jiyuan Zhang, Minyi Zhao, and Zhenbang Sun. Ciem: Contrastive instruction evaluation method for better instruction tuning. arXiv preprint arXiv:2309.02301 , 2023. 3[18] Lei Huang, Weijiang Yu, Weitao Ma, Weihong Zhong, Zhangyin Feng, Haotian Wang, Qianglong Chen, Weihua Peng, Xiaocheng Feng, Bing Qin, et al. A survey on hal-lucination in large language models: Principles, taxonomy, challenges, and open questions. ACM Transactions on Infor-mation Systems , 43(2):1–55, 2025. 3 [19] Fushuo Huo, Wenchao Xu, Zhong Zhang, Haozhao Wang, Zhicheng Chen, and Peilin Zhao. Self-introspective de-coding: Alleviating hallucinations for large vision-language models. arXiv preprint arXiv:2408.02032 , 2024. 3 [20] Chaoya Jiang, Haiyang Xu, Mengfan Dong, Jiaxing Chen, Wei Ye, Ming Yan, Qinghao Ye, Ji Zhang, Fei Huang, and Shikun Zhang. Hallucination augmented contrastive learn-ing for multimodal large language model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27036–27046, 2024. 3 [21] Chuanyang Jin, Yutong Wu, Jing Cao, Jiannan Xiang, Yen-Ling Kuo, Zhiting Hu, Tomer Ullman, Antonio Torralba, 
+
+9Joshua Tenenbaum, and Tianmin Shu. Mmtom-qa: Multi-modal theory of mind question answering. In Proceedings of the 62nd Annual Meeting of the Association for Compu-tational Linguistics (Volume 1: Long Papers) , pages 16077– 16102, 2024. 1, 3 [22] Hyunwoo Kim, Melanie Sclar, Xuhui Zhou, Ronan Bras, Gunhee Kim, Yejin Choi, and Maarten Sap. Fantom: Abenchmark for stress-testing machine theory of mind in in-teractions. In Proceedings of the 2023 Conference on Empir-ical Methods in Natural Language Processing , pages 14397– 14413, 2023. 2 [23] Kyung-Min Kim, Min-Oh Heo, Seong-Ho Choi, and Byoung-Tak Zhang. Deepstory: Video story qa by deep embedded memory networks. arXiv preprint arXiv:1707.00836 , 2017. 2 [24] Arne K¨ ohn. What’s in an embedding? analyzing word em-beddings through multilingual evaluation. In Proceedings of the 2015 Conference on Empirical Methods in Natural Lan-guage Processing , pages 2067–2073, 2015. 5 [25] Grgur Kovaˇ c, R´ emy Portelas, Katja Hofmann, and Pierre-Yves Oudeyer. Socialai: Benchmarking socio-cognitive abil-ities in deep reinforcement learning agents. arXiv preprint arXiv:2107.00956 , 2021. 1 [26] Jie Lei, Licheng Yu, Mohit Bansal, and Tamara Berg. Tvqa: Localized, compositional video question answering. In Pro-ceedings of the 2018 conference on empirical methods in nat-ural language processing , pages 1369–1379, 2018. 2 [27] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In In-ternational conference on machine learning , pages 19730– 19742. PMLR, 2023. 3 [28] Kenneth Li, Oam Patel, Fernanda Vi´ egas, Hanspeter Pfister, and Martin Wattenberg. Inference-time intervention: Elicit-ing truthful answers from a language model. Advances in Neural Information Processing Systems , 36:41451–41530, 2023. 3 [29] Xinyang Li, Siqi Liu, Bochao Zou, Jiansheng Chen, and Huimin Ma. From black boxes to transparent minds: Eval-uating and enhancing the theory of mind in multimodal large language models. In Proceedings of the 42nd Inter-national Conference on Machine Learning , pages 35457– 35480. PMLR, 2025. 1, 3, 5, 7 [30] Yuxuan Li, Vijay Veerabadran, Michael L Iuzzolino, Brett D Roads, Asli Celikyilmaz, and Karl Ridgeway. Egotom: Benchmarking theory of mind reasoning from egocentric videos. arXiv preprint arXiv:2503.22152 , 2025. 2, 6, 1 [31] Stephanie Lin, Jacob Hilton, and Owain Evans. Truthfulqa: Measuring how models mimic human falsehoods. In Pro-ceedings of the 60th annual meeting of the association for computational linguistics (volume 1: long papers) , pages 3214–3252, 2022. 7, 8 [32] Aleksander Madry, Aleksandar Makelov, Ludwig Schmidt, Dimitris Tsipras, and Adrian Vladu. Towards deep learn-ing models resistant to adversarial attacks. In International Conference on Learning Representations , 2018. 4 [33] Nasrin Mostafazadeh, Aditya Kalyanpur, Lori Moon, David Buchanan, Lauren Berkowitz, Or Biran, and Jennifer Chu-Carroll. Glucose: Generalized and contextualized story ex-planations. In Proceedings of the 2020 Conference on Em-pirical Methods in Natural Language Processing (EMNLP) ,pages 4569–4586, 2020. 2 [34] Aida Nematzadeh, Kaylee Burns, Erin Grant, Alison Gop-nik, and Tom Griffiths. Evaluating theory of mind in ques-tion answering. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing , pages 2392–2400, 2018. 2 [35] Kristine H Onishi and Ren´ ee Baillargeon. Do 15-month-old infants understand false beliefs? science , 308(5719):255– 258, 2005. 1 [36] OpenAI, :, Aaron Hurst, Adam Lerer, Adam P. Goucher, Adam Perelman, et al. Gpt-4o system card, 2024. 1 [37] OpenAI, Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, et al. Gpt-4 technical report, 2024. 1 [38] Neil Rabinowitz, Frank Perbet, Francis Song, Chiyuan Zhang, SM Ali Eslami, and Matthew Botvinick. Machine theory of mind. In International conference on machine learning , pages 4218–4227. PMLR, 2018. 1 [39] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervi-sion. In International conference on machine learning , pages 8748–8763. PmLR, 2021. 3 [40] Peter J. Rousseeuw. Silhouettes: A graphical aid to the inter-pretation and validation of cluster analysis. Journal of Com-putational and Applied Mathematics , 20:53–65, 1987. 6 [41] Maarten Sap, Ronan Le Bras, Daniel Fried, and Yejin Choi. Neural theory-of-mind? on the limits of social intelligence in large lms. In Proceedings of the 2022 conference on empir-ical methods in natural language processing , pages 3762– 3780, 2022. 1, 2 [42] Haojun Shi, Suyu Ye, Xinyu Fang, Chuanyang Jin, Leyla Isik, Yen-Ling Kuo, and Tianmin Shu. Muma-tom: Multi-modal multi-agent theory of mind. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 1510– 1519, 2025. 1, 3 [43] Victoria Southgate, Atsushi Senju, and Gergely Csibra. Ac-tion anticipation through attribution of false belief by 2-year-olds. Psychological science , 18(7):587–592, 2007. 1 [44] James WA Strachan, Dalila Albergo, Giulia Borghini, Ori-ana Pansardi, Eugenio Scaliti, Saurabh Gupta, Krati Saxena, Alessandro Rufo, Stefano Panzeri, Guido Manzi, et al. Test-ing theory of mind in large language models and humans. 
+
+Nature human behaviour , 8(7):1285–1295, 2024. 1 [45] Zhiqing Sun, Sheng Shen, Shengcao Cao, Haotian Liu, Chunyuan Li, Yikang Shen, Chuang Gan, Liangyan Gui, Yu-Xiong Wang, Yiming Yang, et al. Aligning large multimodal models with factually augmented rlhf. In Findings of the As-sociation for Computational Linguistics: ACL 2024 , pages 13088–13110, 2024. 3 [46] Makarand Tapaswi, Yukun Zhu, Rainer Stiefelhagen, Antonio Torralba, Raquel Urtasun, and Sanja Fidler. Movieqa: Understanding stories in movies through question-answering. In Proceedings of the IEEE conference on 
+
+10 computer vision and pattern recognition , pages 4631–4640, 2016. 2 [47] Robert L Thorndike. Who belongs in the family? Psychome-trika , 18(4):267–276, 1953. 6 [48] Amber van Groenestijn. Investigating theory of mind capa-bilities in multimodal large language models. Master’s the-sis, Delft University of Technology, Delft, The Netherlands, 2024. 1 [49] Mudit Verma, Siddhant Bhambri, and Subbarao Kambham-pati. Theory of mind abilities of large language models in human-robot interaction: An illusion? In Companion of the 2024 ACM/IEEE International Conference on Human-Robot Interaction , pages 36–45, 2024. 2 [50] Alex Wilf, Sihyun Lee, Paul Pu Liang, and Louis-Philippe Morency. Think twice: Perspective-taking improves large language models’ theory-of-mind capabilities. In Proceed-ings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 8292–8308, Bangkok, Thailand, 2024. Association for Com-putational Linguistics. 2 [51] Heinz Wimmer and Josef Perner. Beliefs about beliefs: Rep-resentation and constraining function of wrong beliefs in young children’s understanding of deception. Cognition , 13 (1):103–128, 1983. 1 [52] Kai Wu, Boyuan Jiang, Zhengkai Jiang, Qingdong He, Donghao Luo, Shengzhi Wang, Qingwen Liu, and Chengjie Wang. Noiseboost: Alleviating hallucination with noise perturbation for multimodal large language models. arXiv preprint arXiv:2405.20081 , 2024. 3 [53] Haoxuan You, Haotian Zhang, Zhe Gan, Xianzhi Du, Bowen Zhang, Zirui Wang, Liangliang Cao, Shih-Fu Chang, and Yinfei Yang. Ferret: Refer and ground anything anywhere at any granularity. arXiv preprint arXiv:2310.07704 , 2023. 3[54] Amir Zadeh, Michael Chan, Paul Pu Liang, Edmund Tong, and Louis-Philippe Morency. Social-iq: A question answer-ing benchmark for artificial social intelligence. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 8807–8817, 2019. 2 [55] Bohan Zhai, Shijia Yang, Chenfeng Xu, Sheng Shen, Kurt Keutzer, Chunyuan Li, and Manling Li. Halle-control: con-trolling object hallucination in large multimodal models. 
+
+arXiv preprint arXiv:2310.01779 , 2023. 3 [56] Yuanhan Zhang, Bo Li, haotian Liu, Yong jae Lee, Liangke Gui, Di Fu, Jiashi Feng, Ziwei Liu, and Chunyuan Li. Llava-next: A strong zero-shot video understanding model, 2024. 3, 7, 1 [57] Zhiyuan Zhao, Bin Wang, Linke Ouyang, Xiaoyi Dong, Ji-aqi Wang, and Conghui He. Beyond hallucinations: Enhanc-ing lvlms through hallucination-aware direct preference op-timization. arXiv preprint arXiv:2311.16839 , 2023. 3 [58] Yiyang Zhou, Chenhang Cui, Jaehong Yoon, Linjun Zhang, Zhun Deng, Chelsea Finn, Mohit Bansal, and Huaxiu Yao. Analyzing and mitigating object hallucination in large vision-language models. arXiv preprint arXiv:2310.00754 ,2023. 3 [59] Lanyun Zhu, Deyi Ji, Tianrun Chen, Peng Xu, Jieping Ye, and Jun Liu. Ibd: Alleviating hallucinations in large vision-language models via image-biased decoding. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 1624–1633, 2025. 3 [60] Wentao Zhu, Zhining Zhang, and Yizhou Wang. Language models represent beliefs of self and others. In Proceedings of the 41st International Conference on Machine Learning ,pages 62638–62681. PMLR, 2024. 1, 7 
+
+11 Video-Only ToM: Enhancing Theory of Mind in Multimodal Large Language Models 
+
+# Supplementary Material 
+
+# 6. MLLMs with EgoToM baseline 
+
+We provide a complete introduction here to all the multimodal large language models (MLLMs) that we compared or used in the EgoToM benchmark. Specifically, the EgoToM benchmark includes human baselines, LLMs baselines, and MLLMs baselines. These models represent the state-of-the-art in text and vision-language processing. In our work, we focus on the performance of MLLMs, selecting representative open-source and closed-source models from the EgoToM benchmark, including GPT-4-Turbo [37], Video-Llama2-72B [9], and CogVLM2 [15]. Additionally, we also added two widely-used closed-source models: GPT-4o [36] and Gemini-2.5-Flash [11], as well as open-source models LLaVA-Next-Video-7B [56], Qwen2.5-VL-7B [3], and the reasoning model GLM-4.1V-9B-Thinking [16]. Furthermore, we selected LLaVA-Next-Video-7B and Qwen2.5-VL-7B models as the base models for VisionToM, and through our method, both models achieved better performance. We conducted quantification based on the metric charts in the EgoToM [30] benchmark and list the complete data baseline here in Table 4, along with additional experiments we added. 
+
+> Table 4. Full Baseline and results
+
+Method Setting Context Nframe Accuracy Goal Belief Actions Humans Video last 30sec - 0.88 0.72 0.78 last 5sec 0.89 0.71 0.77 Llama3.1-405b-instruct Text full context -0.82 0.44 0.48 last 30sec 0.80 0.46 0.46 last 5ec 0.62 0.45 0.43 last action 0.58 0.40 0.38 no context 0.20 0.30 0.15 Llama3.1-70b-instruct Text full context -0.80 0.34 0.47 last 30sec 0.80 0.42 0.45 last 5ec 0.65 0.41 0.42 last action 0.60 0.36 0.38 no context 0.28 0.25 0.18 Llama3.1-8b-instruct Text full context -0.80 0.40 0.36 last 30sec 0.78 0.42 0.38 last 5ec 0.65 0.41 0.40 last action 0.67 0.39 0.34 no context 0.35 0.36 0.22 GPT-4-Turbo Video full context 20 0.83 0.45 0.42 last 30sec 0.87 0.53 0.44 last 5sec 0.85 0.51 0.47 last action 0.78 0.50 0.41 no context 0.15 0.18 0.06 GPT-4-Turbo Text full context - 0.85 0.47 0.44 last 30sec 0.82 0.48 0.45 Continued on next page 1Method Setting Context Nframe Accuracy Goal Belief Actions GPT-4-Turbo Text last 5sec -0.68 0.44 0.36 last action 0.60 0.34 0.32 no context 0.15 0.18 0.06 GPT-4 Text full context -0.86 0.46 0.47 last 30sec 0.82 0.48 0.43 last 5sec 0.70 0.42 0.41 last action 0.61 0.40 0.38 no context 0.20 0.28 0.18 GPT-3.5-Turbo Text full context -0.70 0.29 0.23 last 30sec 0.70 0.32 0.21 last 5ec 0.65 0.34 0.22 last action 0.58 0.30 0.21 no context 0.15 0.23 0.15 VideoLLaMA2-72B Video full context 80.85 0.46 0.40 last 30sec 0.86 0.48 0.42 last 5ec 0.85 0.50 0.45 last action 0.83 0.54 0.47 no context 0.21 0.30 0.14 VideoLLaMA2-7B-16F Video full context 16 0.67 0.33 0.30 last 30sec 0.71 0.34 0.32 last 5ec 0.73 0.41 0.34 last action 0.66 0.39 0.36 no context 0.32 0.25 0.19 VideoLLaMA2-7B Video full context 80.79 0.41 0.31 last 30sec 0.75 0.42 0.32 last 5ec 0.75 0.40 0.40 last action 0.52 0.33 0.35 no context 0.32 0.28 0.21 CogVLM2 Video full context 24 0.73 0.39 0.36 last 30sec 0.75 0.40 0.38 last 5ec 0.77 0.42 0.41 last action 0.53 0.34 0.32 no context 0.21 0.29 0.30 GPT-4o Video full context 24 0.69 0.20 0.23 Gemini-2.5-Flash 0.86 0.47 0.40 GLM-4.1V-9B-Thinking 0.80 0.31 0.26 LLaVA-Next-Video-7B 0.62 0.39 0.24 Qwen2.5-VL-7B 0.87 0.36 0.31 27. Additional Generalization Results 
+
+We report two additional experiments promised in the rebuttal: scaling VisionToM to a stronger backbone and transferring the learned directions to a second video-only ToM benchmark. 
+
+7.1. Large-Backbone Results 
+
+Table 5. Additional experiments with a larger MLLM backbone. VisionToM continues to improve ToM reasoning when scaled to Qwen2.5-VL-72B.                                
+
+> Method Setting Nframe Accuracy (%) ↑
+> Goal Belief Actions
+> Gemini-3-Flash-Preview Baseline 24 91.5 51.3 55.6
+> Qwen3-VL-235B-A22B-Instruct 90.2 51.3 44.4
+> Qwen2.5-VL-72B-Instruct
+> Baseline 24 87.0 43.6 37.1 w/o δhT,l 89.8 45.3 40.3 w/o δhV,l 89.0 50.9 49.2 Rnd-∆86.2 43.6 39.1
+> −α∆79.7 35.5 25.8
+> +α∆91.5 59.8 57.3
+
+Table 5 shows that VisionToM remains effective on Qwen2.5-VL-72B. The intervention improves the 72B backbone on all three EgoToM tasks and surpasses strong large-model baselines on Belief and Actions, indicating that the method remains beneficial even when the base MLLM is already strong. 
+
+7.2. Cross-Dataset Transfer on MMToM-QA 
+
+Table 6. Experiments on the MMToM-QA benchmark under the video-only setting. “Transfer” directly applies the intervention vector learned on EgoToM without retraining on MMToM-QA.           
+
+> Method Setting Nframe Belief Goal All
+> BIP-ALM-LLaMA2 Video Only
+> -64.0 58.3 61.2
+> Qwen2.5-VL-7B-Instruct
+> 847.0 29.3 38.2
+> VisionToM w/ Qwen2.5-VL-7B-Instruct 70.7 62.0 66.3
+> Qwen2.5-VL-7B-Instruct Transfer 64.3 56.7 60.5
+
+On MMToM-QA, we evaluate both in-domain generalization and zero-shot transfer under the video-only setting. Follow-ing the same protocol as EgoToM, we compute intervention vectors from the MMToM-QA training split and evaluate on its benchmark. VisionToM achieves the best overall performance, while directly transferring the intervention vector learned on EgoToM yields results close to the strongest video-only baseline. These findings suggest that the learned directions capture transferable ToM reasoning patterns rather than dataset-specific shortcuts. 38. Additional Probing Results 
+
+The probing results on the LLaVA-Next-Video and Qwen2.5-VL models are shown in Figures 4 and 5, covering two stages: visual attention probing and ToM reasoning probing. Each stage includes independent probing of Goal, Belief, and Actions tasks, with the y-axis representing attention layers and the x-axis representing attention heads. (A) (C) (B) 
+
+(D) (F) (E) 
+
+> Head
+> Layer
+> Head
+> Layer
+
+Figure 4. Probe validation accuracies for the three EgoToM tasks, based on activations from each attention head across all layers of LLaVA-Next-Video-7B. Subfigures (A)–(C) correspond to the ToM reasoning stage, showing accuracies for the (A) goal prediction, (B) belief inference, and (C) actions inference tasks, respectively. Subfigures (D)–(F) correspond to the visual attention stage, showing the same tasks in the order: (D) goal prediction, (E) belief inference, and (F) actions inference. Darker shades indicate higher probing accuracy, suggesting stronger task-relevant signals in specific heads and layers. 
+
+4(A) (C) (B) 
+
+(D) (F) (E)  
+
+> Head
+> Layer
+> Head
+> Layer Figure 5. Probe validation accuracies for the three EgoToM tasks, based on activations from each attention head across all layers of Qwen2.5-VL-7B. Subfigures (A)–(C) correspond to the ToM reasoning stage, showing accuracies for the (A) goal prediction, (B) belief inference, and (C) actions inference tasks, respectively. Subfigures (D)–(F) correspond to the visual attention stage, showing the same tasks in the order: (D) goal prediction, (E) belief inference, and (F) actions inference. Darker shades indicate higher probing accuracy, suggesting stronger task-relevant signals in specific heads and layers.
+
+# 9. Hyperparameters’ Analysis 
+
+Figure 6 and Figure 7 respectively show the intervention effects of the number of editing heads  K and intervention strength  α
+
+on the LLaVA-Next-Video model and Qwen2.5-VL model across three tasks in the EgoToM benchmark. The three subplots correspond to: (A) Goal Task, (B) Belief Task, and (C) Actions Task. For the editing heads  K of the LLaVA-Next-Video model, we choose to use 16, 32, 64 based on its attention head count of 32. For the Qwen2.5-VL model with an attention head count of 28, we choose to use 14, 28, 56 as the editing heads  K.We did not search for the optimal editing heads  K to achieve the best results. Theoretically, whether for visual attention enhancement or ToM reasoning guidance, the obtained  δ represents a correc-tion from negative samples pointing to positive samples, so  +α intervention will bring positive gains, while  −α will weaken model capabilities. The results in Figure 6 and 7 strongly support our hypothesis, with intervention effects showing mono-tonic behavior around the baseline ( α = 0 ) and presenting uniform and coherent characteristics within the effective range. Additionally, the improvement effects brought by VisionToM intervention are not unlimited, but are only effective within a certain intervention strength range (for the LLaVA-Next-Video model, this range is  α ∈ [−5, 5] ). Beyond this range, all responses become invalid. Specifically, as shown in Figure 6(A), when  α=4, the accuracy rates for  K=16, 32, and 64 all show a declining trend. Unlike the decline when  α=-1, the performance degradation here is mainly due to excessive interference intensity, causing some responses to become invalid (such as outputting garbled text or infinitely repeating words). During the statistical process, we retained all samples and treated invalid responses as errors to ensure consistency in comparison. The same phenomenon was observed in other experiments, indicating that our method has controllability and remains effective within a certain range of interference. 5(A) (C) (B) Figure 6. Analysis of the Impact of Hyperparameter of LLaVA-Next-Video on Three Tasks (A) (C) (B) 
+
+Figure 7. Analysis of the Impact of Hyperparameter of Qwen2.5-VL on Three Tasks 
+
+# 10. Open-ended Generation 
+
+We have listed examples of open-ended generation here, including the responses from the base model as well as the improved effects after applying our method. INPUTS : For the photographer named C of this video, at the end of these actions, what will C
+
+most likely do next? 
+
+Answer : C adjusts the sleeve, opens the button of the sleeve, and irons the sleeve .
+
+LLaVA -Next -Video : Based on the information in the video, I cannot make an inference .
+
+LLaVA -Next -Video+VisionToM : Based on the video, it appears that C is in the process of 
+
+ironing a piece of clothing, possibly a shirt or a garment . At the end of this action, C is 
+
+likely to adjust the sleeve and then ironing it .
+
+... ... ... 
+
+6INPUTS : For the photographer named C of this video, at the end of these actions, what will C
+
+most likely do next? 
+
+Answer : C adjusts the sleeve, opens the button of the sleeve, and irons the sleeve .
+
+Qwen 2.5-VL : Based on the information in the video, I cannot make an inference .
+
+Qwen 2.5-VL+VisionToM : The video shows C ironing what appears to be a shirt, and once that’s 
+
+done, C will realign the sleeve and iron it .
+
+... ... ... INPUTS: For the photographer named C of this video, at the end of these actions, what does C 
+
+most likely believe? 
+
+Answer: C believes that the CPU assembly requires additional components to function 
+
+optimally. 
+
+LLaVA -Next -Video: Based on the information in the video, I cannot make an inference. 
+
+LLaVA -Next -Video+VisionToM : In the video, C is installing computer equipment, and by the end 
+
+of the video the equipment is still not ready, appearing to require further installation. 
+
+... ... ... INPUTS: For the photographer named C of this video, at the end of these actions, what does C 
+
+most likely believe? 
+
+Answer: C believes that the CPU assembly requires additional components to function 
+
+optimally. 
+
+Qwen2.5 -VL: Based on the video, it is likely that C believes that the computer hardware they 
+
+are working on is now fully assembled and functional. This conclusion can be drawn from the 
+
+fact that they are shown carefully placing the CPU into the motherboard, which is a critical 
+
+step in the assembly process, and the subsequent actions of connecting the power supply and 
+
+other components. The final shot shows the completed setup, suggesting that the hardware is 
+
+now ready for use. 
+
+Qwen2.5 -VL+VisionToM: From the video, it can be seen that C installs the CPU into the 
+
+motherboard socket. The final shot shows scattered hardware on the motherboard and does not 
+
+present the complete powered -on state, indicating that the hardware assembly is not yet 
+
+complete and still requires adding and properly connecting the remaining components before 
+
+it can actually be put into use. 
+
+... ... ... 11. Experiments Settings 
+
+11.1. Data preprocessing 
+
+We follow the experimental setup of the EgoToM dataset, extracting corresponding video segments from the Ego4D dataset based on the timeline it provides. EgoToM includes three ToM tasks: Goal, Belief, and Actions, with sample sizes of 351, 335, and 354 respectively. According to the experimental protocol, we sample video frames at equal intervals from each video 7... ... ... 
+
+INPUTS: For the photographer named C of this video, what is C's future goal? 
+
+Answer: To complete painting the playground equipment. 
+
+LLaVA -Next -Video: Based on the video, C's future goal appears to be to become a professional 
+
+photographer. The video shows C painting a chair with a brush, which suggests that they are 
+
+actively engaged in creating or improving their work, which is a common pursuit for artists 
+
+and photographers. Additionally, C is seen holding a camera and taking pictures, which 
+
+indicates their interest in photography. The fact that they are painting a chair could be 
+
+seen as a metaphor for their desire to improve their craft and create visually appealing 
+
+work, which is a common goal for photographers. Therefore, it is likely that C's future goal 
+
+is to become a professional photographer. 
+
+LLaVA -Next -Video+VisionToM : Based on the video content, C's future goal should be to 
+
+complete the painting work on the playground equipment. In the video, C uses a brush to 
+
+paint the equipment, and the camera finally focuses on parts of the equipment that have not 
+
+yet been painted, suggesting that the entire project has not been finished. ... ... ...     
+
+> INPUTS: For the photographer named C of this video, what is C's future goal?
+> Answer: To complete painting the playground equipment.
+> Qwen2.5 -VL: The video does not provide any information about the photographer's future goals.
+> The video only shows a person painting a bench.
+> Qwen2.5 -VL+VisionToM: According to the video information, C is in a park and is painting a
+> bench.
+
+segment and input these frames along with the corresponding questions into the model as the sole source of information for reasoning. For each task, we use a 30% calibration split to train the probe and encoder and compute intervention vectors, and a disjoint 70% evaluation split for final testing. No labels or answers from the evaluation split are used when learning the intervention directions. 
+
+11.2. Computing infrastructure 
+
+To ensure reproducibility, all experiments were conducted under the following computing environment: Ubuntu 22.04; 14 vCPUs on an Intel® Xeon® Gold 6348 @ 2.60 GHz; 8 ×NVIDIA A800 GPUs; and 100 GB system memory. The software stack consists of Python 3.12, PyTorch 2.5.1, and CUDA 12.4. We fixed the global random seed to 42 and enabled deter-ministic settings to eliminate randomness from data loading and operator-level execution. Both training and inference were performed in FP16 precision. 
+
+11.3. Calibration Cost 
+
+VisionToM keeps the MLLM backbone frozen. On the hardware reported in Section 11.2, the one-time calibration stage takes approximately 0.2 hours for probe training and 1 hour for encoder training. All downstream experiments, including multiple-choice QA, open-ended generation, large-model evaluation, and MMToM-QA transfer, directly apply the resulting precomputed intervention vectors without further training. 
+
+11.4. Open-ended Evaluation Details 
+
+For each open-ended answer, two DeepSeek-R1 judges are prompted independently, and we accept a label only when both judges agree. The prompt explicitly defines the “true” and “info” criteria and standardizes edge cases. In particular, an answer 8is marked “false” if any factual statement is incorrect, hallucinated, logically contradictory, or inconsistent with the reference facts; answers that mix correct and incorrect claims are also marked “false”. An answer is marked “info” only if it contains substantive task-relevant content rather than vague restatements. We additionally performed manual verification with three volunteers and observed human–LLM agreement rates of 96.2% for the “true” label and 93.5% for the “info” label. 9
