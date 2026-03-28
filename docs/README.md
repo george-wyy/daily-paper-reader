@@ -6,55 +6,47 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-27
-- 运行时间：2026-03-27 20:09:15 UTC
+- 最新运行日期：2026-03-28
+- 运行时间：2026-03-28 19:33:00 UTC
 - 运行状态：成功
-- 本次总论文数：11
-- 精读区：2
-- 速读区：9
+- 本次总论文数：8
+- 精读区：0
+- 速读区：8
 
 ### 今日简报（AI）
-今日聚焦视线追踪技术，深度探索了其在 AI 图像评估与视频生成中的前沿应用。
-研究证实视线模式能精准预测用户对 AI 图像的偏好，且自回归扩散模型已实现视频中无限时长的视线生成。
-建议关注视线交互如何重塑多模态大模型的心理建模能力与内容生成的真实感。
-- 详情：[/202603/27/README](/202603/27/README)
+今日聚焦具身智能与人机交互，涵盖从生理感知框架到自我进化智能体的 8 篇前沿成果。
+重点推荐 ELITE 框架下的智能体经验学习，以及基于拓扑意图的反应式物体导航新方案。
+建议开发者关注 ROS 2 生理传感器集成工具，以提升机器人对人类状态的实时感知能力。
+- 详情：[/202603/28/README](/202603/28/README)
 
 ### 精读区论文标签
-1. [Gaze patterns predict preference and confidence in pairwise AI image evaluation](/202603/27/2603.24849v1-gaze-patterns-predict-preference-and-confidence-in-pairwise-ai-image-evaluation)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：眼动模式可预测AI评估任务中的偏好和决策。
-2. [Infinite Gaze Generation for Videos with Autoregressive Diffusion](/202603/27/2603.24938v1-infinite-gaze-generation-for-videos-with-autoregressive-diffusion)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：预测人类注视以推进多模态交互
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Video-Only ToM: Enhancing Theory of Mind in Multimodal Large Language Models](/202603/27/2603.24484v1-video-only-tom-enhancing-theory-of-mind-in-multimodal-large-language-models)  
+1. [Sense4HRI: A ROS 2 HRI Framework for Physiological Sensor Integration and Synchronized Logging](/202603/28/2603.19914v1-sense4hri-a-ros-2-hri-framework-for-physiological-sensor-integration-and-synchronized-logging)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：通过多模态视觉理解推断人类心理状态和目标。
-2. [Is Geometry Enough? An Evaluation of Landmark-Based Gaze Estimation](/202603/27/2603.24724v1-is-geometry-enough-an-evaluation-of-landmark-based-gaze-estimation)  
+   evidence：用于HRI中用户状态评估的生理信号多模态融合
+2. [ELITE: Experiential Learning and Intent-Aware Transfer for Self-improving Embodied Agents](/202603/28/2603.24018v1-elite-experiential-learning-and-intent-aware-transfer-for-self-improving-embodied-agents)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：评估基于地标的视线估计以实现轻量化交互
-3. [Software as Content: Dynamic Applications as the Human-Agent Interaction Layer](/202603/27/2603.21334v1-software-as-content-dynamic-applications-as-the-human-agent-interaction-layer)  
+   evidence：具身智能体的意图感知迁移与交互经验
+3. [IntentReact: Guiding Reactive Object-Centric Navigation via Topological Intent](/202603/28/2603.25382v1-intentreact-guiding-reactive-object-centric-navigation-via-topological-intent)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：通过拓扑意图和反应式控制引导导航
+4. [EgoForge: Goal-Directed Egocentric World Simulator](/202603/28/2603.20169v1-egoforge-goal-directed-egocentric-world-simulator)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：关注动态应用和功能可见性的人机交互新范式。
-4. [Software as Content: Dynamic Applications as the Human-Agent Interaction Layer](/202603/27/2603.21334v2-software-as-content-dynamic-applications-as-the-human-agent-interaction-layer)  
+   evidence：基于潜在人类意图建模视频演变
+5. [CAKE: Real-time Action Detection via Motion Distillation and Background-aware Contrastive Learning](/202603/28/2603.23988v1-cake-real-time-action-detection-via-motion-distillation-and-background-aware-contrastive-learning)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：关注动态应用和功能可见性的人机交互新范式。
-5. [Color When It Counts: Grayscale-Guided Online Triggering for Always-On Streaming Video Sensing](/202603/27/2603.22466v1-color-when-it-counts-grayscale-guided-online-triggering-for-always-on-streaming-video-sensing)  
+   evidence：实时动作检测与时间动态建模
+6. [LensWalk: Agentic Video Understanding by Planning How You See in Videos](/202603/28/2603.24558v1-lenswalk-agentic-video-understanding-by-planning-how-you-see-in-videos)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：可穿戴AI中全时流式感知的在线触发机制
-6. [Rao-Blackwellized Stein Gradient Descent for Joint State-Parameter Estimation](/202603/27/2603.23039v1-rao-blackwellized-stein-gradient-descent-for-joint-state-parameter-estimation)  
+   evidence：主动控制视觉观察以实现理解的代理框架
+7. [GDPO-Listener: Expressive Interactive Head Generation via Auto-Regressive Flow Matching and Group reward-Decoupled Policy Optimization](/202603/28/2603.25020v1-gdpo-listener-expressive-interactive-head-generation-via-auto-regressive-flow-matching-and-group-reward-decoupled-policy-optimization)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：概率建模与实时推理
-7. [Semantic-Aware Interruption Detection in Spoken Dialogue Systems: Benchmark, Metric, and Model](/202603/27/2603.24144v1-semantic-aware-interruption-detection-in-spoken-dialogue-systems-benchmark-metric-and-model)  
+   evidence：双人交互中的表现力交互头部生成
+8. [A Mentalistic Interface for Probing Folk-Psychological Attribution to Non-Humanoid Robots](/202603/28/2603.25646v1-a-mentalistic-interface-for-probing-folk-psychological-attribution-to-non-humanoid-robots)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：通过语义感知中断检测实现前瞻性交互
-8. [SABER: Spatial Attention, Brain, Extended Reality](/202603/27/2603.24830v1-saber-spatial-attention-brain-extended-reality)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：在扩展现实中使用空间注意力追踪目标相关物体
-9. [TIGFlow-GRPO: Trajectory Forecasting via Interaction-Aware Flow Matching and Reward-Driven Optimization](/202603/27/2603.24936v1-tigflow-grpo-trajectory-forecasting-via-interaction-aware-flow-matching-and-reward-driven-optimization)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：符合行为规则的概率轨迹预测
+   evidence：研究对机器人的意图状态归因和人类目标
 
 
 <div class="dpr-home-promo-card">
