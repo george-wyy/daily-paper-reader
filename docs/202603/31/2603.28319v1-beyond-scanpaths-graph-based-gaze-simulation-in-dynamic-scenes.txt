@@ -1,0 +1,936 @@
+Title: Beyond Scanpaths: Graph-Based Gaze Simulation in Dynamic Scenes
+
+URL Source: https://arxiv.org/pdf/2603.28319v1
+
+Published Time: Tue, 31 Mar 2026 02:26:01 GMT
+
+Number of Pages: 25
+
+Markdown Content:
+# Beyond Scanpaths: Graph-Based Gaze Simulation in Dynamic Scenes 
+
+# Luke Palmer 1* Petar Palasek 1* Hazem Abdelkawy 21GlimpseML 2Toyota Motor Europe 
+
+{luke, petar }@glimpse.ml, hazem.abdelkawy@toyota-europe.com 
+
+glimpse.ml/beyond-scanpaths 
+
+# Abstract 
+
+Accurately modelling human attention is essential for nu-merous computer vision applications, particularly in the do-main of automotive safety. Existing methods typically col-lapse gaze into saliency maps or scanpaths, treating gaze dynamics only implicitly. We instead formulate gaze mod-elling as an autoregressive dynamical system and explic-itly unroll raw gaze trajectories over time, conditioned on both gaze history and the evolving environment. Driving scenes are represented as gaze-centric graphs processed by the Affinity Relation Transformer (ART), a heterogeneous graph transformer that models interactions between driver gaze, traffic objects, and road structure. We further intro-duce the Object Density Network (ODN) to predict next-step gaze distributions, capturing the stochastic and object-centric nature of attentional shifts in complex environments. We also release Focus100, a new dataset of raw gaze data from 30 participants viewing egocentric driving footage. Trained directly on raw gaze, without fixation filtering, our unified approach produces more natural gaze trajectories, scanpath dynamics, and saliency maps than existing at-tention models, offering valuable insights for the temporal modelling of human attention in dynamic environments. 
+
+# 1. Introduction 
+
+Understanding and predicting human attention allocation in dynamic environments underpins applications such as im-age and video compression [44], realistic avatar animation [1, 76], and foveated rendering [19, 100]. In the driving domain, gaze modelling informs assessments of driver situ-ational awareness [40, 49, 86, 104], a critical factor in auto-motive safety [118]. Prior works simplify gaze into saliency maps [37, 96, 136] or discrete fixation sequences [52, 143], obscuring natural dynamics ( e.g . smooth pursuit [17, 105]). Moreover, the necessary fixation filtering introduces arte-facts and data loss for video stimuli where fixation algo-
+
+> *These authors contributed equally to this work
+
+Figure 1. To model driver attention as part of a dynamical system we encode traffic scenes as heterogeneous scene graphs with nodes corresponding to road structure, driving-relevant objects, and ego-centric gaze , representing the driver’s foveated field-of-view. The Affinity Relation Transformer processes these graphs to predict next-step gaze probability distributions. Our dynamical systems approach generates state of the art gaze timeseries, scanpaths, and saliency maps from a single model .
+
+rithms are unreliable [5]. We instead learn the underlying gaze-generating process from raw sequences, without fixa-tion filtering , enabling a single model trained once to out-put raw trajectories and, via training-free post-processing, scanpaths and saliency maps, achieving state-of-the-art per-formance across all three representations. Towards this unified approach, we formulate gaze pre-diction as graph-based simulation (GBS; [108]), modelling its spatio-temporal evolution as an active agent within the visual environment. GBS captures complex relationships in structured data by representing physical systems as graphs with objects/agents as nodes and physical relations as edges. Often leveraging graph neural networks (GNNs), it has been successful in simulating dynamic particle systems ( e.g . wa-ter, sand, cloth [85, 101, 108, 142]) and motion trajecto-ries [81, 88, 115]). Recent works use graph transformers as the GBS backbone [56, 57, 112]. Our work extends GBS to gaze simulation, marking the first application in video 
+
+> arXiv:2603.28319v1 [cs.CV] 30 Mar 2026
+
+and driving settings, contrasting with prior gaze generation work in static image free-viewing [58]. We propose a gaze-centric spatiotemporal heterogeneous graph representation of driving scenes for our GBS ap-proach. Task-relevant elements ( e.g . cars, pedestrians, sig-nage, road layout) are represented as nodes in a hetero-geneous scene graph, connected spatially and temporally across frames. Nodes contain feature vectors based on po-sition, time, and appearance, while edges represent rela-tive position and similarity. Additionally, a gaze node at each timestep represents the driver’s foveated field of view (see Figure 1). By linking gaze nodes over time, we pre-dict future gaze autoregressively, conditioning on both gaze and environment history, thereby modelling temporal inter-actions between the driver’s gaze and traffic objects. To process this graph, we introduce a novel heterogeneous graph transformer, the Affinity Relation Transformer (ART), which encodes relative features from graph edges and incor-porates them directly into the graph attention mechanism. The ART module’s output, which captures interactions within the gaze-centric graph, feeds into our Object Density Network (ODN) for gaze prediction. Unlike existing pixel-level predictions, we take an object-centric approach, mo-tivated by findings that human attention in complex tasks like driving is guided by object relevance [13, 93, 107]. ODN models the probability of gaze focusing on each scene graph node, forming a Gaussian mixture where each node contributes a component reflecting its salience. This dif-fers from typical MDN approaches for saliency and scan-path prediction [24, 103, 123], which rely on a fixed num-ber of Gaussian components; instead, ODN adapts the mix-ture components based on the scene’s content and complex-ity. The ODN also provides an interpretable fixation mech-anism: high mixing weight on the gaze node keeps gaze near its current location, while high weight on environment nodes shifts gaze toward relevant traffic entities or regions. Finally, recognising the limitations of several existing datasets ( e.g . [37, 136]), which provide only aggregated saliency maps as ground truth, we introduce Focus100, an in-lab gaze dataset collected across 30 subjects. Focus100 provides raw gaze across various driving scenarios, en-abling precise evaluation of our method. Our method pro-duces more natural gaze sequences, scanpaths and saliency maps on Focus100 compared to existing approaches. In summary, our contributions are fourfold: (1) a gaze-centric, dynamic, spatiotemporal heterogeneous graph rep-resentation for driving scenes; (2) a heterogeneous graph transformer module with relative affinity encoding; (3) an object-centric mixture density task head to model stochas-tic human attention shifts; and (4) a new driver gaze dataset, Focus100, to validate our approach and spur further re-search in this critical area. 
+
+# 2. Related work 
+
+We organise related work into three areas: saliency and scanpath prediction, attention modelling in driving, and graph-based simulation. 
+
+Saliency and Scanpaths. While attention modelling has focused primarily on static images, using heuristic [16, 41, 46, 54, 65, 75, 91, 110] and deep learning approaches [22, 30, 70, 71, 73, 82, 98, 99], our work is concerned with the more complex task of predicting gaze sequences in dy-namic, task-driven video settings. In video-based saliency prediction, models have evolved to capture temporal dy-namics using CNN-LSTM, vision transformers, and adver-sarial models [79, 80, 125, 127, 133, 147]. However, these methods produce aggregated gaze probability maps, over-looking the temporal dynamics of gaze. Scanpath prediction, which models sequences of fixa-tions, is less explored, particularly in video. Many ap-proaches use diffusion models, transformers, Markov mod-els, and reinforcement learning to generate fixation se-quences [20, 89, 102, 120, 143], while several incorpo-rate Gaussian mixtures as a probabilistic model for fixation generation [24, 103, 123]. Video scanpath modelling has also been approached in VR and panoramic video settings [34, 36, 78, 106, 141], combining fixation history with im-age features for multimodal inputs. While [58] applied dif-fusion models for continuous gaze generation in image free-viewing and [140] used LSTMs to generate gaze over 360 ◦
+
+imagery, our work is the first to tackle continuous gaze se-quence generation in task-driven video, particularly within a driving context. 
+
+Attention in Driving. Several methods have been devel-oped to model the spatial distribution of drivers’ attention in traffic scenes, producing 2D saliency maps from sequences of images. Methods in this area have employed optical flow [43, 92, 96, 125], scene dynamics [3, 7], traditional saliency algorithms [11–13, 26, 27], 3D convolutional net-works [95, 97, 126, 136, 148], and graph convolutional net-works (GCNs) [37] to predict gaze distributions in driving. Conditioning on driver intention has recently been explored [67]; although orthogonal to this study, it is a natural av-enue for future work. In contrast, the prediction of scan-paths in driving has received limited attention, with only one identified work [52] that predicts spatial fixation se-quences (without durations) using a CNN-Transformer ar-chitecture trained via inverse reinforcement learning. Several driver attention datasets are limited by simulator settings [11, 124] or release only aggregated attention maps [26, 28, 37, 136], restricting analyses to the spatial char-acteristics of attention allocation. The DR(eye)VE dataset [96], despite releasing raw gaze sequences, is hindered by temporal misalignment and limited scenario complexity and diversity [66]. MAAD [43] corrects these issues through in-lab gaze tracking but only for a small subset of DR(eye)VE data. Focus100 spans a broader range of traffic scenarios, includes hazard annotations, and provides more than twice the driving footage and three times the gaze data of MAAD. 
+
+Graph Representation and Simulation. Graph-based simulation (GBS) has been used to model complex dynam-ics in physical systems such as fluids, cloth, and sand, due to its ability to capture interactions between entities in a flex-ible and structured manner [85, 101, 108, 142]. Recently, GBS has been shown capable of modelling discontinuous and stochastic dynamics [2, 121]. The dynamics of human gaze, characterised by discontinuous and stochastic shifts [10, 14] fit well within this approach, and ours is the first work to apply GBS to model human attention allocation. In computer vision, graphs have been leveraged in sev-eral domains to represent scenes and predict object dynam-ics [60, 90, 130–132], while recent works have utilised GBS to predict future trajectories of traffic objects [57, 83, 88, 116, 134, 144, 146]. The work in [57], for instance, con-structs heterogeneous traffic graphs and applies graph trans-formers for future trajectory prediction. Our approach is the first to integrate driver attention into this framework, intro-ducing a dedicated attention node to model interactions be-tween gaze and spatio-temporal scene graphs. Inspired by relative positional encoding in language and image mod-els [113, 135, 149] we also propose the Affinity Relation Transformer (ART) to inject arbitrary relational information directly into a heterogeneous graph transformer module. 
+
+# 3. Method 
+
+We model the driver’s future gaze using a dynamic, hetero-geneous, spatio-temporal graph representation of the driv-ing scene, incorporating historical gaze positions as special nodes at each input timestep (Fig. 2). The initial graph is processed by a Graph Processor (GP ), formed of a stack of 
+
+Affinity Relation Transformers (ART ), and an Object-based mixture Density Network (ODN) , which outputs a Gaussian mixture model ( GMM ) for the next-step gaze position. 
+
+3.1. Spatio-Temporal Heterogeneous Scene Graph 
+
+We wish to represent a sequence of T input frames, I =[I1, ..., I T ], by a spatio-temporal heterogeneous scene graph 
+
+G. We follow [51] and define a heterogeneous graph as a directed graph G = ( V, E, A, R), where V denotes the set of nodes, E denotes the set of edges, each node v ∈ V is assigned a node type τ (v) : V 7 → A , and each edge e ∈ E 
+
+is assigned an edge type ϕ(e) 7 → R . We use evj →vi to refer to an edge from node vj to node vi.
+
+Nodes. Each frame It of the input sequence I contains a varying number of traffic-related entities such as cars, pedestrians, and traffic lights. We build a spatio-temporal heterogeneous scene graph G by representing each entity at timestep t ∈ [1 , T ] as a node. Each node’s feature vector 
+
+x includes the 2D position (bounding box centre), bound-ing box shape, detection score, appearance vector, depth estimate and one-hot label encoding. We additionally in-clude a special gaze node at each timestep, representing the driver’s foveal view; it uses the same feature definition, with its bounding box centred at the measured gaze location and set to a fixed fraction of the input shape (20% height, 10% width), and its appearance extracted from the correspond-ing image crop. A structure node encoding the drivable area in frame It is also introduced at each timestep. Finally, heterogeneous node types are assigned by grouping detec-tor labels into dynamically meaningful categories following [57] so that the model can allocate type-specific parameters to capture each category’s dynamics (see Tab. 1).       
+
+> Table 1. Node type descriptions.
+> Node type Description
+> vehicle Detections with labels ‘ car ’, ‘ bicycle ’, ‘motorcycle ’, ‘ bus ’, ‘ truck ’.
+> person Detections with label ‘ person ’.
+> static Detections with labels ‘ traffic light ’, ‘ stop sign ’.
+> gaze Special node representing the gaze state.
+> structure Special node representing the road structure.
+
+Edges. We define two categories of edges: spatial , con-necting nodes within the same timestep t, and tempo-ral , connecting nodes across different timesteps. At each timestep, all node pairs (vi, vj ) are connected by two directed spatial edges, evj →vi and evi→vj , mod-elling interactions in both directions. Temporal edges connect nodes in a causal way, only from past to fu-ture timesteps. Nodes are connected temporally if their timestep difference is included in a predefined set Td. The type of each edge is defined by a triplet formed of the source node type, edge category, and the destination node type: ϕ(evj →vi ) :=  τ (vj ), C (evj →vi ), τ (vi), where 
+
+C(evj →vi ) ∈ { spatial , temporal }.Each edge is assigned a feature vector ai,j modelling a generalised affinity between nodes vj and vi across space, time and appearance. This vector includes differences in 3D position, timestep differences, and cosine similarity between destination and source node appearance vectors. Edges between gaze nodes and object nodes allow infor-mation flow about objects previously attended to and those attended at timestep t. Combining this with the gaze history encoded across gaze nodes gives context to autoregressively predict the next-step gaze distribution. Figure 2. Using upstream perception modules and observed gaze position, synchronised driving video and gaze are converted into a spatiotemporal heterogeneous scene graph with nodes for traffic agents, road structure, and driver foveal view. Each node is assigned a feature vector including appearance and depth, while edges represent the spatiotemporal differences and appearance similarities between nodes. Scene graphs are processed by Affinity Relation Transformer (ART) blocks before an Object Density Network (ODN) predicts a Gaussian-mixture distribution for the next gaze position. We train the model with negative log-likelihood of ground-truth gaze under the predicted mixture. For simulation we employ autoregressive rollout by sampling from the mixture, updating the graph with the sampled position, and repeating; simulated gaze sequences can then be post-processed into scanpaths and saliency maps without additional training. 
+
+3.2. Graph Processor 
+
+Input Embeddings. Given the spatio-temporal heteroge-neous scene graph G from Sec. 3.1, node features x and edge features a are batch-normalised [53]. The node vec-tors are then projected with node-type-specific linear lay-ers and augmented with a temporal encoding of alternating sine/cosine waves following [128]. These embedded fea-tures are the inputs to a stack of L Affinity Relation Trans-former (ART) blocks. 
+
+ART. We first recall the generic message-passing model and then specialise it to heterogeneous graph transformers (HGT) [51] and our Affinity Relation Transformer (ART) module. A message passing GNN layer [15] updates each node vector representation xi as: 
+
+x′ 
+
+> i
+
+= Φ 
+
+xi, M
+
+> j∈N i
+
+a(xi, xj )ψ(xi, xj )
+
+ , (1) where Φ, ψ and a denote the learnable update , message ,and attention operations, and L is a permutation invariant 
+
+aggregation operator ( e.g . sum , mean , max ) operating over the neighbourhood of xi, Ni.HGT [51] defines type-specific scaled dot-product atten-tion: 
+
+a(xi, xj ) = ξj
+
+QiKTj
+
+√d
+
+!
+
+, (2) and the query , key , and value vectors as: 
+
+Qi = xiWτQ + bτQ, (3) 
+
+Kj = ( xj WτK + bτK ) WϕK , (4) 
+
+Vj = ψ(xi, xj ) = ( xj WτV + bτV ) WϕV . (5) 
+
+WτQ and WτK are target node-type-specific linear maps, 
+
+WτV is a source node-type-specific value map, and WϕK and 
+
+WϕV are edge-type-specific maps depending on ϕ(evj →vi ).
+
+bτQ, bτK , and bτV are source node-type-specific biases, d is the dimension of Qi and Kj , and ξj denotes the softmax over all j [129]. HGT uses sum aggregation, followed by an update step applying a nonlinearity σ and a linear map-ping to the aggregated vector. ART is our graph transformer that injects pairwise re-lational features directly into self-attention, replacing rela-tive position encodings [113, 135], which use free learned 1D/2D embeddings, with d-dimensional embeddings of ar-bitrary relationship vectors. As shown in Fig. 3, we extend HGT using two independent encoders to embed the relative affinity ai,j into key and value embeddings, implemented as a linear projection followed by BatchNorm , ReLU and another linear projection: 
+
+pKi,j = max(0 , BN (ai,j WK 
+
+> 1
+
++ bK 
+
+> 1
+
+)) WK 
+
+> 2
+
+, (6) 
+
+pVi,j = max(0 , BN (ai,j WV 
+
+> 1
+
++ bV 
+
+> 1
+
+)) WV 
+
+> 2
+
+. (7) Figure 3. ART computes messages for each pair of connected            
+
+> source and destination nodes vjand viin the input graph, in-corporating their relative affinity ai,j into each message. Mes-sages are aggregated into updated destination node vectors, ˜x′
+> i.Our novel relative affinity embeddings are highlighted in red.
+
+We use the key embedding pKi,j to update the key vector: 
+
+Kj = ( xj WτK + bτK ) WϕK +pKi,j , (8) and the value embedding pVi,j to update the value vector: 
+
+Vj = ( xj WτV + bτV ) WϕV +pVi,j . (9) The aggregation operator used in ART is the sum operator: 
+
+˜x′ 
+
+> i
+
+= X
+
+> j∈N i
+
+ξj
+
+QiKTj
+
+√d
+
+!
+
+Vj , (10) using the updated key and value vectors as defined in Eqs. (8) and (9). The update step converts the aggregated vectors ˜x′ 
+
+> i
+
+into x′
+
+> i
+
+, defined as part of the ART block below. 
+
+ART Block. Following the pre-normalisation (Pre-LN) Transformer design [138], each ART block consists of LayerNorm, ART attention, a second LayerNorm, and a two-layer feed-forward network (FFN) (see Supplementary Fig. 9). We use node-type-specific gated residuals, defined as y = λτ u + (1 − λτ )h for both the ART and FFN skip connections, with 0 ≤ λτ
+
+> ART
+
+, λ τ 
+
+> FFN
+
+≤ 1. Here, h is the sub-layer input, u is the intermediate ART or FFN output (e.g., the aggregated vector ˜x′
+
+> i
+
+), and y is the updated representa-tion (e.g., x′
+
+> i
+
+). The Graph Processor is formed by stacking L
+
+ART blocks, and its output is passed to the ODN (Sec. 3.3). 
+
+3.3. Object Density Network 
+
+The updated node feature vectors from the L-th ART block for the last-timestep nodes VT are processed by the ODN ,our adaptive mixture-density head outputting a 2D GMM 
+
+for the next gaze position at timestep T + 1 . The GMM has 
+
+K = |V T | components, one per node vk ∈ V T , so mixture capacity grows with scene complexity. For each node, a het-erogeneous linear layer maps its updated feature vector x′
+
+> k
+
+to the component parameters [∆ˆ xk, ∆ˆ yk, ˆσxk , ˆσyk , ˆρk, ˆπk].We obtain valid parameters by softmaxing ˆπk so 0 ≤
+
+πk ≤ 1 and P πk = 1 , bounding correlations with ρk =tanh(ˆ ρk), and enforcing positive standard deviations via 
+
+σk = exp ([ˆ σxk , ˆσyk ]) . The mean μk is the node image-plane position μ0 
+
+> k
+
+plus an offset ∆μk = [∆ xk, ∆yk], con-strained by ∆μk = ∆ max tanh(∆ ˆ μk) with ∆max = 0 .05 
+
+(except structure node). High πk on the gaze node favours fixation maintenance; high πk on environment nodes favour attentional shifts to the corresponding objects or drivable regions. The future gaze distribution is then: 
+
+p (( x, y )) = 
+
+> K
+
+X
+
+> k=1
+
+πkN (( x, y )|μk, σk, ρ k). (11) 
+
+3.4. Training Objective 
+
+Given a batch of n spatio-temporal heterogeneous scene graphs, each representing a traffic scene over T timesteps, and the corresponding ground truth future gaze positions, we train our model using the negative log likelihood loss: 
+
+LNLL = − 1
+
+n
+
+> n
+
+X
+
+> i
+
+log 
+
+> K
+
+X
+
+> k=1
+
+πkN (gGT i |μk, σk, ρ k), (12) where gGT i is the ground truth future gaze position for the 
+
+i-th sample, and πk, μk, σk and ρk are the predicted pa-rameters of the k-th Gaussian component. 
+
+3.5. Simulating Gaze 
+
+The trained model can generate raw simulated gaze se-quences by repeatedly estimating the future gaze position distribution from an input spatio-temporal scene graph GT ,constructed from T input frames. A random point is sam-pled from this distribution as the gaze position ˆgT +1 , which is then used to update the scene graph GT +1 for the next timestep. This process continues iteratively to produce gaze estimates for ˆgT +2 and beyond. 
+
+# 4. Focus100 Dataset 
+
+Design. For training and validating our methods we col-lected a large scale in-lab gaze dataset called Focus100 ,from N = 30 participants (14M/16F; mean age 36 .9 years, SD = 6 .7), while they viewed hazardous egocentric driving videos. The dataset includes 100 egocentric driving videos, each 60 s long recorded at 10 fps , accompanied by synchro-nised 60 Hz gaze data. All participants reported driving fre-quently, minimally within the last week. Each participant viewed 30 sequences, with each video shown to 7–12 par-ticipants. The participants were seated 57 cm from a 24 in 
+
+desktop monitor, fitted with a 60 Hz Tobii Pro Nano eye-tracker, and viewed driving videos on the monitor while their gaze was recorded. During the viewing, in order to en-gage the participants in a proxy task for driving [136], they Focus100 MAAD DR(eye)VE   
+
+> 0
+> 5
+> 10
+> 15
+> 20
+> 25
+> Number per frame
+> Vehicles
+> Focus100 MAAD DR(eye)VE
+> Pedestrians Figure 4. Violin plots of vehicle (left) and pedestrian (right) count per-frame in the Focus100, MAAD, and DR(eye)VE datasets.
+
+undertook a ‘ Hazard Perception Test ’, modelled after the UK theory driving test [31]. We divide the 100 sequences into training (70), validation (10), and test (20) sets. The details of Focus100, including ethical considerations, col-lection procedures, cross-dataset statistics, and the dataset release format, are given in the supplementary materials. 
+
+Driving Footage. Driving footage was egocentric video from a front-facing, windscreen-mounted camera from a self-driving perception stack ( 52 ◦ field of view, 10 fps , at 
+
+1280 × 806 px ) resolution, calibrated to remove distortion and cropped to 1280 × 640 px to exclude artefacts and the bonnet. Data were collected over two weeks around Brus-sels and Leuven (up to 8 h/day), covering urban, suburban, and highway scenes in daylight. From this corpus, we se-lected 100 one-minute clips to maximise variability: ran-domly sampled segments were scored by traffic density (ve-hicle/pedestrian detections), and 20 clips were chosen from each density quintile. See Fig. 4 for a diversity compari-son to the MAAD [43] and DR(eye)VE [96] datasets; Fo-cus100 displays greater variability in traffic conditions, es-pecially with regard to pedestrian density, while including over twice the driving footage and over three times the gaze data of MAAD by duration. 
+
+Hazard Annotation. To facilitate area-of-interest analy-ses, annotators labelled and tracked bounding boxes of ob-jects across all videos that met the definition of a hazard according to the UK driving theory test, where a hazard is defined as ‘something that would cause you to take action’ [31]. The annotations were created using the CVAT anno-tation tool [23], and each hazard was assigned a type and severity level. On average, μ = 4 .08 (σ = 2 .39 ) hazards were annotated per 60 s sequence and tracked for an aver-age of 5.02 s . In total, 207 hazards were labelled as low severity (‘be ready to act’) and 201 as severe (‘take imme-diate evasive action’). Among these, 201 hazards involved pedestrians, 203 involved vehicles, and 4 involved ‘other’ objects ( e.g . a dog). Hazard labels were admitted by con-sensus among three annotators. 
+
+# 5. Experiments 
+
+Here we present the experimental results comparing the per-formance of the proposed ART module to other state-of-the-art gaze and attention estimation approaches. Experiments were carried out on our Focus100 dataset and the smaller and less diverse MAAD dataset [43], the only other dataset which supplies synchronised raw gaze with driving footage. 
+
+5.1. Experimental Setup 
+
+Scene Graph Construction. Objects of the classes listed in Tab. 1 are detected with YOLOv8x [59] and mapped to their corresponding node types. Per detection, we extract appearance features from the 12th layer of a pretrained 
+
+vgg16 bn network [117] using ROIAlign [48], yielding a 128-D appearance vector. The structure node is obtained by estimating the drivable-area mask with YOLOPv2 [45], resizing the mask to 16 × 8 px , and flattening. We estimate depth with monodepth2 [42] and assign to each object node the mean of inverse disparity within its bounding box. For Focus100, scene graphs span 20 timesteps ( 1 s ), with directed temporal edges using offsets Td = 1 , 2, 4, 8, 16 
+
+such that each node at time t connects to nodes at t − ∆t
+
+for ∆t ∈ T d, capturing multi-scale temporal context effi-ciently. Raw video ( 10 fps ) is upsampled to 20 fps by du-plicating frames, while gaze is downsampled to 20 Hz so each timestep has synchronised object, structure, and gaze nodes. For MAAD (native 25 fps video), we downsample gaze to 25 Hz and build 25 -timestep ( 1 s ) graphs with the same temporal connectivity. For both datasets, gaze is pre-processed by linear interpolation across blinks at the native sampling rate (see Supplementary for full details). 
+
+Training. We use the Adam optimiser [62] and a batch size of 128 to optimise the loss defined in Eq. (12) for 50 
+
+epochs on 4 NVIDIA L40S GPUs with float16 precision. We train with a base learning rate of 3 × 10 −4 on Focus100 and 
+
+1×10 −3 on MAAD, with weight decay 1×10 −6. The ODN head uses 0.1× the base learning rate. The best model is chosen as the checkpoint achieving the minimum validation loss. 
+
+Simulation. We use our trained models to simulate gaze sequences matched to each human ground-truth sequence. Starting with the initial 20 (ART) or 25 (MAAD) timesteps of each ground-truth sequence, we iteratively sample from the predictive ODN distribution to generate subsequent spatio-temporal graphs and predictive distributions. These simulated sequences are labelled ART in Table 2. Saliency maps were generated by running 50 simulations per se-quence with random initialisation, detecting fixations with the EyeMMV algorithm [69], and convolving fixation maps per frame with a Gaussian kernel following [139]. Table 2. Sequence, dynamics and saliency map metrics for different approaches on Focus100 and MAAD. Arrows indicate the direction of improvement; best score per metric is marked in bold , second is underlined. DTW and LEV are in thousands and are sensitive to sequence length, hence the difference in MAAD and Focus100 scores. Dynamics metrics closest to human statistics follow the same notation. Gaze sequences generated by Itti, GBVS and Gaussian produced insufficient fixations to include in the dynamics comparison. Standard deviation across sequences is reported for sequence metrics and across fixations for dynamics metrics.                                                                                                                                                                                                                                                                                                                                                               
+
+> Sequence Dynamics Saliency Dataset Model TC ↑DTW ↓LEV ↓Fix Dur (s) Fix Rate (fix/s) AOI TFF (s) NSS ↑IG ↑AUC ↑
+> Focus100
+> Human 0.46 ±0.09 30.93 ±3.71 1.03 ±0.09 0.44 ±0.56 1.61 ±0.00 0.41 ±0.56 ---Gaussian 0.03 ±0.01 66.22 ±4.78 1.55 ±0.04 ---3.375 8.831 0.918 Itti [54] 0.03 ±0.02 157.08 ±3.13 2.03 ±0.01 ---0.321 6.455 0.606 GBVS [46] 0.03 ±0.01 133.18 ±2.37 1.98 ±0.01 ---1.333 7.220 0.849 GLC [74] 0.16 ±0.05 48.72 ±12.77 1.24 ±0.12 0.21 ±0.15 0.57 ±0.00 1.72 ±1.48 4.481 9.162 0.914 DReyeVENet [96] 0.23 ±0.09 49.23 ±5.04 1.43 ±0.04 0.12 ±0.04 0.07 ±0.00 2.77 ±1.84 3.749 9.041 0.920 SCOUT [68] 0.22 ±0.08 51.76 ±7.40 1.45 ±0.06 0.12 ±0.03 0.05 ±0.00 3.62 ±2.29 4.152 9.440 0.933 ViNet [55] 0.23 ±0.06 49.68 ±5.83 1.41 ±0.05 0.12 ±0.04 0.07 ±0.00 2.90 ±1.97 4.310 9.471 0.938
+> ART (ours) 0.22 ±0.05 42.31 ±4.88 1.23 ±0.10 0.41 ±0.40 1.64 ±0.00 0.59 ±0.47 4.864 9.728 0.945 MAAD  [43]
+> Human 0.42 ±0.15 2.65 ±1.13 0.10 ±0.03 0.53 ±0.57 1.25 ±0.00 ----Gaussian 0.14 ±0.03 6.15 ±0.95 0.20 ±0.01 ---3.452 9.327 0.939 Itti [54] 0.15 ±0.03 16.21 ±0.98 0.25 ±0.00 ---0.240 6.607 0.607 GBVS [46] 0.14 ±0.02 13.63 ±0.70 0.25 ±0.00 ---1.467 7.503 0.876 GLC [74] 0.23 ±0.10 3.25 ±1.45 0.14 ±0.02 0.18 ±0.09 0.56 ±0.00 -4.904 8.900 0.869 DReyeVENet [96] 0.20 ±0.08 4.69 ±1.68 0.16 ±0.02 0.14 ±0.04 0.09 ±0.00 -4.754 9.233 0.936 SCOUT [68] 0.19 ±0.08 5.91 ±1.32 0.18 ±0.01 0.13 ±0.02 0.01 ±0.00 -4.191 9.735 0.952 ViNet [55] 0.20 ±0.09 4.20 ±1.60 0.16 ±0.02 0.15 ±0.05 0.15 ±0.00 -5.733 10.264 0.949
+> ART (ours) 0.46 ±0.11 2.70 ±1.22 0.10 ±0.04 0.70 ±0.68 0.99 ±0.00 -4.926 9.778 0.953
+
+Metrics. We evaluate our method across three domains: raw gaze sequences, saliency maps, and scanpath dynamics. For raw gaze sequences, we compare generated sequences to human data using three time-series metrics focused on temporal alignment: Dynamic Time Warping ( DTW ; [8]), Temporal Correlation ( TC ; [114]), and Levenshtein distance (LEV ; [32]). Each generated sequence is paired with its closest ground-truth match, and the average of these best matches provides an overall score. For a human baseline, we apply this procedure in a leave-one-out setting, pair-ing each human sequence with its closest match among the remaining human sequences and averaging these best matches. For scanpath dynamics, we apply the EyeMMV fixation filter [69] to extract fixation positions and durations. We compute mean fixation duration ( Fix Dur ), fixation rate ( Fix Rate ), and time-to-first-fixation within a defined radius of an AOI’s centre-of-mass ( AOI TFF ; we set the threshold radius as 10% of image width). To evaluate saliency maps, we use three common metrics [72]: Normalised Scanpath Saliency ( NSS ), Information Gain ( IG ), and Area Under the Curve ( AUC ). 
+
+Baselines. Our main comparisons are with approaches which estimate a spatial probability of gaze ( i.e . a saliency map) given video input, namely Global-Local Correlation (GLC) [74], SCOUT [68], ViNet [55], and DReyeVENet 
+
+[96]; we used publicly available official implementations of these models. GLC is the current state-of-the-art in egocentric gaze estimation from video, SCOUT achieves state-of-the-art performance for driver gaze prediction on DR(eye)VE and BDD-A [136] datasets (we use their task-free variant to align with our method and other baselines), ViNet is a recent model for video saliency prediction, while DReyeVENet serves as a well-established baseline for driver gaze prediction. We also include Itti’s method (Itti ) [54], graph-based visual saliency ( GBVS ) [46], and a 2D Gaussian distribution fitted across all fixations in the training set ( Gaussian ). To train the baselines relying on aggregated saliency maps, we computed a ground-truth saliency map for each frame in the datasets by convolving a Gaussian over fixation locations across subjects. For evalu-ating saliency estimation methods on sequence and dynam-ics metrics, we produce gaze sequences by sampling a gaze position per frame proportionally to each frame’s predicted gaze distribution. 
+
+5.2. Quantitative Results 
+
+Tab. 2 demonstrates that ART matches or outperforms all baselines in raw gaze and scanpath generation across both Focus100 and MAAD datasets, and approaches human-level results on several metrics. On Focus100 we also note improvements in saliency map generation across all metrics, which is notable given that several baselines are specifically tailored for this task. These results emphasise ART’s versa-tility in handling dynamic visual scenes and accurately es-timating gaze behaviour across different temporal scales. x (px) 
+
+> ←−  t (s)
+> FD: 0.43 ±0.09 s
+
+Human 
+
+> x (px)
+> FD: 0.37 ±0.03 s
+
+ART 
+
+> x (px)
+> FD: 0.07 ±0.08 s
+
+SCOUT 
+
+> x (px)
+> FD: 0.14 ±0.06 s
+
+ViNet 
+
+> x (px)
+> FD: 0.26 ±0.04 s
+
+GLC Human ART SCOUT ViNet GLC Figure 5. Gaze sequences and saliency maps generated on a 15 s clip of Focus100. The first column shows human gaze sequences, followed by those generated by ART, SCOUT, ViNet and GLC models. Each trace represents a single simulation, with the y-axis indicating time and x-axis showing left-to-right gaze position; blue marks to the left show detected fixations, and average fixation duration (FD) per method is given. On the right, we display observed fixations for humans and model-generated saliency maps for the same video frames, temporally aligned with the gaze sequences for direct comparison. See the Supplementary for further examples. 
+
+5.3. Qualitative Results 
+
+Our qualitative analysis (Fig. 5) reinforces the quantita-tive results previously reported: gaze sequences generated by ART exhibit a striking resemblance to human gaze be-haviour when compared to the outputs from baselines. ART sequences closely mirror human temporal dynamics, with fixation frequency and fixation duration that match ground-truth data. The blue fixation markers in Fig. 5 further high-light this difference: while ART produces contiguous fixa-tion periods, the baselines generate few, if any. Moreover, the variance of gaze paths produced by ART matches the variability seen in human observers, in contrast to the mean-biased trajectories with residual noise produced by the other methods (see Supplementary for analysis of this variance). Without explicit saliency supervision, unlike the baselines, ART produces saliency maps consistent with human fixa-tions, indicating that modelling raw gaze dynamics captures the underlying attention structure. 
+
+5.4. Ablation Study 
+
+In an ablation study, we vary the number of historical timesteps in the spatio-temporal graph, replace ART with HGT [51] or HEAT [88], and substitute ODN with a stan-dard MDN head. We simulate gaze sequences as in the main experiment and report sequence-level metrics. Temporal window size : Smaller T generally reduces alignment with human sequences (Tab. 3), indicating that longer temporal context helps capture dependencies. Graph processor : Us-ing HGT or HEAT in place of ART lowers sequence plausi-bility, highlighting the importance of ART’s relational edge modelling. Object-based distribution : Replacing ODN with an MDN significantly degrades performance; unlike ODN, the standard MDN is not object-conditioned and can-not adapt mixture capacity to scene complexity. 
+
+Table 3. Ablation study across temporal window, graph processor, and output distribution head variants. ART with 20 timesteps and ODN head is our reported method elsewhere.                                                                                      
+
+> Processor Time Head TC ↑DTW ↓LEV ↓
+> ART 20 ODN 0.22 ±0.05 42.31 ±4.88 1.23 ±0.10
+> HGT [51] 20 ODN 0.21 ±0.06 42.72 ±5.17 1.28 ±0.09 HEAT [88] 20 ODN 0.13 ±0.05 59.50 ±7.17 1.47 ±0.08 ART 20 MDN k=10 0.14 ±0.04 44.78 ±4.80 1.30 ±0.10 ART 20 MDN k=20 0.14 ±0.04 45.69 ±3.51 1.32 ±0.09 ART 8ODN 0.17 ±0.04 43.46 ±4.50 1.26 ±0.09 ART 1ODN 0.17 ±0.07 42.35 ±5.24 1.24 ±0.09
+
+# 6. Conclusion and Limitations 
+
+In this work, we introduced a novel dynamical systems approach to unify attention modelling in dynamics scenes that significantly improves alignment with human gaze be-haviour; demonstrating strong performance across gaze se-quence generation, scanpath dynamics, and saliency map quality. Our framework and the release of the Focus100 dataset open avenues for further research in temporal gaze modelling. We note three limitations: Focus100 was col-lected in a controlled laboratory setting rather than on-road (see Supplementary for detailed treatment of this point); ART relies on an upstream perception stack, where failures can propagate to gaze prediction; and we do not explicitly model driver intent, which can modulate attention [67]. Beyond Scanpaths: Graph-Based Gaze Simulation in Dynamic Scenes 
+
+# Supplementary Material 
+
+# 7. The Focus100 Dataset 
+
+Focus100 is a new dataset designed to facilitate research on dynamic human attention in driving scenarios, partic-ularly for the development and evaluation of gaze estima-tion models. This dataset addresses critical limitations in existing driving gaze datasets, which often lack raw gaze data or sufficient scenario diversity [26, 28, 37, 136]. Un-like datasets that provide only aggregated saliency maps, Focus100 provides high-resolution, time-stamped gaze se-quences from 30 participants viewing 100 egocentric driv-ing videos. This rich data enables the study of fine-grained temporal attention patterns and scanpath dynamics, crucial for understanding human behaviour in complex driving en-vironments. Although the DR(eye)VE dataset [96] offers raw gaze sequences, it is hampered by limitations such as temporal misalignment, low scenario complexity, having only a sin-gle gaze sequence recorded per driving video, and lack of gaze data in the image plane (instead registered to moving driver-worn eye tracker glasses) [66]. While efforts have been made to enrich the dataset through in-lab gaze track-ing [43], these have only addressed a small subset of the data. Focus100 overcomes these shortcomings by provid-ing a diverse set of driving scenarios, several precise gaze recordings per driving video (in image coordinates), mak-ing it a valuable resource for advancing research in driver attention and automotive safety. 
+
+7.1. Data Collection 
+
+Driving Footage The driving videos incorporated in Fo-cus100 were captured using a test vehicle equipped with a front-facing camera installed behind the windscreen to pro-vide a point-of-view similar to that of the driver. The cam-era used for recording had a 52-degree horizontal visual an-gle and captured footage at 10 frames per second with a resolution of 1280 × 806 px . Comparable FoV and frame-rate settings are used in several driving datasets, e.g . Waymo Open [122]: 55 ◦@10 Hz; BDD100K [145]: 48 ◦@30 Hz; Euro-PVI [9]: 52 ◦@10 Hz. All images were subjected to a calibration process to eliminate distortion and cropped to 
+
+1280 ×640 px resolution to remove calibration artefacts and ego-car bonnet pixels. Driving sessions, which lasted up to 8 hours per day, were carried out over two weeks in and around the cities of Brussels and Leuven, Belgium. This geographical diversity allowed recording of a wide range of driving environments, including urban areas, suburban neighbourhoods, and high-ways. All video recordings were conducted during daylight hours to ensure good visibility. From this collection of driving footage, a subset of 100 1-minute videos was selected to form the Focus100 dataset. The selection process aimed to maximise variance in driv-ing complexity. To achieve this, we analysed randomly sampled 1-minute sections from the entire dataset and es-timated the traffic density based on the total number of vehicle and pedestrian detections. We then selected 20 videos from each quintile of traffic density, ensuring a bal-anced representation of different traffic conditions within Focus100. 
+
+Gaze Data To study natural gaze behaviour in response to realistic driving scenarios, we designed an experiment that simulated the experience of driving while capturing participants’ eye movements. This involved presenting par-ticipants with a series of engaging driving video clips and asking them to perform a hazard perception task, mirror-ing the hazard perception component of the UK driving test [31]. This task required participants to actively monitor the videos for potential hazards and respond by pressing the CTRL key whenever they perceived a developing hazard. This approach ensured that participants remained engaged and attentive while providing valuable insights into their natural gaze patterns in response to dynamic driving situ-ations. Thirty frequent drivers, 14 male and 16 female, with an age range between 21 and 60 years (M=36.9, SD=6.7), were recruited for this study. All participants had held a valid driver’s license for at least three years, had normal vision, and confirmed that they had driven within the past week. Before commencing the study, each participant provided in-formed consent. The study was conducted in a controlled laboratory set-ting. Participants were seated 57 cm from a 24 in Dell P2423 monitor, with the freedom to slightly adjust their position for comfort. A Tobii Pro Nano eye tracker, at-tached to the lower edge of the monitor, recorded their gaze data at 60 Hz . Participants used a standard Logitech K120 keyboard to provide responses during the hazard perception task. Before each session, the eye tracker was calibrated to ensure accurate gaze capture for each participant. The par-ticipants were then briefed on the purpose and procedure of the study, given practice on the hazard perception task to familiarise themselves with the response mechanism, and asked about their driving history. During data collection, participants viewed a series of 1-minute egocentric driving video clips. Each participant Figure 6. Examples from Focus100. The top row shows diversity in pedestrian traffic, hazardousness, and road type. The bottom row shows the same video frame overlaid with the gaze samples of three separate subjects over the previous 2 s window, where higher alpha of the gaze position corresponds to a more recent sample. The example demonstrates the diversity of temporal gaze patterns across subjects for the same stimuli — information which is lost through averaging in traditional saliency map data representations. 
+
+viewed 30 unique clips and each clip was shown to 7–12 randomly assigned participants, ensuring a balanced rep-resentation of individual viewing patterns and responses across the dataset. The order of presentation of the clips was balanced to maintain participant engagement and min-imise fatigue. Regular breaks were also incorporated into the session to further combat fatigue and ensure data qual-ity. Due to technical issues during gaze recording, we omit 10 recordings from the dataset, leaving 890 1-minute gaze recordings across 30 subjects. 
+
+Hazard Annotations Three annotators labelled and tracked the bounding boxes of objects in the scene that met the definition of a hazard from the UK driving theory test [31]; A developing hazard is something that would cause you to take action, like changing speed or direction . The ob-jects were annotated using the CVAT [23] annotation tool. Each hazard was also assigned a type : pedestrian , vehi-cle , other ; and a severity level: low - preparing to act , or 
+
+high - take evasive action, e.g . immediate application of the brakes . On average, 4.08 ± 2.39 hazards were annotated per 60 s sequence (sequences are diverse in hazard counts) and tracked an average for 5.02 s . In total, 207 hazards were low severity and 201 severe; 201 hazards were pedestrians, 203 vehicles, and 4 ‘other’ ( e.g ., a dog). The labels were accepted by consensus among three annotators. 
+
+7.2. Ethics Statement 
+
+From the onset, privacy and ethics standards were critical to this data collection effort. The study was conducted in strict accordance with GlimpseML and Toyota Motor Europe in-stitutional research policies. Participants in the gaze collec-tion were fully informed about the purpose, procedures, and potential risks of the study, including the intention to pub-lish anonymised data for academic research purposes. They were given the opportunity to ask questions and were free to withdraw at any time without consequence. Participants also retained the right to redact their own data at any point before or after publication. To protect the privacy of individuals in driving videos, all personally identifiable information (PII) has been care-fully removed. All detected faces and license plates in the videos were automatically blurred to ensure that individuals and vehicles could not be identified; this was then manually checked frame-by-frame by three annotators. The gaze data provided in the dataset has been processed to remove any information that could potentially identify individual par-ticipants. All personal identifiers associated with the gaze data, such as participant names or ID numbers, gender, age, recording locations, and times have been removed. The Focus100 dataset is stored securely in a GDPR-compliant manner on MFA-protected servers with restricted access within the EU to prevent unauthorised access and ensure data confidentiality. The dataset is restricted to re-search or academic use only and requires institutional reg-istration for access. Users of the dataset are expected to adhere to ethical research practices and comply with all rel-evant data privacy regulations, including GDPR. Commer-cial use is strictly prohibited. By implementing these measures, we prioritise the pri-vacy and anonymity of all individuals involved, while pro-viding a valuable resource for the research community to advance the study of driver attention and automotive safety. 7.3. Characteristics 
+
+Focus100 comprises 100 egocentric driving videos, each 60 seconds in duration, captured at 10 frames per second with a resolution of 1280 ×640 px and a 52 ◦ field of view. These videos encompass a diverse range of traffic conditions pro-viding rich visual stimuli representative of real-world driv-ing scenarios. See Table 4 for the relevant statistics of the dataset. Compared to the only comparable in-lab dataset, MAAD [43], a small subset of the DR(eye)VE dataset [96], Fo-cus100 offers significant advantages in terms of scale and diversity. With nearly 15 hours of gaze recordings from 30 participants, Focus100 surpasses MAAD’s 4.83 hours of engaged gaze data, collected from 23 subjects across only 8 videos (all in urban downtown settings). This increased scale translates into a broader representation of driving sit-uations. The distribution of traffic complexity in our new dataset in comparison with the DR(eye)VE and MAAD datasets is shown in Fig 4 of the paper; Focus100 surpasses both in vehicle and pedestrian diversity. Following [96], we divide the manoeuvres of the ego-car into 4 classes: normal driving, turning left, turning right, and being still (defined as the vehicle being completely sta-tionary or moving slowly). Each frame in the dataset was manually labelled with both the ego-car manoeuvre and the road type. The road types are divided into 5 categories: straight road, intersection, traffic lights, pedestrian cross-ing, and roundabout. These distributions are visualised in Figure 7. 
+
+7.4. Data Format Overview 
+
+The Focus100 dataset comprises anonymised driving videos with associated viewer gaze. We also provide object detec-tions extracted from the original videos (non-anonymous): 
+
+Video: 100 60 -second videos at 10 Hz frame rate, anonymised to remove PII, cropped and downsampled to 1280 × 640 px .
+
+Gaze: 890 60 -second gaze sequences sampled at 60 Hz ,mean of left and right eye gaze positions in image space, for at least 7 subjects per video. Each sample is synchronised and associated to a video frame. 
+
+Detections: YOLOv8x [59] detections per frame for the following classes: pedestrian, traffic light, stop sign, car, bicycle, truck, motorcycle. 
+
+7.5. Discussion 
+
+Focus100 offers key advantages over existing driver atten-tion datasets. It provides raw, temporally aligned gaze se-quences for fine-grained visual attention analysis and cov-ers diverse driving environments. Each of its 100 videos                                                                                                 
+
+> Table 4. Key statistics of MAAD and Focus100 gaze datasets. MAAD collected gaze over a subset of the DR(eye)VE dataset (8 videos in downtown/urban settings). Detections are presented per frame, with mean and standard deviation across the whole dataset. Note that these detections were estimated on downsampled 448 ×
+> 224 and 398 ×224 image resolutions on Focus100 and MAAD, respectively, matching the resolutions used in our methods.
+> Category Measure MAAD [43] *Focus100
+> Video # Videos 8100 Video Length ( s)300 60 Anonymised no yes Resolution ( px )1920 ×1080 1280 ×640
+> FoV ( ◦)unknown 52 Frequency ( Hz )25 10 Detections Pedestrian 0.38 ±1.01 2.59 ±3.26 Traffic light 0.34 ±0.87 0.12 ±0.48 Stop sign 0.02 ±0.13 0.05 ±0.22 Car 5.57 ±3.36 3.17 ±3.03 Bicycle 0.06 ±0.32 1.26 ±2.09 Truck 0.26 ±0.52 0.37 ±0.71 Bus 0.06 ±0.24 0.18 ±0.48 Motorcycle 0.02 ±0.17 0.08 ±0.35 Gaze # Subjects 23 30 Recorded in-lab in-lab Frequency ( Hz )250 60 Sub/video (range) 6–11 7–12 Sub/video (avg) 7.25 8.9 Subject age 20–55 21–60 Subject gender 22M–6F 14M–16F Total dur (hours) 4.83 14.83 Licensure (years) >2>3
+> * MAAD collected data across several conditions with distractions or reduced visibility, here we report the statistics for the control condition.
+
+was viewed by 30 participants, yielding 7–12 gaze record-ings per clip. All data collection followed strict privacy and ethical standards. We discuss potential limitations below. 
+
+Sampling Frequency A potential concern is the video frame rate ( 10 fps ) and eye-tracker sampling rate ( 60 Hz )used in Focus100. However, in practice, 10 frames per sec-ond is a standard in many autonomous driving datasets and perception stacks, for instance, the Waymo Open Dataset and Euro-PVI camera streams operate at 10 Hz [9, 122], while nuScenes imagery is captured at 12 Hz [18]. This frame rate is sufficient to capture the temporal dynamics of driving manoeuvrers and hazard perception, especially since hazard events unfold over several seconds, and al-lows systems trained on Focus100 to be deployable in such stacks. Similarly, the 60 Hz gaze tracking in our setup pro-vides a sampling rate that is robust for the analysis of fix-ations, which are the primary correlate of a driver’s per-ceptual information processing. Prior methodological work normal driving  
+
+> still
+> right turn
+> left turn
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Proportion (%)  70.68% 15.56% 7.08% 6.68%
+
+Manoeuvre   
+
+> straight road
+> intersection
+> traffic lights
+> pedestrian crossing
+> roundabout
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Proportion (%)
+> 55.44% 34.25% 6.00% 4.28% 0.03%
+
+Road type Figure 7. Frame-level distributions of ego-car manoeuvres and road types in the Focus100 dataset. 
+
+shows that fixation-based eye-tracking measures are accu-rate at 60 Hz , with non-significant difference in fixation de-tection when downsampling from high-rate data [4, 50]. In driving research, on-road studies often use 60 Hz eye trackers [119]; with higher sampling rates mainly benefit-ting micro-saccade analyses [77]. Focus100’s 10 fps video and 60 Hz gaze recording can therefore be considered well-aligned with community norms and sufficient for capturing the phenomena of interest. 
+
+Lab-Collected Gaze The ecological validity of lab-based gaze data is a common concern. Differences between pas-sive or semi-passive viewing and active vehicle control are documented; lab protocols remove visuomotor load and can broaden scanning relative to on-road or high-fidelity simu-lation settings [66, 136]. Controlled comparisons indicate that the magnitude of these differences is small, however, as statistical analyses in [87] report modest effect sizes (though statistically significant) for changes in gaze variance when moving from video-based hazard perception to simulator driving. Critically, lab-collected gaze remains highly infor-mative: it reliably differentiates expert from novice drivers [94], while models trained solely on in-lab data generalise to on-road attention prediction, achieving competitive per-formance on real driving benchmarks [136]. Focus100 fol-lows this paradigm while emphasising hazardous scenarios and releasing per-subject temporal gaze streams; capturing not only where drivers look but also when , not hitherto pos-sible with datasets of this scale, enabling fine-grained tem-poral analyses of human attention and situation awareness. 
+
+Hazards vs. Crashes A reasonable question is whether Focus100’s lack of crash events constrain the scope of our conclusions. While most real-world driving is uneventful, drivers still face situations of varying risk, whereas actual crashes are rare [29, 63]. Crash-focused datasets are invalu-able for analysing accident causation, but modelling driver attention and behaviour in the broader context of everyday driving requires coverage of non-crash yet hazardous sit-uations. Attentional failures, such as prolonged off-road glances or mind-wandering, often precede both crashes and near-crashes [63, 111], suggesting shared cognitive mech-anisms; near-miss and sub-critical hazardous events there-fore serve as effective proxies for studying driver perception and attention in safety-critical contexts [64, 109]. Focus100 does not contain crashes but includes a wide range of situ-ations with hazards of varying severity, capturing both rou-tine and complex driving conditions where attentional de-mands naturally vary. This coverage complements exist-ing datasets, including DADA-2000 [37], which focuses on crash prediction from in-lab attention data on crowd-sourced crash videos, and BDD-A [136], which uses hard braking events as hazard proxies. By spanning diverse hazards, Focus100 enables the study of driver attention in common critical conditions, complementing existing crash-centric datasets towards applications in automotive safety. 
+
+# 8. Implementation Details 
+
+We implemented our model using the PyTorch 2.2.1 [6], 
+
+PyTorch Geometric 2.5.0 [38, 39], PyTorch Lightning 2.1.3 
+
+[33], and ClearML 1.14.4 [21] frameworks. Here we report some implementation specifics. 
+
+8.1. Gaze Processing 
+
+Our method learns using minimally preprocessed gaze data in our gaze-centric scene graphs. Here we report that pro-cess, as well as that for converting gaze sequences into fix-ation and saliency representations. 
+
+Preprocessing Our minimal preprocessing stage con-sisted of linearly interpolating across samples deemed as blinks (as detected by the Tobii tracker), ensuring the tem-poral continuity of the gaze signal. More specifically, gaze positions during blinks were set to (NaN, NaN) , and the in-terp function from numpy [47] was applied independently for the x and y coordinates to replace all invalid values. The same procedure was applied to the gaze data from the MAAD dataset. This process was carried out in the data’s native gaze sampling frequency ( e.g . 60 Hz for Focus100), before downsampling by linear interpolation to align with the desired temporal scene graph frequency (as described in Sec 5.1 of the main paper). 
+
+Temporal sampling at 20Hz vs 10Hz Focus100 videos are recorded at 10 fps , while gaze is acquired at a higher native rate with multiple gaze samples per displayed video frame. For scene-graph construction, we represent 1 s win-dows using 20 timesteps ( 20 Hz ). To align modalities, we upsample the video stream from 10 fps to 20 fps by frame duplication (each video frame is repeated once), and we downsample gaze to 20 Hz so that every timestep contains synchronised traffic-object, road-structure, and gaze nodes. We choose 20 Hz to support reliable fixation-based eval-uation: using a minimum fixation duration of 100 ms , low sampling rates can under-sample short fixations and distort estimated fixation statistics. We therefore ablate the effec-tive gaze sampling rate across Focus100 and observe fixa-tion rates of 1.70 s −1 at 60 Hz , 1.64 s −1 at 20 Hz , 1.23 s −1
+
+at 10 Hz , and 0.59 s −1 at 5 Hz , confirming that 10 Hz is in-adequate for fixation analysis in our setting. Importantly, the video upsampling is used only for temporal synchroni-sation with the 20 Hz graph; it does not introduce new visual content beyond the original 10 fps frames. 
+
+Postprocessing While our method learns from this mini-mally processed data, we also implement training-free post-processing to generate fixations and saliency map estimates. An identical process is also used to turn raw ground-truth human gaze sequences into saliency maps for training sev-eral baseline saliency estimation approaches. To detect fixations in gaze sequences we apply the Eye-MMV algorithm [69]. EyeMMV is a two-stage, dispersion-based fixation detector (I-DT). Subsets of samples are pre-liminarily classified as fixations where spatial dispersion remains below a coarse threshold; when this bound is ex-ceeded, the segment is refined with a stricter dispersion threshold to trim edge samples. The candidate is then ac-cepted as a fixation if its duration surpasses a minimum, with inter-fixation intervals labelled as saccades and fixa-tion position defined by the centroid of accepted samples. In our setup we use thresholds t0 = 0 .08 and t1 = 0 .05 
+
+(in normalised image space), and enforce a minimum fixa-tion duration of 0.1 s ; detected fixations were additionally manually spot-checked on a subset of trials. Saliency maps are generated by first accumulating fixa-tions onto a 2D grid matching the spatial resolution of the input frame, where each pixel value represents the num-ber of fixation samples falling at that location (after round-ing coordinates to the nearest integer), aggregated across all subjects or generated sequences corresponding to that frame. The resulting discrete fixation map is then smoothed with a Gaussian filter using a standard deviation of σ =19 × (w/ 640) , where w is the frame width, following [30]. Finally, the saliency map is normalised by its maximum value, yielding intensity values in the range [0 , 1] .
+
+8.2. Scene Graph Construction 
+
+As mentioned in Sec 5.1 of the paper, we used the YOLOv8x 
+
+[59] detector to obtain the object bounding boxes. The appearance features were extracted from the 12th layer of a pretrained vgg16 bn network [117] using ROIAlign 
+
+[48], yielding a 128-D appearance vector. The structure 
+
+node is obtained by estimating the drivable-area mask with 
+
+YOLOPv2 [45], resizing the mask to 16 × 8 px , and flatten-ing. Each object’s depth was estimated using monodepth2 
+
+[42] as the mean of inverse disparity within the object’s bounding box. 
+
+Input node vectors: The dimensionality of each input node vector used in our experiments is 144: the object’s x
+
+and y coordinates (2), its bounding box shape (2), the detec-tor detection score (1), the appearance vector (128), depth estimate (1), and the label one-hot encoding (10; ‘car’, ‘per-son’, ‘bicycle’, ‘motorcycle’, ‘bus’, ‘truck’, ‘traffic light’, ‘stop sign’, ‘gaze node’, ‘structure node’). 
+
+Input edge vectors: The dimensionality of input edge vectors used in the experiments is 5: 3D positional dif-ference between the connecting nodes (3; x, y, depth), timestep difference (1), and cosine similiarity between the node appearance vectors (1). 
+
+Temporal connectivity: Nodes are connected tempo-rally if the timestep difference between the nodes is in-cluded in the set Td = {1, 2, 4, 8, 16 }.
+
+8.3. Graph Processor 
+
+The Graph Processor processes the input scene graph as de-scribed in Sec 3.2 of the paper. Here we provide additional details. 
+
+Node embeddings: The dimensionality used for the node-type-specific linear embeddings of the node vectors is d = 128 . Each node’s timestep is encoded as alternating sine and cosine waves and added to the embedding. 
+
+ART block: We use L = 2 ART blocks in the Graph Processor in our experiments. An illustration of an ART block is shown in Figure 9. The edge vectors in ART (relative affinity ai,j in Fig. 3 in the main paper) are em-bedded into key and value embeddings ( pKi,j and pVi,j in Eqs. (6) and (7)) using two independent MLPs, each im-plemented as a node-type dependant linear layer followed by BatchNorm , a ReLU , and another node-type dependant linear layer. Both linear projections output d-dimensional vectors, with d = 128 . The query, key and value vectors, 
+
+Qi, Kj , and Vj , are calculated using a node-type-specific linear layer with a bias, outputting a 3 × 128 -dimensional 0                                                                                          
+
+> 112
+> 224
+> 336
+> 448
+> x (px)
+> Human
+> 010 20 30 40 50 60
+> t (s)
+> 0
+> 112
+> 224
+> y (px)
+> ART
+> 010 20 30 40 50 60
+> t (s)
+> SCOUT
+> 010 20 30 40 50 60
+> t (s)
+> ViNet
+> 010 20 30 40 50 60
+> t (s)
+> GLC
+> 010 20 30 40 50 60
+> t (s) 0
+> 112
+> 224
+> 336
+> 448
+> x (px)
+> Human
+> 010 20 30 40 50 60
+> t (s)
+> 0
+> 112
+> 224
+> y (px)
+> ART
+> 010 20 30 40 50 60
+> t (s)
+> SCOUT
+> 010 20 30 40 50 60
+> t (s)
+> ViNet
+> 010 20 30 40 50 60
+> t (s)
+> GLC
+> 010 20 30 40 50 60
+> t (s) 0
+> 112
+> 224
+> 336
+> 448
+> x (px)
+> Human
+> 010 20 30 40 50 60
+> t (s)
+> 0
+> 112
+> 224
+> y (px)
+> ART
+> 010 20 30 40 50 60
+> t (s)
+> SCOUT
+> 010 20 30 40 50 60
+> t (s)
+> ViNet
+> 010 20 30 40 50 60
+> t (s)
+> GLC
+> 010 20 30 40 50 60
+> t (s)
+
+Figure 8. Human gaze sequences compared to generated sequences by ART, SCOUT, ViNet and GLC on 3 videos from the test set. We plot the x and y positions of gaze over time separately, including the y-axis for completeness as it was not shown in the main text. Each line represents a sampled gaze sequence, with the mean gaze sequence shown in black. 
+
+Figure 9. Illustration of the ART block. The block applies Lay-erNorm, ART attention with a residual connection, another Layer-Norm, followed by a two-layer feed-forward network (FFN) with a second residual connection. λτ 
+
+> ART
+
+and λτ 
+
+> FFN
+
+denote the node-type-specific learnable parameters controlling the strengths of the residual connections, 0 ≤ λτ
+
+> ART
+
+, λ τ 
+
+> FFN
+
+≤ 1.
+
+vector which is then split into three 128-dimensional vec-tors. 
+
+FFN: The feed-forward network is implemented as two node-type-specific linear layers with biases; the first outputs a 256-dimensional vector, which is passed through a ReLU, and the second linear layer outputs a 128-dimensional vec-tor. A residual connection with a node-type-specific learn-able parameter λτ
+
+FFN is used. See the ART Block illustration in Figure 9. 
+
+8.4. Object Density Network 
+
+The updated node features belonging to the last timestep in the input spatio-temporal scene graph are fed into the ODN to estimate the parameters of a GMM modelling the future gaze position probability distribution. The parameters pre-dicted by the ODN are listed in Sec 3.3 of the paper and are the output of a node-type-specific linear layer. 
+
+# 9. Qualitative Results 
+
+Gaze Sequences The visualisations of sampled gaze in the main paper only show the horizontal position of gaze plotted against time. In Fig. 8 we include a number of plots in which both the x and y dimensions of sampled gaze over time are shown. 2D Sequences Figs. 10 and 11 display more sampled gaze sequences and saliency maps generated by ART and the baseline models on additional unseen test videos, along with human gaze sequences for comparison. We consis-tently show that gaze sequences generated by ART closely mimic the human gaze behaviour. We show a failure case of our method in Fig. 12. 
+
+Object Salience Here we explore whether our model pro-duces reasonable estimates of the saliency of objects within images, a task considered in [25] for example. To esti-mate the saliency ranking of objects in a given frame, we perform 60 gaze sequence simulation runs using our pro-posed method for a specified video sequence. For each frame, we store the mixing weights estimated by the ODN for each graph node ( i.e . object detection). We ignore the 
+
+structure and gaze nodes as we are only interested in the saliency of individual objects. The average mixing weight for each node in a frame is estimated by summing the mix-ing weights across all runs for each node, and renormalising them using softmax to account for the removed nodes. As we are interested in ranking the objects within a specific frame, we further divide the mixing weights of nodes in the frame by the maximum mixing weight in that frame. We use YOLOv8x-seg [59] to estimate the segmentation masks for all objects contained as nodes in the graph for a given frame. We overlay the segmentation masks over the input image, assigning them a colour based on the estimated nor-malised mixing weight. Objects of low saliency rank within an image are shown in blue, and the most salient object(s) is highlighted in red. Example saliency rankings can be seen in Figure 13. 
+
+# 10. Gaze State Dynamics 
+
+In this section we analyse the dynamics of gaze state tran-sitions between saccades and fixations . We identify all timesteps marking the onset of a fixation and observe a time window of 0.5 s before and after this point. Each timestep within this window is labelled with a 1 if the gaze at that timestep corresponds to a fixation, or 0 otherwise ( i.e ., if it was a part of a saccade). We calculate the differences between consecutive elements of the described array, i.e .
+
+d[t] = v[t + 1] − v[t], where we use v to denote the ini-tial vector of fixations and saccades, d to mark the vector of differences, and t to index the elements. Each value of the resulting vector will be either -1, 1 or 0, where -1 denotes a change from a fixation to a saccade, 1 marks a change from a saccade to a fixation, and 0 means no state change. Calculating the mean value of all the vectors di,constructed for each fixation in the test set, will give us an empirical expected value of the state change direction for each timestep in the observed window centered around the start of a fixation, E(d). A more positive value means a higher probability of a saccade-to-fixation state change, and a more negative value means a higher probability of a fixation-to-saccade state change. In Figures 14a and 14b we plot this expected value E(d)
+
+as a function of time centered at the beginning of a fixa-tion, estimated using ground truth human gaze samples and samples generated by ART, respectively. We can see that the plots for both the human gaze and our method closely resemble each other. The initial dip preceding the start of a fixation denotes an increase of probability of a state change from a fixation into a saccade; first a saccade needs to hap-pen for a fixation to start, i.e . the probability of a saccade needs to increase. The probability of a saccade-to-fixation state change is the highest when the fixation is actually start-ing, shown at ∆t = 0 . This is then followed by another drop, denoting a slightly increased probability of another saccade occurring. 
+
+ART/ODN Fixation Mechanism In Figure 14c we plot the gaze node mixing weight as a function of time since the start of a fixation. A high gaze node mixing weight implies a higher probability that the gaze in the next timestep stays at the same location (a part of a fixation), while a lower gaze node mixing weight means an increased probability of a saccade occurring at the next timestep. Notice the resem-blance of the plotted shape and the shape of the signal in Figs. 14a and 14b, suggesting the gaze node mechanism for producing fixations worked as intended. As the gaze node mixing weight affects the gaze state in the next timestep , the signal appears to be shifted one step to the right compared to the gaze state change dynamics plots in Figs. 14a and 14b. 
+
+# 11. Spectral Analysis of Gaze Variance 
+
+To assess whether models reproduce the temporal struc-ture of human inter-observer variability, we analyse the power spectral density (PSD) of residual gaze tra-jectories relative to each group’s own mean trajec-tory. For each test sequence s and group g ∈{Human , ART , SCOUT , VINET , GLC }, we compute the group mean trajectory 
+
+¯p(s) 
+
+> g
+
+(t) = 1
+
+N (s) 
+
+> gN(s)
+> g
+
+X
+
+> i=1
+
+p(s) 
+
+> g,i
+
+(t), (13) and define residual trajectories 
+
+r(s) 
+
+> g,i
+
+(t) = p(s) 
+
+> g,i
+
+(t) − ¯p(s) 
+
+> g
+
+(t). (14) We compute the scalar residual magnitude r(t) = ∥r(t)∥
+
+and estimate its PSD using Welch’s method. The integral of the PSD corresponds to total within-group residual vari-ance, while its distribution over frequency reflects the tem-poral organisation of that variance. x (px) 
+
+> ←−  t (s)
+> FD: 0.45 ±0.10 s
+
+Human 
+
+> x (px)
+> FD: 0.40 ±0.05 s
+
+ART 
+
+> x (px)
+> FD: 0.04 ±0.09 s
+
+SCOUT 
+
+> x (px)
+> FD: 0.08 ±0.09 s
+
+ViNet 
+
+> x (px)
+> FD: 0.07 ±0.08 s
+
+GLC Human ART SCOUT ViNet GLC Figure 10. Preceding frames from the same test subsequence show that the largest values in the ART saliency maps are concentrated at positions corresponding to the ground truth gaze points. As shown in the left part of the figure, the gaze dynamics generated by ART closely follow human gaze patterns, whereas the SCOUT, ViNet, and GLC sequences exhibit notably more volatile behaviour. x (px) 
+
+> ←−  t (s)
+> FD: 0.46 ±0.10 s
+
+Human 
+
+> x (px)
+> FD: 0.48 ±0.07 s
+
+ART 
+
+> x (px)
+> FD: 0.07 ±0.09 s
+
+SCOUT 
+
+> x (px)
+> FD: 0.09 ±0.08 s
+
+ViNet 
+
+> x (px)
+> FD: 0.20 ±0.03 s
+
+GLC Human ART SCOUT ViNet GLC 
+
+Figure 11. Another example sequence from the unseen test set is presented. Consistent with the previous examples, the samples generated by ART closely follow the ground-truth human gaze dynamics, while the other methods exhibit unsteady and less realistic gaze behaviour throughout the sequence. The saliency maps produced by ART closely reflect the distribution of ground-truth human gaze points. In contrast, GLC produces low-variance saliency maps concentrated near the centre of the road. SCOUT and ViNet generate saliency maps that are qualitatively similar to those of ART, except in the third row, where they highlight the pedestrians on the pavement on the right. 
+
+Figure 15 shows the residual PSD averaged across test sequences. Human residuals exhibit a low-frequency-dominated spectrum, indicating that inter-observer variabil-ity is dominated by lower-frequency components rather than short-timescale fluctuations. ART closely matches the human spectral profile across frequencies. In con-trast, SCOUT, VINET, and GLC show comparatively re-duced low-frequency power and flatter spectra, indicating less temporally structured variability. To summarise spectral structure per sequence, we com-pute the ratio 
+
+r(s) 
+
+> g,i
+
+=
+
+R 51 PSD (s) 
+
+> g,i
+
+(f ) df 
+
+R 10.1 PSD (s) 
+
+> g,i
+
+(f ) df , (15) where the lower band (0.1–1 Hz) captures slower residual dynamics and the higher band (1–5 Hz) captures faster fluc-tuations. The ratio therefore reflects the relative contribu-tion of fast versus slow components of within-group vari-ability. Sequence-level group statistics are obtained by av-eraging across samples. Across the 20 test sequences, ART consistently exhib-ited the smallest deviation from the human spectral ratio. x (px) 
+
+> ←−  t (s)
+> FD: 0.37 ±0.05 s
+
+Human 
+
+> x (px)
+> FD: 0.41 ±0.07 s
+
+ART 
+
+> x (px)
+> FD: 0.00 ±0.00 s
+
+SCOUT 
+
+> x (px)
+> FD: 0.00 ±0.00 s
+
+ViNet 
+
+> x (px)
+> FD: 0.00 ±0.00 s
+
+GLC Human ART SCOUT ViNet GLC Figure 12. An example of a failure case for our method. The ART gaze sequence samples shown on the left indicate that the simulated gaze tends to follow the pedestrian crossing the road, in contrast to the ground truth human gaze sequences. Low High 
+
+Figure 13. Object salience ranking estimated as the average mixing node weight calculated over 60 ART simulation runs. The node mixing weights are further normalised by the maximum mixing weight in the given frame. Low saliency objects are shown in blue, and the most salient object is shown in red. Note that the colormaps represent rank order and are not consistent across images. See under Object Salience 
+
+in Section 9 for details. 
+
+We performed paired one-sided Wilcoxon signed-rank tests comparing ART against each alternative model under the hypothesis dART < d other , with Holm correction for mul-tiple comparisons. All comparisons were significant after correction ( p < 0.001 ), with complete directional consis-tency across sequences. These results indicate that human inter-observer variabil-ity is temporally structured and dominated by slower com-ponents. Among evaluated models, ART closely reproduces the spectral organisation of this variance across simulated gaze trajectories on the same sequence, whereas alternative models exhibit significantly different spectral signatures. 
+
+# 12. Latency-Accuracy Trade-Off 
+
+Simulations using the method presented in the paper run at an average of 68 ms per frame ( 15 fps ), using input data of resolution of 448 ×224 px , on a single L40S GPU, including the perception stack, graph construction, ART and ODN. Profiling shows runtime split between perception (43%) and ART+ODN (57%). We conducted a latency-accuracy trade-off analysis by varying the input resolution of the method, results of which can be seen in Figure 16. The curve shows a consistent accuracy-latency trade-off: increasing input resolution im-proves predicted gaze likelihood (lower LNLL ) but the gains -0.5 -0.4 -0.3 -0.2 -0.1 0.0 0.1 0.2 0.3 0.4 0.5  
+
+> ∆tfrom fixation start (s)
+> −0.6
+> −0.4
+> −0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> E(d)±SEM
+> Fixation start
+
+(a) Gaze state dynamics estimated from ground truth human gaze samples. -0.5 -0.4 -0.3 -0.2 -0.1 0.0 0.1 0.2 0.3 0.4 0.5  
+
+> ∆tfrom fixation start (s)
+> −0.6
+> −0.4
+> −0.2
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> E(d)±SEM
+> Fixation start
+
+(b) Gaze state dynamics estimated from ART samples. -0.5 -0.4 -0.3 -0.2 -0.1 0.0 0.1 0.2 0.3 0.4 0.5  
+
+> ∆tfrom fixation start (s)
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> 0.80
+> 0.85
+> 0.90
+> Gaze node mixing weight  ±SEM  Fixation start
+
+(c) ART/ODN gaze node mixing weight as fix-ation mechanism. 
+
+Figure 14. Evolution of the expected value of the gaze state change direction as a function of time relative to the start of a fixation. In Figs. 14a and 14b positive values on the y axis denote a higher probability of the gaze state changing from a saccade to a fixation , while negative values indicate a higher probability of the reverse. The start of a fixation (at ∆t = 0 ) is preceded by an increased probability of a saccade (the dip on the left), and followed by another slight increase of the saccade probability. The gaze state change probability dynamics are very similar when estimated for the ground truth human gaze samples (Fig. 14a) and using the samples from ART (Fig. 14b). In Fig. 14c we show the model mechanism , i.e . gaze node mixing weight as a function of time relative to a fixation start. High gaze node mixing weight means a high probability of the gaze maintaining the same location in the next timestep, while a lower mixing weight means a higher probability of the gaze changing its location in the next timestep. Note the similarity of this plot to the ones shown in Figs. 14a and 14b. The shift on the x-axis towards the right is due to the gaze node mixing weight affecting the gaze state at the next timestep .10 1 10 0 10 1
+
+Frequency (Hz) 
+
+> 4.5
+> 4.0
+> 3.5
+> 3.0
+> 2.5
+> 2.0
+> log 10  (PSD) ± SEM
+> Human
+> ART
+> SCOUT
+> VINET
+> GLC
+
+Figure 15. Residual PSD across all shared test sequences. Curves show mean log 10 PSD with ±SEM across all sequences for Hu-man, ART, SCOUT, VINET, and GLC. ART most closely tracks the human spectral variance profile, consistent with the dynamics results presented in the main text. 
+
+taper off as resolution increases. Most of the improve-ment is achieved when moving from very low to mid res-olutions, while further increasing resolution produces rela-tively smaller additional accuracy benefit. The 448 ×224 px 
+
+setting is a good mid-point for real-time analysis, whereas full resolution 1280 × 640 px , running at 6 fps , is better suited to offline use when latency is less critical. 50 100 150 
+
+Inference Time (ms/frame) 
+
+6.70 
+
+6.75 
+
+6.80 
+
+6.85 
+
+> NLL
+> 112x64
+> 224x112
+> 448x224
+> 1280x640
+
+Figure 16. Negative log-likelihood loss across the test set against the time taken to process each frame and generate a next-step gaze position. The used input video resolution is shown next to each data point. 
+
+# 13. Baseline Details 
+
+We used publicly available official implementations 1 of GLC [74], SCOUT [68], ViNet [55] and DReyeVENet [96] in our experiments. We give the training and inference de-tails for these methods below. 
+
+> 1
+
+GLC: https : / / github . com / BolinLai / GLC/ , SCOUT: 
+
+https://github.com/ykotseruba/SCOUT , ViNet: https: //github.com/samyak0210/ViNet , DReyeVENet: https:// github.com/ndrplz/dreyeve .13.1. Global-Local Correlation (GLC) 
+
+Training The GLC model [74] is the current state-of-the-art model in egocentric gaze estimation. It is trained on se-quences of 8 temporally equidistant square ( 256 × 256 px )crops from the input RGB video, which is resized to a height of 256 px while maintaining the aspect ratio. We follow the training procedure from [74] with the MViT [35] archi-tecture as the backbone network, initialised with weights pretrained on the Kinetics-400 [61] dataset. We use a tem-poral sampling rate of 3 in our experiments, i.e . we sample 8 frames from a 22-frame window with equal spacing, and take the last frame’s predicted gaze map as the model out-put. We train the model for 25 epochs, with a base learning rate set to 5 × 10 −5. We use batch size 16 and run the train-ing on 2 NVIDIA GeForce RTX 3090 GPUs. 
+
+Inference At inference, the original approach only pro-duces gaze probability maps for the central crop of the in-put; to create our rectangular maps we slide the 256 ×256 px 
+
+cropping region horizontally over the rectangular input with a 16 px stride and average the results. To produce sequences using GLC we sample the output gaze probability map for each frame of our sequences. 
+
+13.2. SCOUT 
+
+Training We train the SCOUT model using the task-free configuration, with an input clip length of 16 frames and image resolution of 224 × 224 px . The encoder consists of 4 layers with a pretrained and trainable Video Swim Trans-former [84] backbone. Training is performed for up to 10 epochs using the Adam optimiser with a learning rate of 
+
+1 × 10 −4, a batch size of 4, and early stopping enabled. Learning rate scheduling is applied, and the model achiev-ing the lowest validation loss is used for inference. 
+
+Inference Inference also follows the official SCOUT im-plementation. Given an input sequence of 16 frames from the test set, the predicted saliency map produced by the trained SCOUT model is reshaped to match the size of the ground truth saliency map ( 448 × 224 px ), it is blurred us-ing a Gaussian kernel of size 11 × 11 px . We normalise the predicted saliency map by dividing it by its maximum value. This saliency map is used as the prediction for the last frame in the input sequence. 
+
+13.3. ViNet 
+
+Training We train ViNet without the audio modality with the clip size fixed to 16 frames. The optimiser is Adam with learning rate 1 × 10 −4, batch size 8, and training for up to 40 epochs. Learning-rate scheduling was dis-abled. The architecture uses the S3D network [137] as the video encoder, pre-trained on the Kinetics-400 [61] action-recognition dataset. The best model is selected as the one with the lowest validation loss. 
+
+Inference We evaluate ViNet the same way as SCOUT; given an input clip of 16 frames, the model predicts a saliency map corresponding to the last frame. This pre-dicted map is blurred by a 11 × 11 px Gaussian kernel and normalised by dividing it by its maximum value. To obtain saliency predictions across the entire sequence, a sliding window approach is used, generating overlapping 16-frame input clips. This is repeated on the whole test set. 
+
+13.4. DReyeVENet 
+
+Training We used the official implementation from the DReyeVENet repository in our experiments. Only the im-age saliency branch was trained, while the optical flow and semantic segmentation branches were excluded, as the pre-trained segmentation model weights were not publicly available. Focusing on the image branch enabled efficient experimentation and ensured a stable, reproducible setup while maintaining a representative subset of the original ar-chitecture. The batch size used was set to 4, ‘train samples per epoch’ was set to 8192, and the learning rate was set to 5 × 10 −5. Clips of 16 frames were used as input, nor-malised by subtracting the mean frame value estimated from the training set. All the frames were resized to 448 ×448 px 
+
+to match the original DReyeVENet training setup. 
+
+Inference The model with the lowest validation loss was used for evaluation. We follow the official testing code to generate saliency maps for entire sequences in the test set. As with the other baseline methods, a sliding-window ap-proach with a clip size of 16 frames was employed to pro-duce predictions for all frames within each sequence. 
+
+# 14. MAAD Dataset Splits 
+
+The MAAD dataset [43] defines only a training and testing split (80% / 20%). In our experiments, we further divide the training set into training and validation subsets (87.5% / 12.5%), ensuring no overlap between any of the splits. Acknowledgements 
+
+This work was funded by Toyota Motor Europe. We thank Catri-ona Rutter for her assistance with the collection and annotation of the Focus100 dataset. 
+
+# References 
+
+[1] Henny Admoni and Brian Scassellati. Social eye gaze in human-robot interaction: a review. Journal of Human-Robot Interaction , 6(1):25–63, 2017. 1 [2] Kelsey R Allen, Tatiana Lopez Guevara, Yulia Rubanova, Kim Stachenfeld, Alvaro Sanchez-Gonzalez, Peter Battaglia, and Tobias Pfaff. Graph network simulators can learn discontinuous, rigid contact dynamics. In Conference on Robot Learning , pages 1157–1167. PMLR, 2023. 3 [3] Pierluigi Vito Amadori, Tobias Fischer, and Yiannis Demiris. HammerDrive: A task-aware driving visual atten-tion model. IEEE Transactions on Intelligent Transporta-tion Systems , 23(6):5573–5585, 2021. 2 [4] Richard Andersson, Marcus Nystr¨ om, and Kenneth Holmqvist. Sampling frequency and eye-tracking mea-sures: how speed affects durations, latencies, and more. 
+
+Journal of Eye Movement Research , 3(3), 2010. 4 [5] Richard Andersson, Linnea Larsson, Kenneth Holmqvist, Martin Stridh, and Marcus Nystr¨ om. One algorithm to rule them all? An evaluation and discussion of ten eye move-ment event-detection algorithms. Behavior research meth-ods , 49:616–637, 2017. 1 [6] Jason Ansel, Edward Yang, Horace He, Natalia Gimelshein, Animesh Jain, Michael Voznesensky, Bin Bao, Peter Bell, David Berard, Evgeni Burovski, Geeta Chauhan, Anjali Chourdia, Will Constable, Alban Des-maison, Zachary DeVito, Elias Ellison, Will Feng, Jiong Gong, Michael Gschwind, Brian Hirsh, Sherlock Huang, Kshiteej Kalambarkar, Laurent Kirsch, Michael Lazos, Mario Lezcano, Yanbo Liang, Jason Liang, Yinghai Lu, CK Luk, Bert Maher, Yunjie Pan, Christian Puhrsch, Matthias Reso, Mark Saroufim, Marcos Yukio Siraichi, Helen Suk, Michael Suo, Phil Tillet, Eikan Wang, Xi-aodong Wang, William Wen, Shunting Zhang, Xu Zhao, Keren Zhou, Richard Zou, Ajit Mathews, Gregory Chanan, Peng Wu, and Soumith Chintala. PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation. In 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2 (ASPLOS ’24) . ACM, 2024. 4 [7] Sonia Baee, Erfan Pakdamanian, Inki Kim, Lu Feng, Vi-cente Ordonez, and Laura Barnes. Medirl: Predicting the visual attention of drivers via maximum entropy deep inverse reinforcement learning. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 13178–13188, 2021. 2 [8] Donald J Berndt and James Clifford. Using dynamic time warping to find patterns in time series. In Proceedings of the 3rd international conference on knowledge discovery and data mining , pages 359–370, 1994. 7 [9] Apratim Bhattacharyya, Daniel Olmeda Reino, Mario Fritz, and Bernt Schiele. Euro-PVI: Pedestrian vehicle inter-actions in dense urban centers. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 6408–6417, 2021. 1, 3 [10] Giuseppe Boccignone and Mario Ferraro. Ecological sam-pling of gaze shifts. IEEE transactions on cybernetics , 44 (2):266–279, 2013. 3 [11] Ali Borji, Dicky N Sihite, and Laurent Itti. Computational modeling of top-down visual attention in interactive envi-ronments. In BMVC , pages 1–12, 2011. 2 [12] Ali Borji, Dicky N Sihite, and Laurent Itti. Probabilistic learning of task-specific visual attention. In 2012 IEEE Conference on computer vision and pattern recognition ,pages 470–477. IEEE, 2012. [13] Ali Borji, Dicky N Sihite, and Laurent Itti. What/where to look next? Modeling top-down visual attention in complex interactive environments. IEEE Transactions on Systems, Man, and Cybernetics: Systems , 44(5):523–538, 2013. 2 [14] Dirk Brockmann and Theo Geisel. The ecology of gaze shifts. Neurocomputing , 32:643–650, 2000. 3 [15] Michael M Bronstein, Joan Bruna, Taco Cohen, and Petar Veliˇ ckovi´ c. Geometric deep learning: Grids, groups, graphs, geodesics, and gauges. arXiv preprint arXiv:2104.13478 , 2021. 4 [16] Neil Bruce and John Tsotsos. Saliency based on informa-tion maximization. Advances in neural information pro-cessing systems , 18, 2005. 2 [17] Angelo Buizza and Paola Avanzini. Computer analysis of smooth pursuit eye movements. In Eye movements and psy-chological functions , pages 7–17. Routledge, 2021. 1 [18] Holger Caesar, Varun Bankiti, Alex H Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Giancarlo Baldan, and Oscar Beijbom. nuScenes: A mul-timodal dataset for autonomous driving. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11621–11631, 2020. 3 [19] Fang-Yi Chao, Cagri Ozcinar, and Aljosa Smolic. Transformer-based long-term viewport prediction in 360° video: Scanpath is all you need. In MMSP , pages 1–6, 2021. 1 [20] Xianyu Chen, Ming Jiang, and Qi Zhao. Predicting human scanpaths in visual question answering. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 10876–10885, 2021. 2 [21] ClearML. ClearML - Your entire MLOps stack in one open-source tool, 2024. Software available from http://github.com/clearml/clearml. 4 [22] Marcella Cornia, Lorenzo Baraldi, Giuseppe Serra, and Rita Cucchiara. A deep multi-level network for saliency prediction. In 2016 23rd International Conference on Pat-tern Recognition (ICPR) , pages 3488–3493. IEEE, 2016. 2 [23] CVAT.ai Corporation. Computer Vision Annotation Tool (CVAT), 2023. 6, 2 [24] Ryan Anthony Jalova de Belen, Tomasz Bednarz, and Ar-cot Sowmya. ScanpathNet: A recurrent mixture den-sity network for scanpath prediction. Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5010–5020, 2022. 2 [25] Bowen Deng, Siyang Song, Andrew P French, Denis Schluppeck, and Michael P Pound. Advancing saliency ranking with human fixations: Dataset models and bench-marks. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 28348– 28357, 2024. 7 [26] Tao Deng, Kaifu Yang, Yongjie Li, and Hongmei Yan. Where does the driver look? Top-down-based saliency de-tection in a traffic driving environment. IEEE Transactions on Intelligent Transportation Systems , 17(7):2051–2062, 2016. 2, 1 [27] Tao Deng, Hongmei Yan, and Yong-Jie Li. Learning to boost bottom-up fixation prediction in driving environ-ments via random forest. IEEE Transactions on Intelligent Transportation Systems , 19(9):3059–3067, 2017. 2 [28] Tao Deng, Hongmei Yan, Long Qin, Thuyen Ngo, and BS Manjunath. How do drivers allocate their potential atten-tion? Driving fixation prediction via convolutional neural networks. IEEE Transactions on Intelligent Transportation Systems , 21(5):2146–2154, 2019. 2, 1 [29] Thomas A Dingus, Feng Guo, Suzie Lee, Jonathan F Antin, Miguel Perez, Mindy Buchanan-King, and Jonathan Han-key. Driver crash risk factors and prevalence evaluation us-ing naturalistic driving data. Proceedings of the National Academy of Sciences , 113(10):2636–2641, 2016. 4 [30] Yasser Abdelaziz Dahou Djilali, Kevin McGuinness, and Noel O’Connor. Learning saliency from fixations. In Pro-ceedings of the IEEE/CVF Winter Conference on Applica-tions of Computer Vision , pages 383–393, 2024. 2, 5 [31] Driver and Vehicle Standards Agency. Hazard percep-tion test. https://www.gov.uk/theory- test/ hazard-perception-test , 2024. Accessed: 2024-08-21. 6, 1, 2 [32] Ramin Fahimi and Neil DB Bruce. On metrics for measur-ing scanpath similarity. Behavior Research Methods , 53: 609–628, 2021. 7 [33] William Falcon and The PyTorch Lightning team. PyTorch Lightning, 2019. 4 [34] Ching-Ling Fan, Jean Lee, Wen-Chih Lo, Chun-Ying Huang, Kuan-Ta Chen, and Cheng-Hsin Hsu. Fixation pre-diction for 360 video streaming in head-mounted virtual reality. In Proceedings of the 27th workshop on network and operating systems support for digital audio and video ,pages 67–72, 2017. 2 [35] Haoqi Fan, Bo Xiong, Karttikeya Mangalam, Yanghao Li, Zhicheng Yan, Jitendra Malik, and Christoph Feichten-hofer. Multiscale vision transformers. In Proceedings of the IEEE/CVF international conference on computer vi-sion , pages 6824–6835, 2021. 11 [36] Kanglong Fan, Wen Wen, Mu Li, Yifan Peng, and Kede Ma. Learned scanpaths aid blind panoramic video quality assessment. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2599– 2608, 2024. 2 [37] Jianwu Fang, Dingxin Yan, Jiahuan Qiao, Jianru Xue, and Hongkai Yu. DADA: Driver attention prediction in driving accident scenarios. IEEE transactions on intelligent trans-portation systems , 23(6):4959–4971, 2021. 1, 2, 4 [38] Matthias Fey and Jan E. Lenssen. Fast graph representation learning with PyTorch Geometric. In ICLR Workshop on Representation Learning on Graphs and Manifolds , 2019. 4[39] Matthias Fey, Jinu Sunil, Akihiro Nitta, Rishi Puri, Manan Shah, Blaˇ z Stojanoviˇ c, Ramona Bendias, Barghi Alexan-dria, Vid Kocijan, Zecheng Zhang, Xinwei He, Jan E. Lenssen, and Jure Leskovec. PyG 2.0: Scalable learning on real world graphs. In Temporal Graph Learning Work-shop @ KDD , 2025. 4 [40] Luke Fletcher and Alexander Zelinsky. Driver inattention detection based on eye gaze—road event correlation. The international journal of robotics research , 28(6):774–801, 2009. 1 [41] Ant´ on Garcia-Diaz, Xos´ e R Fdez-Vidal, Xos´ e M Pardo, and Raquel Dosil. Decorrelation and distinctiveness pro-vide with human-like saliency. In Advanced Concepts for Intelligent Vision Systems: 11th International Conference, ACIVS 2009, Bordeaux, France, September 28–October 2, 2009. Proceedings 11 , pages 343–354. Springer, 2009. 2 [42] Cl´ ement Godard, Oisin Mac Aodha, Michael Firman, and Gabriel J Brostow. Digging into self-supervised monocular depth estimation. In Proceedings of the IEEE/CVF inter-national conference on computer vision , pages 3828–3838, 2019. 6, 5 [43] Deepak Gopinath, Guy Rosman, Simon Stent, Katsuya Ter-ahata, Luke Fletcher, Brenna Argall, and John Leonard. MAAD: A model and dataset for “attended awareness” in driving. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 3426–3436, 2021. 2, 3, 6, 7, 1, 11 [44] Hadi Hadizadeh and Ivan V Baji´ c. Saliency-aware video compression. IEEE Transactions on Image Processing , 23 (1):19–33, 2013. 1 [45] Cheng Han, Qichao Zhao, Shuyi Zhang, Yinzi Chen, Zhen-lin Zhang, and Jinwei Yuan. YOLOPv2: Better, faster, stronger for panoptic driving perception. arXiv preprint arXiv:2208.11434 , 2022. 6, 5 [46] Jonathan Harel, Christof Koch, and Pietro Perona. Graph-based visual saliency. Advances in neural information pro-cessing systems , 19, 2006. 2, 7 [47] Charles R. Harris, K. Jarrod Millman, St´ efan J. van der Walt, Ralf Gommers, Pauli Virtanen, David Cour-napeau, Eric Wieser, Julian Taylor, Sebastian Berg, Nathaniel J. Smith, Robert Kern, Matti Picus, Stephan Hoyer, Marten H. van Kerkwijk, Matthew Brett, Allan Haldane, Jaime Fern´ andez del R´ ıo, Mark Wiebe, Pearu Peterson, Pierre G´ erard-Marchant, Kevin Sheppard, Tyler Reddy, Warren Weckesser, Hameer Abbasi, Christoph Gohlke, and Travis E. Oliphant. Array programming with NumPy. Nature , 585(7825):357–362, 2020. 4 [48] Kaiming He, Georgia Gkioxari, Piotr Doll´ ar, and Ross Gir-shick. Mask R-CNN. In Proceedings of the IEEE inter-national conference on computer vision , pages 2961–2969, 2017. 6, 5 [49] Markus Hofbauer, Christopher B Kuhn, Lukas P¨ uttner, Goran Petrovic, and Eckehard Steinbach. Measuring driver situation awareness using region-of-interest prediction and eye tracking. In 2020 IEEE International Symposium on Multimedia (ISM) , pages 91–95. IEEE, 2020. 1 [50] Kenneth Holmqvist, Marcus Nystr¨ om, Richard Andersson, Richard Dewhurst, Halszka Jarodzka, and Joost Van de Weijer. Eye tracking: A comprehensive guide to methods and measures . oup Oxford, 2011. 4 [51] Ziniu Hu, Yuxiao Dong, Kuansan Wang, and Yizhou Sun. Heterogeneous graph transformer. In Proceedings of the web conference 2020 , pages 2704–2710, 2020. 3, 4, 8 [52] Zhixin Huang, Yuchen Zhou, Jie Zhu, and Chao Gou. Driver scanpath prediction based on inverse reinforce-ment learning. In ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 8306–8310. IEEE, 2024. 1, 2 [53] Sergey Ioffe and Christian Szegedy. Batch normalization: Accelerating deep network training by reducing internal co-variate shift. In International conference on machine learn-ing , pages 448–456. pmlr, 2015. 4 [54] Laurent Itti, Christof Koch, and Ernst Niebur. A model of saliency-based visual attention for rapid scene analysis. 
+
+IEEE Transactions on pattern analysis and machine intelli-gence , 20(11):1254–1259, 1998. 2, 7 [55] Samyak Jain, Pradeep Yarlagadda, Shreyank Jyoti, Shyam-gopal Karthik, Ramanathan Subramanian, and Vineet Gandhi. ViNet: Pushing the limits of visual modality for audio-visual saliency prediction. In 2021 IEEE/RSJ In-ternational Conference on Intelligent Robots and Systems (IROS) , pages 3520–3527. IEEE, 2021. 7, 10 [56] Steeven Janny, Aur´ elien Beneteau, Madiha Nadri, Julie Digne, Nicolas Thome, and Christian Wolf. EAGLE: Large-scale learning of turbulent fluid dynamics with mesh transformers. arXiv preprint arXiv:2302.10803 , 2023. 1 [57] Xiaosong Jia, Penghao Wu, Li Chen, Yu Liu, Hongyang Li, and Junchi Yan. HDGT: Heterogeneous driving graph transformer for multi-agent trajectory prediction via scene encoding. IEEE transactions on pattern analysis and ma-chine intelligence , 2023. 1, 3 [58] Chuhan Jiao, Yao Wang, Guanhua Zhang, Mihai Bˆ ace, Zhiming Hu, and Andreas Bulling. DiffGaze: A diffusion model for continuous gaze sequence generation on 360 ◦
+
+images. arXiv preprint arXiv:2403.17477 , 2024. 2 [59] Glenn Jocher, Ayush Chaurasia, and Jing Qiu. Ultralytics YOLO, 2023. 6, 3, 5, 7 [60] Justin Johnson, Ranjay Krishna, Michael Stark, Li-Jia Li, David Shamma, Michael Bernstein, and Li Fei-Fei. Im-age retrieval using scene graphs. In Proceedings of the IEEE conference on computer vision and pattern recogni-tion , pages 3668–3678, 2015. 3 [61] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang, Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Vi-ola, Tim Green, Trevor Back, Paul Natsev, et al. The kinetics human action video dataset. arXiv preprint arXiv:1705.06950 , 2017. 11 [62] Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 ,2014. 6 [63] Sheila G Klauer, Thomas A Dingus, Vicki L Neale, Jeremy D Sudweeks, and David J Ramsey. The impact of driver inattention on near-crash/crash risk: An analysis us-ing the 100-car naturalistic driving study data. Technical Report DOT HS 810 594, National Highway Traffic Safety Administration, 2006. 4 [64] Xiaoqiang Kong, Subasish Das, Yunlong Zhang, et al. Pat-terns of near-crash events in a naturalistic driving dataset: applying rules mining. Accident Analysis & Prevention ,161:106346, 2021. 4 [65] Gert Kootstra, Arco Nederveen, and Bart De Boer. Pay-ing attention to symmetry. In British Machine Vision Con-ference (BMVC2008) , pages 1115–1125. The British Ma-chine Vision Association and Society for Pattern Recogni-tion, 2008. 2 [66] Iuliia Kotseruba and John K Tsotsos. Data limitations for modeling top-down effects on drivers’ attention. arXiv preprint arXiv:2404.08749 , 2024. 3, 1, 4 [67] Iuliia Kotseruba and John K Tsotsos. SCOUT+: Towards practical task-driven drivers’ gaze prediction. In 2024 IEEE Intelligent Vehicles Symposium (IV) . IEEE, 2024. 2, 8 [68] Iuliia Kotseruba and John K Tsotsos. Understanding and modeling the effects of task and context on drivers’ gaze allocation. In 2024 IEEE Intelligent Vehicles Symposium (IV) , pages 1337–1344. IEEE, 2024. 7, 10 [69] Vassilios Krassanakis, Vassiliki Filippakopoulou, and By-ron Nakos. EyeMMV toolbox: An eye movement post-analysis tool based on a two-step spatial dispersion thresh-old for fixation identification. Journal of Eye Movement Research , 7(1), 2014. 6, 7, 5 [70] Srinivas SS Kruthiventi, Kumar Ayush, and R Venkatesh Babu. DeepFix: A fully convolutional neural network for predicting human eye fixations. IEEE Transactions on Im-age Processing , 26(9):4446–4456, 2017. 2 [71] Matthias K¨ ummerer, Lucas Theis, and Matthias Bethge. Deep Gaze I: Boosting saliency prediction with fea-ture maps trained on ImageNet. arXiv preprint arXiv:1411.1045 , 2014. 2 [72] Matthias K¨ ummerer, Thomas SA Wallis, and Matthias Bethge. Saliency benchmarking made easy: Separating models, maps and metrics. Proceedings of the European Conference on Computer Vision (ECCV) , pages 770–787, 2018. 7 [73] Matthias K¨ ummerer, Matthias Bethge, and Thomas SA Wallis. DeepGaze III: Modeling free-viewing human scan-paths with deep learning. Journal of Vision , 22(5):7–7, 2022. 2 [74] Bolin Lai, Miao Liu, Fiona Ryan, and James M Rehg. In the eye of transformer: Global–local correlation for ego-centric gaze estimation and beyond. International Journal of Computer Vision , 132(3):854–871, 2024. 7, 10, 11 [75] Olivier Le Meur, Patrick Le Callet, Dominique Barba, and Dominique Thoreau. A coherent computational approach to model bottom-up visual attention. IEEE transactions on pattern analysis and machine intelligence , 28(5):802–817, 2006. 2 [76] Sooha Park Lee, Jeremy B Badler, and Norman I Badler. Eyes alive. In Proceedings of the 29th annual conference on Computer graphics and interactive techniques , pages 637– 644, 2002. 1 [77] Alexander Leube, Katharina Rifai, and Siegfried Wahl. Sampling rate influences saccade detection in mobile eye tracking of a reading task. Journal of eye movement re-search , 10(3):16, 2017. 4 [78] Chenge Li, Weixi Zhang, Yong Liu, and Yao Wang. Very long term field of view prediction for 360-degree video streaming. In 2019 IEEE Conference on Multimedia Infor-mation Processing and Retrieval (MIPR) , pages 297–302. IEEE, 2019. 2 [79] Yin Li, Alireza Fathi, and James M Rehg. Learning to pre-dict gaze in egocentric video. In Proceedings of the IEEE international conference on computer vision , pages 3216– 3223, 2013. 2 [80] Yin Li, Miao Liu, and James M Rehg. In the eye of the be-holder: Gaze and actions in first person video. IEEE trans-actions on pattern analysis and machine intelligence , 45 (6):6731–6747, 2021. 2 [81] Jing Lian, Weiwei Ren, Linhui Li, Yafu Zhou, and Bin Zhou. PTP-STGCN: pedestrian trajectory prediction based on a spatio-temporal graph convolutional neural network. 
+
+Applied Intelligence , 53(3):2862–2878, 2023. 1 [82] Akis Linardos, Matthias K¨ ummerer, Ori Press, and Matthias Bethge. DeepGaze IIE: Calibrated prediction in and out-of-domain for state-of-the-art saliency modeling. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 12919–12928, 2021. 2 [83] Yao Liu, Lina Yao, Binghao Li, Xianzhi Wang, and Claude Sammut. Social graph transformer networks for pedestrian trajectory prediction in complex social scenarios. In Pro-ceedings of the 31st ACM International Conference on In-formation & Knowledge Management , pages 1339–1349, 2022. 3 [84] Ze Liu, Jia Ning, Yue Cao, Yixuan Wei, Zheng Zhang, Stephen Lin, and Han Hu. Video swin transformer. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 3202–3211, 2022. 11 [85] Xiao Luo, Haixin Wang, Zijie Huang, Huiyu Jiang, Abhi-jeet Gangan, Song Jiang, and Yizhou Sun. Care: Modeling interacting dynamics under temporal environmental varia-tion. Advances in Neural Information Processing Systems ,36, 2024. 1, 3 [86] Yinan Ma, Jing Wu, and Chengnian Long. GazeFCW: Filter collision warning triggers by detecting driver’s gaze area. In Proceedings of the 1st Workshop on Machine Learning on Edge in Sensor Systems , pages 13–18, 2019. 1[87] Andrew K Mackenzie and Julie M Harris. Eye movements and hazard perception in active and passive driving. Visual cognition , 23(6), 2015. 4 [88] Xiaoyu Mo, Yang Xing, and Chen Lv. Heterogeneous edge-enhanced graph attention network for multi-agent trajectory prediction. arXiv preprint arXiv:2106.07161 , 2021. 1, 3, 8 [89] Sounak Mondal, Zhibo Yang, Seoyoung Ahn, Dimitris Samaras, Gregory Zelinsky, and Minh Hoai. Gazeformer: Scalable, effective and fast prediction of goal-directed hu-man attention. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1441– 1450, 2023. 2 [90] Roozbeh Mottaghi, Mohammad Rastegari, Abhinav Gupta, and Ali Farhadi. “What happens if...” Learning to pre-dict the effect of forces in images. In Computer Vision– ECCV 2016: 14th European Conference, Amsterdam, The Netherlands, October 11–14, 2016, Proceedings, Part IV 14 , pages 269–285. Springer, 2016. 3 [91] Naila Murray, Maria Vanrell, Xavier Otazu, and C Alejan-dro Parraga. Saliency estimation using a non-parametric low-level vision model. In CVPR 2011 , pages 433–440. IEEE, 2011. 2 [92] Minghao Ning, Chao Lu, and Jianwei Gong. An efficient model for driving focus of attention prediction using deep learning. In 2019 IEEE Intelligent Transportation Systems Conference (ITSC) , pages 1192–1197. IEEE, 2019. 2 [93] Antje Nuthmann and John M Henderson. Object-based at-tentional selection in scene viewing. Journal of vision , 10 (8):20–20, 2010. 2 [94] Yasaman Habibzadeh Omran, Homayoun Sadeghi-Bazargani, Mohammad Hossein Yarmohammadian, and Golrokh Atighechian. Driving hazard perception tests: a systematic review. Bulletin of Emergency & Trauma , 11 (2):51, 2023. 4 [95] Andrea Palazzi, Francesco Solera, Simone Calderara, Ste-fano Alletto, and Rita Cucchiara. Learning where to attend like a human driver. In 2017 IEEE Intelligent Vehicles Sym-posium (IV) , pages 920–925. IEEE, 2017. 2 [96] Andrea Palazzi, Davide Abati, Francesco Solera, Rita Cuc-chiara, et al. Predicting the driver’s focus of attention: the DR(eye)VE project. IEEE transactions on pattern analysis and machine intelligence , 41(7):1720–1733, 2018. 1, 2, 6, 7, 3, 10 [97] Luke Palmer, Alina Bialkowski, Gabriel J Brostow, Jonas Ambeck-Madsen, and Nilli Lavie. Predicting the percep-tual demands of urban driving with video regression. In 
+
+2017 IEEE Winter Conference on Applications of Computer Vision (WACV) , pages 409–417. IEEE, 2017. 2 [98] Junting Pan, Elisa Sayrol, Xavier Giro-i Nieto, Kevin McGuinness, and Noel E O’Connor. Shallow and deep convolutional networks for saliency prediction. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 598–606, 2016. 2 [99] Junting Pan, Cristian Canton Ferrer, Kevin McGuin-ness, Noel E O’Connor, Jordi Torres, Elisa Sayrol, and Xavier Giro-i Nieto. SalGAN: Visual saliency predic-tion with generative adversarial networks. arXiv preprint arXiv:1701.01081 , 2017. 2 [100] Anjul Patney, Marco Salvi, Joohwan Kim, Anton Ka-planyan, Chris Wyman, Nir Benty, David Luebke, and Aaron Lefohn. Towards foveated rendering for gaze-tracked virtual reality. ACM Transactions on Graphics (TOG) , 35(6):1–12, 2016. 1 [101] Tobias Pfaff, Meire Fortunato, Alvaro Sanchez-Gonzalez, and Peter W Battaglia. Learning mesh-based simulation with graph networks. arXiv preprint arXiv:2010.03409 ,2020. 1, 3 [102] Mengyu Qiu, Yi Guo, Mingguang Zhang, Jingwei Zhang, Tian Lan, and Zhilin Liu. Simulating human visual system based on vision transformer. In Proceedings of the 2023 ACM Symposium on Spatial User Interaction , pages 1–5, 2023. 2 [103] Rong Quan, Yantao Lai, Mengyu Qiu, and Dong Liang. Pathformer3D: A 3D scanpath transformer for 360 ◦ im-ages. In European Conference on Computer Vision , pages 73–90. Springer, 2024. 2 [104] Mahdi Rezaei and Reinhard Klette. Look at the driver, look at the road: No distraction! No accident! In Proceedings of the IEEE conference on computer vision and pattern recog-nition , pages 129–136, 2014. 1 [105] Do A Robinson. The mechanics of human smooth pur-suit eye movement. The Journal of Physiology , 180(3):569, 1965. 1 [106] Miguel Fabi´ an Romero Rond´ on, Lucile Sassatelli, Ram´ on Aparicio-Pardo, and Fr´ ed´ eric Precioso. TRACK: A new method from a re-examination of deep architectures for head motion prediction in 360 ◦ videos. IEEE Transactions on Pattern Analysis and Machine Intelligence , 44(9):5681– 5699, 2021. 2 [107] Nicolas Roth, Martin Rolfs, Olaf Hellwich, and Klaus Obermayer. Objects guide human gaze behavior in dynamic real-world scenes. PLoS Computational Biology , 19(10): e1011512, 2023. 2 [108] Alvaro Sanchez-Gonzalez, Jonathan Godwin, Tobias Pfaff, Rex Ying, Jure Leskovec, and Peter Battaglia. Learning to simulate complex physics with graph networks. In Interna-tional conference on machine learning , pages 8459–8468. PMLR, 2020. 1, 3 [109] Thomas Seacrist, Ethan C Douglas, Chloe Hannan, Rachel Rogers, Aditya Belwadi, and Helen Loeb. Near crash char-acteristics among risky drivers using the SHRP2 naturalis-tic driving study. Journal of safety research , 73:263–269, 2020. 4 [110] Hae Jong Seo and Peyman Milanfar. Static and space-time visual saliency detection by self-resemblance. Journal of vision , 9(12):15–15, 2009. 2 [111] Bobbie D Seppelt, Sean Seaman, Joonbum Lee, Linda S Angell, Bruce Mehler, and Bryan Reimer. Glass half-full: On-road glance metrics differentiate crashes from near-crashes in the 100-Car data. Accident Analysis & Preven-tion , 107:48–62, 2017. 4 [112] Yidi Shao, Chen Change Loy, and Bo Dai. Transformer with implicit edges for particle-based physics simulation. In European Conference on Computer Vision , pages 549– 564. Springer, 2022. 1 [113] Peter Shaw, Jakob Uszkoreit, and Ashish Vaswani. Self-attention with relative position representations. arXiv preprint arXiv:1803.02155 , 2018. 3, 4 [114] Stephen V Shepherd, Shawn A Steckenfinger, Uri Hasson, and Asif A Ghazanfar. Human-monkey gaze correlations reveal convergent and divergent patterns of movie viewing. 
+
+Current Biology , 20(7):649–656, 2010. 7 [115] Liushuai Shi, Le Wang, Chengjiang Long, Sanping Zhou, Mo Zhou, Zhenxing Niu, and Gang Hua. SGCN: Sparse graph convolution network for pedestrian trajectory pre-diction. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 8994–9003, 2021. 1 [116] Liushuai Shi, Le Wang, Sanping Zhou, and Gang Hua. Tra-jectory unified transformer for pedestrian trajectory predic-tion. In Proceedings of the IEEE/CVF International Con-ference on Computer Vision , pages 9675–9684, 2023. 3 [117] Karen Simonyan and Andrew Zisserman. Very deep convo-lutional networks for large-scale image recognition. arXiv preprint arXiv:1409.1556 , 2014. 6, 5 [118] Neville A Stanton and Paul M Salmon. Human error tax-onomies applied to driving: A generic driver error taxon-omy and its implications for intelligent transport systems. 
+
+Safety Science , 47(2):227–237, 2009. 1 [119] Jork Stapel, Mounir El Hassnaoui, and Riender Happee. Measuring driver perception: Combining eye-tracking and automated road scene perception. Human factors , 64(4): 714–731, 2022. 4 [120] Xiangjie Sui, Yuming Fang, Hanwei Zhu, Shiqi Wang, and Zhou Wang. ScanDMM: A deep Markov model of scan-path prediction for 360 ◦ images. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 6989–6999, 2023. 2 [121] Luning Sun, Xu Han, Han Gao, Jian-Xun Wang, and Liping Liu. Unifying predictions of deterministic and stochastic physics in mesh-reduced space with sequential flow gener-ative model. Advances in Neural Information Processing Systems , 36, 2024. 3 [122] Pei Sun, Henrik Kretzschmar, Xerxes Dotiwalla, Aure-lien Chouard, Vijaysai Patnaik, Paul Tsui, James Guo, Yin Zhou, Yuning Chai, Benjamin Caine, et al. Scalability in perception for autonomous driving: Waymo open dataset. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 2446–2454, 2020. 1, 3[123] Wanjie Sun, Zhenzhong Chen, and Feng Wu. Visual scan-path prediction using IOR-ROI recurrent mixture density network. IEEE transactions on pattern analysis and ma-chine intelligence , 43(6):2101–2118, 2019. 2 [124] Salah Taamneh, Panagiotis Tsiamyrtzis, Malcolm Dcosta, Pradeep Buddharaju, Ashik Khatri, Michael Manser, Thomas Ferris, Robert Wunderlich, and Ioannis Pavlidis. A multimodal dataset for various forms of distracted driving. 
+
+Scientific data , 4(1):1–21, 2017. 2 [125] Hamed Rezazadegan Tavakoli, Esa Rahtu, Juho Kannala, and Ali Borji. Digging deeper into egocentric gaze predic-tion. In 2019 IEEE Winter Conference on Applications of Computer Vision (WACV) , pages 273–282. IEEE, 2019. 2 [126] Ashish Tawari, Praneeta Mallela, and Sujitha Martin. Learning to attend to salient targets in driving videos us-ing fully convolutional RNN. In 2018 21st International Conference on Intelligent Transportation Systems (ITSC) ,pages 3225–3232. IEEE, 2018. 2 [127] Antigoni Tsiami, Petros Koutras, and Petros Maragos. STAViS: Spatio-temporal audiovisual saliency network. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 4766–4776, 2020. 2 [128] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems , 30, 2017. 4 [129] Petar Veliˇ ckovi´ c, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Lio, and Yoshua Bengio. Graph at-tention networks. arXiv preprint arXiv:1710.10903 , 2017. 4[130] Xiaolong Wang and Abhinav Gupta. Videos as space-time region graphs. In Proceedings of the European conference on computer vision (ECCV) , pages 399–417, 2018. 3 [131] Yue Wang and Justin M Solomon. Object DGCNN: 3D object detection using dynamic graphs. Advances in Neural Information Processing Systems , 34:20745–20758, 2021. [132] Yongxin Wang, Kris Kitani, and Xinshuo Weng. Joint ob-ject detection and multi-object tracking with graph neu-ral networks. In 2021 IEEE international conference on robotics and automation (ICRA) , pages 13708–13715. IEEE, 2021. 3 [133] Ziqiang Wang, Zhi Liu, Gongyang Li, Yang Wang, Tian-hong Zhang, Lihua Xu, and Jijun Wang. Spatio-temporal self-attention network for video saliency prediction. IEEE Transactions on Multimedia , 25:1161–1174, 2021. 2 [134] Zhongning Wang, Jianwei Zhang, Jicheng Chen, and Hui Zhang. Spatio-temporal context graph transformer design for map-free multi-agent trajectory prediction. IEEE Trans-actions on Intelligent Vehicles , 2023. 3 [135] Kan Wu, Houwen Peng, Minghao Chen, Jianlong Fu, and Hongyang Chao. Rethinking and improving relative posi-tion encoding for vision transformer. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 10033–10041, 2021. 3, 4 [136] Ye Xia, Danqing Zhang, Jinkyu Kim, Ken Nakayama, Karl Zipser, and David Whitney. Predicting driver attention in critical situations. In Computer Vision–ACCV 2018: 14th Asian Conference on Computer Vision, Perth, Australia, December 2–6, 2018, Revised Selected Papers, Part V 14 ,pages 658–674. Springer, 2019. 1, 2, 5, 7, 4 [137] Saining Xie, Chen Sun, Jonathan Huang, Zhuowen Tu, and Kevin Murphy. Rethinking spatiotemporal feature learn-ing: Speed-accuracy trade-offs in video classification. In 
+
+Proceedings of the European conference on computer vi-sion (ECCV) , pages 305–321, 2018. 11 [138] Ruibin Xiong, Yunchang Yang, Di He, Kai Zheng, Shuxin Zheng, Chen Xing, Huishuai Zhang, Yanyan Lan, Liwei Wang, and Tieyan Liu. On layer normalization in the trans-former architecture. In International Conference on Ma-chine Learning , pages 10524–10533. PMLR, 2020. 5 [139] Juan Xu, Ming Jiang, Shuo Wang, Mohan S Kankanhalli, and Qi Zhao. Predicting human gaze beyond pixels. Jour-nal of vision , 14(1):28–28, 2014. 6 [140] Yanyu Xu, Yanbing Dong, Junru Wu, Zhengzhong Sun, Zhiru Shi, Jingyi Yu, and Shenghua Gao. Gaze prediction in dynamic 360 ◦ immersive videos. In proceedings of the IEEE Conference on Computer Vision and Pattern Recog-nition , pages 5333–5342, 2018. 2 [141] Yanyu Xu, Ziheng Zhang, and Shenghua Gao. Spherical DNNs and their applications in 360 ◦ images and videos. 
+
+IEEE Transactions on Pattern Analysis and Machine Intel-ligence , 44(10):7235–7252, 2021. 2 [142] Zeyi Xu and Yifei Li. Learning physical simula-tion with message passing transformer. arXiv preprint arXiv:2406.06060 , 2024. 1, 3 [143] Zhibo Yang, Lihan Huang, Yupei Chen, Zijun Wei, Seoy-oung Ahn, Gregory Zelinsky, Dimitris Samaras, and Minh Hoai. Predicting goal-directed human attention using inverse reinforcement learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 193–202, 2020. 1, 2 [144] Cunjun Yu, Xiao Ma, Jiawei Ren, Haiyu Zhao, and Shuai Yi. Spatio-temporal graph transformer networks for pedes-trian trajectory prediction. In Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part XII 16 , pages 507–523. Springer, 2020. 3 [145] Fisher Yu, Haofeng Chen, Xin Wang, Wenqi Xian, Yingy-ing Chen, Fangchen Liu, Vashisht Madhavan, and Trevor Darrell. BDD100K: A diverse driving dataset for heteroge-neous multitask learning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 2636–2645, 2020. 1 [146] Kunpeng Zhang, Xiaoliang Feng, Lan Wu, and Zheng-bing He. Trajectory prediction for autonomous driving using spatial-temporal graph attention transformer. IEEE Transactions on Intelligent Transportation Systems , 23(11): 22343–22353, 2022. 3 [147] Mengmi Zhang, Keng Teck Ma, Joo Hwee Lim, Qi Zhao, and Jiashi Feng. Deep future gaze: Gaze anticipation on egocentric videos using adversarial networks. In Proceed-ings of the IEEE conference on computer vision and pattern recognition , pages 4372–4381, 2017. 2 [148] Zehua Zhang, Ashish Tawari, Sujitha Martin, and David Crandall. Interaction graphs for object importance esti-mation in on-road driving videos. In 2020 IEEE Inter-national Conference on Robotics and Automation (ICRA) ,pages 8920–8927. IEEE, 2020. 2 [149] Zhejun Zhang, Alexander Liniger, Christos Sakaridis, Fisher Yu, and Luc V Gool. Real-time motion prediction via heterogeneous polyline transformer with relative pose encoding. Advances in Neural Information Processing Sys-tems , 36, 2024. 3

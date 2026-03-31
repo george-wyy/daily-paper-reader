@@ -6,40 +6,55 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-30
-- 运行时间：2026-03-30 20:13:45 UTC
+- 最新运行日期：2026-03-31
+- 运行时间：2026-03-31 20:35:57 UTC
 - 运行状态：成功
-- 本次总论文数：6
-- 精读区：5
-- 速读区：1
+- 本次总论文数：11
+- 精读区：3
+- 速读区：8
 
 ### 今日简报（AI）
-今日深度解析 6 篇论文，聚焦视线追踪（Gaze）技术在视频理解与人机交互中的突破性进展。
-重点推荐 GazeQwen 的轻量化视频调制方案，以及针对视线捏合交互中误差修正与用户适应性的深度评估。
-建议关注视线引导如何提升多模态大模型的感知精度，探索更自然、高效的空间计算交互范式。
-- 详情：[/202603/30/README](/202603/30/README)
+今日深度解析 11 篇前沿成果，重点攻克动态场景下的视线模拟与全场景实时追踪难题。
+核心结论指出，基于图论的模拟技术与硬注意机制正大幅提升视觉感知的精准度与人类对齐水平。
+建议关注视线交互在自动驾驶及人机协作中的应用，把握智能系统向拟人化演进的新趋势。
+- 详情：[/202603/31/README](/202603/31/README)
 
 ### 精读区论文标签
-1. [GazeQwen: Lightweight Gaze-Conditioned LLM Modulation for Streaming Video Understanding](/202603/30/2603.25841v1-gazeqwen-lightweight-gaze-conditioned-llm-modulation-for-streaming-video-understanding)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：基于注视点位置编码的视频理解大模型调制技术
-2. [Sticky and Magnetic: Evaluating Error Correction and User Adaptation in Gaze and Pinch Interaction](/202603/30/2603.26608v1-sticky-and-magnetic-evaluating-error-correction-and-user-adaptation-in-gaze-and-pinch-interaction)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：VR 空间计算中的注视与捏合交互模态
-3. [GUIDE: A Benchmark for Understanding and Assisting Users in Open-Ended GUI Tasks](/202603/30/2603.25864v1-guide-a-benchmark-for-understanding-and-assisting-users-in-open-ended-gui-tasks)  
+1. [Beyond Scanpaths: Graph-Based Gaze Simulation in Dynamic Scenes](/202603/31/2603.28319v1-beyond-scanpaths-graph-based-gaze-simulation-in-dynamic-scenes)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：在 GUI 任务中感知用户行为并推断意图
-4. [Polarization-Based Eye Tracking with Personalized Siamese Architectures](/202603/30/2603.25889v1-polarization-based-eye-tracking-with-personalized-siamese-architectures)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：用于自然人机交互的眼动追踪
-5. [CR-Eyes: A Computational Rational Model of Visual Sampling Behavior in Atari Games](/202603/30/2603.26527v1-cr-eyes-a-computational-rational-model-of-visual-sampling-behavior-in-atari-games)  
+   evidence：用于眼动建模的自回归动力系统及下一步眼动分布预测
+2. [Real-time Appearance-based Gaze Estimation for Open Domains](/202603/31/2603.26945v1-real-time-appearance-based-gaze-estimation-for-open-domains)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：视觉采样与决策制定的计算模型
+   evidence：基于外观的实时视线估计
+3. [DiffAttn: Diffusion-Based Drivers' Visual Attention Prediction with LLM-Enhanced Semantic Reasoning](/202603/31/2603.28251v1-diffattn-diffusion-based-drivers-visual-attention-prediction-with-llm-enhanced-semantic-reasoning)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：基于扩散模型的智能车辆驾驶员视觉注意力预测
 
 ### 速读区论文标签
-1. [Does Structured Intent Representation Generalize? A Cross-Language, Cross-Model Empirical Study of 5W3H Prompting](/202603/30/2603.25379v1-does-structured-intent-representation-generalize-a-cross-language-cross-model-empirical-study-of-5w3h-prompting)  
+1. [RESPOND: Responsive Engagement Strategy for Predictive Orchestration and Dialogue](/202603/31/2603.21682v2-respond-responsive-engagement-strategy-for-predictive-orchestration-and-dialogue)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：对话中的前瞻性话轮抢占与预测性编排
+2. [EVA: Bridging Performance and Human Alignment in Hard-Attention Vision Models for Image Classification](/202603/31/2603.27340v1-eva-bridging-performance-and-human-alignment-in-hard-attention-vision-models-for-image-classification)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：提高视觉模型中类人扫描路径的一致性
+3. [From Passersby to Placemaking: Designing Autonomous Vehicle-Pedestrian Encounters for an Urban Shared Space](/202603/31/2603.27933v1-from-passersby-to-placemaking-designing-autonomous-vehicle-pedestrian-encounters-for-an-urban-shared-space)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：设计用于自动驾驶汽车与行人意图沟通的外部界面
+4. [ETA-VLA: Efficient Token Adaptation via Temporal Fusion and Intra-LLM Sparsification for Vision-Language-Action Models](/202603/31/2603.25766v1-eta-vla-efficient-token-adaptation-via-temporal-fusion-and-intra-llm-sparsification-for-vision-language-action-models)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：人机交互中的结构化意图表示
+   evidence：视觉-语言-动作模型中的驾驶员注意力分配
+5. [Emergent Neural Automaton Policies: Learning Symbolic Structure from Visuomotor Trajectories](/202603/31/2603.25903v1-emergent-neural-automaton-policies-learning-symbolic-structure-from-visuomotor-trajectories)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：从视觉运动轨迹中推断潜在任务模式
+6. [Shared Representation for 3D Pose Estimation, Action Classification, and Progress Prediction from Tactile Signals](/202603/31/2603.25906v1-shared-representation-for-3d-pose-estimation-action-classification-and-progress-prediction-from-tactile-signals)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：用于人机交互中动作分类和进度预测的多模态信号
+7. [Beyond Language: Grounding Referring Expressions with Hand Pointing in Egocentric Vision](/202603/31/2603.26646v1-beyond-language-grounding-referring-expressions-with-hand-pointing-in-egocentric-vision)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：结合手势指向和语音的第一视角指示性视觉定位
+8. [FocusVLA: Focused Visual Utilization for Vision-Language-Action Models](/202603/31/2603.28740v1-focusvla-focused-visual-utilization-for-vision-language-action-models)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：用于动作生成的视觉-语言-动作模型
 
 
 <div class="dpr-home-promo-card">

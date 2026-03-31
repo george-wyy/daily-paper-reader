@@ -1,0 +1,708 @@
+Title: Real-time Appearance-based Gaze Estimation for Open Domains
+
+URL Source: https://arxiv.org/pdf/2603.26945v1
+
+Published Time: Tue, 31 Mar 2026 00:23:20 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# Real-time Appearance-based Gaze Estimation for Open Domains 
+
+## Zhenhao Li 1 Zheng Liu *1 Seunghyun Lee *2 Amin Fadaeinejad 1 Yuanhao Yu 11Huawei Technologies Canada 2University of Toronto 
+
+## Abstract 
+
+Appearance-based gaze estimation (AGE) has achieved re-markable performance in constrained settings, yet we re-veal a significant generalization gap where existing AGE models often fail in practical, unconstrained scenarios, par-ticularly those involving facial wearables and poor light-ing conditions. We attribute this failure to two core fac-tors: limited image diversity and inconsistent label fidelity across different datasets, especially along the pitch axis. To address these, we propose a robust AGE framework that en-hances generalization without requiring additional human-annotated data. First, we expand the image manifold via an ensemble of augmentation techniques, including synthesis of eyeglasses, masks, and varied lighting. Second, to miti-gate the impact of anisotropic inter-dataset label deviation, we reformulate gaze regression as a multi-task learning problem, incorporating multi-view supervised contrastive (SupCon) learning, discretized label classification, and eye-region segmentation as auxiliary objectives. To rigorously validate our approach, we curate new benchmark datasets designed to evaluate gaze robustness under challenging conditions, a dimension largely overlooked by existing eval-uation protocols. Our MobileNet-based lightweight model achieves generalization performance competitive with the state-of-the-art (SOTA) UniGaze-H, while utilizing less than 1% of its parameters, enabling high-fidelity, real-time gaze tracking on mobile devices. 
+
+## 1. Introduction 
+
+Gaze estimation is a fundamental computer vision task: given one or multiple images of a subject, determine their 3D gaze direction. Appearance-based gaze estimation (AGE) has garnered significant interest because it can be de-ployed on ubiquitous RGB cameras found in PCs and mo-bile devices. However, despite rapid progress from deep learning, AGE still lags behind specialized near-infrared systems [40] in practical deployments. A major obstacle is 
+
+> *Equal contribution. Seunghyun Lee did the work during internship at Huawei.
+> (a) Red: UniGaze-H; Green: Ours
+> (b) Evaluation on our RealGaze benchmark
+
+Figure 1. Comparison of generalization performance between our MobileNet-based model and the SOTA UniGaze [30]. (a) On our benchmark datasets RealGaze (top) and ZeroGaze (bottom), UniGaze-H (red arrows) manifests significantly higher prediction variance under occlusion. (b) Our lightweight model maintains superior robustness and manifold consistency compared to signifi-cantly larger baselines, effectively marginalizing the impact of vi-sual alterations. Detailed analysis is provided in Section 6.2. 
+
+poor generalization (see Fig. 1): while current models ex-cel on standard benchmarks, they often suffer catastrophic performance degradation in unconstrained, real-world sce-narios, particularly when users wear glasses or facial masks, or when illumination is challenging (Sec. 6.2). Notably, we observe that this degradation is anisotropic : vertical (pitch) errors are consistently larger than horizontal (yaw) errors. We attribute this generalization gap to two interacting causes. First, limited image diversity in existing datasets: 1
+
+> arXiv:2603.26945v1 [cs.CV] 27 Mar 2026
+
+many datasets are collected in controlled settings with few subjects and limited appearance variation, because 3D gaze labels are typically derived from 2D points-of-gaze via a geometric pipeline [45] that favors controlled capture to re-duce labeling error. Second, inter-dataset label misalign-ment: the geometric labeling pipeline introduces system-atic, dataset-dependent biases during intermediate steps, such as camera calibration and head pose estimation. We re-veal that these errors are not uniformly distributed; the pitch axis exhibits noticeably greater label deviation than yaw. Consequently, the common practice of joint-dataset training [30, 42] can be actually counterproductive; we demonstrate that na¨ ıvely pooling datasets for training can worsen pitch generalization rather then help it (Sec. 6.4). A related but underexplored issue is the efficiency-accuracy tradeoff. SOTA AGE models often rely on large backbones and heavy computation, which conflicts with the mobile, low-latency targets where AGE is most useful. To address these challenges, we propose a compact, generalization-focused AGE framework free of additional human annotations. Our contributions are: • We introduce an automated augmentation pipeline that generates glasses and facial masks and simulates diverse lighting conditions to expand the image manifold and force occlusion- and illumination-robust feature learning. • We reformulate AGE as a multi-task problem that supple-ments regression with multi-view SupCon learning, dis-cretized label classification, and eye-region segmentation. These auxiliary tasks reduce reliance on noisy regression labels, particularly along pitch, and encourage a more ro-bust feature manifold. • We curate two new benchmark datasets: RealGaze, cov-ering diverse challenging scenarios in real-world AGE application, and ZeroGaze, a synthesized high-identity-count dataset for isolating the impact of wearables. They expose failure modes that standard cross-domain evalua-tions often miss. • A MobileNet-based architecture trained with the above components matches or exceeds the generalization of heavy baselines such as UniGaze-H while using under 1% of their parameters, enabling high-fidelity, low-latency gaze tracking on mobile devices. We validate our approach with extensive cross-dataset experiments, per-condition robustness analyses (glasses, masks, and poor lighting), and ablations that quantify the contribution of each component. Results show that our augmentation pipeline and multi-task supervision substan-tially improve generalization to challenging conditions, and that careful evaluation protocols are necessary to reveal true open-domain performance. 
+
+## 2. Related Work 
+
+2.1. Appearance-based Gaze Estimation (AGE) 
+
+Gaze estimation has evolved from early geometric eye mod-eling [1, 37] and manual feature analysis [24, 34] to end-to-end deep networks. Currently, AGE models following the face-to-gaze paradigm established by MPIIFaceGaze [44, 46] represent the de-facto standard. Despite architec-tural advances, AGE models still face a substantial gen-eralization bottleneck, largely due to the scarcity of reli-able labeled training data [30]. This has spurred a shift from single-domain optimization toward cross-domain gen-eralization, primarily via test-time adaptation and repre-sentation learning. Test-time adaptation fine-tunes mod-els on target data, either with labels [8, 20, 28] or without [2, 5, 21, 35]. However, obtaining accurate labels at test time is difficult, and on-device optimization is often imprac-tical for mobile deployment. Representation learning seeks domain-invariant features using semi- or self-supervised objectives [6, 30, 31], but these settings remain tethered to the quality of the labeled data used for the feature-to-gaze mapping. To improve training signals, some data-centric approaches correct inter-dataset label discrepancies [42] or synthesize high-fidelity labeled images via computer graph-ics pipelines [3]. Recent work also explores weak supervi-sion from vision-language models [39, 43]. Despite these efforts, few works explicitly address the anisotropic nature of inter-dataset label deviation, or the performance degra-dation induced by occlusions and poor illumination in real-world deployment. 
+
+2.2. Supervised Contrastive (SupCon) Learning 
+
+Our work utilizes SupCon [16] to manipulate the feature space by fully harnessing both gaze labels and auxiliary attributes beyond gaze (e.g., source datasets, glasses and mask states). Unlike standard self-supervised contrastive learning, SupCon leverages label information to group sim-ilar samples together in the embedding space. Formally, given a multi-viewed batch B = {z1, ..., zN } of normal-ized feature vectors, define P (i) = {p ∈ { 1, ..., N }\{ i} :
+
+Mip = 1 } as the index set of positives for sample i, where 
+
+Mij = 1 indicates a positive pair. The SupCon loss for the batch B is                
+
+> LS(B) =
+> NX
+> i=1
+> −1
+> |P(i)|
+> X
+> p∈P(i)
+> log exp( zi·zp/τ S)
+> P
+> q̸=iexp( zi·zq/τ S),(1)
+
+pulling features from positive pairs closer together than negative pairs. τS is a preset temperature parameter that controls the alignment strength. 
+
+## 3. Data Constraints in AGE 
+
+The performance envelope of AGE models is fundamen-tally dictated by the diversity and fidelity of available train-ing data. Unlike related domains such as face recognition, 2Table 1. Summary of representative AGE datasets. The datasets selected for our training pipeline are bolded . We define the symbols D∗
+
+for simplicity. 
+
+Dataset Diversity Image Label Subject# Sample# Gaze Range † (pitch × yaw) Quality Fidelity ∗
+
+DE : EYEDIAP (FT sessions excluded) [10] 14 [35] ‡ 15K [5 ◦, 21 ◦] × [−17 ◦, 16 ◦] Low Medium 
+
+DC : GazeCapture [18] 1474 2M [−24 ◦, 9◦] × [−21 ◦, 21 ◦] Medium Medium 
+
+DM : MPIIFaceGaze [44] 15 45K [−24 ◦, 0◦] × [−20 ◦, 20 ◦] Medium Medium 
+
+D360 : Gaze360 [15] 238 100K [35] [−62 ◦, 15 ◦] × [−75 ◦, 72 ◦] Low Low 
+
+DX : ETH-XGaze [47] 80 760K [−65 ◦, 56 ◦] × [−86 ◦, 82 ◦] High High 
+
+DN : GazeGene [3] 56 1M [−59 ◦, 53 ◦] × [−78 ◦, 78 ◦] Medium Medium      
+
+> †We exclude the 5% of samples with the most extreme gaze labels as outliers. The pitch axis and yaw axes point top and left, respectively. ‡We follow CRGA [35] to pre-process the datasets. ∗See Appendix for details.
+
+current gaze datasets remain small in sample and subject count along with environmental variation (Tab. 1), largely because obtaining precise 3D gaze labels is inherently dif-ficult. This section outlines two systemic constraints of ex-isting datasets that motivate our framework. 
+
+3.1. The Diversity-Fidelity Tradeoff 
+
+Standard gaze labeling requires subjects to fixate on known stimuli under controlled conditions. This setup ensures geo-metric accuracy but severely restricts identity diversity, en-vironmental variation, and the presence of real-world arti-facts such as wearables or challenging illumination. Crowd-sourced datasets like GazeCapture DC [18] partially ad-dress scale, yet the relaxed capture protocol introduces sub-stantial noise ( e.g ., motion blur, closed eyes, and distracted subjects) and the small-device setup yields a narrower point-of-gaze (PoG) distribution than laboratory datasets. Synthetic datasets such as GazeGene DN [3] expand iden-tity diversity, but they struggle to reproduce fine-grained real-world effects, including complex ocular reflections, sensor-specific imaging artifacts, and diverse occlusion pat-terns. As a result, no existing dataset simultaneously offers high fidelity, broad appearance variation, and realistic oc-clusion/illumination conditions. 
+
+3.2. Anisotropic Inter-dataset Label Deviation 
+
+While inter-dataset label deviation is widely acknowledged in the literature [35, 42], their directional structure is rarely quantified. We conduct a cross-dataset perceptual study to measure label consistency across the four largest labeled datasets {DX , D N , D C , D 360 }. Annotators compare 400 image pairs matched by gaze and head pose labels (within 
+
+4◦) and judge whether the two samples depict the same gaze direction, evaluated separately for pitch and yaw. Results in Tab. 2 reveal a pronounced anisotropy: pitch labels exhibit substantially lower perceptual consistency than yaw across all dataset combinations. This suggests that pitch labels are inherently more susceptible to system-atic errors during the PoG-to-3D mapping process (see Ap-
+
+Table 2. Quantitative and qualitative analysis of inter-dataset la-bel consistency. Perceived consistency rates on pitch and yaw axes reveal a significant discrepancy, confirming the presence of anisotropic inter-dataset label deviation.                                                  
+
+> (a) Pitch
+> DXDNDCD360
+> DX—0.750 0.646 0.440
+> DN0.750 —0.529 0.463
+> DC0.646 0.529 —0.323
+> D360 0.440 0.463 0.323 —Average 0.612 0.581 0.499 0.409
+> (b) Yaw
+> DXDNDCD360
+> DX—0.859 0.768 0.573
+> DN0.859 —0.729 0.653
+> DC0.768 0.729 —0.532
+> D360 0.573 0.593 0.532 —Average 0.733 0.747 0.676 0.586
+> DXDNDCD360
+
+Figure 2. Qualitative comparison of samples from different datasets with near-identical annotations; visually divergent gaze directions, particularly in the pitch dimension, illustrate the inher-ent unreliability of cross-dataset vertical ground truths. 
+
+pendix for further discussion). Consistency also varies by source; for example, Gaze360 D360 [15] contains many low-resolution or heavily degraded samples where gaze di-rection is difficult to discern, leading to markedly lower consistency than the remaining datasets. Based on these findings, we prioritize {DX , D N , D C } for joint training, while designing our multi-task objectives to explicitly miti-gate unreliable pitch supervision, particularly from DN and 
+
+DC , whose perceptual pitch consistency is noticeably lower than that of DX .
+
+## 4. Methodology 
+
+Given labeled data D = {Xi, gi} consisting of face images 
+
+X and corresponding 3D gaze labels in Euler angles g =(ϕ, ψ ), our objective is to learn a mapping that generalizes reliably across domains. Here, ϕ and ψ represent the pitch 3Low-level Features   
+
+> High-level Features
+> 4 Binary Segmentation Heads
+> Gaze Head + Softmax
+> Backbone
+> Face Image
+> Low-level Feature Extractor
+> Aggregation Layer
+> 4 Segmentation
+> Results
+> (Left, Right) × (Eye, Iris)
+> Mean 3D Gaze
+> Result
+> 4 Projection Heads SupCon losses
+> pitch
+> yaw
+> Classification
+> Result
+> Yaw only for
+
+Figure 3. Framework of the proposed multi-task learning architecture. Red blocks indicate the streamlined architecture during inference. 
+
+and yaw angles, respectively, and D = DX ∪ DN ∪ DC . To overcome the data constraints identified earlier, we expand the limited image diversity of existing datasets through an automated augmentation pipeline (Sec. 4.1) and then intro-duce a multi-task learning paradigm (Sec. 4.2) that incorpo-rates auxiliary objectives, including discretized label classi-fication, eye and iris segmentation, and multi-view SupCon learning, to regularize the feature space. We further apply label resampling to counter non-uniform gaze label distribu-tions, and selectively drop pitch-related terms for DN and 
+
+DC , to mitigate the impact of anisotropic inter-dataset label deviation. The detailed model architecture is subsequently presented in Sec. 4.3. 
+
+4.1. Automated Data Augmentation Pipeline 
+
+The scarcity of high-fidelity labels limits the coverage of existing AGE datasets, often leading to model failure in unconstrained scenarios involving complex occlusions and lighting. We therefore construct a suite of augmen-tations that expand the training manifold toward realistic open-domain conditions (Fig. 4). These augmentations combine standard transformations with domain-specific synthesis tailored to AGE, as specified below. 
+
+Background Diversification Laboratory and synthetic datasets such as DX and DN often contain static, dataset-specific backgrounds. To prevent spurious corre-lations, we apply portrait matting [22] to extract the sub-ject and replace the background with random indoor scenes from the MIT Indoor dataset [32], increasing environmental variability (Fig. 4(f)). 
+
+Realistic Sensor Noise While synthetic data from DN
+
+provides high resolution, it lacks the stochastic noise char-acteristic of real CMOS sensors. Rather than applying stan-dard global Gaussian noise, we introduce a heuristic noise model that approximates sensor-level artifacts (Fig. 4(g)). 
+
+> (a) Original
+> (b) Flip
+> (c) Color Jitter
+> (d) Desaturation
+> (e) Blur
+> (f) Background Replacement
+> (g) Sensor Noise
+> (h) Illumination Perturbation
+> (i) Glasses
+> (j) Masks
+
+Figure 4. Overview of the automated data augmentation pipeline. During training, we stochastically combine these methods for each sample to expand the training manifold. 
+
+This reduces the domain gap between synthetic and real-world images and is equally applicable to real datasets. 
+
+Illumination Perturbation As shown in Fig. 4(h), we simulate directional light sources by overlaying linear gra-dients with randomized opacity, color tone, and spatial ori-entation. This forces the model to focus on geometric oc-ular structures rather than pixel intensities, which may be skewed by illumination. 
+
+Pose-Consistent Eyeglasses Synthesis Synthesizing glasses requires geometric alignment with the subject’s head pose to remain visually plausible. To achieve this efficiently, we utilize GlassesGAN [29] to generate an offline library of 300 glasses templates, covering 10 frame styles across a grid of 30 discrete head poses (ranging from 
+
+[−30 ◦, 30 ◦] in pitch and [0 ◦, 27 ◦] in yaw), as shown in Fig. 5. During training, we retrieve the template whose head pose is closest to that of the sample (mirroring templates for negative yaw), align it using facial landmarks, 4(a) (b) (c) 
+
+> Figure 5. Pipeline for pose-consistent eyeglasses template generation. (a) Original face images, with 30 discrete head poses. (b) Glasses-GAN outputs, featuring diverse frame styles. (c) Extracted glasses templates and examples of augmented training samples.
+
+and randomize frame size, color, and opacity. To mimic real lens reflections, we alpha-blend indoor scene textures onto the lens regions, forcing the model to “see through” reflection artifacts and rely on stable ocular cues. 
+
+Synthesizing Mask Occlusion We simulate masks by filling the lower-face region, defined by landmarks on the nose, cheeks, and jawline, with random solid colors or textures (Fig. 4(j)). This preserves overall facial geom-etry while reducing the model’s reliance on fine-grained lower-face appearance, encouraging it to focus on perioc-ular cues that are more reliable for gaze inference. 
+
+4.2. AGE as a Multi-task Learning Problem 
+
+A na¨ ıve approach to AGE is the direct minimization of re-gression loss ( e.g ., ℓ1 or angular loss). However, we observe that this often leads to “mean-collapse,” where the model’s predictions gravitate toward the dataset’s mean gaze vec-tor. This failure arises from two factors: non-uniform la-bel distribution and inter-dataset label deviation. To learn a robust gaze feature space that resists these biases, we refor-mulate AGE as a multi-task learning problem, incorporating the following auxiliary objectives. 
+
+4.2.1. Resampling and Classification with Discretized La-bels 
+
+To eliminate data bias, we define a gaze range of inter-est I : [ ϕmin , ϕ max ] × [ψmin , ψ max ] covered by all three datasets. We partition I into an nϕ × nψ grid, with sizes 
+
+sϕ = ϕmax −ϕmin  
+
+> nϕ
+
+and sψ = ψmax −ψmin  
+
+> nψ
+
+. During each train-ing epoch, we perform a stratified resampling by drawing a consistent number of samples per bin and per dataset. This dual balancing strategy ensures an approximately uniform label distribution across I while simultaneously equalizing the sample frequency between DX , DN and DC .Each gaze label (ϕ, ψ ) is assigned a discrete label (cϕ =
+
+⌊ ϕ−ϕmin  
+
+> sϕ
+
+⌋, c ψ = ⌊ ψ−ψmin  
+
+> sψ
+
+⌋), enabling an auxiliary classifi-cation task. For pitch, the model outputs an nϕ-dimensional probability vector ˆpϕ = (ˆ p1, ..., ˆpnϕ ) via softmax, and cal-culates the final estimate as the expectation over bin cen-troids ˆϕ = Σ nϕ 
+
+> i=1
+
+ˆpiϕi, where ϕi = ϕmin + ( i − 12 )sϕ is the centroid of bin i. We supervise ˆpϕ and ˆϕ via a joint cross-entropy loss Lclf and an ℓ1 regression loss Lreg . This formulation prevents mean-collapse by forcing the model to distinguish between discrete gaze zones. We further sharpen ˆpϕ using a low temperature τ = 0 .5 in the soft-max, penalizing dispersed predictions without requiring an explicit variance loss [26]. The same formulation applies to the yaw dimension. 
+
+4.2.2. Attenuating Supervision from Unreliable Labels 
+
+As established in Sec. 3, inter-dataset label deviation is highly anisotropic, with pitch labels exhibiting signifi-cantly higher variance than yaw. Our empirical analy-sis (Sec. 6.4) confirms that this deviation is functionally destructive: training on a na¨ ıve union of all pitch labels yields worse generalization than training on DX pitch labels alone. While GLA [42] attempts to calibrate dataset offsets by iteratively training and comparing models across dataset combinations, it incurs prohibitive overhead. In contrast, we propose a more efficient alternative: we selectively dis-card Lreg and Lclf for pitch labels from DN and DC , where pitch labels exhibit lower fidelity. Instead, these “noisy” labels contribute through a pitch-aware SupCon loss LSϕ ,where positive pairs are defined by pitch differences within 
+
+sϕ. This shifts supervision from absolute coordinates to relative manifold alignment, allowing the model to learn meaningful vertical structure while remaining robust to sys-tematic pitch offsets. 5(a) Ground truth (b) Result (c) Result (eyes) (d) Result (irises)  
+
+> Figure 6. Results of eye and iris segmentation produced by our MobileNet-based model. In (a) and (b), green regions denote the eye, while red denotes the iris.
+
+4.2.3. Multi-view SupCon Learning 
+
+The diversity introduced by our augmentation pipeline en-ables multi-view SupCon learning to enforce invariance to gaze-irrelevant factors. For each training image, we gener-ate n independent augmentations to form multiple views. We introduce four specific SupCon terms: 1) pitch con-trastive term LSϕ , anchoring the pitch feature manifold, as described above; 2) dataset-invariance term LSD , with posi-tive pairs being samples from different sources, preventing the backbone from encoding dataset-specific signatures; 3) glasses-invariance term LSg , with positive pairs being sam-ples with different glasses states, encouraging robustness to glasses occlusion and reflections; and 4) mask-invariance term LSm, similarly enforcing invariance to lower-face oc-clusion. We adopt n = 4 to balance computational effi-ciency with the need for a sufficiently dense set of posi-tive pairs associated with LSϕ . To further enrich view di-versity, we apply horizontal flipping (Fig. 4(b)) only to even-indexed views, doubling yaw variation by negating yaw labels for mirrored samples. Intuitively, one can also impose regularization on the n
+
+views of a sample to enforce output-level consistency, ex-emplified by the symmetry loss [15, 21] which constrains mirrored image pairs to exhibit opposite yaw angles. But we find that directly constraining the regression head of-ten re-introduces mean-collapse. In contrast, feature-level contrastive regularization shapes a more stable and discrim-inative gaze manifold, mitigating collapse while preserving fine-grained directional structure. 
+
+4.2.4. Robust Eye and Iris Segmentation 
+
+Discerning the fine-grained geometry of the eye and iris is essential for accurate AGE, yet these features are easily ob-scured by wearables or poor lighting. We introduce four bi-nary segmentation tasks (left/right eye and iris) as auxiliary objectives to anchor the representation of ocular appear-ance. Since segmentation masks are unavailable in most datasets, we utilize MediaPipe landmarks [22] to generate eye-region ground truths and an image-processing pipeline to estimate iris masks (detailed at Appendix). Supervision via the Dice loss ( Lseg ) ensures that the backbone extracts stable, high-fidelity ocular cues even in challenging in-the-                         
+
+> a:∅b:{O}c:{S}
+> d:{S, O }e:{G}f:{G, O }
+> g:{M}h:{M, O }i:{G, M, O }
+> Figure 7. The nine session types in the RealGaze dataset. Ses-sions vary by illumination (light-off O, side-lit S) and accessories (glasses G, mask M), except Session a, which uses standard in-door lighting without accessories.
+
+wild scenarios (Fig. 6). 
+
+4.3. Model Architecture 
+
+The overall training objective combines regression, dis-cretized classification, segmentation, and four SupCon terms: 
+
+L = Lreg + λclf Lclf + λseg Lseg 
+
++ λD LSD + λϕLSϕ + λg LSg + λmLSm. (2) To support these objectives, we augment the backbone with a lightweight segmentation branch and separate projection heads for each SupCon term (Fig. 3). Following BiSeNet-v2 [41], we fuse high-level semantic features from the back-bone with low-level features from a shallow CNN via a BiSeNet aggregation layer. This aggregated feature serves as the input for the segmentation heads. Although the framework is compatible with arbi-trary backbones, our primary lightweight model adopts MobileNet-v2 [33] enhanced with Coordinate Attention (CA) [14]. This allows for an expanded receptive field with minimal computational cost, enabling real-time inference on commodity mobile devices. 
+
+## 5. Benchmark Datasets 
+
+Cross-dataset evaluation is the standard protocol for assess-ing the generalization ability of AGE models, yet existing test cases remain too narrow to capture the challenges of real-world deployment. In particular, accessories such as eyeglasses and facial masks often cause severe performance 6Table 3. Comparative Evaluation on RealGaze (errors in mm). The best results are in bold and the second best results are with underline.                                                                                                                                     
+
+> Model (Backbone, Training data) Model Overall Ideal Side-Lit Glasses Masks size dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2
+> PureGaze (ResNet-50, DX)31.0M 46.6 71.0 93.5 35.3 73.3 85.7 59.4 54.3 90.3 56.1 79.6 106.0 31.7 76.7 88.4 ETH-XGaze (ResNet-50, DX)25.6M 42.9 59.7 82.1 24.8 62.7 72.3 33.0 56.9 71.8 73.3 56.6 104.8 31.3 62.0 75.1 UniGaze-B-Joint (ViT-B, 5 datasets) 86.6M 21.1 44.4 52.8 16.1 33.7 40.6 17.4 35.0 41.8 26.9 52.9 63.8 19.7 40.2 48.6 UniGaze-H-Joint (ViT-H, 5 datasets) 632M 18.3 44.1 51.5 13.9 38.1 43.1 14.6 35.5 41.3 25.1 47.9 59.0 16.0 37.9 45.3 Ours (MobileNet-v2, {DX, D N, D C})3.8M 22.3 34.9 46.3 16.0 28.8 36.6 18.6 28.5 37.0 25.4 33.4 46.6 20.9 36.0 45.3 Ours (ViT-B, {DX, D N, D C})86.6M 19.1 35.8 44.4 14.9 29.3 36.2 17.7 27.9 35.9 24.4 33.5 46.0 18.8 36.5 45.3
+
+degradation, but no standardized benchmark or metric cur-rently isolates their impact. To expose the true robustness of AGE models in these long-tail scenarios, we introduce two complementary benchmarks that provide fine-grained measurements of degradation induced by wearables and en-vironmental factors. 
+
+5.1. RealGaze: A Real-World Benchmark 
+
+The RealGaze dataset emulates real-world application of AGE models on mobile devices. The collection environ-ment consists of a 13-inch tablet mounted on a fixed stand 0.5m from the subject. We record 20 volunteers with di-verse demographic attributes. As illustrated in Fig. 7, each subject completes nine session types spanning combina-tions of wearables (none, glasses, mask) and illumination conditions (standard indoor lighting, low-light, and harsh side-lighting). Each session contains 100 paired samples of PoG locations and front-camera images, providing a sta-tistically robust basis for quantifying how specific environ-mental and personal factors degrade gaze estimation perfor-mance. 
+
+5.2. ZeroGaze: A Controlled Synthetic Benchmark 
+
+To isolate the impact of head pose and gaze variance from ocular appearance, we introduce ZeroGaze. Leveraging the Flux.1 [19] text-to-image model, we generate a massive-scale synthetic dataset consisting of approximately 76,000 image triplets {X, X g , X m}, as shown in Fig. 1(a). In each triplet, X is a clean face, while Xg and Xm fea-ture the same identity and geometry, with glasses and masks being the only visual variables. Through precision prompting, all images are rendered with near-zero gaze and head-pose labels. As a result, any deviation from the zero-degree ground truth directly reflects the model’s in-ability to marginalize gaze-irrelevant features. ZeroGaze therefore provides a clean “zero-point” calibration metric for quantifying wearable-induced gaze bias. 
+
+## 6. Experiments 
+
+6.1. Experimental Setup 
+
+We utilize ETH-XGaze DX [47], GazeGene DN [3], and GazeCapture DC [18] for training. To ensure domain align-ment, we filter all datasets to a shared head pose interval 
+
+IH : [ −30 ◦, 30 ◦] × [−30 ◦, 30 ◦] and a gaze interval I :[−30 ◦, 14 ◦] × [−26 ◦, 26 ◦]. This range covers the dominant interaction envelope for mobile and laptop use. I is parti-tioned into 13 × 11 bins with a bin size of sϕ = sψ = 4 ◦.As motivated in Sec. 4.2, we disable direct pitch supervi-sion for DN and DC . Additional details are provided in the Appendix. We benchmark against several open-source models: PureGaze [6], ETH-XGaze ResNet-50 [47], and the ViT-based UniGaze [30], the current SOTA. For fairness, all model outputs are clamped to the interval I.
+
+6.2. RealGaze Evaluation 
+
+We evaluate generalization under real-world conditions us-ing the nine RealGaze session types (Fig. 7). By averaging over specific subsets, we analyze five settings: Overall (all sessions), Ideal (a, b), Side-Lit ( c, d), Glasses ( e, f ), and 
+
+Masks ( g, h). We map the predicted 3D gaze vectors to 2D screen coordinates and report the average Euclidean error 
+
+∥d∥2, as well as error components along the X ( dX ) and Y (dY ) axes in millimeters. As shown in Tab. 3, our method outperforms the com-petition by a large margin, particularly in dY and ∥d∥2.The performance gap is most pronounced in the Glasses and Masks sessions: while existing models suffer substan-tial degradation, our approach maintains stable performance by consistently attending to the ocular region rather than accessory-induced artifacts. We also observe a reduced ac-curacy loss in the Side-lit sessions in our models compared to the baselines. 
+
+6.3. ZeroGaze Evaluation 
+
+Since all ZeroGaze samples possess a ground-truth label of zero, any non-zero prediction represents a purely visual bias introduced by facial features or accessories. Fig. 8 visual-izes the output distributions on ZeroGaze. Existing models produce wide, off-center distributions with heavy pitch-axis tails, indicating that glasses and masks are frequently mis-interpreted as vertical gaze shifts. Notably, the ETH-XGaze model exhibits a persistent negative pitch bias, reflecting a collapse toward the mean gaze vector of DX rather than a faithful mapping of absolute gaze. Our method, conversely, 7(a) ETH-XGaze (ResNet-50) (b) UniGaze-B-Joint (ViT-B)       
+
+> (c) Ours (MobileNet) (d) Ours (ViT-B)
+> Figure 8. Distribution of AGE results on ZeroGaze across three views: Clean (blue), Glasses (red), and Masks (green). Our methods maintain concentrated and zero-centered, while baselines yield biased results with long tails, particularly along pitch.
+> (a) ETH-XGaze (b) UniGaze-B-Joint
+> (c) Ours (MobileNet) (d) Ours (ViT-B)
+> Figure 9. t-SNE visualization of high-level features on ZeroGaze. Our models successfully learn occlusion-invariant feature mani-folds across the three views: Clean (blue), Glasses (red) and Masks (green).
+
+yields highly concentrated distributions around the zero-point. Further analysis via t-SNE (Fig. 9) confirms that our backbone learns an occlusion-invariant feature space, effec-tively “seeing through” the occlusions that confuse standard regressors. 
+
+6.4. Ablation Studies 
+
+We conduct a series of ablations on our MobileNet model to isolate the contribution of each design component. 
+
+Backbone As shown in Fig. 10, lightweight backbones such as MobileNet benefit substantially from attention mod-ules such as CBAM [36] and CA [14], which provide notable accuracy gains at negligible cost. As model ca-pacity increases, performance saturates around the scale of ResNet-50, indicating a nonlinear relationship between model size and accuracy. Scaling further to ViT-level mod-els marginally reduces variance and dX , but yields dimin-ishing returns in dY .
+
+Training Data Tab. 4(a) validates our hypothesis regard-ing inter-dataset label deviation. As training data increases, 
+
+dX improves consistently, but dY often worsens, especially in the Glasses sessions, due to inconsistent pitch labels across datasets. By a softer SupCon loss rather than direct regression loss, we effectively insulate the learning process from this label contamination, stabilizing vertical gaze es-timation. In addition, replacing DN with D360 results in larger errors in all sessions. 
+
+Classification and Segmentation As shown in Tab. 4(b), compared to the na¨ ıve ℓ1-only baseline, resampling and discretized classification significantly improve accuracy on both axes. We also show that 4◦ bin size offers the best trade-off between discretization error and classifica-tion stability. The segmentation task further improves accu-racy in occlusion-heavy sessions by anchoring the model’s attention to the ocular region (Tab. 4(c)), ensuring that gaze-irrelevant textures do not dominate the representation. 
+
+Augmentation and SupCon Data augmentation is cen-tral to our generalization performance, as evidenced by 8Figure 10. Performance benchmark across various backbone architectures on RealGaze. Table 4. Ablation studies on RealGaze (errors in mm). 
+
+Model Overall Ideal Side-Lit Glasses Masks 
+
+dX dY ∥d∥2 dX dY ∥d∥2 dX dY ∥d∥2 dX dY ∥d∥2 dX dY ∥d∥2
+
+Ours, baseline (MobileNet) 22.3 34.9 46.3 16.0 28.8 36.6 18.6 28.5 37.0 25.4 33.4 46.6 20.9 36.0 45.3 (a) Training Data 
+
+DX only 32.9 45.4 61.9 23.5 41.8 52.0 31.0 34.8 52.1 36.5 43.6 63.0 35.3 52.0 69.2 
+
+{DX , D C } 26.1 45.1 57.2 18.8 47.4 54.5 23.3 31.5 43.2 31.6 45.3 61.1 25.7 56.2 66.9 
+
+{DX , D C , D 360 } 25.7 43.8 55.6 18.7 36.8 44.6 23.4 31.9 44.1 30.5 45.2 59.8 21.7 48.5 57.4 
+
+{DX , D C , D N } using all pitch labels 22.1 51.4 60.1 17.2 48.3 54.6 19.8 42.1 50.6 26.1 59.7 70.5 19.1 44.8 52.4 (b) Classification Loss Term Lclf , and bin size sϕ,ψ (baseline s = 4 )Without resampling or Lclf 30.0 46.9 61.0 21.5 35.9 46.0 25.0 33.8 46.4 37.0 41.9 61.3 28.9 47.8 61.4 Without Lclf 26.8 40.5 53.4 19.4 34.0 42.4 23.9 31.9 44.6 33.8 39.6 57.3 24.5 46.3 57.3 
+
+s = 1 22.5 39.5 49.7 16.2 33.5 40.4 21.2 28.9 39.4 27.0 39.0 52.9 20.2 45.4 53.6 
+
+s = 2 25.2 41.6 53.3 20.0 34.1 43.0 23.0 29.1 41.1 29.6 42.4 57.3 23.9 48.9 59.1 
+
+s = 8 26.5 44.7 56.7 22.5 43.2 52.4 23.0 30.9 42.6 30.7 44.4 59.8 24.5 51.9 62.1 (c) Without segmentation 23.8 40.3 51.5 17.2 33.2 40.7 22.1 29.5 41.0 30.6 38.6 55.2 20.7 50.8 58.5 (d) Augmentation and SupCon loss terms Without augmentation 29.0 56.9 69.4 19.0 50.8 58.1 24.3 34.3 46.2 39.0 59.6 78.2 21.6 58.2 66.2 Without glasses synthesis 24.8 39.3 51.4 17.4 32.1 39.8 23.0 32.0 43.5 35.1 39.3 58.9 19.1 45.3 53.2 Without mask synthesis 25.7 43.3 55.3 21.3 35.0 45.0 22.0 31.3 42.4 29.6 41.7 56.0 25.0 49.6 61.0 Without LSϕ 22.7 41.5 51.9 16.4 41.8 48.4 20.7 36.5 44.7 28.6 41.6 56.5 20.3 47.1 55.6 Without LSD 23.4 39.7 50.6 17.5 33.5 40.9 21.1 30.1 40.6 26.2 33.9 47.6 23.7 46.4 57.1 Without LSg , L Sm 22.4 40.0 49.8 14.7 33.0 38.7 19.8 32.5 41.7 27.5 41.1 54.0 21.1 42.8 51.2 
+
+(a) Without LSD (b) With LSD
+
+Figure 11. Ablation of the dataset SupCon loss LSD . t-SNE visu-alizations of features from DX (blue), DC (red), and DN (green) show that LSD promotes a source-agnostic feature distribution, ef-fectively marginalizing inter-dataset domain gaps. 
+
+the direct gains shown in Tab. 4(d). Remarkably, synthe-sizing glasses and masks alone improves robustness even in sessions without those accessories, indicating strong cross-factor generalization. All SupCon objectives contribute to consistent improve-ments in dY , with LSϕ providing the largest benefit by stabilizing the pitch manifold. Although LSD yields the smallest numerical gain, its structural role is essential: as illustrated in Fig. 11, it produces a more cohesive, source-agnostic feature distribution, demonstrating its ef-fectiveness in marginalizing dataset-specific signatures. 
+
+## 7. Conclusion 
+
+We identify limited image diversity and anisotropic inter-dataset label deviation as key factors underlying the poor generalization of existing AGE models. To counter them, we introduce a comprehensive framework that com-bines an automated augmentation pipeline with a multi-task learning formulation. Evaluations on our RealGaze and ZeroGaze benchmarks demonstrate substantial gains in ro-bustness and cross-domain performance. Using MobileNet as the backbone, we deliver a lightweight yet effective so-lution suitable for real-time deployment on mobile devices. 9References 
+
+[1] Seung-Jin Baek, Kang-A Choi, Chunfei Ma, Young-Hyun Kim, and Sung-Jea Ko. Eyeball model-based iris center localization for visible image-based eye-gaze tracking sys-tems. IEEE Transactions on Consumer Electronics , 59(2): 415–421, 2013. 2 [2] Yiwei Bao, Yunfei Liu, Haofei Wang, and Feng Lu. Gen-eralizing gaze estimation with rotation consistency. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 4207–4216, 2022. 2 [3] Yiwei Bao, Zhiming Wang, and Feng Lu. Gazegene: Large-scale synthetic gaze dataset with 3d eyeball annotations. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 18749–18759, 2025. 2, 3, 7, 14, 15 [4] David Beniaguev. Synthetic faces high quality (sfhq) dataset, 2022. 17 [5] Xin Cai, Jiabei Zeng, Shiguang Shan, and Xilin Chen. Source-free adaptive gaze estimation by uncertainty reduc-tion. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition , pages 22035–22045, 2023. 2 [6] Yihua Cheng, Yiwei Bao, and Feng Lu. Puregaze: Purifying gaze feature for generalizable gaze estimation. In Proceed-ings of the AAAI Conference on Artificial Intelligence , pages 436–443, 2022. 2, 7, 20 [7] Yihua Cheng, Haofei Wang, Yiwei Bao, and Feng Lu. Appearance-based gaze estimation with deep learning: A re-view and benchmark. IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI) , 2024. 13 [8] Yihua Cheng, Hengfei Wang, Zhongqun Zhang, Yang Yue, Boeun Kim, Feng Lu, and Hyung Jin Chang. 3d prior is all you need: Cross-task few-shot 2d gaze estimation. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 23891–23900, 2025. 2, 17, 18, 20 [9] John Darby, Mar´ ıa B S´ anchez, Penelope B Butler, and Ian D Loram. An evaluation of 3d head pose estimation using the microsoft kinect v2. Gait & posture , 48:83–88, 2016. 13 [10] Kenneth Alberto Funes Mora, Florent Monay, and Jean-Marc Odobez. Eyediap: A database for the development and evaluation of gaze estimation algorithms from rgb and rgb-d cameras. In Proceedings of the symposium on eye tracking research and applications , pages 255–258, 2014. 3, 13, 14, 19 [11] Elias Daniel Guestrin and Moshe Eizenman. General theory of remote gaze estimation using the pupil center and corneal reflections. IEEE Transactions on biomedical engineering ,53(6):1124–1133, 2006. 12 [12] Jianzhu Guo, Xiangyu Zhu, Yang Yang, Fan Yang, Zhen Lei, and Stan Z Li. Towards fast, accurate and stable 3d dense face alignment. In Proceedings of the European Conference on Computer Vision (ECCV) , 2020. 17 [13] Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Doll´ ar, and Ross Girshick. Masked autoencoders are scalable vision learners. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 16000– 16009, 2022. 12 [14] Qibin Hou, Daquan Zhou, and Jiashi Feng. Coordinate at-tention for efficient mobile network design. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 13713–13722, 2021. 6, 8 [15] Petr Kellnhofer, Adria Recasens, Simon Stent, Wojciech Ma-tusik, and Antonio Torralba. Gaze360: Physically uncon-strained gaze estimation in the wild. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 6912–6921, 2019. 3, 6, 14 [16] Prannay Khosla, Piotr Teterwak, Chen Wang, Aaron Sarna, Yonglong Tian, Phillip Isola, Aaron Maschinot, Ce Liu, and Dilip Krishnan. Supervised contrastive learning. Advances in neural information processing systems , 33:18661–18673, 2020. 2 [17] Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 ,2014. 12 [18] Kyle Krafka, Aditya Khosla, Petr Kellnhofer, Harini Kan-nan, Suchendra Bhandarkar, Wojciech Matusik, and Anto-nio Torralba. Eye tracking for everyone. In Proceedings of the IEEE conference on computer vision and pattern recog-nition , pages 2176–2184, 2016. 3, 7, 12, 14 [19] Black Forest Labs. Flux. https://github.com/ black-forest-labs/flux , 2024. 7, 17 [20] Gang Liu, Yu Yu, Kenneth A Funes Mora, and Jean-Marc Odobez. A differential approach for gaze estimation. IEEE transactions on pattern analysis and machine intelligence ,43(3):1092–1099, 2019. 2, 13 [21] Huan Liu, Julia Qi, Zhenhao Li, Mohammad Hassanpour, Yang Wang, Konstantinos N Plataniotis, and Yuanhao Yu. Test-time personalization with meta prompt for gaze estima-tion. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 3621–3629, 2024. 2, 6 [22] Camillo Lugaresi, Jiuqiang Tang, Hadon Nash, Chris Mc-Clanahan, Esha Uboweja, Michael Hays, Fan Zhang, Chuo-Ling Chang, Ming Yong, Juhyun Lee, Wan-Teh Chang, Wei Hua, Manfred Georg, and Matthias Grundmann. Mediapipe: A framework for perceiving and processing reality. In Third Workshop on Computer Vision for AR/VR at IEEE Computer Vision and Pattern Recognition (CVPR) 2019 , 2019. 4, 6, 16 [23] Zunayed Mahmud, Paul Hungler, and Ali Etemad. Gaze es-timation with eye region segmentation and self-supervised multistream learning. arXiv preprint arXiv:2112.07878 ,2021. 16 [24] Francis Martinez, Andrea Carbone, and Edwige Pissaloux. Gaze estimation using local features and non-linear regres-sion. In 2012 19th IEEE International Conference on Image Processing , pages 1961–1964. IEEE, 2012. 2 [25] Cristina Palmero, Javier Selva, Mohammad Ali Bagheri, and Sergio Escalera. Recurrent cnn for 3d gaze estima-tion using appearance and shape cues. arXiv preprint arXiv:1805.03064 , 2018. 13, 20 [26] Hongyu Pan, Hu Han, Shiguang Shan, and Xilin Chen. Mean-variance loss for deep age estimation from a face. In 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , pages 5285–5294, 2018. 5, 20 
+
+10 [27] Seonwook Park, Adrian Spurr, and Otmar Hilliges. Deep pictorial gaze estimation. In Proceedings of the European conference on computer vision (ECCV) , pages 721–738, 2018. 16 [28] Seonwook Park, Shalini De Mello, Pavlo Molchanov, Umar Iqbal, Otmar Hilliges, and Jan Kautz. Few-shot adaptive gaze estimation. In Proceedings of the IEEE/CVF inter-national conference on computer vision , pages 9368–9377, 2019. 2, 12 [29] Richard Plesh, Peter Peer, and Vitomir ˇ Struc. Interpreting the latent space of gans for semantic face editing. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2023. 4 [30] Jiawei Qin, Xucong Zhang, and Yusuke Sugano. Unigaze: Towards universal gaze estimation via large-scale pre-training. In Proceedings of the IEEE/CVF Winter Confer-ence on Applications of Computer Vision , pages 5809–5820, 2026. 1, 2, 7, 19, 20 [31] Hongyu Qu, Jianan Wei, Xiangbo Shu, Yazhou Yao, Wen-guan Wang, and Jinhui Tang. Omnigaze: Reward-inspired generalizable gaze estimation in the wild. arXiv preprint arXiv:2510.13660 , 2025. 2 [32] Ariadna Quattoni and Antonio Torralba. Recognizing indoor scenes. In 2009 IEEE Conference on Computer Vision and Pattern Recognition , pages 413–420, 2009. 4 [33] Mark Sandler, Andrew Howard, Menglong Zhu, Andrey Zh-moginov, and Liang-Chieh Chen. Mobilenetv2: Inverted residuals and linear bottlenecks. In Proceedings of the IEEE conference on computer vision and pattern recogni-tion , pages 4510–4520, 2018. 6 [34] Roberto Valenti, Nicu Sebe, and Theo Gevers. Combin-ing head pose and eye location information for gaze estima-tion. IEEE Transactions on Image Processing , 21(2):802– 815, 2011. 2 [35] Yaoming Wang, Yangzhou Jiang, Jin Li, Bingbing Ni, Wen-rui Dai, Chenglin Li, Hongkai Xiong, and Teng Li. Con-trastive regression for domain adaptation on gaze estimation. In Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 19376–19385, 2022. 2, 3[36] Sanghyun Woo, Jongchan Park, Joon-Young Lee, and In So Kweon. Cbam: Convolutional block attention module. In 
+
+Proceedings of the European conference on computer vision (ECCV) , pages 3–19, 2018. 8 [37] Erroll Wood and Andreas Bulling. Eyetab: Model-based gaze estimation on unmodified tablet computers. In Proceed-ings of the symposium on eye tracking research and applica-tions , pages 207–210, 2014. 2 [38] Erroll Wood, Tadas Baltrusaitis, Xucong Zhang, Yusuke Sugano, Peter Robinson, and Andreas Bulling. Rendering of eyes for eye-shape registration and gaze estimation. In Pro-ceedings of the IEEE international conference on computer vision , pages 3756–3764, 2015. 16 [39] Pengwei Yin, Guanzhong Zeng, Jingjing Wang, and Di Xie. Clip-gaze: Towards general gaze estimation via visual-linguistic model. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 6729–6737, 2024. 2 [40] Dong Hyun Yoo, Jae Heon Kim, Bang Rae Lee, and My-oung Jin Chung. Non-contact eye gaze tracking system by mapping of corneal reflections. In Proceedings of Fifth IEEE International Conference on Automatic Face Gesture Recog-nition , pages 101–106. IEEE, 2002. 1 [41] Changqian Yu, Changxin Gao, Jingbo Wang, Gang Yu, Chunhua Shen, and Nong Sang. Bisenet v2: Bilateral net-work with guided aggregation for real-time semantic seg-mentation. International journal of comuter vision , 129(11): 3051–3068, 2021. 6 [42] Guanzhong Zeng, Jingjing Wang, Zefu Xu, Pengwei Yin, Wenqi Ren, Di Xie, and Jiang Zhu. Gaze label alignment: Alleviating domain shift for gaze estimation. In Proceed-ings of the AAAI Conference on Artificial Intelligence , pages 9780–9788, 2025. 2, 3, 5, 19, 20 [43] Lin Zhang, Yi Tian, Xiyun Wang, Wanru Xu, Yi Jin, and Yaping Huang. Differential contrastive training for gaze esti-mation. In Proceedings of the 33rd ACM International Con-ference on Multimedia , pages 3477–3486, 2025. 2 [44] Xucong Zhang, Yusuke Sugano, Mario Fritz, and Andreas Bulling. It’s written all over your face: Full-face appearance-based gaze estimation. In Proceedings of the IEEE confer-ence on computer vision and pattern recognition workshops ,pages 51–60, 2017. 2, 3, 14, 19 [45] Xucong Zhang, Yusuke Sugano, Mario Fritz, and Andreas Bulling. Mpiigaze: Real-world dataset and deep appearance-based gaze estimation. IEEE transactions on pattern analy-sis and machine intelligence , 41(1):162–175, 2017. 2 [46] Xucong Zhang, Yusuke Sugano, and Andreas Bulling. Re-visiting data normalization for appearance-based gaze esti-mation. In Proceedings of the 2018 ACM symposium on eye tracking research & applications , pages 1–9, 2018. 2, 12 [47] Xucong Zhang, Seonwook Park, Thabo Beeler, Derek Bradley, Siyu Tang, and Otmar Hilliges. Eth-xgaze: A large scale dataset for gaze estimation under extreme head pose and gaze variation. In European conference on computer vi-sion , pages 365–381. Springer, 2020. 3, 7, 14, 20 
+
+11 Real-time Appearance-based Gaze Estimation for Open Domains 
+
+# Supplementary Material 
+
+## A. Implementation Details 
+
+Models are trained on 8 nVidia V100 GPUs using the Adam optimizer [17]. For the SupCon objectives, the temperature parameters τS is set to 0.07 .For MobileNet-based model training, we initialize the backbone with ImageNet-pretrained weights and train for 50 epochs. The batch size is 160 per GPU with a learning rate of 3 × 10 −3. Each epoch consists of 91,520 samples (640 per bin) drawn from each dataset. The weights for each loss term are: λclf = 0 .1, λseg = 0 .05 , λSϕ = 0 .005 ,and λSD = λSg = λSm = 0 .0025 .For ViT-based model training, we use the pretrained weights from the encoder part of Masked Autoencoders (MAE) [13], and reduce λSϕ to 0.0025 and the learning rate to 10 −3 to facilitate stable convergence. Due to the faster convergence rate observed than MobileNet, these models are trained for 15 epochs with a batch size of 96 per GPU. 
+
+Data processing for GazeCapture GC As GC lacks offi-cial 3D gaze labels, we adopt the labels generated by FAZE [28]. GC presents significant quality and balance chal-lenges due to its crowdsourced nature, with subject sample counts varying between 18 and 3,529, and also high vari-ance in image quality, including motion blur and eye clo-sure. To ensure a robust training signal,we discard samples where face detection fails or where eye blinking is detected via eye landmarks. During the stratified resampling for each bin (Sec. 4.2 in the main paper), we perform subject-ID fre-quency balancing as well, to prevent overfitting to the sub-jects with dominant sample count. 
+
+## B. Further Discussion on Data Constraints 
+
+B.1. On Gaze Label Fidelity 
+
+In most AGE datasets, the ground truth is established by recording a gaze target on a screen, represented by a 2D co-ordinate g2D . g2D is subsequently mapped to a 3D gaze vector g within the normalized camera coordinate system (NCCS) via a normalization operator [46]. This normal-ization process crops and warps the face image to simulate a front-facing subject located at a fixed distance along the camera’s optical axis. This alignment is highly beneficial as it eliminates several confounding variables, such as vary-ing subject-to-camera distances and head-pose roll angles, thereby stabilizing the input to the AGE model. However, this pipeline is vulnerable to accumulated errors from mul-tiple stochastic and systemic sources: • Angle Kappa , which is the physiological pattern of hu-man eye in which its visual axis is not aligned with its op-tical axis, introduces a person-specific error of typically 2 to 3 degrees [11]. It is present in nearly all gaze datasets. • Error in Raw Label ( g2D ), which arises from data ac-quisition lag or subject distraction, is frequently seen in crowdsourced datasets like GazeCapture [18]. It prop-agates through the normalization pipeline, resulting in noisy 3D labels. • 6D Head Pose Estimation (HPE) . The pipeline esti-mates 6D head pose (position and orientation) by match-ing 2D facial landmarks to a canonical 3D head model. Discrepancies between an individual’s unique skull struc-ture and the average head model, combined with ambi-guities in defining “zero” head pose (Fig. 12(b)), lead to distorted face images and erroneous g.• The Camera Intrinsic Parameters . The mapping be-tween the 2D image and the 3D world coordinate sys-tem, along with HPE, rely on the camera’s intrinsic ma-trix k and sensor size (wc, h c). These parameters are fre-quently unknown and instead estimated by camera cali-bration, leading to global 3D label deviation. • Discrepancy in Coordinate Systems . Datasets that do not utilize the NCCS pipeline ( e.g ., D360 and DN ) have a fundamental domain gap in both image appearance and label distribution to those NCCS-aligned. As a result, the interplay of these factors creates the inter-dataset label deviation that our proposed framework seeks to marginalize. 
+
+B.2. Why is inter-dataset label deviation anisotropic? 
+
+Among the aforementioned factors, we identify HPE as the main culprit of anisotropic label noise within the NCCS pipeline. The spirit of the normalization operator is to “re-locate” the camera so that the resulting NCCS satisfies two geometric principles: 1) its X-axis aligns with the X-axis of the head coordinate system (HCS) with respect to the sub-ject; and 2) its Z-axis passes through the midpoint of the eyes (the origin of gaze), with the eyes maintained at a con-stant distance from the NCCS origin. As shown in Fig. 13, the definition of NCCS is not unique but rather hinges on the result of HPE. While the bilateral symmetry of human face facilitates relatively reliable estimation of yaw and roll com-ponents, morphological variations, specifically the diversity in jawlines, hinder the precise estimation of the pitch angle. This creates a systemic deviation in pitch gaze labels ϕ. Fur-thermore, the image warping performed by the normaliza-tion is a perspective transformation; although this transfor-12 Landmark Detection  &
+
+> Head Pose Estimation
+> Input Image
+> Normalization
+> (map to NCCS)
+> Camera Parameters
+> NCCS-aligned
+> Face Image
+> Head Pose
+> (World Coordinate System)
+> (NCCS) Raw L abel
+> Camera
+> Calibration
+
+Figure 12. (a) Standard normalization pipeline for acquiring NCCS-aligned face images and corresponding 3D gaze vectors g. (b) Morphological variance in skull structures induces ambiguity in the individual head coordinate systems, particularly along the vertical axis (image from [20]). Ground truth gaze direction 
+
+> NCCS
+> Virtual Cameras
+> Vertical (Y) axes of head coordinate systems
+
+Figure 13. Divergent HPE results lead to a systemic deviation between the resulting NCCS pitch gaze labels ϕ1 and ϕ2.
+
+mation can simulate a nudge in head pose, it cannot synthe-size the complex changes in ocular appearance that would naturally occur with a true change in ϕ. Consequently, in the case of Fig. 13, two divergent HPE results can yield a pitch label deviation of |ϕ2 − ϕ1| with the warped face im-ages not exhibiting a corresponding shift in gaze sense. This appearance-label mismatch is the root cause of inter-dataset pitch label deviation. 
+
+B.3. Analysis of Label Fidelity in Existing Datasets 
+
+As detailed in Tab. 5, we investigate the image quality along with label fidelity of six frequently used datasets in re-cent AGE works, by examining systemic vulnerabilities to the factors identified above (excluding the ubiquitous angle kappa). 
+
+EYEDIAP DE [10] is the earliest dataset among the six. The raw data consists of video sequences paired with frame-wise labels for head pose, 2D screen coordinates ( g2D ), and camera parameters. Our analysis follows the standard pro-tocol by focusing exclusively on Continuous screen target           
+
+> (a) DE(b) DC(c) DM
+> (d) D360 (e) DX(f) DN
+
+Figure 14. Representative samples of EYEDIAP DE , GazeCap-ture DC , MPIIFaceGaze DM , Gaze360 D360 , ETH-XGaze DX ,and GazeGene DN .
+
+(CS) and Discrete screen target (DS) sessions, with 14 hu-man subjects involved. 
+
+DE ’s image quality is poor under the current standard, with a low frame resolution of 640 × 480 . The extracted face patches must be upsampled by over 2× to meet the model’s 224 × 224 input requirement, further introducing blur. While g2D labels are relatively reliable due to the con-trolled laboratory setting, the 3D head pose labels are prob-lematic. They are generated using a Microsoft Kinect v1 depth sensor, with a native depth resolution of only 
+
+320 × 240 . Previous investigations into the more advanced Kinect v2 reveals average pitch estimation errors exceeding 
+
+7◦ [9]; it is reasonable to assume the v1-derived labels in 
+
+DE harbor even greater inaccuracies, particularly along the pitch axis. Because DE lacks native 3D NCCS labels, re-searchers must rely on post-processing toolboxes [7, 25] to 13 Table 5. Comparative audit of dataset scale and 3D gaze label fidelity. Overall ratings assess the systematic reliability of labels within the NCCS framework across three tiers: High : The label is consistently precise with minimal documented bias; Medium : The label is generally acceptable for training but subject to localized systemic errors (e.g., hardware-limited HPE or distribution skew); Low : The label is considered suspicious, suffering from severe systemic noise originating from multiple sources such as non-standardized coordinate systems or extreme environmental constraints.                                                       
+
+> Dataset Subject # Sample # Cam. Param. Fidelity Raw Label Fidelity Image Quality & HPE Fidelity NCCS Overall Fidelity
+> DE: EYEDIAP (FT sessions excluded) [10] 14 15K Medium High Low Yes Medium
+> DC: GazeCapture [18] 1474 2M Medium Medium Medium Yes Medium
+> DM: MPIIFaceGaze [44] 15 45K Medium High Medium Yes Medium
+> D3: Gaze360 [15] 238 172K High High Low No Low
+> DX: ETH-XGaze [47] 110 760K High High High Yes High
+> DN: GazeGene [3] 56 1M N/A N/A N/A No Medium
+
+derive gaze vectors. We find that these toolboxes produce inconsistent labels, with an average pitch label deviation of 
+
+5.7◦. To conclude, DE ’s label fidelity is not among the best. We also note that DE has a severely biased distribution, with 98% of pitch labels concentrated in the narrow range of [5 ◦, 21 ◦]. This is a direct artifact of the collection setup, where the camera is positioned greatly below the screen, resulting in almost all sample images depicting an upward gaze. This distribution is antithetical to most deployment scenarios (e.g., smartphones or laptops), where cameras are positioned above the display, typically resulting in a slightly downward pitch. 
+
+GazeCapture DC [18] With over 2 million samples and 1,450 participants, DC represents the most extensive demo-graphic and environmental diversity available in the AGE domain. While the native image resolution is generally ac-ceptable, the crowdsourced nature of the dataset introduces non-negligible label fidelity issues. First, DC is saturated with invalid samples, including those featuring severe mo-tion blur, extreme under/over-exposure, and involuntary eye blinking. Second, a noticeable portion of the raw g2D la-bels exhibit low fidelity. The label errors stem from subject distraction (looking away from the target) and/or system la-tency in unconstrained mobile environments, where the data acquisition lag results in a mismatch between the captured image and the logged coordinate. Third, there is a stark im-balance in both sample volume (as mentioned in Sec. A) and the range of gaze labels captured per participant. This distribution forms a high risk of model over-fitting to “dom-inant” subjects. Similar to DE , DC only provides 2D labels, head pose, and estimated camera parameters. The reliance on third-party toolboxes to derive 3D NCCS labels, combined with the bottlenecks in raw label accuracy, results in a dataset where fidelity is sacrificed for scale. 
+
+MPIIFaceGaze DM [44] often serves as a benchmark with small-scale, laboratory-controlled data, featuring 15 subjects with 3,000 samples each. While its laboratory set-ting ensures a reliable set of 2D raw labels, the transition to 3D NCCS coordinates introduces uncertainty, due to errors from the approximated camera parameters and head pose angles. 
+
+Gaze360 D360 [15] is designed to maximize diversity across subjects, environmental settings, and the range of gaze and head poses. However, this expansion in scope comes at the cost of severe degradation in image and la-bel fidelity. The data collection is particularly set where the subjects are positioned at an average distance of 2.2m from the camera, significantly further than in most AGE datasets. This results in face patches with extremely low effective resolution, characterized by sensor noise and severe radial distortion (Fig. 14(d)). Moreover, D360 does not adopt the NCCS pipeline, producing a domain gap when compared to NCCS-compliant datasets. This misalignment explains the poor inter-dataset label consistency results in Sec. 3, and the consistently low accuracy observed when D360 serves as the target domain in cross-dataset generalization studies [3, 47]. 
+
+ETH-XGaze DX [47] achieves a significant scale with-out compromising data quality through a laboratory envi-ronment. The acquisition setup consists of 18 synchronized DSLR cameras with varied orientations and a specialized seat with a head rest to stabilize the subject’s position and head pose. In this way, each time of data capture produces 18 concurrent high-resolution images, representing a sin-gle PoG with 18 distinct head poses. This rigorous setup minimizes stochastic noise in the NCCS pipeline, produc-ing what is currently the most reliable NCCS-aligned data in the literature, while the inherent ambiguities in HPE (partic-ularly along the pitch axis) still persist. A limitation of DX
+
+is that its head pose distribution is concentrated around the 18 discrete camera locations rather than spanning the label space uniformly. This poses a risk of introducing an induc-tive bias, where models potentially over-fit to these specific camera orientations rather than learning a truly continuous head-pose-to-gaze mapping. 14 GazeGene DN [3] is a contemporary synthetic dataset generated via Unreal Engine. The primary merit of syn-thetic data lies in the availability of abundant and precise labels derived from the underlying simulation geometry, al-lowing DN to provide an unprecedented variety of auxiliary ground truths. However, DN presents two major drawbacks in the context of AGE. First, the images lack the stochastic variance and photorealistic complexity required for robust open-domain generalization. They often look “too perfect”, lacking camera sensor noise and natural specular reflections on the cornea (see Fig. 14(f)), which can lead to domain-specific feature collapse. Second, similar to D360 , the label generation pipeline of DN does not inherently align with the NCCS protocol, resulting in a disparity in both image appearance and label distribution. Consequently, we cate-gorize its overall label fidelity as “medium” and treat it as a source of diverse geometric signals rather than definitive ground truths. 
+
+## C. Data Augmentation Pipeline Details 
+
+C.1. Stochastic Mixing Protocol 
+
+To ensure the model generalizes across a wide image mani-fold, we apply a randomized combination of augmentations for each input sample. Each augmentation method is ap-plied according to the following probability distribution: • Color jitter: p = 1 ,• Background replacement: p = 0 .95 ,• Illumination perturbation: p = 0 .5,• Sensor noise: p = 0 .5,• Glasses synthesis: p = 0 .5,• Mask occlusion: p = 0 .5,• Blur: p = 0 .25 ,• Desaturation: p = 0 .1.For details regarding horizontal flipping, please refer to “Multi-view Supcon Learning” section (Sec. 4.2) in the main paper. 
+
+C.2. Realistic Sensor Noise Modeling 
+
+We introduce a compact noise model designed to approxi-mate the stochastic interference inherent in camera sensors. As detailed in Algorithm 1, we perform noise injection in the YCbCr color space to decouple luminance (brightness) from chrominance (color) components. In particular, we inject mottled, “blotch-like” noise into the Cb and Cr chan-nels, to simulate the noise artifact often seen in low-light photos. 
+
+C.3. Pose-Consistent Eyeglasses Synthesis 
+
+To synthesize pose-consistent glasses, we fit a glasses tem-plate to the target face by minimizing the distance between two sets of anchor landmarks, as illustrated in Fig. 15. The landmarks of each glasses template originate from the un-
+
+Algorithm 1 Sensor Noise Injection 
+
+Require: RGB image I ∈ [0 , 1] 224 ×224 ×3, luma noise strength αY = 11 , chromatic noise strength αC = 15 ,blotch size bC = 2  
+
+> 1:
+
+IY CrCb ← RGB2YCrCb (I) 
+
+> 2:
+
+Y, Cr, Cb ← Split (IY CrCb ) 
+
+> 3:
+
+if αY > 0 then  
+
+> 4:
+
+Generate NY ∼ N (0, I)224 ×224  
+
+> 5:
+
+Y ← Y + αY NY 
+
+> 6:
+
+end if  
+
+> 7:
+
+if αC > 0 then  
+
+> 8:
+
+Generate NCr ∼ N (0, I)224 ×224  
+
+> 9:
+
+NCr ← GaussianBlur (NCr , σ = bC ) 
+
+> 10:
+
+NCr ← NCr /std (NCr ) ▷ Normalize the field  
+
+> 11:
+
+Cr ← Cr + αC NCr 
+
+> 12:
+
+Repeat Line 8-11 for Cb  
+
+> 13:
+
+end if  
+
+> 14:
+
+Clamp Y, Cr, Cb to [0 , 1]  
+
+> 15:
+
+I′ ← YCrCb2RGB (Merge (Y, Cr, Cb ))  
+
+> 16:
+
+return I′
+
+> Figure 15. A rigid 2D transformation (incorporating rotation and translation) is applied to the glasses template by anchoring four facial landmarks. Landmark definitions are provided in Fig. 16(b).
+
+derlying face images in the head-pose-grid set (Fig. 3 in the main paper). Notably, the selected landmarks are po-sitioned above and below the eye contours rather than di-rectly on them. This ensures that the synthesis maintains independent of the subject’s specific eye shape or gaze di-rection. After the initial geometric fit, we further diversify the glasses appearance by randomized scale, frame color, opacity, and lens reflections. 
+
+C.4. Mask Occlusion Synthesis 
+
+To optimize computational efficiency during training, we generate facial mask regions for each training sample of-fline. As shown in Fig. 16(a), the occlusion boundaries are initially defined by a polygon connecting 12 designated fa-cial landmarks covering the nose and jawline. We further apply spline curve fitting to smoothen the polygon edges, resulting in more realistic appearance and better preserva-tion of facial geometry. 15 (a) Face (b) Left eye         
+
+> Figure 16. (a) MediaPipe facial landmarks [22]; the region delin-eated by yellow points is used to simulate mask occlusion. (b) The ocular landmarks. Meganta points guide glasses synthesis (Fig. 15); yellow points define the eye region in the segmenta-tion task, and cyan points specify the eye mask input Mfor the iris-region generation algorithm (Algorithm 2).
+> (a) Looking up (b) Looking straight (c) Looking down
+> Figure 17. The eyelid exhibits significant appearance variation correlated with the pitch component of gaze, ϕ.
+> Figure 18. Segmentation masks generated by MediaPipe Iris (red) versus our proposed intensity-based method (green), highlighting the latter’s superior alignment.
+
+## D. Automated Annotation Pipeline for Seg-mentation 
+
+Although existing AGE works occasionally incorporate segmentation as an auxiliary task [23, 27], they often rely on synthetic eye datasets like SynthesEyes [38]. These datasets suffer from a significant domain gap when applied to real-world, face-based AGE models. To bridge this gap, we present an automated annotation pipeline capable of gen-erating high-fidelity eye and iris masks for arbitrary face datasets. This pipeline serves as a general-purpose utility for face-related tasks beyond gaze estimation. 
+
+D.1. Eye Region 
+
+We utilize the MediaPipe [22] face mesh that provides 478 fine-grained landmarks. The eye-region mask is defined as a polygon encompassing the landmarks surrounding the eye and the immediate eyelid area (see yellow landmarks in Fig. 16(b)). We specifically include the eyelid region 
+
+Algorithm 2 Iris-region Mask Generation 
+
+Require: Eye image I ∈ [0 , 1] hI ×wI ×3, eye mask M ∈{0, 1}hI ×wI , circular morphological kernel K(δ) of di-ameter δ 
+
+> 1:
+
+Y ← Brightness (I) 
+
+> 2:
+
+Y ← GaussianBlur (Y, σ = 2) ▷ Remove oculus reflections  
+
+> 3:
+
+Y ← Y + 0.5 × GaussianBlur (1 −
+
+dilate (M, K (Mask width( M )/6)) , σ = 15)  
+
+> 4:
+
+Clamp Y to [0 , 1] ▷ Brighten the pixels near and outside the eye contour  
+
+> 5:
+
+τ ← Median ({pixels within M }) ▷ Brightness threshold  
+
+> 6:
+
+M ′ ← Zeros like (M ) 
+
+> 7:
+
+for M ′ 
+
+> i
+
+in M ′ do  
+
+> 8:
+
+M ′ 
+
+> i
+
+← Yi < τ  
+
+> 9:
+
+end for ▷ The raw iris mask  
+
+> 10:
+
+M ′ ← MorphologicalOpen( M ′, K (13) ) 
+
+> 11:
+
+M ′ ← MorphologicalClose( M ′, K (5) ) ▷ Denoise by morphological operations  
+
+> 12:
+
+M ′ ← ConnectedComponents (M ′)[0] ▷ Locate the largest connect component  
+
+> 13:
+
+M ′ ← GaussianBlur (M ′, σ = 15) > 0.2 ▷ Round the mask shape  
+
+> 14:
+
+return M ′    
+
+> Figure 19. RealGaze data collection. A subject participating in session a(no accessories, standard indoor lighting).
+
+because of its strong semantic correlation with the pitch component of gaze, ϕ. As illustrated in Fig. 17, the pro-jected eyelid area varies significantly with ϕ; for instance, the eyelid occupies a larger visual area during downward gaze compared to upward gaze. By including this region in the segmentation task, we force the backbone to learn fea-tures that are sensitive to these subtle structural cues. 
+
+D.2. Iris Region 
+
+While MediaPipe Iris is available to provide five landmarks per iris, we observe that its output is insufficiently precise for per-pixel segmentation. As shown in Fig. 18, Medi-aPipe’s estimates are frequently oversized and centered in-16 accurately relative to the true iris. To address this, we pro-pose an image-processing-based alternative (Algorithm 2) grounded in the physical prior that the iris is significantly darker than the surrounding sclera. Given an inner-eye-region mask (eyelid excluded, defined by the cyan land-marks in Fig. 16(b)), we identify the darkest area therein by thresholding the brightness value, and apply morpholog-ical operations to yield a contiguous, rounded iris shape. To prevent supervision from erroneous annotation, we cal-culate the Intersection over Union (IoU) between the pre-dicted eye and iris masks. Samples with an IoU < 0.2 are considered unreliable and discarded. During training, the segmentation loss Lseg is dynamically disabled for samples without segmentation labels. 
+
+## E. Benchmark Dataset Details 
+
+E.1. RealGaze 
+
+In RealGaze data collection, participants utilize a 13-inch tablet in a seated position, maintaining their natural head-movement habits (Fig. 19). To capture precise gaze coor-dinates, we develop a dedicated application that renders a randomized red target dot. Subjects are instructed to gaze at the target and simultaneously click it with a mouse. Each click triggers a 1920 × 1080 frame capture, pairing the vi-sual data with the target’s screen coordinates. A brief tem-poral delay is implemented between target shifts to prevent motion blur. We also perform face and landmark detection on the capture, so that those exhibiting eye-blinks or signif-icant motion blur are automatically discarded. Of the 20 participants, 6 require eyeglasses to resolve the screen targets. As a result, they participate in six specific sessions (instead of the nine sessions for others), spanning combinations of wearables (glasses, glasses and mask) and three illumination conditions (standard, low-light, and harsh side-lighting). These sessions are counted in the Overall setting in the RealGaze experiments (Sec. 6.2), but not in-cluded in the remaining 4 settings (Ideal, Side-lit, Glasses, Masks) for fair comparison with Ideal. 
+
+E.2. ZeroGaze 
+
+We use the Flux.1-Dev model [19] to generate high-resolution face images, with 140 , 000 base prompts sourced from the SFHQ dataset [4]. To ensure consistent zero head pose and gaze, each SFHQ prompt is “normalized” by in-jecting a zero-alignment prompt S∗ = “full frontal portrait with strict eye contact with the camera lens, eyes centered and head forward (0°), tight face shot ” and removing conflicting descriptors related to gaze, head pose, or accessories. Keywords not targeting photorealistic face generation (e.g ., non-realistic artistic styles) are also trimmed. Based on the clean prompt with S∗, we further generate two augmented views by appending the prompts 
+
+S1 = “wearing a pair of black glasses, position glasses so each eye is in the middle of each lens ” and S2 = “wearing amedical mask covering the bottom of the face ”, to form sample triplets (Fig. 20), ensuring the wearables being the only variable regarding the image distributions of the three views. In addition, we empirically find that the keyword “ medical ” is essential for the mask prompt to prevent unnatural facial artifacts (Fig. 21). All images are cropped (based on MediaPipe face detec-tion) and resized to 224 ×224 to align with the NCCS image manifold. To further ensure the zero-head-pose property, we apply a HPE model [12] as a filter: triplets are only re-tained if all three images exhibit head pose deviations below 
+
+10 ◦ (pitch) and 5◦ (yaw/roll). Finally, ZeroGaze is com-posed by the resulting 76,491 triplets. 
+
+## F. Training-free Personalized Calibration 
+
+Although our framework achieves state-of-the-art general-ization, the intrinsic physiological variance of the human eye ( i.e ., angle kappa), imposes a “glass ceiling” on zero-shot precision. Recall our RealGaze experiments (Sec. 6.2): on a standard 13-inch tablet, generalization errors can still exceed 40 mm, which is sufficient for coarse in-teraction but inadequate for fine-grained tasks. To bridge this gap, we propose a lightweight, training-free calibration mechanism. Unlike recent optimization-based methods like Gaze322 [8], which require over 10 points (thus a long, dis-turbing calibration process per use) and significant test-time computation, our approach leverages the linear relationship between model estimations and 2D ground truths. As il-lustrated in Fig. 22, this linear pattern remains remarkably consistent on both X and Y axes unless the model is catas-trophically occluded. We model the output-label relation-ship as a 2D linear system with person-specific slopes and intercepts. For 1-point calibration, we estimate intercepts only; given more calibration points, we perform linear re-gression on them to determine both slopes and intercepts. 
+
+F.1. Experiments on RealGaze 
+
+We test the proposed calibration method on each session of RealGaze, under two settings: • 1-Point Calibration : We determine a single calibration point by averaging the labels and model predictions of the three samples whose ground truth PoG are closest to the screen center. We then report the average 2D gaze er-rors using the intercept-calibrated results of the remaining samples. In practical deployment, the real-time inference speed of our lightweight model makes it possible to com-bine multiple temporally adjacent predictions to stabilize calibration point collection, with negligible delay. 17 Figure 20. Example ZeroGaze triplets( X, X g , X m), generated via prompts S∗ (clean view), S∗ + S1 (glasses view), and S∗ + S2 (mask view). Note the high identity stability across diverse wearable prompts. 
+
+Excessive Appearance Alteration    
+
+> Original Masked Original Masked
+
+Inconsistent Identity           
+
+> Original Masked Original Masked
+> Figure 21. Omitting the “ medical ” keyword in S2induces undesired artifacts ( e.g ., apparel change or non-realistic occlusion) and catastrophic identity shifts ( e.g ., changes in age and gender). Images are shown at raw 512 ×512 resolution prior to cropping.
+
+• 5-Point Calibration : By repeating the process above, we collect five calibration points (screen center, and the four screen corners), and report the errors on the remaining samples calibrated by slopes and intercepts. Results in Tab. 6 demonstrate that a single calibration point provides the most significant performance leap, particularly in mitigating the pitch bias identified in our ZeroGaze ex-periments (Sec. 6.3). While 5-point calibration offers fur-ther gains, the marginal utility decreases, suggesting that 1-point calibration is the sweet spot for balancing accuracy and user experience. Notably, in cases where the model is severely challenged ( e.g ., the Glasses sessions), calibra-tion is less effective at correcting the errors (especially for ETH-XGaze), indicating that while calibration fixes bias, it cannot fully compensate for a loss of feature signal. 
+
+F.2. Experiments on DM
+
+We also perform calibration testing on DM to provide a head-to-head comparison with Gaze322 [8], following their evaluation protocol. Given a calibration point count nC , we randomly draw nC samples for each subject (without using closest neighbors in the earlier RealGaze experiments, for fairness). To account for the randomness of the point selec-tion, we repeat the process 9 times and report the median 2D gaze errors. As DM does not have official 3D-to-PoG pipeline, we map the output 3D gaze to PoG using the anno-tated HPE labels and camera parameters, which may intro-duce errors, resulting a higher baseline 2D error across all 18 ETH-XGaze Ours(MobileNet)   
+
+> (a) Session b
+> (no accessories, standard lighting)
+> (b) Session c
+> (glasses, standard lighting)
+
+Figure 22. Scatter plots of ground-truth labels (X-axis) versus model predictions (Y-axis) for a representative RealGaze subject. The persistent linear trend validates our training-free calibration approach. The red line denotes the identity mapping y = x.Table 6. Results of personalized calibration on RealGaze using different numbers of calibration points (errors in mm). 
+
+Model Overall Ideal Side-Lit Glasses Masks 
+
+Calibration Setting dX dY ∥d∥2 dX dY ∥d∥2 dX dY ∥d∥2 dX dY ∥d∥2 dX dY ∥d∥2
+
+ETH-XGaze (ResNet-50, 25.6M) Uncalibrated 42.9 59.7 82.1 24.8 62.7 72.3 33.0 56.9 71.8 73.3 56.6 104.8 31.3 62.0 75.1 1 Point 29.0 28.0 45.5 14.9 21.1 28.6 14.7 19.7 27.2 42.4 30.2 58.1 25.5 33.6 47.2 5 Points 23.3 22.6 36.3 14.3 18.1 25.7 15.1 17.7 25.8 33.7 25.2 46.9 24.7 24.6 38.9 UniGaze-B-Joint (ViT-B, 86.6M) Uncalibrated 21.1 44.4 52.8 16.1 33.7 40.6 17.4 35.0 41.8 26.9 52.9 63.8 19.7 40.2 48.6 1 point 16.6 20.9 29.8 12.6 18.7 25.1 13.0 18.6 25.3 21.4 22.9 35.2 14.7 21.9 29.2 5 points 14.3 18.3 26.0 10.9 15.9 21.2 12.4 15.3 22.0 19.4 19.7 30.9 14.0 18.9 26.2 Ours (MobileNet, 3.8M) Uncalibrated 22.3 34.9 46.3 16.0 28.8 36.6 18.6 28.5 37.0 25.4 33.4 46.6 20.9 36.0 45.3 1 Point 19.9 23.8 33.5 15.2 20.5 28.4 14.2 21.0 28.1 23.7 24.0 37.5 19.9 27.0 37.8 5 Points 17.3 21.5 29.7 12.5 17.6 24.0 13.6 16.9 24.3 21.0 21.4 33.5 16.2 25.2 33.1 Ours (ViT-B, 86.6M) Uncalibrated 19.1 35.8 44.4 14.9 29.3 36.2 17.7 27.9 35.9 24.4 33.5 46.0 18.8 36.5 45.3 1 Point 16.8 17.8 27.4 11.7 14.0 20.3 12.7 15.1 22.0 23.9 19.4 34.1 13.3 19.1 25.9 5 Points 14.7 15.9 24.2 10.4 12.2 17.8 11.6 13.5 19.8 20.4 17.9 30.2 13.9 16.6 24.3 
+
+methods compared to RealGaze, although the 3D angular errors appear to be low (see Sec. G.1). The results in Tab. 7 show that our training-free calibra-tion method achieves a similar or marginally larger perfor-mance gain when the calibration point count is low ( nC ≤
+
+10 ). Notably, our method does not require exclusive test-time training, memory overhead, or the computational cost of optimization. Gaze322 only demonstrates a clear advan-tage when the calibration point count significantly exceeds 10, a threshold that is often impractical for real-world user experience. 
+
+## G. More Experimental Results 
+
+G.1. Conventional Cross-Dataset Experiment 
+
+To situate our work within the existing literature, we eval-uate our models on two widely used unseen datasets: MPI-IFaceGaze DM [44] and EYEDIAP DE [10]. Average an-gular errors are reported in Tab. 8, alongside results from re-cent state-of-the-art models such as GLA [42] and UniGaze [30]. For DM evaluations, we clamp all 3D gaze outputs to the interval I (as defined in the main paper) to ensure a fair comparison across all the models. Note that this may cause minor fluctuations compared to results reported in the 19 Table 7. Results of personalized calibration on MPIIFaceGaze DM using different numbers of calibration points (errors in mm).                                                                                                        
+
+> Model Model Uncalibrated 3 Pts 5 Pts 10 Pts 20 Pts
+> Error (mm) size dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2
+> Gaze322 (ResNet-18) 11.4M --101.9 --79.3 ∗--62.3 ∗--56.7 --45.4 ∗
+> ETH-XGaze (ResNet-50) 25.6M 47.4 82.9 104.3 32.1 63.0 76.6 26.6 45.6 57.0 23.3 47.8 56.5 21.3 46.3 54.8 UniGaze-B-Joint 86.6M 36.6 77.7 92.4 27.6 54.3 66.5 18.6 53.3 60.3 18.5 47.5 54.3 18.8 45.7 52.8 Ours (MobileNet) 3.8M 39.8 70.8 88.1 29.8 51.6 63.6 25.6 50.9 59.3 21.1 47.4 54.8 19.6 45.6 52.6 Ours (ViT-B) 86.6M 40.4 73.2 90.7 27.2 56.6 67.6 18.9 49.4 56.2 19.2 47.9 54.7 20.8 46.0 53.2
+> *Manually measured based on Fig. 5 in [8].
+
+Table 8. Cross-domain evaluation results on MPIIFaceGaze DM and EyeDiap DE (angular errors in degrees; dϕ and dψ are the pitch and yaw components respectively). 
+
+Model (Backbone) Model → DM → DE
+
+Size d dϕ dψ d dϕ dψ
+
+(a) Trained on DX only PureGaze (ResNet-50) [6] 31M 6.79 (7.08 ∗) 4.86 3.87 7.40 (7.48 ∗) 4.67 4.75 ETH-XGaze (ResNet-50) [47] 25.6M 6.88 (7.50 ∗) 5.10 3.73 8.87 (11.0 ∗) 5.23 6.40 GLA (ResNet-18) [42] 11.7M 6.83 ∗ - - 7.38 ∗ - -UniGaze-B-16 (ViT-B) [30] 86.6M 6.21 ∗ - - 6.64 ∗ - -UniGaze-H-14-CrossX (ViT-H) 632M 5.77 (5.57 ∗) 4.72 2.51 6.11 (6.53 ∗) 4.43 3.28 Ours (MobileNet) 3.8M 5.56 3.94 3.20 8.10 6.34 3.65 Ours (ViT-B) 86.6M 5.15 3.67 2.97 7.22 5.76 3.48 (b) Trained on multiple datasets GLA (ResNet-18 @{DX , D C , D 360 }) 11.7M 4.89 ∗ - - 5.71 ∗ - -UniGaze-B-16-Joint † (@ 5 datasets) 86.6M 5.35 3.95 2.78 5.02 (5.52 ∗) 3.67 2.69 UniGaze-H-14-Joint † (@ 5 datasets) 632M 5.08 3.86 2.54 4.53 (5.16 ∗) 3.25 2.45 Ours (MobileNet @{DX ,DC ,DN }) 3.8M 4.83 3.50 2.67 6.53 4.87 3.26 Ours (ViT-B @{DX ,DC ,DN }) 86.6M 4.53 3.32 2.45 6.41 4.90 3.14    
+
+> †The models are evaluated on a portion of dataset, because the rest is used in training; ∗Results reported in the original paper.
+
+original papers. Conversely, we omit clamping for DE due to its severe vertical bias (discussed in Sec. B.3); as the DE
+
+distribution does not fully overlap with I, clamping would artificially penalize the model. As DE lacks official NCCS 3D labels, we adopt the labels generated by RecurrentGaze [25], which we find to yield the most consistent and lowest error across all models. Results demonstrate the superior generalizability of our models on DM . While the pitch error on DE is subopti-mal due to the aforementioned distribution misalignment, our yaw-axis performance remains highly competitive. We note that these conventional test cases correspond only to the Ideal sessions of our RealGaze benchmark, further jus-tifying the need for more comprehensive environmental and wearable challenges introduced in our experiments. 
+
+G.2. More Ablation Studies 
+
+Variance Loss In discretized classification tasks, variance loss term is widely used to encourage a concentrated proba-bility distribution [26]. We evaluate the impact of this term using the recommended weights and a softmax temperature of τ = 1 . As shown in Tab. 9(a), the generalization perfor-mance between the variance loss and our τ = 0 .5 technique is similar. However, we advocate for our approach as it is systemically simpler, without the need for additional hyper-parameter tuning or the computational overhead of auxiliary variance calculations. 
+
+Weight Initialization for ViTs UniGaze [30] provides ViT checkpoints pre-trained on massive unlabeled face datasets via self-supervised learning. We investigate whether these domain-specific weights offer an advantage over those of MAE, which is domain-agnostic. Results in Tab. 9(b) show that generalization performance remains al-most intact regardless of the initialization source. We hy-pothesize that our SupCon objectives effectively function as a specialized form of self-supervised representation learn-ing. By forcing the model to align features across views and tasks, the ViT backbones efficiently learn gaze-relevant ge-ometric priors, rendering specialized face-only pre-training redundant. 20 Table 9. Ablation studies on RealGaze (errors in mm).                                                                                   
+
+> Model Overall Ideal Side-Lit Glasses Masks
+> dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2dXdY∥d∥2
+> (a) Variance loss Ours (MobileNet, baseline) 22.3 34.9 46.3 16.0 28.8 36.6 18.6 28.5 37.0 25.4 33.4 46.6 20.9 36.0 45.3 Replacing τ= 0 .5with variance loss 21.9 38.0 47.9 17.0 33.9 41.2 22.2 28.1 39.6 24.9 42.6 54.3 18.8 40.7 48.6 (b) Pre-training Ours (ViT-B, MAE-pretrained) 19.1 35.8 44.4 14.9 29.3 36.2 17.7 27.9 35.9 24.4 33.5 46.0 18.8 36.5 45.3 ViT-B, UniGaze-pretrained 18.8 36.3 44.6 14.3 32.2 37.9 18.9 29.2 37.8 23.3 37.1 47.9 17.0 41.8 49.2
+
+## H. Limitations and Future Work 
+
+While this work significantly advances the generalizabil-ity of AGE, it also highlights the persistent challenges in-herent in real-world deployment. Our experiments specif-ically address critical bottlenecks such as facial occlusion and adverse indoor lighting; however, several physiolog-ical and environmental factors remain outside the current scope, such as periorbital wrinkles, heavy eye makeup, and extreme lighting conditions like solar over-exposure. The persistence of these challenges motivates a deeper investi-gation into the manifold-level representation of ocular fea-tures. Furthermore, we hope our findings inspire the devel-opment of next-generation synthetic data engines, capable of simulating these edge cases, to bridge the remaining gap between laboratory performance and real-world reliability. 21

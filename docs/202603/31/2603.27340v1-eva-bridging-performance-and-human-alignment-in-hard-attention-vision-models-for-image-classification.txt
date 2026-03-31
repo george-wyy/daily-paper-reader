@@ -1,0 +1,807 @@
+Title: EVA: Bridging Performance and Human Alignment in Hard-Attention Vision Models for Image Classification
+
+URL Source: https://arxiv.org/pdf/2603.27340v1
+
+Published Time: Tue, 31 Mar 2026 00:56:17 GMT
+
+Number of Pages: 24
+
+Markdown Content:
+# EVA: Bridging Performance and Human Alignment in Hard-Attention Vision Models for Image Classification 
+
+Pengcheng Pan Yonekura Shogo Kuniyoshi Yasuo 
+
+The University of Tokyo 
+
+{pan,yonekura,kuniyoshi}@isi.imi.i.u-tokyo.ac.jp 
+
+## Abstract 
+
+Optimizing vision models purely for classification accuracy can impose an align-ment tax, degrading human-like scanpaths and limiting interpretability. We intro-duce EVA, a neuroscience-inspired hard-attention mechanistic testbed that makes the performance–human-likeness trade-off explicit and adjustable. EVA samples a small number of sequential glimpses using a minimal fovea–periphery representa-tion with CNN-based feature extractor and integrates variance control and adaptive gating to stabilize and regulate attention dynamics. EVA is trained with the standard classification objective without gaze supervision. On CIFAR-10 with dense human gaze annotations, EVA improves scanpath alignment under established metrics such as DTW, NSS, while maintaining competitive accuracy. Ablations show that CNN-based feature extraction drives accuracy but suppresses human-likeness, whereas variance control and gating restore human-aligned trajectories with min-imal performance loss. We further validate EVA’s scalability on ImageNet-100 and evaluate scanpath alignment on COCO-Search18 without COCO-Search18 gaze supervision or finetuning, where EVA yields human-like scanpaths on natural scenes without additional training. Overall, EVA provides a principled framework for trustworthy, human-interpretable active vision. 
+
+## 1 Introduction 
+
+Deploying vision systems in real-world settings requires not only strong task performance but also 
+
+interpretability and reliability . When humans cannot anticipate why a model reaches a decision, trust and safe integration into high-stakes workflows remain limited. Popular post-hoc explanation tools such as saliency maps and Grad-CAM for CNNs and Vision Transformers can be brittle and occasionally misleading, raising concerns about whether they reflect the model’s actual reasoning process [ 14 , 33 , 27 , 29 ]. This motivates a complementary direction: designing models whose internal decision process is inspectable by construction, rather than explained after the fact. Human vision provides a natural blueprint for process-level interpretability. Due to biological constraints, perception is selective. Humans cannot process the entire visual field at high resolution simultaneously. Instead, they actively sample evidence through sequences of saccades and fixations, repositioning the fovea to gather informative glimpses [ 10 , 38 , 26 ]. Hard-attention models follow this principle by selecting discrete glimpses over time and learning fixation policies, often using reinforcement learning [ 18 , 32 ]. Their trajectories, or scanpaths, form an auditable record of what evidence was requested to support a decision. This makes scanpath behavior a natural axis for interpretability. Modern vision research, however, predominantly optimizes for classification accuracy under full-image, parallel computation. In practice, this can impose an alignment tax . As accuracy improves, scanpath behavior often becomes less human-like, weakening the interpretability promise of active sampling. Rather than treating this trade-off as inevitable, we argue that the performance and human-
+
+> Preprint.
+> arXiv:2603.27340v1 [cs.CV] 28 Mar 2026
+
+likeness tension should be treated as a first-class design variable and studied mechanistically. We evaluate scanpath alignment by comparing model fixations to human gaze statistics under established metrics such as NSS and DTW. We then ask which architectural mechanisms can reduce the alignment tax under the standard classification objective. Accurate &      
+
+> human -aligned
+> (desired)
+> Accurate but
+> misaligned
+> (black box)
+> EVA:
+> predicts dog and
+> looks at object
+> Models:
+> predicts dog but
+> looks off region
+> e.g., predicts cat for dog image
+> Accuracy
+> Similarity to human Scanpaths (higher is better)
+> Inaccurate
+> AI
+> Model
+> Human
+> SC
+> Visual
+> cortex
+> LGN
+> Posterior
+> parietal cortex
+> FEF
+> CNN
+> RNN
+> Gate
+> RNN dog
+> Scanpath
+> Class
+> prediction
+> Image classification task
+> CNN / ViT baselines
+> Conventional hard attentions
+
+Figure 1: EVA reduces the alignment tax through mechanism-aware design. Left : a schematic trade-off between accuracy and scanpath similarity to humans. EVA improves the trade-off relative to full-image baselines and prior hard-attention models. Right : EVA uses minimal fovea–periphery sensing with variance control and adaptive gating to regulate active sampling dynamics. We introduce EVA , a lightweight neuroscience-inspired hard-attention mechanistic testbed trained solely with classification labels. EVA is designed to make the alignment tax measurable and adjustable through architectural constraints, while keeping the training objective unchanged. EVA operates with a small number of sequential glimpse requests and combines a minimal fovea–periphery glimpse representation with a CNN-based feature extractor, a neuromodulator-inspired variance control mechanism that stabilizes stochastic attention under uncertainty, and an adaptive gating pathway that regulates information flow. Our goal is not biological fidelity. Instead, these components impose functional priors on how the model acquires evidence over time. We adopt a minimal two-level fovea– periphery design to maintain efficiency and to avoid confounds introduced by complex multi-scale designs [21]. Our evaluation is structured to support mechanistic analysis, scalability testing, and cross-task transfer. On CIFAR-10 , where dense human gaze annotations enable rigorous analysis, we conduct mechanis-tic ablations to decouple the sources of performance and alignment. We find that stronger CNN-based feature extraction primarily drives accuracy but tends to suppress scanpath human-likeness. In contrast, variance control and gating substantially restore human-aligned fixation trajectories with minimal performance loss. We then validate scalability on ImageNet-100 . Finally, we evaluate scanpath alignment on COCO-Search18 without using its gaze annotations or search supervision. We train EVA on COCO image classification using labels only, optimize the attention policy solely via classification reward, and compare the resulting scanpaths to human search-conditioned scanpaths on COCO-Search18 without finetuning. This setting tests whether an attention policy learned from classification reward can transfer as a human-aligned evidence acquisition strategy in a different behavioral regime. 
+
+Contributions. First, we formalize and empirically characterize an alignment tax in hard-attention vision. Accuracy-oriented improvements can systematically degrade scanpath human-likeness. Second, we introduce EVA as a mechanistic testbed that treats the performance and human-likeness trade-off as a first-class variable. EVA uses minimal fovea–periphery sensing together with variance control and adaptive gating as interpretable architectural mechanisms. Third, through ablations on CIFAR-10 and evaluations on ImageNet-100 and COCO-Search18, we show that EVA improves scanpath alignment without changing the standard training objective or using gaze supervision. EVA also scales to larger data and supports gaze-supervision-free cross-task scanpath evaluation. By aligning active sampling behavior with human gaze statistics, EVA enables a practical form of 2interpretability. Users can inspect where the model requested evidence and relate decisions to a human-understandable sequence of glimpses, supporting trustworthy and potentially human-in-the-loop active vision systems. 
+
+## 2 Related Work 
+
+2.1 Neuroscience-inspired Vision and Hard Attention 
+
+Deep CNNs trained for object recognition have been used as functional models of the primate ventral stream, with empirical correspondences to neural responses and benchmarks that quantify neural alignment [ 17 , 34 , 28 ]. These models capture hierarchical feature processing but do not directly model active evidence acquisition through eye movements. Biological vision relies on recurrent loops and routing mechanisms that modulate information flow during perception, including attentional gating in thalamocortical circuits [ 12 , 24 , 2, 3]. Hard-attention models move toward this active-sampling view by making decisions from a sequence of glimpses selected by an attention policy. RAM learns where to look using reinforcement learning signals such as REINFORCE, which introduces high-variance optimization challenges [ 18 , 32 ]. Subsequent work improved representation learning and training strategy to narrow the accuracy gap on more complex benchmarks, including designs that use multi-scale glimpses or stronger feature extractors and systems that scale to ImageNet with more effective training [ 1, 11 ]. Related active-vision efforts also study uncertainty-driven exploration and multi-level controllers that separate perception and action [ 30 , 22 ]. EVA follows this line of work by introducing neuroscience-inspired components into a hard-attention system, not to claim biological fidelity, but to impose functional priors on how the model acquires evidence over time. 
+
+2.2 Human Gaze and Scanpath Alignment 
+
+Human gaze datasets enable evaluation of where and how models allocate attention. Saliency models and deep saliency networks predict fixation distributions for free viewing, but they often output static maps rather than sequential scanpaths [ 13 , 25 ]. With datasets such as COCO-Search18 and Gaze-CIFAR10, recent methods explicitly predict scanpaths using powerful sequence models trained on eye-movement data [ 7 , 35 , 37 , 15 , 16 , 36 , 19 , 5, 6, 4]. These approaches treat gaze as a supervised target. In contrast, our work studies whether human-like scanpaths can emerge without gaze supervision in a task-driven hard-attention system. We treat the performance and human-likeness tension as a first-class variable, an alignment tax, and use EVA as a mechanistic testbed to identify architectural mechanisms that reduce this tax under the standard classification objective. We evaluate scanpath similarity under established metrics and test cross-task transfer by comparing EVA scanpaths to human search-conditioned scanpaths on COCO-Search18, while training the policy only via classification reward. 
+
+## 3 Method 
+
+Hard-attention models emulate active vision by making decisions from a sequence of glimpses rather than processing the full image in parallel. A key practical challenge arises when pairing hard attention with strong feature extractors. Improving representation strength can raise classification accuracy while weakening the need for informative sequential sampling, leading to policy collapse and reduced scanpath human-likeness [ 21 ]. This behavior is consistent with the alignment tax studied in this paper. We propose EVA , a neuroscience-inspired hard-attention architecture that makes this tension mea-surable and adjustable through mechanism-aware design. EVA can be trained end-to-end with classification labels only. It introduces three components that impose functional priors on how evi-dence is acquired over time. First, a CNN processes the foveal input to support accurate recognition. Second, a variance control mechanism modulates the stochasticity of fixation sampling based on prediction error to stabilize exploration. Third, an adaptive gating pathway regulates the influence of low-level sampling dynamics on high-level evidence integration. Together, these mechanisms help preserve meaningful sequential evidence acquisition while benefiting from stronger representations. 3Retina    
+
+> Image
+> LGN Visual cortex
+> CNN ϕ(𝜃 𝑔
+> 𝑓 )
+> ℎ𝑡
+> 1𝛽 𝑡
+> Peripheral
+> Foveal
+> ℎ𝑡
+> 2
+> Neo сortex
+
+EVA     
+
+> 𝑦 𝑡
+> 𝜇 𝑡 +1
+> 𝜎 𝑡 +1
+> 𝑙 𝑡 +1
+> 𝑦 𝑡 +1
+> Classification (𝑥 𝑡
+> 𝑓 ,𝑙 𝑡 )
+> Prediction
+> error
+> 𝐴𝐶ℎ
+> 𝑁𝐸
+> Expected
+> uncertainty
+> Unexpected
+> uncertainty
+> 𝑒 𝑡 +1
+> 𝑔 𝑡
+> 𝑝
+> 𝜓 (𝜃 𝑔
+> 𝑝 )
+> Location
+> 𝑦 𝑇
+> Pulvinar
+> Soft attention gate
+> +
+> 𝑔 𝑡
+> 𝑓 SC bottom -up visual input
+> top -down feedback
+> via gate
+> uncertainty modulation
+> from prediction error
+> EVA over the next glimpse
+> sample next fixation
+> 𝑥 𝑡
+> 𝑓
+> 𝑥 𝑡
+> 𝑝
+
+Figure 2: EVA model architecture. Top : one glimpse step at time t. EVA combines a minimal fovea– periphery retina with a CNN feature extractor and a two-level recurrent backbone. The lower recurrent state updates the glimpse representation and controls the next fixation. An adaptive gate regulates information flow to the upper recurrent classifier. Bottom : a prediction-error signal modulates the fixation variance and the gate, regulating evidence acquisition dynamics. The components are motivated by functional motifs rather than biological fidelity. 
+
+3.1 Overview of RAM and MRAM 
+
+RAM and its extension MRAM consist of four main modules: a glimpse module , a core recurrent module , a location module , and an action module . The glimpse module extracts features from a local image patch, mimicking foveal vision. The recurrent module integrates these glimpses over time. The location module predicts the next fixation, while the action module makes the classification decision. EVA adopts the two-level recurrent MRAM as backbone that separates sampling control and evidence integration. The lower RNN predicts fixation locations, while the upper RNN integrates sequential evidence for classification. At each timestep t, given a foveal crop xft and peripheral context xpt , the model computes: 
+
+gt = fg
+
+
+
+[xft ∥xpt ], l t; θg
+
+
+
+, h1 
+
+> t
+
+= f 1 
+
+> h
+
+(h1
+
+> t−1
+
+, g t; θ1
+
+> h
+
+), h2 
+
+> t
+
+= f 2 
+
+> h
+
+(h2
+
+> t−1
+
+, h 1 
+
+> t
+
+; θ2
+
+> h
+
+), (1) 
+
+lt+1 ∼ p(· | fl(h1 
+
+> t
+
+; θl)) , at = fa(h2 
+
+> t
+
+; θa). (2) Here gt is the glimpse representation, h1 
+
+> t
+
+and h2 
+
+> t
+
+are the lower and upper RNN states, lt+1 is the fixation location sampled from a stochastic distribution, and at is the classification output. 
+
+3.2 CNN Feature Extractor for Fovea–Periphery Input 
+
+EVA uses a CNN feature extractor ϕ(·) for the foveal crop xft and a lightweight encoder ψ(·) for the peripheral view xpt together with the current fixation lt. We concatenate the two feature vectors to form the glimpse representation: 
+
+gft = ϕ
+
+
+
+xft ; θfg
+
+
+
+, gpt = ψ xpt , l t; θpg
+
+ , st = gft ∥ gpt
+
+. (3) The lower recurrent state integrates st to update the internal summary used for sampling control: 
+
+h1 
+
+> t
+
+= f1(h1
+
+> t−1
+
+, st). (4) 
+
+3.3 Variance Control via Prediction Error 
+
+The location module samples the next fixation from a Gaussian policy: 
+
+lt+1 ∼ N (μ(h1 
+
+> t
+
+), σ 2 
+
+> t
+
+). (5) 4RAM uses a fixed variance. EVA adapts σt using a prediction-error driven signal that regulates exploration. This design is motivated by neuromodulatory control of uncertainty and exploration in biological systems [ 9], but EVA does not aim for biological fidelity. We compute long-term and short-term exponential moving averages of the prediction error: 
+
+¯e(k) 
+
+> t
+
+= τk ¯e(k) 
+
+> t−1
+
++ (1 − τk)et, k ∈ { long , short }, (6) where et is instantaneous error, and τlong > τ short . The uncertainty signal is 
+
+ut = ¯es 
+
+> t
+
+− ¯el 
+
+> t
+
+. (7) Finally, σt is bounded using: 
+
+σt = σmin + ( σmax − σmin ) tanh( αu t). (8) Thus, high uncertainty increases fixation variance, encouraging exploration, while low uncertainty reduces variance and stabilizes sampling. 
+
+3.4 Adaptive Gating 
+
+EVA uses an adaptive gate that regulates information flow from the lower recurrent state h1 
+
+> t
+
+to the upper recurrent state h2 
+
+> t
+
+. The gate depends on bottom-up and top-down signals and on the current sampling variance σt:
+
+βt = clamp 
+
+
+
+(ftd (h2
+
+> t−1
+
+) − σt) ⊙ (fbu (h1
+
+> t−1
+
+) + σt), 0, 1
+
+
+
+, (9) 
+
+¯βt = γ ¯βt−1 + (1 − γ)βt. (10) Both ftd and fbu are implemented as single-layer MLPs with ReLU activations. The smoothed gate 
+
+¯βt provides a stable control signal over time. We implement gated integration using an attention-style update [31]. The upper state forms a query, and the lower features form key and value vectors: 
+
+Qt = WQ h2
+
+> t−1
+
+, (11) 
+
+Kt = WK
+
+h1 
+
+> t
+
+ϕ(xft ), Vt = WV
+
+h1 
+
+> t
+
+ϕ(xft ), (12) 
+
+αt = sigmoid 
+
+ 1√d QtK⊤
+
+> t
+
+
+
+, (13) 
+
+zt = (1 − ¯βt)⊙ αt ⊙ Vt + εV t
+
+, ρt = ¯βt ⊙ h2
+
+> t−1
+
+, (14) 
+
+Ut =  zt ρt
+
+, h2 
+
+> t
+
+= f 2 
+
+> h
+
+(h2
+
+> t−1
+
+, U t ; θ2
+
+> h
+
+). (15) This gate regulates how much newly acquired evidence updates the classifier state, which helps control the performance and human-likeness trade-off studied in this paper. 
+
+3.5 Training 
+
+We train the location policy with REINFORCE [ 18 , 32 ]. The reward R is 1 if the final classification is correct and 0 otherwise. We subtract a baseline bt to reduce gradient variance: 
+
+LREINFORCE = −
+
+> T
+
+X
+
+> t=1
+
+(R − bt) log π(ℓt | h1 
+
+> t
+
+; θ), (16) where π(ℓt | h1 
+
+> t
+
+; θ) is the policy distribution based on hidden state of the lower recurrent layer H1 
+
+> t
+
+.We also optimize a supervised classification loss on the classifier output: 
+
+LCE = −
+
+> T
+
+X
+
+> t=1
+
+yT log yt, (17) where yt is the predicted probability of class c and yT is the one-hot indicator of the true label. The full objective is: 
+
+L = LCE + LREINFORCE + λcost βb + λ1 ∥βb∥1 + λH Hβ , (18) 5where βb is the mean bottom-up gate value, and the entropy term 
+
+Hβ = −βt log( βt + ε) − βb log( βb + ε) (19) encourages non-trivial gating behavior. During training, we compute the prediction error et from the supervised classification signal. This provides a stable uncertainty proxy for variance control. At test time, labels are unavailable, so we replace et with a self-error signal derived from changes in the model predictions across glimpse steps. Training with self-error only reduces accuracy by about 5%, so we use label-based error for training stability and use self-error at inference. 
+
+3.6 Scanpath Similarity Metrics and Center-Debiased GCS 
+
+We report DTW, ScanMatch, NSS, and AUC [ 20 , 8, 23 , 39 ]. To reduce center-bias inflation, we use the center-debiased Gaze Consistency Score (GCS) metric [ 21 ]. GCS normalizes each metric using a human upper reference and a corner-fixation lower reference, then subtracts an always-center reference to remove center-bias inflation. It then aggregates the debiased metrics and adds a movement-consistency term to penalize policies that match only spatial center overlap. Full details are provided in Appendix C.1. 
+
+## 4 Experiments 
+
+4.1 Performance on Image Classification Benchmarks 
+
+We first evaluate EVA on CIFAR-10 and ImageNet-100. These datasets allow us to jointly assess classification accuracy, parameter efficiency, and gaze alignment under consistent training settings. Baselines include convolutional models (ResNet18, MobileNetV3), a transformer (ViT-tiny), and hard-attention models (RAM, DRAM, MRAM, Saccader). All models share the same glimpse size, number of steps, and optimizer hyperparameters to ensure a fair comparison. Details of experiments are described in Appendix C As summarized in Table 1, EVA achieves the strongest classification accuracy among the hard-attention baselines on CIFAR-10 under the same glimpse budget and training protocol. At the same time, EVA attains competitive scanpath alignment as measured by DTW, SM, NSS, AUC, and the center-debiased GCS. EVA-Mobile illustrates a clear accuracy–alignment trade-off. It slightly reduces accuracy while improving scanpath alignment, particularly under saliency-based metrics and GCS. This behavior is consistent with the alignment tax studied in this paper, where stronger representations can improve accuracy while weakening the human-likeness of sequential evidence acquisition. The table also includes gaze-supervised scanpath predictors such as DeepGaze and Gazeformer. These models are trained to fit human gaze and therefore perform strongly on scanpath similarity metrics, but they do not address classification accuracy under limited glimpses. EVA differs in that it is trained only with classification labels and learns its attention policy from classification reward. The comparison highlights a complementary point. Task-driven hard-attention agents can produce human-like scanpaths without gaze supervision while remaining competitive on classification accuracy. Additional qualitative results and stability analyses are provided in the appendix. 
+
+Ablation studies. Table 1 reports controlled ablations that isolate the roles of the three EVA components. Removing the CNN feature extractor severely degrades accuracy, confirming that strong foveal representation is the primary driver of task performance. In contrast, removing variance control or gating affects scanpath alignment more than accuracy. The CNN-only variant improves accuracy but yields poor GCS, consistent with the alignment tax in which stronger representations reduce the need for human-like sequential sampling. Adding variance control and gating restores human-aligned trajectories and improves GCS with limited impact on accuracy. Using only variance control or only gating can increase alignment metrics but fails to recover accuracy, indicating that these mechanisms regulate evidence acquisition rather than replace representation learning. Training variance control using self-error during training reduces accuracy by about 5% compared to label-based error, suggesting that a stable training signal is important for learning the exploration dynamics. EVA-Mobile further shows that a stronger pretrained backbone can improve alignment under a modest accuracy cost. Overall, the components act synergistically. The CNN supports recognition, while variance control and gating regulate exploration and information flow to reduce the alignment tax. 6Table 1: Mechanistic analysis of the accuracy–alignment trade-off on CIFAR-10. The table is organized into blocks separated by horizontal rules. Bold denotes the best value within each block for a given metric. Light blue marks two EVA variants. EVA-Mobile uses a pretrained MobileNetV3 backbone. 
+
+Model Params Time FLOPs Acc. DTW SM NSS AUC GCS (M) (ms/im) (B) ↓ (%) ↑ ↓ ↑ ↑ ↑ ↑
+
+CNN (ResNet18) 11.18 0.89 ± 0.02 0.34 78.00 - - - - -CNN (MobileNetV3) 4.21 0.94 ± 0.08 0.03 78.52 - - - - -TinyViT 4.37 3.03 ± 0.22 2.66 68.21 - - - - -DeepGaze IIE 0.2 0.82 ± 0.03 - - 705.48 0.311 0.251 0.601 0.039 Gazeformer 0.27 0.04 ± 0.01 - - 669.22 0.346 0.757 0.689 0.068 
+
+Saccader 12.49 3.29 ± 0.31 4.44 77.80 928.44 0.276 0.277 0.665 -0.001 RAM, 1scale 0.65 2.21 ± 0.08 0.01 62.27 1176.54 0.241 0.228 0.654 -0.041 RAM, 2scale 0.68 3.22 ± 0.20 0.02 61.55 1173.89 0.258 0.377 0.684 -0.016 DRAM, 1scale 2.24 1.94 ± 0.10 1.74 64.81 1069.77 0.248 0.224 0.656 -0.021 DRAM, 2scale 2.25 3.91 ± 0.35 1.75 62.17 837.14 0.302 0.665 0.679 0.044 MRAM, 1scale 1.18 2.34 ± 0.13 0.01 64.18 930.38 0.274 0.318 0.667 0.026 MRAM, 2scale 1.21 3.53 ± 0.28 0.02 58.24 945.31 0.263 0.315 0.674 0.057 EVA-Mobile 4.79 5.59 ± 0.49 0.45 76.14 825.11 0.322 0.786 0.701 0.080 
+
+EVA 2.97 3.06 ± 0.04 1.37 79.77 856.29 0.316 0.481 0.692 0.064 EVA (w/o CNN) 1.93 3.12 ± 0.45 0.07 62.41 800.30 0.327 0.511 0.703 0.057 EVA (CNN only) 2.22 3.91 ± 0.09 1.32 69.99 1019.85 0.253 0.264 0.663 -0.023 EVA (w/o gate) 2.48 2.96 ± 0.14 1.32 78.96 863.70 0.308 0.391 0.686 0.026 EVA (gate only) 1.67 2.92 ± 0.06 0.07 55.61 797.79 0.318 0.702 0.681 0.051 EVA (w/o error) 2.97 3.32 ± 0.11 1.37 75.14 894.17 0.300 0.386 0.691 0.032 EVA (error only) 1.47 3.24 ± 0.42 0.02 63.36 824.51 0.321 0.483 0.702 0.053 EVA (train self-error) 2.97 3.24 ± 0.35 1.37 73.78 792.89 0.330 0.608 0.700 0.065 
+
+4.2 Emergent Human-like Scanpaths on CIFAR-10 
+
+To assess whether EVA produces human-aligned scanpaths beyond the scalar metrics in Table 1, we visualize fixation trajectories on CIFAR-10. Figure 3 compares model scanpaths to human scanpaths from Gaze-CIFAR-10 for representative models. For hard-attention models, the fixation sequence is an internal variable learned from classification reward and used only to support image recognition. For gaze-supervised predictors such as Gazeformer, scanpaths are directly optimized to match human gaze. Despite this difference in supervision, EVA often allocates fixations to semantically informative regions, such as faces, wheels, and object centers, and shows substantial overlap with human trajectories. These qualitative results provide a process-level form of interpretability. The model exposes a discrete sequence of evidence requests that can be inspected and compared to human visual sampling behavior. Figure 4 summarizes the accuracy and scanpath alignment of hard-attention models on CIFAR-10. We use the center-debiased GCS as the primary scalar summary of scanpath similarity. EVA achieves a favorable accuracy–alignment trade-off among hard-attention baselines. EVA-Mobile 7Gazeformer Saccader DRAM EVA (ours) EVA-Mobile (ours) Dog 
+
+Bird 
+
+Car 
+
+Figure 3: Qualitative comparison of scanpaths on CIFAR-10. Columns show different models and rows show example images. Orange denotes the model scanpath and blue denotes the human scanpath. 
+
+Figure 4: Accuracy–alignment trade-off on CIFAR-10. The x-axis is center-debiased GCS and the y-axis is classification accuracy. further improves scanpath alignment while sacrificing some accuracy. This pattern is consistent with the alignment tax. Stronger representations can improve accuracy while weakening the need for human-like sequential sampling, and the variance control and gating mechanisms help recover human-aligned scanpaths without catastrophic accuracy loss. 
+
+## 5 Scalability Check to Diverse Datasets and Tasks 
+
+5.1 High-Resolution Image Classification on ImageNet-100 
+
+We evaluate EVA on ImageNet-100 to test scalability to high-resolution natural images. Table 5 reports accuracy and compute. EVA-Mobile processes only a small number of high-resolution foveal glimpses with the CNN backbone, while the low-resolution peripheral view is encoded with a lightweight module. In contrast, Saccader first applies a CNN densely over the image to produce logits at many spatial locations, then selects and aggregates locations for prediction. This design 8Model FLOPs (B) Top-1 Top-5                               
+
+> MobileNet (scratch) 2.2 47.64 76.12 MobileNet (pre.) 2.2 80.36 96.5
+> Saccader-Mobile (pre.) 37.27 75.9 94.5
+> RAM 0.35 11.26 32.78 DRAM-Mobile (pre.) 8.83 19.00 43.12 DRAM 1.06 21.44 47.3 MRAM 0.35 12.88 34.76 EVA-Mobile (scratch) 8.87 42.62 68.24 EVA-Mobile (pre.) 8.87 71.92 91.92
+> EVA 6.6 65.86 80.24
+
+Figure 5: ImageNet-100 scalability. Top: ImageNet-100 accuracy and FLOPs. Pre. indicates initialization from ImageNet-1K pretrained weights. Bottom: an example scanpath from EVA where the red rectangle indicates the foveal crop. reduces the number of locations used for the final readout, but it still requires dense evaluation across the image. As a result, Saccader-Mobile achieves higher top-1 and top-5 accuracy than EVA-Mobile, but at substantially higher FLOPs. EVA enforces a stricter foveation constraint and uses less visual information than dense-logit hard-attention baselines, which makes the setting closer to active sampling under limited observation. 
+
+5.2 Cross-task Scanpath Evaluation on COCO-Search18 
+
+We evaluate whether a policy learned from classification reward can transfer as a human-aligned evidence acquisition strategy in a different behavioral regime. We train EVA on COCO image classification using labels only. Scanpaths are not supervised. We then compare EVA scanpaths to human search-conditioned scanpaths on COCO-Search18 without using COCO-Search18 gaze annotations or search supervision, and without finetuning. Table 2 reports standard scanpath metrics. The reported accuracy on COCO-Search18 is the image classification accuracy over the original COCO categories restricted to the COCO-Search18 image subset. It is included for reference and is not a measure of search-task performance. Gazeformer is included as a gaze-supervised reference. EVA-Mobile with pretrained features improves scanpath alignment compared to other task-driven hard-attention baselines, while operating under the strict foveation constraint of using only glimpsed patches as high-resolution input. This evaluation complements the ImageNet-100 results by testing generalization of the learned sampling dynamics beyond the training task.In 
+
+5.3 PCA Visualization of Hidden State Dynamics 
+
+We visualize EVA’s internal dynamics by applying Principal Component Analysis (PCA) to the recurrent states from the lower layer h1 
+
+> t
+
+and the upper layer h2 
+
+> t
+
+over glimpse steps t = 1 , . . . , T .For each layer, we collect hidden states on the CIFAR-10 test set and fit PCA on the pooled states. We then project each hidden state into the first two principal components. We plot class-wise mean trajectories obtained by averaging hidden states over samples from the same class at each step. Figure 6 reveals a consistent temporal progression in the upper-layer state. Across samples, early steps occupy a relatively compact region in PC space, while later steps spread out and separate by class. This pattern is consistent with progressive evidence integration under sequential glimpses. In contrast, the lower-layer state shows more heterogeneous dynamics and weaker class separation, 9Table 2: COCO-Search18: scanpath metrics under gaze-supervision-free, cross-task evaluation. EVA is trained on COCO classification labels only and evaluated against human search-conditioned scanpaths without finetuning. 
+
+Model COCO COCO-Search18 DTW SM NSS AUC Acc.% Acc.% ↓ ↑ ↑ ↑
+
+CNN MobileNet (pre.) 58.82 27.5 - - - -Gazeformer - - 168.39 0.571 1.961 0.8 
+
+Saccader-Mobile (pre.) 57.1 16.7 333 0.242 0.361 0.658 RAM 34.81 12.83 500.01 0.072 -0.132 0.585 DRAM 43.32 14.34 530.78 0.077 -0.124 0.587 MRAM 35.86 14.17 624.57 0.015 -0.09 0.605 EVA-Mobile (scratch) 45.81 14.79 513.48 0.101 -0.074 0.593 EVA-Mobile (pre.) 55.82 16.63 280.29 0.313 0.307 0.714    
+
+> (a) Upper layer h2
+> t(b) Lower layer h1
+> t
+
+Figure 6: PCA of EVA recurrent states on CIFAR-10 using class-wise mean trajectories over glimpse steps. The upper-layer state separates classes more clearly than the lower-layer state, consistent with category-level evidence integration in h2 
+
+> t
+
+and sampling-control dynamics in h1 
+
+> t
+
+.which aligns with its role in controlling fixation sampling and maintaining local information related to gaze behavior. This analysis supports a mechanistic interpretation of EVA. The two recurrent layers capture complementary dynamics, with the upper layer emphasizing category-level integration and the lower layer emphasizing sampling control. PCA is descriptive and does not establish causality, but it provides an interpretable view of how internal states evolve during active evidence acquisition. 
+
+## 6 Discussion and Conclusion 
+
+This paper studies a recurring tension in hard-attention vision. Improving classification accuracy with stronger representations can reduce the need for informative sequential sampling, which degrades scanpath human-likeness and weakens process-level interpretability. We formalize this tension as an alignment tax and introduce EVA as a mechanistic testbed that makes the performance and human-likeness trade-off measurable and adjustable under the standard classification objective. EVA uses minimal fovea–periphery sensing together with variance control and adaptive gating. The model is trained with classification labels only and does not use gaze supervision. Across CIFAR-10, ImageNet-100, and COCO-Search18, EVA provides consistent evidence for this perspective. On CIFAR-10 with dense gaze annotations, EVA achieves a favorable accuracy– alignment trade-off among hard-attention baselines and produces scanpaths that better match human gaze under multiple metrics, including the center-debiased GCS. Mechanistic ablations isolate the roles of the components. Strong foveal features primarily drive accuracy, while variance control and gating regulate the sampling dynamics and recover human-aligned scanpaths with limited performance loss. On ImageNet-100, EVA scales to higher-resolution inputs under strict foveation. 10 On COCO-Search18, we evaluate scanpath alignment in a gaze-supervision-free, cross-task setting. The policy is learned from classification reward on COCO and compared to human search-conditioned scanpaths without finetuning. These results suggest that mechanism-aware design can reduce the alignment tax without adding gaze supervision or changing the primary objective. 
+
+Limitations and future work. First, hard-attention training remains sensitive to optimization details. More stable policy learning and variance reduction may further improve both accuracy and alignment. Second, EVA is not intended as a biologically faithful model. The modules provide functional inductive biases rather than a validated neural account. Third, scanpath evaluation is confounded by dataset biases such as center fixation. We mitigate this with a center-debiased metric, but more principled benchmarks and richer gaze data are needed. Finally, COCO-Search18 involves search-conditioned behavior, while EVA is trained on classification reward. Bridging this mismatch more directly is an important direction. Future work will improve training stability, extend EVA to broader tasks, and develop evaluation protocols that better capture human-aligned active perception. 
+
+Acknowledgements. This study was funded by JST SPRING GX project (Grant Number JP-MJSP2108). 11 References 
+
+[1] Jimmy Ba, Volodymyr Mnih, and Koray Kavukcuoglu. Multiple object recognition with visual attention. In 3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track Proceedings , 2014. [2] Diane M. Beck and Sabine Kastner. Top-down and bottom-up mechanisms in biasing competi-tion in the human brain. Vision Research , 49(10):1154–1165, 2009. [3] Chunshui Cao, Xianming Liu, Yi Yang, Yinan Yu, Jiang Wang, Zilei Wang, Yongzhen Huang, Liang Wang, Chang Huang, Wei Xu, Deva Ramanan, and Thomas S. Huang. Look and think twice: Capturing top-down visual attention with feedback convolutional neural networks. In 
+
+ICCV , pages 2956–2964. IEEE Computer Society, 2015. [4] Giuseppe Cartella, Marcella Cornia, Vittorio Cuculo, Alessandro D’Amelio, Dario Zanca, Giuseppe Boccignone, and Rita Cucchiara. Trends, applications, and challenges in human attention modelling. In Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence , IJCAI ’24, 2024. [5] Giuseppe Cartella, Vittorio Cuculo, Alessandro D’Amelio, Marcella Cornia, Giuseppe Boc-cignone, and Rita Cucchiara. Modeling human gaze behavior with diffusion models for unified scanpath prediction. In Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025. [6] Xianyu Chen, Ming Jiang, and Qi Zhao. Gazexplain: Learning to predict natural language explanations of visual scanpaths. In Proceedings of the European Conference on Computer Vision (ECCV) , 2024. [7] Yupei Chen, Zhibo Yang, Seoyoung Ahn, Dimitris Samaras, Minh Hoai, and Gregory Zelinsky. Coco-search18 fixation dataset for predicting goal-directed attention control. Scientific reports ,11(1):1–11, 2021. [8] Filipe Cristino, Sebastiaan Mathôt, Jan Theeuwes, and Iain Gilchrist. Scanmatch: A novel method for comparing fixation sequences. Behavior research methods , 42:692–700, 08 2010. [9] Peter Dayan and Angela J Yu. Expected and unexpected uncertainty: Ach and ne in the neocortex. In Advances in Neural Information Processing Systems , volume 15. MIT Press, 2002. [10] R. Desimone and J. Duncan. Neural mechanisms of selective visual attention. Annual Review of Neuroscience , 18:193–222–, 1995. [11] Gamaleldin F. Elsayed, Simon Kornblith, and Quoc V. Le. Saccader: Improving accuracy of hard attention models for vision. In Hanna M. Wallach, Hugo Larochelle, Alina Beygelzimer, Florence d’Alché Buc, Emily B. Fox, and Roman Garnett, editors, NeurIPS , pages 700–712, 2019. [12] Jason Fischer and David Whitney. Attention gates visual coding in the human pulvinar. Nature communications , 3:1051, 09 2012. [13] Laurent Itti, Christof Koch, and Ernst Niebur. A model of saliency-based visual attention for rapid scene analysis. IEEE Transactions on pattern analysis and machine intelligence ,20(11):1254–1259, 1998. [14] Yann LeCun, Yoshua Bengio, and Geoffrey Hinton. Deep learning. nature , 521(7553):436, 2015. [15] Jiahang Li, Shibo Xue, and Yong Su. Gaze-guided learning: Avoiding shortcut bias in visual classification. arXiv preprint arXiv:2504.05583 , 2025. [16] Akis Linardos, Matthias Kümmerer, Ori Press, and Matthias Bethge. Deepgaze IIE: calibrated prediction in and out-of-domain for state-of-the-art saliency modeling. In 2021 IEEE/CVF International Conference on Computer Vision, ICCV 2021, Montreal, QC, Canada, October 10-17, 2021 , pages 12899–12908. IEEE, 2021. 12 [17] Grace W. Lindsay. Convolutional neural networks as a model of the visual system: Past, present, and future. Journal of Cognitive Neuroscience , 33(10):2017–2031, 09 2021. [18] Volodymyr Mnih, Nicolas Heess, Alex Graves, and Koray Kavukcuoglu. Recurrent models of visual attention. In Zoubin Ghahramani, Max Welling, Corinna Cortes, Neil D. Lawrence, and Kilian Q. Weinberger, editors, NIPS , pages 2204–2212, 2014. [19] Sounak Mondal, Zhibo Yang, Seoyoung Ahn, Dimitris Samaras, Gregory Zelinsky, and Minh Hoai. Gazeformer: Scalable, effective and fast prediction of goal-directed human attention. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,pages 1441–1450, June 2023. [20] Meinard Müller. Information retrieval for music and motion . Springer, 2007. [21] Pengcheng Pan, Yonekura Shogo, and Yasuo Kuniyosh. Debiasing central fixation confounds reveals a peripheral "sweet spot" for human-like scanpaths in hard-attention vision, 2026. [22] Pengcheng Pan, Yonekura Shogo, and Yasuo Kuniyoshi. Emergence of fixational and saccadic movements in a multi-level recurrent attention model for vision. arXiv preprint arXiv , 2025. [23] Robert J. Peters, Asha Iyer, Laurent Itti, and Christof Koch. Components of bottom-up gaze allocation in natural images. Vision Research , 45(18):2397–2416, 2005. [24] Gopathy Purushothaman, Roan Marion, Keji Li, and Vivien Casagrande. Gating and control of primary visual cortex by pulvinar. Nature neuroscience , 15:905–12, 05 2012. [25] Tingting Qiao, Jianfeng Dong, and Duanqing Xu. Exploring human-like attention supervision in visual question answering. In Sheila A. McIlraith and Kilian Q. Weinberger, editors, AAAI ,pages 7300–7307. AAAI Press, 2018. [26] Keith Rayner. Eye movements in reading and information processing: 20 years of research. 
+
+Psychological Bulletin , 124(3):p372 – 422, 1998. [27] Cynthia Rudin. Stop explaining black box machine learning models for high stakes decisions and use interpretable models instead. Nature Machine Intelligence , 1:206–215, 05 2019. [28] Martin Schrimpf, Jonas Kubilius, Ha Hong, Najib J. Majaj, Rishi Rajalingham, Elias B. Issa, Kohitij Kar, Pouya Bashivan, Jonathan Prescott-Roy, Franziska Geiger, Kailyn Schmidt, Daniel L. K. Yamins, and James J. DiCarlo. Brain-score: Which artificial neural network for object recognition is most brain-like? bioRxiv , 2020. [29] Ramprasaath R. Selvaraju, Michael Cogswell, Abhishek Das, Ramakrishna Vedantam, Devi Parikh, and Dhruv Batra. Grad-cam: Visual explanations from deep networks via gradient-based localization. In 2017 IEEE International Conference on Computer Vision (ICCV) , pages 618–626, 2017. [30] Abdelrahman Sharafeldin, Nabil Imam, and Hannah Choi. Active sensing with predictive coding and uncertainty minimization. Patterns , 5(6):100983, 2024. [31] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Ł ukasz Kaiser, and Illia Polosukhin. Attention is all you need. In I. Guyon, U. Von Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, editors, Advances in Neural Information Processing Systems , volume 30. Curran Associates, Inc., 2017. [32] R. J. Williams. Simple statistical gradient-following algorithms for connectionist reinforcement learning. Machine Learning , 8:229–256, 1992. [33] Kan Wu, Jinnian Zhang, Houwen Peng, Mengchen Liu, Bin Xiao, Jianlong Fu, and Lu Yuan. Tinyvit: Fast pretraining distillation for small vision transformers. In European conference on computer vision (ECCV) , 2022. [34] Kelvin Xu, Jimmy Ba, Ryan Kiros, Kyunghyun Cho, Aaron C. Courville, Ruslan Salakhutdinov, Richard S. Zemel, and Yoshua Bengio. Show, attend and tell: Neural image caption generation with visual attention. In Francis R. Bach and David M. Blei, editors, Proceedings of the 32nd International Conference on Machine Learning, ICML 2015, Lille, France, 6-11 July 2015 ,volume 37 of JMLR Workshop and Conference Proceedings , pages 2048–2057, 2015. 13 [35] Zhibo Yang, Lihan Huang, Yupei Chen, Zijun Wei, Seoyoung Ahn, Gregory Zelinsky, Dimitris Samaras, and Minh Hoai. Predicting goal-directed human attention using inverse reinforcement learning. In The IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,June 2020. [36] Zhibo Yang, Sounak Mondal, Seoyoung Ahn, Ruoyu Xue, Gregory Zelinsky, Minh Hoai, and Dimitris Samaras. Unifying top-down and bottom-up scanpath prediction using transformers. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , June 2024. [37] Zhibo Yang, Sounak Mondal, Seoyoung Ahn, Gregory J. Zelinsky, Minh Hoai, and Dimitris Samaras. Target-absent human attention. In Shai Avidan, Gabriel J. Brostow, Moustapha Cissé, Giovanni Maria Farinella, and Tal Hassner, editors, Computer Vision - ECCV 2022 - 17th European Conference, Tel Aviv, Israel, October 23-27, 2022, Proceedings, Part IV , Lecture Notes in Computer Science, pages 52–68. Springer, 2022. [38] Alfred L. Yarbus. Eye Movements During Perception of Moving Objects . Springer US, 1967. [39] Dario Zanca, Valeria Serchi, Pietro Piu, Francesca Rosini, and Alessandra Rufa. Fixatons: A collection of human fixations datasets and metrics for scanpath similarity, 2018. 
+
+## A Additional EVA Inference Details 
+
+Assigning importance to pixels is visual attention; acquiring evidence under a sensing budget is active vision. EVA is designed for the latter. Rather than processing the full image at once, EVA makes a sequence of discrete evidence requests, updating its internal state after each glimpse and selecting the next fixation conditioned on what has already been seen. EVA instantiates this view through three interacting components: a minimal fovea–periphery obser-vation module, a prediction-error-driven variance controller, and an adaptive gate between a lower sampling state and an upper classification state. At each glimpse step, the model receives the current fixation location, extracts a local foveal crop together with a coarse peripheral observation, encodes them into a glimpse representation, and updates the lower recurrent state. The lower state supports fixation control, while the upper state integrates gated information for classification. The exploration scale σt plays two roles during inference. First, it modulates the adaptive gate that regulates how strongly bottom-up evidence is relayed to the upper recurrent state. Second, it parameterizes the Gaussian policy used to sample the next fixation. In this way, uncertainty influences not only where the model looks next, but also how strongly newly acquired evidence is allowed to affect the evolving internal belief. Importantly, the exploration scale is not updated inside the recurrent core itself. After the current prediction is produced, EVA computes a prediction-error signal et and updates a state using long-and short-timescale exponential moving averages. Their discrepancy is interpreted as an uncertainty signal and mapped to the exploration scale for the next step, σt+1 . Thus, the recurrent computation at step t uses the current σt, while the prediction error observed at step t determines the uncertainty level for the following decision. Because fixation selection is stochastic, the same image can admit multiple plausible scanpaths at test time. This stochasticity is an operational form of exploration under partial observability: a single rollout records one valid trajectory of evidence acquisition, while repeated rollouts reveal the distribution of evidence requests induced by the learned policy. Algorithm 1 summarizes the inference procedure for one image. Unless otherwise stated, all results in the main paper use this standard rollout process. 
+
+## B Dynamic Scanpaths as Sequential Evidence Acquisition 
+
+Visual attention scores pixels to form a saliency map. Active vision does not operate through such a map. Instead, a scanpath records how an agent acquires evidence under partial observability and a stochastic policy. The two are related, but they are not equivalent. A saliency map summarizes static spatial importance, whereas a scanpath specifies a temporal trajectory of evidence requests. 14 Algorithm 1 EVA sequential inference for one image 
+
+Require: image x, glimpse budget T 
+
+> 1:
+
+initialize neuromodulator statistics ¯e(long) 0 , ¯e(short) 0 , exploration scale σ1, initial fixation ℓ1, states 
+
+(h10, c 10, h 20, c 20), and gate state ¯β0 
+
+> 2:
+
+for t = 1 to T do  
+
+> 3:
+
+extract foveal crop xft and peripheral observation xpt at fixation ℓt 
+
+> 4:
+
+encode fovea and periphery: gft ← ϕ(xft ), gpt ← ψ(xpt , ℓ t) 
+
+> 5:
+
+form glimpse representation st ← [gft ∥ gpt ] 
+
+> 6:
+
+update lower recurrent state: (h1 
+
+> t
+
+, c 1 
+
+> t
+
+) ← f 1 
+
+> h
+
+(( h1
+
+> t−1
+
+, c 1
+
+> t−1
+
+), s t) 
+
+> 7:
+
+compute adaptive gate using current exploration scale σt 
+
+> 8:
+
+compute gated relay input Ut from bottom-up and top-down signals  
+
+> 9:
+
+update upper recurrent state: (h2 
+
+> t
+
+, c 2 
+
+> t
+
+) ← f 2 
+
+> h
+
+(( h2
+
+> t−1
+
+, c 2
+
+> t−1
+
+), U t) 
+
+> 10:
+
+predict logits/probabilities yt ← fa(h2 
+
+> t
+
+) 
+
+> 11:
+
+estimate REINFORCE baseline bt 
+
+> 12:
+
+predict fixation mean μt ← fℓ(h1 
+
+> t
+
+) 
+
+> 13:
+
+if t < T then  
+
+> 14:
+
+sample next fixation: ℓt+1 ∼ N (μt, σ 2 
+
+> t
+
+) 
+
+> 15:
+
+end if  
+
+> 16:
+
+compute prediction-error signal et and obtain next exploration scale σt+1 using Eqs. (6)–(8)  
+
+> 17:
+
+end for  
+
+> 18:
+
+ˆy ← arg max yT 
+
+> 19:
+
+return ˆy, {ℓt}Tt=1 
+
+The former asks where informative evidence may lie; the latter reveals how evidence is accumulated over time. This distinction is important for interpreting EVA. In EVA, a fixation is not selected from the image alone. It is conditioned on the model’s evolving internal state, including what has already been observed and how newly acquired evidence changes the model’s uncertainty. As a result, the same image can admit multiple plausible scanpaths. This variability should not be interpreted as noise in the ordinary sense. Rather, it reflects the exploratory character of sequential decision-making under limited sensing. A further consequence is that a scanpath contains information that a static saliency map cannot express directly. Later fixations depend on earlier ones, so the temporal order of evidence acquisition matters. This interpretation is consistent with the perturbation analysis in Appendix C.2: shuffling the order of EVA’s own predicted fixation locations degrades performance even when the visited locations themselves are unchanged. In other words, not only where the model looks, but also when it looks there, contributes to the final prediction. 
+
+B.1 Sequential Evidence Accumulation 
+
+The temporal nature of scanpaths becomes clearer when one inspects what the model has observed and predicted at each step. Figure 7 illustrates this process on a representative example. At each glimpse step, the model has access only to the evidence gathered so far, and its prediction is conditioned on this partial observation history. As additional glimpses are acquired, the predicted label may remain stable, become more confident, or change altogether. In this sense, the scanpath is not merely a record of where the model looked, but a record of how the model’s belief evolved as evidence accumulated. In particular, a later glimpse can overturn an earlier hypothesis once previously unseen evidence becomes available. This ability to revise a prediction over time is central to active vision, but it is not represented by a static importance map alone. The sequential rollout therefore provides a process-level view of the decision, rather than only a spatial summary of potentially relevant regions. 
+
+B.2 From Scanpaths to Fixation-Density Summaries 
+
+Although a scanpath is not itself a saliency map, repeated scanpaths can be summarized into a fixation-density representation. This provides a useful bridge between dynamic active vision and 15 (a) Foveal visible region by time 
+
+> (b) Peripheral visible region by time
+
+Figure 7: Sequential evidence accumulation in EVA on a representative CIFAR-10 sample. The top row shows the cumulatively observed foveal evidence over glimpse steps, and the bottom row shows the corresponding peripheral evidence. The predicted label is shown at each step, illustrating how the model’s hypothesis evolves as additional evidence is acquired. static attention visualization. Figure 8 compares several such views on the same sample, including a conventional computer-vision saliency map, a fixation-density map reconstructed from human scanpaths, a fixation-density map reconstructed from repeated EVA scanpaths, and a direct overlay of human and model scanpaths on the image. These views serve different purposes. A saliency map summarizes static spatial importance, whereas a scanpath and its density reconstruction reflect how evidence is sampled over time. The density map is therefore a summary of the sampling process, not a replacement for it. This distinction is important because active sensing is both sequential and stochastic: a single rollout may miss a region that appears important under an aggregated analysis, while repeated rollouts can reveal a more stable distribution of likely evidence requests. Taken together, saliency and scanpaths should be viewed as complementary rather than competing descriptions. Saliency provides a static summary of potential importance; scanpaths expose the sequential process by which evidence is actually gathered. EVA is designed for the latter. 
+
+## C Details of Experimental Setting 
+
+In the main classification experiments, we train the CNN baselines from scratch, without ImageNet pretraining, to enable a fair comparison with hard-attention models that do not rely on large-scale external supervision. Some hard-attention variants, however, require pretrained visual backbones by design. In particular, Saccader and EVA-Mobile use pretrained CNN modules, where the backbone is trained under the same baseline setup used in our comparisons. For Saccader, we use a ResNet backbone instead of BAGNet for a fairer comparison with the other models. In EVA, we use the lightweight CNN module shown in Fig. 9. The DRAM 1-scale and 2-scale variants use the same CNN architecture as EVA. Because Saccader requires a pretrained CNN backbone, we do not evaluate 16 (a) CV saliency (b) Human fixation density (c) EVA fixation density (d) Human and EVA scanpaths 
+
+Figure 8: Comparison between static saliency and scanpath-based summaries on a representative sample. (a) shows a conventional saliency map computed by a computer-vision method. (b) shows a fixation-density map reconstructed from human scanpaths. (c) shows a fixation-density map reconstructed from repeated EVA scanpaths. (d) overlays the human and EVA scanpaths on the image. The comparison highlights that static saliency and scanpath-derived summaries are related but not equivalent: saliency summarizes spatial importance, whereas scanpaths expose the sequential process of evidence acquisition. it with the lightweight CNN used in EVA. For visualization, Saccader selects patches on an 8 × 8
+
+discrete grid and orders them by score to form a pseudo-scanpath. The ViT baseline uses a patch size of 4, hidden dimension 512, 4 transformer layers, 6 attention heads, MLP dimension 256, and dropout 0.1. For all hard-attention models, including RAM, DRAM, MRAM, and EVA, we keep the main rollout hyperparameters fixed across experiments: 12 glimpse steps and two patches per step, consisting of an 8 × 8 foveal crop and a 16 × 16 peripheral crop. When we indicate 1-scale , only the foveal crop is used and no peripheral observation is provided. FLOPs are computed under the same testing condition using a batch of 9 images. For the hard-attention models in Table 1, the reported FLOPs are accumulated over the full 12-step glimpse sequence. The random seed is fixed to 1 in all experiments for reproducibility and fair comparison. 
+
+C.1 Details of Scanpath Similarity Metrics and GCS 
+
+We report the standard scanpath metrics DTW, ScanMatch, NSS, and AUC. DTW measures trajectory dissimilarity, where smaller values indicate better agreement. ScanMatch, NSS, and AUC measure different forms of scanpath or fixation agreement, where larger values indicate better agreement. Because these metrics can be inflated by center bias, our main summary metric is the center-debiased Gaze Consistency Score (GCS), following [21]. GCS is constructed using three calibration references for each metric: a human upper reference, a corner-fixation lower reference, and an always-center reference. The human upper reference represents the ideal agreement target. The corner-fixation reference serves as a practical low-reference policy by forcing all fixations to an off-target image corner, thereby removing both meaningful spatial targeting and temporal structure. The always-center reference is used to make center bias explicit: a model that matches human scanpaths only through central overlap should not receive an artificially high score. For DTW, where lower is better, we first convert the raw score into a higher-is-better normalized similarity: 
+
+˜D = Dmin − DDmin − Dmax 
+
+. (20) For the remaining metrics M ∈ { SM, N SS, AU C }, where larger is better, we use 
+
+˜M = M − Mmin 
+
+Mmax − Mmin 
+
+. (21) We then subtract the normalized always-center reference to obtain a center-debiased score: 
+
+˜Mdb = ˜M − ˜Mcenter . (22) 17 Figure 9: CNN module used in EVA. In EVA-Large, the lightweight CNN width is increased from 64-128-256-256 to 96-192-384-384, while the remaining architectural components are kept unchanged. 18 To further discourage policies that match only spatial center overlap while failing to reproduce the movement characteristics of human scanpaths, GCS includes a movement-consistency term. We compute a relative-error distance 
+
+d =
+
+vuut 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+ |f model  
+
+> k
+
+− f human  
+
+> k
+
+||f human  
+
+> k
+
+| + ϵ
+
+2
+
+, (23) where fk denotes a run-level movement statistic. In our implementation, these statistics include total path length, mean saccade amplitude, mean distance to center, spatial coverage, direction entropy, and collapse rate. This distance is mapped to a movement similarity score 
+
+Sim move = exp( −d/τ ). (24) The final GCS is defined as 
+
+GCS = 14
+
+X 
+
+> M∈{ D,SM,N SS,AU C }
+
+˜Mdb + λ Sim move , (25) where λ = 0 .1 in all experiments. Thus, GCS rewards alignment with human scanpaths only when the model exceeds the center baseline and also exhibits compatible movement dynamics. In practice, this debiasing is important because several learned policies can appear competitive under DTW, ScanMatch, NSS, or AUC while remaining close to the always-center reference. GCS makes this confound explicit by calibrating each metric against the human, corner-fixed, and center-fixed references before aggregation. All scanpath metrics are computed after normalizing model and human coordinates to the same reference frame, and GCS is evaluated on the same image subset used for human-model scanpath comparison. 
+
+C.2 Details of Stability Test 
+
+To assess the functional role of EVA’s learned gaze policy, we evaluate the model under several controlled perturbations of the fixation sequence. 
+
+Center-fixed forces every glimpse to the image center at every step. This removes learned spatial exploration and tests how much performance can be supported by central bias alone. 
+
+Corner-fixed deterministically fixes every glimpse to one image corner (top-right in our experiments), regardless of the input. This probes robustness under systematic spatial misalignment with the object of interest. 
+
+Random samples each glimpse independently from a uniform distribution over the image plane at every step. This preserves the glimpse budget while discarding the learned spatial policy. 
+
+Shuffled uses EVA’s own predicted fixation locations but randomly permutes their temporal order. This preserves the exact set of attended points while destroying the order in which they are visited. Together, these perturbations disentangle different contributions of the learned policy: central bias, spatial targeting, and temporal ordering. Table 3 summarizes the corresponding results. EVA degrades substantially under corner-fixed and shuffled policies, indicating that its performance depends not only on where it looks, but also on the temporal structure of the scanpath. By contrast, RAM and DRAM degrade strongly under random or corner-fixed policies but are nearly unaffected by shuffling, suggesting that their learned policies are less tightly coupled to fixation order. This difference supports the view that EVA’s scanpaths are functionally meaningful rather than merely decorative visualizations. 
+
+Stability under gaze perturbations. The perturbation results provide a process-level probe of interpretability. Constraining EVA to center-only, corner-only, random, or shuffled trajectories reduces performance in distinct ways, revealing which aspects of the learned policy are functionally important. In particular, EVA’s sensitivity to shuffled trajectories shows that the order of evidence acquisition matters even when the visited locations themselves are unchanged. This supports the interpretation that EVA’s scanpaths encode a meaningful sequential strategy for recognition. 19 Table 3: Accuracy (%) of hard-attention models under different gaze policies on CIFAR-10. The 
+
+Predicted column reports the learned policy; the remaining columns replace or perturb the gaze trajectory. Numbers in parentheses indicate the accuracy drop relative to Predicted .Model Gaze Policy Predicted Center-fixed Corner-fixed ↓ Random Shuffled ↓
+
+RAM 61.6 45.1 (-16.5) 12.8 (-48.8) 43.5 (-18.1) 61.3 (-0.3) DRAM 62.2 41.6 (-20.6) 11.6 (-50.6) 38.4 (-23.8) 61.9 (-0.3) MRAM 58.3 44.1 (-14.2) 13.6 (-44.7) 48.7 (-9.6) 56.9 (-1.4) 
+
+EVA 79.8 57.6 (-22.2) 19.6 (-60.2) 70.5 (-9.3) 71.3 (-8.5) 
+
+## D Additional Diagnostic Analyses 
+
+The analyses in this section probe EVA at test time without changing the trained model parameters. Rather than introducing new training objectives, they modify only the conditions under which the learned policy is executed. This allows us to examine whether EVA’s behavior is robust, interpretable, and diagnostically informative at the level of sequential evidence acquisition. 
+
+D.1 Sensitivity to Test-Time Initialization 
+
+Because EVA is a sequential and stochastic policy, its early behavior can depend on how the rollout is initialized. We therefore examine the sensitivity of a fixed trained checkpoint to different test-time initial conditions, varying the initial fixation policy and the initial recurrent state while keeping all learned parameters unchanged. Figure 10 summarizes the resulting behavior. Different initial conditions induce clear and inter-pretable changes in early exploration. Off-center initialization leads to larger first-step saccades and broader spatial coverage, whereas center-based initialization yields more localized trajectories. These differences are accompanied by modest but systematic changes in classification accuracy. Importantly, the effect is structured rather than erratic. The same initialization changes that increase early exploration also tend to improve task performance, suggesting that EVA’s test-time sensitivity is not merely noise injection but a controlled change in how evidence acquisition begins. This supports the view that EVA behaves as an active sensing policy whose predictions depend on both the current image and the scanpath by which evidence is gathered. 
+
+D.2 Human-Guided Intervention as a Diagnostic Direction 
+
+A natural extension of the above analysis is to intervene directly on the fixation sequence at test time, for example by replacing part of EVA’s predicted scanpath with human fixation locations while keeping all trained parameters fixed. Such an intervention would not introduce gaze supervision into training; rather, it would provide a direct diagnostic probe of whether part of the residual performance gap is attributable to evidence acquisition rather than to the classifier alone. We regard this as a promising direction for future analysis, but defer a systematic evaluation to future work. 
+
+## E Alignment of CIFAR-10 and Gaze-CIFAR-10 
+
+This section describes how we align the original CIFAR-10 images with the corresponding human gaze recordings from Gaze-CIFAR-10, and how we convert raw gaze traces into sequential fixation sequences comparable to model-predicted scanpaths. 
+
+E.1 Image Alignment 
+
+The human gaze data were recorded on upsampled versions of the original CIFAR-10 images at a resolution of 1024 × 1024 . Because the Gaze-CIFAR-10 data did not provide an explicit one-to-one mapping to the original CIFAR-10 test images, we established correspondence using perceptual image hashing. 20 Figure 10: Sensitivity of a fixed EVA checkpoint to test-time initialization. Top: different initialization conditions induce different levels of early exploration, as measured by first-step saccade amplitude and spatial coverage. Bottom: across the tested initialization conditions, broader early exploration is associated with higher classification accuracy. These plots are intended as diagnostic summaries rather than as a statistical claim about population-level correlation. Specifically, we constructed a reference database from all 10,000 images in the CIFAR-10 test split. For each original image, we computed a perceptual hash (pHash) and stored the corresponding image index and class label. For each gaze image, we first downsampled the 1024 × 1024 image back to the original 32 × 32 resolution using bilinear interpolation, then computed its pHash and matched it against the reference database. Exact matches were used whenever available; otherwise, we selected the nearest reference hash under Hamming distance to account for small differences introduced by upsampling and downsampling. To verify that the recovered matches were reliable, we additionally performed a manual spot check by randomly sampling aligned pairs across all CIFAR-10 classes and visually confirming the corre-spondence between the original and upsampled images. 
+
+E.2 Sequential Fixation Extraction 
+
+The raw gaze recordings contain dense gaze-point sequences, often with hundreds of coordinate samples per image. To obtain human scanpaths that are comparable to the fixed-length scanpaths produced by EVA, we converted these raw traces into sequential fixation sequences. After alignment, gaze coordinates were normalized to the common reference frame used in our scanpath evaluation. We then applied an I-DT (Identification by Dispersion Threshold) style procedure to cluster gaze points into fixations. Gaze samples falling within a spatial radius of 15 pixels were grouped into a fixation cluster, and the center of each cluster was taken as the fixation location. Finally, we retained exactly 12 sequential fixations per gaze recording to match the 12-step rollout used by the hard-attention models. This procedure yields human scanpaths that are aligned with the original CIFAR-10 images in both image identity and fixation sequence length. As a result, human and model scanpaths can be compared consistently in space and time using the scanpath similarity metrics and GCS defined in Appendix C.1. 21 (a) Success case 1: ship → airplane      
+
+> (b) Success case 2: automobile →ship →automobile
+
+Figure 11: Representative examples of successful evidence revision in EVA. In (a), the model initially favors ship but switches to airplane once later glimpses reveal more diagnostic object structure. In (b), the model briefly drifts toward ship under partial evidence, then returns to the correct 
+
+automobile hypothesis after more of the vehicle body becomes visible. These examples show that EVA’s prediction is shaped by the temporal order in which evidence is acquired. 
+
+E.3 Use in Evaluation 
+
+The aligned Gaze-CIFAR-10 subset is used only for human–model scanpath comparison. Model classification results are still reported on the standard CIFAR-10 benchmark, while human gaze is recorded on 1024 × 1024 images and model scanpaths are generated from the corresponding 32 × 32 
+
+CIFAR-10 images. For scanpath evaluation, both human and model coordinates are mapped to a common 224 × 224 reference frame. This separation ensures that the scanpath analysis reflects align-ment with human evidence-acquisition behavior rather than a change in the underlying classification protocol. 
+
+## F Additional Qualitative Examples 
+
+This section provides additional qualitative examples of EVA’s sequential decision process. Rather than comparing exact trajectory overlap with human scanpaths, we focus on how EVA’s predictions evolve as evidence is accumulated over time. The examples illustrate two complementary regimes: successful evidence revision, in which later glimpses correct an earlier hypothesis, and failure cases, in which the policy acquires only partially diagnostic evidence and converges to an incorrect class. 
+
+F.1 Successful Evidence Revision 
+
+Figure 11 shows two representative successful cases in which EVA revises its prediction as additional evidence is gathered. In the first example, the model initially predicts ship , likely because the earliest glimpses contain mostly background and only a weak local cue from the object. Once the rollout expands to include the elongated fuselage and wing structure, the prediction switches to airplane and remains stable thereafter. In the second example, the model begins with the correct coarse hypothesis 
+
+automobile , briefly drifts toward ship when only a limited local region is visible, and then returns to 
+
+automobile after later glimpses reveal more of the vehicle body and its overall shape. These examples illustrate that EVA does not merely accumulate evidence monotonically; its internal belief can be revised as the visible structure changes over time. 
+
+F.2 Failure Cases 
+
+Figure 12 shows two representative failure cases. In the first example, the model gradually settles on 
+
+truck after an initially unstable sequence of ship /automobile hypotheses. The rollout captures enough evidence to identify the object as a road vehicle, but not enough fine-grained structure to resolve the distinction in favor of the the correct automobile class. In the second example, the model shifts from dog to cat early in the rollout and remains committed to that hypothesis. Here, the glimpses repeatedly sample a locally plausible but only partially diagnostic region, while failing to acquire stronger evidence that would distinguish the correct class. In both cases, the final error is interpretable as a failure of sequential evidence acquisition rather than an opaque classifier output. 22 (a) Failure case 1: unstable vehicle hypothesis, final truck    
+
+> (b) Failure case 2: dog →cat
+
+Figure 12: Representative failure cases of EVA. In (a), the model eventually commits to truck after observing evidence sufficient for a coarse vehicle category but insufficient for finer discrimination. In (b), the model revises from dog to cat and then remains trapped in that hypothesis, suggesting that later glimpses reinforce a locally plausible but ultimately misleading interpretation. These failures remain interpretable at the level of the scanpath and the accumulated evidence.   
+
+> (a) Rollout seed 1: converges to airplane
+> (b) Rollout seed 2: converges to dog
+
+Figure 13: Same image under two different stochastic rollouts. In (a), EVA initially fluctuates among several hypotheses but eventually converges to the correct airplane class once later glimpses reveal more diagnostic structure. In (b), a different rollout remains unstable under ambiguous local evidence and ultimately converges to the incorrect dog class. This example illustrates that different scanpaths can induce different evidence-acquisition scanpaths and therefore different prediction outcomes. 
+
+F.3 Different Rollout Seeds, Different Evidence Paths 
+
+Because EVA uses a stochastic fixation policy, the same image can admit multiple plausible scanpaths at test time. These different trajectories do not merely change the visual appearance of the rollout; they can also lead to different prediction outcomes. Figure 13 shows a representative example in which two rollout seeds produce different evidence-acquisition scanpaths for the same image. In the top example, the model initially fluctuates among several hypotheses but eventually converges to the correct airplane class once later glimpses reveal sufficiently diagnostic object structure. In the bottom example, a different rollout remains unstable under ambiguous local evidence and ultimately converges to the incorrect dog class. The comparison highlights that EVA’s prediction depends not only on the image itself, but also on the scanpaths by which evidence is sampled and integrated over time. This example should not be interpreted as arbitrary randomness. Rather, it illustrates the scanpaths dependence of sequential evidence acquisition: different stochastic trajectories can expose different subsets of evidence, and these differences can push the recurrent state toward either a correct or an incorrect interpretation. 
+
+Interpretation. Taken together, these examples reinforce the main qualitative picture of EVA. When EVA succeeds, it succeeds by revising its internal belief as new evidence becomes available. When it fails, the failure can often be traced to incomplete or misleading sequential evidence, such as missing a discriminative region or overcommitting to a partially supported hypothesis. The 23 paired rollout example further shows that, even for the same image, different stochastic evidence-acquisition scanpaths can lead to different outcomes. This process-level interpretability is precisely what distinguishes scanpath-based active vision from static importance summaries alone. 24
