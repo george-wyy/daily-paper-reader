@@ -6,6 +6,7 @@ import html
 import json
 import math
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 import tempfile
@@ -21,6 +22,14 @@ from llm import BltClient
 
 SCRIPT_DIR = os.path.dirname(__file__)
 ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
+try:
+    from paper_figures import ensure_paper_figures
+except Exception:  # pragma: no cover
+    from src.paper_figures import ensure_paper_figures
+
 CONFIG_FILE = os.path.join(ROOT_DIR, "config.yaml")
 TODAY_STR = str(os.getenv("DPR_RUN_DATE") or "").strip() or datetime.now(timezone.utc).strftime("%Y%m%d")
 RANGE_DATE_RE = re.compile(r"^(\d{8})-(\d{8})$")
@@ -1251,6 +1260,65 @@ def ensure_text_content(pdf_url: str, txt_path: str) -> str:
     return text_content or ""
 
 
+def yaml_escape_value(s: str) -> str:
+    if not s:
+        return '""'
+    if any(c in s for c in [':', '#', '"', "'", '\n', '[', ']', '{', '}', ',', '&', '*', '!', '|', '>', '%', '@', '`']):
+        return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
+    return s
+
+
+def maybe_generate_paper_figures(
+    paper: Dict[str, Any],
+    *,
+    docs_dir: str,
+    paper_id: str,
+    pdf_url: str,
+) -> List[Dict[str, Any]]:
+    source_key = str(paper.get("source") or "").strip().lower()
+    if source_key not in {"arxiv", "biorxiv"}:
+        return []
+    if not str(pdf_url or "").strip():
+        return []
+
+    asset_key = str(paper.get("id") or paper_id.replace("/", "-")).strip()
+    try:
+        return ensure_paper_figures(
+            pdf_url=pdf_url,
+            docs_dir=docs_dir,
+            source_key=source_key,
+            asset_key=asset_key,
+        )
+    except Exception as e:
+        log(f"[WARN] 论文插图提取失败：{asset_key}: {e}")
+        return []
+
+
+def upsert_front_matter_field(md_text: str, key: str, value: str) -> Tuple[str, bool]:
+    text = str(md_text or "")
+    if not text.startswith("---\n") and not text.startswith("---\r\n"):
+        return text, False
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    end_idx = normalized.find("\n---", 3)
+    if end_idx == -1:
+        return text, False
+
+    block = normalized[4:end_idx]
+    lines = block.split("\n") if block else []
+    updated_lines: List[str] = []
+    replaced = False
+    for line in lines:
+        if line.startswith(f"{key}:"):
+            updated_lines.append(f"{key}: {value}")
+            replaced = True
+        else:
+            updated_lines.append(line)
+    if not replaced:
+        updated_lines.append(f"{key}: {value}")
+    updated = "---\n" + "\n".join(updated_lines).rstrip() + "\n---" + normalized[end_idx + 4 :]
+    return updated, updated != normalized
+
+
 def build_markdown_content(
     paper: Dict[str, Any],
     section: str,
@@ -1279,7 +1347,9 @@ def build_markdown_content(
     abstract_en = (paper.get("abstract") or "").strip()
     if not abstract_en:
         abstract_en = "arXiv did not provide an abstract for this paper."
+    paper_source = str(paper.get("source") or "").strip()
     selection_source = str(paper.get("selection_source") or "").strip()
+    figure_assets = paper.get("_figure_assets") if isinstance(paper.get("_figure_assets"), list) else []
 
     # 解析速览内容
     glance = paper.get("_glance_overview", "").strip()
@@ -1307,44 +1377,40 @@ def build_markdown_content(
     display_tldr = glance_tldr if glance_tldr else tldr
 
     # 辅助函数：转义 YAML 字符串中的特殊字符
-    def yaml_escape(s: str) -> str:
-        if not s:
-            return '""'
-        # 如果包含特殊字符，用双引号包裹并转义内部双引号
-        if any(c in s for c in [':', '#', '"', "'", '\n', '[', ']', '{', '}', ',', '&', '*', '!', '|', '>', '%', '@', '`']):
-            return '"' + s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
-        return s
-
     # 构建 YAML front matter
     lines = ["---"]
-    lines.append(f"title: {yaml_escape(title)}")
+    lines.append(f"title: {yaml_escape_value(title)}")
     if zh_title:
-        lines.append(f"title_zh: {yaml_escape(zh_title)}")
-    lines.append(f"authors: {yaml_escape(', '.join(authors) if authors else 'Unknown')}")
-    lines.append(f"date: {yaml_escape(published or 'Unknown')}")
+        lines.append(f"title_zh: {yaml_escape_value(zh_title)}")
+    lines.append(f"authors: {yaml_escape_value(', '.join(authors) if authors else 'Unknown')}")
+    lines.append(f"date: {yaml_escape_value(published or 'Unknown')}")
     if pdf_url:
-        lines.append(f"pdf: {yaml_escape(pdf_url)}")
+        lines.append(f"pdf: {yaml_escape_value(pdf_url)}")
     if tags_list:
         # 保留完整的 kind:label 格式，前端渲染时再处理
-        lines.append(f"tags: [{', '.join(yaml_escape(t) for t in tags_list)}]")
+        lines.append(f"tags: [{', '.join(yaml_escape_value(t) for t in tags_list)}]")
     if score is not None:
         lines.append(f"score: {score}")
     if evidence:
-        lines.append(f"evidence: {yaml_escape(evidence)}")
+        lines.append(f"evidence: {yaml_escape_value(evidence)}")
     if display_tldr:
-        lines.append(f"tldr: {yaml_escape(display_tldr)}")
+        lines.append(f"tldr: {yaml_escape_value(display_tldr)}")
+    if paper_source:
+        lines.append(f"source: {yaml_escape_value(paper_source)}")
     if selection_source:
-        lines.append(f"selection_source: {yaml_escape(selection_source)}")
+        lines.append(f"selection_source: {yaml_escape_value(selection_source)}")
+    if figure_assets:
+        lines.append(f"figures_json: {yaml_escape_value(json.dumps(figure_assets, ensure_ascii=False))}")
 
     # 速览字段
     if glance_motivation:
-        lines.append(f"motivation: {yaml_escape(glance_motivation)}")
+        lines.append(f"motivation: {yaml_escape_value(glance_motivation)}")
     if glance_method:
-        lines.append(f"method: {yaml_escape(glance_method)}")
+        lines.append(f"method: {yaml_escape_value(glance_method)}")
     if glance_result:
-        lines.append(f"result: {yaml_escape(glance_result)}")
+        lines.append(f"result: {yaml_escape_value(glance_result)}")
     if glance_conclusion:
-        lines.append(f"conclusion: {yaml_escape(glance_conclusion)}")
+        lines.append(f"conclusion: {yaml_escape_value(glance_conclusion)}")
 
     lines.append("---")
     lines.append("")
@@ -1410,13 +1476,34 @@ def process_paper(
                 # 不阻塞文档生成流程：txt 拉取失败时继续（避免因为网络/源站问题导致整批中断）
                 pass
 
-        # 修复模式：若自动总结/速览存在“被截断”的迹象，则仅重生成该段落，不改动前面正文
         try:
             with open(md_path, "r", encoding="utf-8") as f:
                 existing = f.read()
         except Exception:
             existing = ""
 
+        existing_meta = _parse_front_matter(existing)
+        has_figures_json = bool(str(existing_meta.get("figures_json") or "").strip()) if existing_meta else False
+        if not has_figures_json:
+            figures = maybe_generate_paper_figures(
+                paper,
+                docs_dir=docs_dir,
+                paper_id=paper_id,
+                pdf_url=pdf_url,
+            )
+            if figures:
+                paper["_figure_assets"] = figures
+                updated, changed = upsert_front_matter_field(
+                    existing,
+                    "figures_json",
+                    yaml_escape_value(json.dumps(figures, ensure_ascii=False)),
+                )
+                if changed:
+                    with open(md_path, "w", encoding="utf-8") as f:
+                        f.write(updated + ("\n" if not updated.endswith("\n") else ""))
+                    existing = updated
+
+        # 修复模式：若自动总结/速览存在“被截断”的迹象，则仅重生成该段落，不改动前面正文
         # 若已存在 Markdown，但缺少中文标题/中文摘要，则在“重新跑 Step6”时自动补齐
         # （历史上 --glance-only 或部分修复流程不会写入中文标题/摘要）
         if not glance_only and existing:
@@ -1557,6 +1644,14 @@ def process_paper(
                 ensure_text_content(pdf_url, txt_path)
             except Exception:
                 pass
+        figures = maybe_generate_paper_figures(
+            paper,
+            docs_dir=docs_dir,
+            paper_id=paper_id,
+            pdf_url=pdf_url,
+        )
+        if figures:
+            paper["_figure_assets"] = figures
         glance = generate_glance_overview(title, abstract_en) or build_glance_fallback(paper)
         if glance:
             paper["_glance_overview"] = glance
@@ -1570,6 +1665,14 @@ def process_paper(
     # 新文件：生成完整内容
     pdf_url = str(paper.get("link") or paper.get("pdf_url") or "").strip()
     ensure_text_content(pdf_url, txt_path)
+    figures = maybe_generate_paper_figures(
+        paper,
+        docs_dir=docs_dir,
+        paper_id=paper_id,
+        pdf_url=pdf_url,
+    )
+    if figures:
+        paper["_figure_assets"] = figures
 
     zh_title, zh_abstract = translate_title_and_abstract_to_zh(title, abstract_en)
     tags_list = build_tags_list(section, paper.get("llm_tags") or [])
@@ -2228,6 +2331,7 @@ def _parse_generated_md_to_meta(
     score_value = _fallback_meta("score", "Score")
     evidence_value = _fallback_meta("evidence", "Evidence")
     tldr_value = _fallback_meta("tldr", "TLDR")
+    paper_source_value = str(fm_meta.get("source") or fm_meta.get("Source") or "").strip()
     src_value = str(selection_source or "").strip()
     if not src_value and "selection_source" in fm_meta:
         src_value = str(fm_meta.get("selection_source") or "").strip()
@@ -2253,6 +2357,7 @@ def _parse_generated_md_to_meta(
         "tldr": str(tldr_value or "").strip(),
         "tags": ", ".join(tags_compact),
         "abstract_en": abstract_en,
+        "source": paper_source_value,
         "selection_source": src_value,
     }
 
@@ -2399,6 +2504,8 @@ def main() -> None:
         log_substep("6.p", "单篇论文生成", "START")
         try:
             paper = fetch_arxiv_paper_meta(args.paper_id)
+            if not str(paper.get("source") or "").strip():
+                paper["source"] = "arxiv"
             if args.paper_title:
                 paper["title"] = args.paper_title.strip()
             single_date = (args.paper_date or "").strip()
