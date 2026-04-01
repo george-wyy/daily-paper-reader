@@ -6,64 +6,62 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-23 ~ 2026-04-01
-- 运行时间：2026-04-01 03:45:40 UTC
+- 最新运行日期：2026-04-01
+- 运行时间：2026-04-01 21:25:22 UTC
 - 运行状态：成功
-- 本次总论文数：14
+- 本次总论文数：13
 - 精读区：5
-- 速读区：9
+- 速读区：8
 
 ### 今日简报（AI）
-本期深度解析 14 篇前沿成果，重点聚焦视线感知（Gaze）与多模态大模型在第一视角行为理解中的核心突破。
-满分论文 GazeQwen 与 Gaze-Regularized VLMs 证明了引入视线正则化能显著提升流式视频理解的精准度，是第一视角交互领域的里程碑。
-建议关注视线引导技术在可穿戴设备中的落地，探索如何利用轻量化模型实现更自然、实时的多模态人机交互。
-- 详情：[/20260323-20260401/README](/20260323-20260401/README)
+- 今日共生成 13 篇推荐（精读 5 篇，速读 8 篇）
+- 精读：《Gaze-Regularized VLMs for Ego-Centric Behavior Understanding》（10.0/10）, 《Gaze-Regularized Vision-Language-Action Models for Robotic Manipulation》（9.0/10）
+- 速读：《A Multimodal Framework for Human-Multi-Agent Interaction》（7.0/10）, 《Boosting the signal: Expectation-driven gain modulation of preparatory spatial attention》（7.0/10）, 《Stabilization-Responsiveness Trade-offs in Continuous Shared-Control for Invasive Brain-Computer Interfaces》（7.0/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202604/01/README](/202604/01/README)
 
 ### 精读区论文标签
-1. [Gaze-Regularized VLMs for Ego-Centric Behavior Understanding](/20260323-20260401/2603.23190v1-gaze-regularized-vlms-for-ego-centric-behavior-understanding)  
+1. [Gaze-Regularized VLMs for Ego-Centric Behavior Understanding](/202604/01/2603.23190v1-gaze-regularized-vlms-for-ego-centric-behavior-understanding)  
    标签：评分：10.0/10、query:gaze-intent
-   evidence：用于理解人类意图和行为的注视正则化视觉语言模型
-2. [GazeQwen: Lightweight Gaze-Conditioned LLM Modulation for Streaming Video Understanding](/20260323-20260401/2603.25841v1-gazeqwen-lightweight-gaze-conditioned-llm-modulation-for-streaming-video-understanding)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：用于流式视频理解和注视感知的注视调节LLM方法
-3. [Gaze-Regularized Vision-Language-Action Models for Robotic Manipulation](/20260323-20260401/2603.23202v1-gaze-regularized-vision-language-action-models-for-robotic-manipulation)  
+   evidence：注视正则化 VLM 用于人类意图和未来动作预测
+2. [Gaze-Regularized Vision-Language-Action Models for Robotic Manipulation](/202604/01/2603.23202v1-gaze-regularized-vision-language-action-models-for-robotic-manipulation)  
    标签：评分：9.0/10、query:gaze-intent
    evidence：人类注视编码了意图和规划，用于指导机器人感知
-4. [Infinite Gaze Generation for Videos with Autoregressive Diffusion](/20260323-20260401/2603.24938v1-infinite-gaze-generation-for-videos-with-autoregressive-diffusion)  
+3. [Capturing learning on the fly: an eye-tracking method to quantify prediction errors and updating the prior](/202604/01/biorxiv-10-64898-2026-03-09-710486-v2-capturing-learning-on-the-fly-an-eye-tracking-method-to-quantify-prediction-errors-and-updating-the-prior)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：基于眼动的实时预期与预测动态框架
+4. [GazeQwen: Lightweight Gaze-Conditioned LLM Modulation for Streaming Video Understanding](/202604/01/2603.25841v1-gazeqwen-lightweight-gaze-conditioned-llm-modulation-for-streaming-video-understanding)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：视频中无限时域原始注视预测的生成框架
-5. [GUIDE: A Benchmark for Understanding and Assisting Users in Open-Ended GUI Tasks](/20260323-20260401/2603.25864v1-guide-a-benchmark-for-understanding-and-assisting-users-in-open-ended-gui-tasks)  
+   evidence：利用注视点调节隐藏状态的多模态视频理解，适用于流式数据。
+5. [GUIDE: A Benchmark for Understanding and Assisting Users in Open-Ended GUI Tasks](/202604/01/2603.25864v1-guide-a-benchmark-for-understanding-and-assisting-users-in-open-ended-gui-tasks)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：在GUI任务中推断用户意图和行为
+   evidence：感知用户行为、推断意图并在GUI任务中提供协助的基准
 
 ### 速读区论文标签
-1. [Spiking Personalized Federated Learning for Brain-Computer Interface-Enabled Immersive Communication](/20260323-20260401/2603.22727v1-spiking-personalized-federated-learning-for-brain-computer-interface-enabled-immersive-communication)  
+1. [A Multimodal Framework for Human-Multi-Agent Interaction](/202604/01/2603.23271v1-a-multimodal-framework-for-human-multi-agent-interaction)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用脑机接口推断用户意图并进行个性化适配
-2. [A Multimodal Framework for Human-Multi-Agent Interaction](/20260323-20260401/2603.23271v1-a-multimodal-framework-for-human-multi-agent-interaction)  
+   evidence：人机交互中的多模态感知与协调决策
+2. [Boosting the signal: Expectation-driven gain modulation of preparatory spatial attention](/202604/01/biorxiv-10-64898-2025-12-10-693414-v2-boosting-the-signal-expectation-driven-gain-modulation-of-preparatory-spatial-attention)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：人与多智能体交互的多模态框架
-3. [RESPOND: Responsive Engagement Strategy for Predictive Orchestration and Dialogue](/20260323-20260401/2603.21682v1-respond-responsive-engagement-strategy-for-predictive-orchestration-and-dialogue)  
+   evidence：基于预期的空间注意前瞻性调节
+3. [Stabilization-Responsiveness Trade-offs in Continuous Shared-Control for Invasive Brain-Computer Interfaces](/202604/01/biorxiv-10-64898-2026-03-23-713738-v1-stabilization-responsiveness-trade-offs-in-continuous-shared-control-for-invasive-brain-computer-interfaces)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：在实时控制中区分执行噪声与真实的用户意图变化
+4. [DIAL: Decoupling Intent and Action via Latent World Modeling for End-to-End VLA](/202604/01/2603.29844v1-dial-decoupling-intent-and-action-via-latent-world-modeling-for-end-to-end-vla)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：对话系统中的前瞻性话轮抢占与预测性编排
-4. [Ego2Web: A Web Agent Benchmark Grounded in Egocentric Videos](/20260323-20260401/2603.22529v1-ego2web-a-web-agent-benchmark-grounded-in-egocentric-videos)  
+   evidence：多模态模型中用于高层决策的潜在意图瓶颈
+5. [A brain-wide, trial- and time-dependent deterministic drive synergizes with within-trial noise to time self-initiated actions](/202604/01/biorxiv-10-1101-2025-10-28-685235-v2-a-brain-wide-trial--and-time-dependent-deterministic-drive-synergizes-with-within-trial-noise-to-time-self-initiated-actions)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于识别用户环境和任务执行的第一视角视频感知
-5. [ELITE: Experiential Learning and Intent-Aware Transfer for Self-improving Embodied Agents](/20260323-20260401/2603.24018v1-elite-experiential-learning-and-intent-aware-transfer-for-self-improving-embodied-agents)  
+   evidence：从神经模式预测动作发生的时机
+6. [Windows to the goal: Pupillary working memory signatures prospectively adapt to task demands](/202604/01/biorxiv-10-64898-2025-12-06-692784-v2-windows-to-the-goal-pupillary-working-memory-signatures-prospectively-adapt-to-task-demands)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：具身智能体的意图感知迁移
-6. [Video-Only ToM: Enhancing Theory of Mind in Multimodal Large Language Models](/20260323-20260401/2603.24484v1-video-only-tom-enhancing-theory-of-mind-in-multimodal-large-language-models)  
+   evidence：瞳孔特征适应任务需求和行为目标
+7. [Cognitive control networks in human and macaque](/202604/01/biorxiv-10-64898-2026-02-24-707621-v2-cognitive-control-networks-in-human-and-macaque)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：在多模态模型中推断人类心理状态和心理理论
-7. [TIGFlow-GRPO: Trajectory Forecasting via Interaction-Aware Flow Matching and Reward-Driven Optimization](/20260323-20260401/2603.24936v1-tigflow-grpo-trajectory-forecasting-via-interaction-aware-flow-matching-and-reward-driven-optimization)  
+   evidence：基于目标的决策的扫视迷宫任务
+8. [Frontal theta phase modulates asymmetric posterior neural mechanisms of spatial attention](/202604/01/biorxiv-10-64898-2026-03-25-714015-v1-frontal-theta-phase-modulates-asymmetric-posterior-neural-mechanisms-of-spatial-attention)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：实时轨迹预测与行为规则对齐
-8. [SPECTRA: An Efficient Spectral-Informed Neural Network for Sensor-Based Activity Recognition](/20260323-20260401/2603.26482v1-spectra-an-efficient-spectral-informed-neural-network-for-sensor-based-activity-recognition)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：基于传感器的实时活动识别
-9. [Beyond Language: Grounding Referring Expressions with Hand Pointing in Egocentric Vision](/20260323-20260401/2603.26646v1-beyond-language-grounding-referring-expressions-with-hand-pointing-in-egocentric-vision)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：交互中用于指代消解的多模态指示性线索
+   evidence：利用瞳孔测量和脑电图研究空间注意力和行为优先级
 
 
 <div class="dpr-home-promo-card">
