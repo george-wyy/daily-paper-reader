@@ -1,0 +1,198 @@
+Title: GazeQwen: Lightweight Gaze-Conditioned LLM Modulation for Streaming Video Understanding
+
+URL Source: https://arxiv.org/pdf/2603.25841v1
+
+Published Time: Mon, 30 Mar 2026 00:06:36 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# GazeQwen: Lightweight Gaze-Conditioned LLM Modulation for Streaming Video Understanding 
+
+## Trong-Thang Pham 1* Hien Nguyen 2 Ngan Le 11University of Arkansas 2University of Houston 
+
+tp030@uark.edu hvnguy35@central.uh.edu thile@uark.edu 
+
+## Abstract 
+
+Current multimodal large language models (MLLMs) cannot effectively utilize eye-gaze information for video understand-ing, even when gaze cues are supplied via visual overlays or text descriptions. We introduce GazeQwen, a parameter-efficient approach that equips an open-source MLLM with gaze awareness through hidden-state modulation. At its core is a compact gaze resampler ( ∼1–5 M trainable pa-rameters) that encodes V-JEPA 2.1 video features together with fixation-derived positional encodings and produces ad-ditive residuals injected into selected LLM decoder layers via forward hooks. An optional second training stage adds low-rank adapters (LoRA) to the LLM for tighter integration. Evaluated on all 10 tasks of the StreamGaze benchmark, GazeQwen reaches 63.9% accuracy, a +16.1 point gain over the same Qwen2.5-VL-7B backbone with gaze as visual prompts and +10.5 points over GPT-4o, the highest score among all open-source and proprietary models tested. These results suggest that learning where to inject gaze within an LLM is more effective than scaling model size or engineer-ing better prompts. All code and checkpoints are available at https://github.com/phamtrongthang123/ gazeqwen .
+
+## 1. Introduction 
+
+Applications such as AR-glass assistants and embodied agents require models that interpret continuous video streams in real time [ 5, 7, 13 ]. In egocentric settings, eye gaze reveals the user’s focus of attention and likely next ac-tions [ 10 , 12 , 22 ], yet how to make MLLMs actually use 
+
+gaze data remains open. The StreamGaze benchmark [ 11 ] quantifies this gap: 8,521 gaze-conditioned QA pairs across 285 egocentric videos. All tested MLLMs, including GPT-4o (53.4%) and Qwen2.5-VL-7B (47.8%), lag well behind humans (82.7%). 
+
+> *Corresponding author.
+
+Notably, none of the three prompting strategies tested in that work (textual coordinates, visual overlays, saliency maps) re-liably surpass the gaze-free baseline, suggesting that surface-level formatting is insufficient. Prior gaze-aware approaches either overlay gaze markers without training signal [ 16 ], or train task-specific models that do not generalize to streaming scenarios [9]. We take a different approach with GazeQwen. Instead of modifying the input or retraining the backbone, we attach a small resampler module that directly steers the LLM’s inter-nal representations based on gaze. It encodes fixation coordi-nates as sinusoidal positional signals, fuses them with frozen V-JEPA 2.1 video features [ 3], and injects the result as addi-tive residuals at selected LLM layers via PyTorch forward hooks. An optional second stage adds LoRA adapters [ 8] for tighter integration. The design is low-cost (∼5–9 M trainable parameters, single-GPU training), modular (gaze module attaches/detaches without reloading weights), and effective :GazeQwen scores 63.9% on StreamGaze, +16.1pp over the same Qwen2.5-VL backbone and +10.5pp over GPT-4o. 
+
+## 2. Method 
+
+GazeQwen equips an open-source MLLM with gaze aware-ness through hidden-state modulation (Figure 1). A compact gaze resampler encodes V-JEPA 2.1 video features together with fixation-derived positional encodings and produces ad-ditive residuals injected into selected LLM decoder layers via forward hooks. 
+
+2.1. Inputs 
+
+Video features. Given a video clip, we sample T frames and pass them through a frozen V-JEPA 2.1 encoder [ 3] (ViT-B/16, 384 ×384 ). We use a separate visual encoder rather than reusing the MLLM’s own vision backbone because the host model’s visual features are optimized for language grounding and may discard fine-grained spatial detail needed for gaze alignment; V-JEPA’s self-supervised spatiotemporal representations retain this information without task-specific bias. For each temporal step t ∈ { 1, . . . , T }, the encoder 1 
+
+> arXiv:2603.25841v1 [cs.CV] 26 Mar 2026 VJEPA v2.1
+> 2D
+> Positional
+> Embedding
+> Gaze-Conditioned
+> Resampler
+> MLLM Input MLLM Output
+> Gaze
+> ...
+> +
+
+Figure 1. GazeQwen overview. A small gaze resampler ( ∼1– 5 M parameters) encodes V-JEPA 2.1 video features together with fixation-derived positional encodings and produces additive resid-uals injected into four evenly-spaced LLM decoder layers via for-ward hooks. 
+
+produces a spatial feature grid Ft ∈ RHW ×dv , where H, W 
+
+are the spatial grid dimensions and dv =768 . The V-JEPA output is interpolated (trilinear temporal, bilinear spatial) to align with the host LLM’s visual token grid. 
+
+Gaze scanpath. Eye gaze is represented as a scanpath 
+
+S = {(xi, y i, t i, ∆ti)}Ni=1 , where (xi, y i) ∈ [0 , 1] 2 are nor-malized fixation coordinates, ti is the midpoint timestamp, and ∆ti is the duration. A fixation is active at frame time t
+
+if |t − ti| ≤ ∆ti/2; we denote the active set as At.
+
+Gaze encoding. Active fixations are encoded using DETR-style sinusoidal positional encoding [ 4] with latent dimen-sion dl=256 . Sinusoidal encodings are parameter-free and provide a smooth, continuous mapping from coordinates to high-dimensional space, making them well-suited for the sparse and variable-count nature of fixation inputs. Multiple active fixations are averaged: 
+
+gt = 1
+
+|A t|
+
+X
+
+> i∈A t
+
+PE (xi, y i) ∈ Rdl . (1) When At = ∅, we set gt = 0.
+
+2.2. Gaze-Conditioned Resampler 
+
+The resampler takes Ft and gt and produces a residual in the LLM’s hidden-state space. V-JEPA tokens are projected to X = FtWin ∈ RHW ×dl . The gaze vector is broadcast to G ∈ RHW ×dl . K=32 learnable latents L ∈ RK×dl
+
+serve as an information bottleneck: by forcing all visual– gaze interactions through a small set of latent vectors, the resampler must learn to distill the scene into a compact, gaze-relevant summary rather than simply copying all spatial tokens. Over B=2 cross-attention blocks, the latents attend over 
+
+[X; L] with gaze-biased keys. Adding the gaze encoding to the keys rather than the queries or values steers the attention distribution: tokens near the fixation point receive higher attention weight, while the aggregated content (values) re-mains unaltered, preserving visual semantics while spatially re-weighting them: 
+
+Q = LW Q, K = [ X; L]WK + [ G; 0]WG, (2) 
+
+V = [ X; L]WV , (3) 
+
+L ← L + softmax 
+
+ QK ⊤
+
+> √dl
+
+
+
+V, (4) followed by LayerNorm + FFN ( 4dl hidden). After the blocks, spatial tokens read from the updated latents via re-verse cross-attention. This reverse step is necessary because the forward pass compresses HW spatial tokens into only 
+
+K=32 latents; the reverse cross-attention expands the gaze-modulated representation back to the original spatial resolu-tion so that each visual token in the LLM receives a position-specific residual. A zero-initialized output projection maps to dllm =3 ,584 , ensuring the module has no effect at the start of training and the pretrained LLM representations are not disrupted: 
+
+Rt = XAttn (X, L) Wout ∈ RHW ×dllm . (5) 
+
+2.3. Hook-Based LLM Injection 
+
+We inject gaze information at multiple depths of the LLM rather than at a single point, because different decoder layers encode progressively more abstract representations: early layers capture low-level spatial layout while later layers handle high-level semantics. Injecting at four evenly-spaced layers ( l ∈ { 6, 13 , 20 , 27 } out of 28) via PyTorch forward hooks lets gaze influence all levels of abstraction without modifying the model’s forward pass code: 
+
+h(v) 
+
+> l
+
+← h(v) 
+
+> l
+
++ αl · f (l) 
+
+> θ
+
+(Ft, gt), (6) where αl is a learned per-layer amplitude scalar that lets the model control how strongly gaze modulates each depth. Each layer has an independent resampler so that the gaze signal can be tailored to the representation space at each depth; a shared resampler would be forced to produce a sin-gle residual that is simultaneously appropriate for all layers. Additional hooks on the visual encoder and model input lo-cate the visual-token positions in the LLM sequence. Text tokens are not modified. 
+
+2.4. Training 
+
+Two-stage training. Training proceeds in two stages to decouple gaze alignment from LLM adaptation. Stage 1: 
+
+Only the four resamplers ( ∼1–5 M params) are trained with 4-way cross-entropy over answer-token logits (A/B/C/D). 2This stage teaches the resamplers to produce useful gaze residuals while the LLM remains fully frozen, preventing catastrophic forgetting. Stage 2: Rank-8 LoRA adapters [ 8 ](α=16 , ∼3.5 M params) on LLM Q/V projections are added and trained jointly with the resamplers, allowing the LLM to better incorporate the gaze signal by adjusting its own atten-tion patterns. Both stages use AdamW (lr 3×10 −4, weight decay 10 −2), 20 warmup steps, gradient accumulation of 8, and up to 20 epochs. Data is split 70/15/15 by video to prevent leakage. 
+
+## 3. Experiments 
+
+3.1. Setup 
+
+Benchmark. We evaluate on StreamGaze [ 11 ], a gaze-conditioned video QA benchmark containing 8,521 multiple-choice questions (4 options each) derived from 285 egocen-tric videos with eye-tracking data. The benchmark defines 10 task types grouped into three temporal categories [ 11 ]: 
+
+Past tasks (NFI, OTP, SR, GSM) require reasoning over the full viewing history; Present tasks (OI-Easy, OI-Hard, OAR, FAP) operate within a 60-second context window around the query time; Proactive tasks (GTA, OAA) require anticipat-ing future events or alerting the user based on current gaze patterns. We use a 70/15/15 video-level split, yielding 1,055 test QA pairs. 
+
+Backbone. Our base MLLM is Qwen2.5-VL-7B-Instruct [ 2], loaded with eager attention to allow PyTorch forward hook registration on individual decoder layers. Visual features come from a frozen V-JEPA 2.1 encoder (ViT-B/16, 384 ×384 input resolution) [ 3], whose spatiotem-poral features are interpolated (trilinear temporal, bilinear spatial) to match Qwen’s visual token grid. Both the MLLM and V-JEPA backbones remain frozen throughout training; only the resampler modules and optional LoRA adapters are updated. 
+
+Baselines. We compare against four categories of mod-els. Closed-source MLLMs: GPT-4o [ 1] and Claude Son-net/Opus 4 [15], evaluated with gaze supplied as textual co-ordinate prompts. Open-source MLLMs: Qwen2.5-VL [ 2], InternVL3.5 [ 18 ], VITA 1.5 [ 6 ], MiniCPM-V [ 20 ], and Kangaroo [ 14 ]. Streaming MLLMs: ViSpeak [ 7 ], Dispi-der [ 17 ], Flash-VStream [ 21 ], and VideoLLM-online [ 5]. 
+
+Gaze-specialized: AssistGaze [ 9 ], a fine-tuned model trained on GazeQA data. All baseline numbers are taken from StreamGaze [11]. 
+
+Evaluation protocol. Each QA pair is evaluated indepen-dently (batch size 1) to accommodate variable video lengths. The predicted answer is the option (A/B/C/D) with the high-est logit at the last token position. We report per-task accu-racy and the unweighted mean across all 10 tasks. 
+
+3.2. Main Results 
+
+Table 1 summarizes accuracy on each task. GazeQwen reaches 63.9% overall, the highest among all systems in-cluding proprietary ones: • +10.5pp over GPT-4o (53.4%), despite using a 7B open-weight model versus a much larger proprietary system with gaze supplied as text coordinates. • +16.1pp over the same Qwen2.5-VL backbone with gaze supplied as visual prompts (47.8%), demonstrating that internal hidden-state modulation is far more effective than surface-level input formatting. 
+
+Where does gaze help most? The per-task breakdown re-veals that improvements concentrate on tasks where spatial gaze information directly reduces ambiguity. OAA (Object Appearance Alert) gains +34.1pp, as proactive alerts about object appearances benefit directly from knowing which objects the user is currently attending to. OTP (Object Tracking in Past) gains +29.4pp, as the accumulated fixa-tion history provides a strong temporal signal for tracking attended objects over time. OAR (Object Attribute Recogni-tion) gains +26.1pp because knowing exactly which object the user fixates narrows the relevant region, making attribute recognition straightforward even when multiple objects with different attributes coexist in the scene. OI-Hard (Object Identification Hard) gains +20.8pp since gaze disambiguates the target from visually similar nearby objects that confuse the model without spatial guidance. 
+
+Where does gaze not help? OI-Easy (+0.4pp) and FAP 
+
+(+1.7pp) show negligible gains, suggesting that easy ob-ject identification is already achievable without gaze disam-biguation, and predicting future actions requires higher-level temporal reasoning beyond where the user is currently look-ing. SR (Scene Recall, +9.8pp) shows a moderate gain; the task asks about previously seen background context, where gaze localization is less critical since the answer depends on global scene memory rather than fixation targets. 
+
+3.3. Design Space Analysis 
+
+We swept four design axes during development and report the marginal effect of each choice in Table 2. 
+
+(G) Gaze encoding: Coord-PE (sinusoidal encoding of raw fixation coordinates) outperforms both heatmap-τ
+
+(Voila-style [ 19 ] Gaussian heatmap with learnable tempo-ral decay) and heatmap-dur (duration-weighted Gaussian heatmap). The key advantage is that Coord-PE preserves sub-pixel spatial precision, whereas heatmap encodings dis-cretize gaze onto the LLM’s coarse spatial grid, losing fine-grained positional information. The largest gap appears on 3Table 1. Results on the StreamGaze benchmark. We report accuracy on all 10 task types. Baseline numbers are from [ 11 ]; GazeQwen is our evaluation on the Qwen2.5-VL-7B backbone. Overall is the mean over the 10 tasks shown. Best per-task (excluding Human) is bolded .                                                                                                                                                                                                                              
+
+> Method Params Frames Past Present Proactive Overall
+> NFI OTP SR GSM OI (E) OI (H) OAR FAP GTA OAA Human ––0.700 0.889 0.903 0.707 0.960 0.920 0.800 0.840 0.765 0.780 0.827
+> Closed-Source MLLMs
+> GPT-4o [1] –16 0.601 0.449 0.535 0.580 0.729 0.730 0.596 0.370 0.597 0.149 0.534 Claude Sonnet4 [15] –16 0.500 0.554 0.425 0.325 0.521 0.533 0.561 0.439 0.535 0.350 0.474 Claude Opus4 [15] –16 0.372 0.392 0.460 0.166 0.431 0.436 0.430 0.351 0.466 0.490 0.399
+> GazeQA-based Fine-tuned Models
+> AssistGaze [9] 26M 32 0.294 0.131 0.310 0.294 0.278 0.250 0.109 0.254 N/A N/A 0.240
+> Open-Source MLLMs
+> Qwen2.5-VL [2] 7B Adapt. 0.518 0.350 0.450 0.483 0.590 0.558 0.548 0.391 0.486 0.407 0.478 InternVL3.5 [18] 8B Adapt. 0.490 0.311 0.573 0.548 0.627 0.628 0.466 0.372 0.373 0.051 0.444 VITA 1.5 [6] 7B 16 0.474 0.365 0.346 0.378 0.455 0.396 0.437 0.370 0.351 0.267 0.384 MiniCPM-V [20] 8B 32 0.430 0.374 0.354 0.296 0.334 0.379 0.438 0.345 0.480 0.216 0.365 Kangaroo [14] 7B 64 0.363 0.365 0.319 0.275 0.454 0.484 0.402 0.412 0.242 0.198 0.351
+> Open-Source Streaming MLLMs
+> ViSpeak [7] 7B 1 fps 0.463 0.358 0.417 0.473 0.572 0.581 0.406 0.309 0.635 0.458 0.467 Dispider [17] 7B 1 fps 0.366 0.365 0.381 0.263 0.336 0.338 0.353 0.321 0.252 0.261 0.324 Flash-VStream [21] 7B 1 fps 0.249 0.202 0.336 0.220 0.289 0.147 0.044 0.280 0.443 0.217 0.243 VideoLLM-online [5] 8B 2 fps 0.000 0.000 0.000 0.000 0.006 0.006 0.002 0.000 0.458 0.333 0.081
+> Ours
+> GazeQwen 7B Adapt. 0.657 0.644 0.548 0.609 0.594 0.766 0.809 0.408 0.603 0.748 0.639
+> ∆vs. Qwen2.5-VL +13.9 +29.4 +9.8 +12.6 +0.4 +20.8 +26.1 +1.7 +11.7 +34.1 +16.1
+
+Table 2. Ablation over design axes. Each row shows the best option for that axis and the accuracy spread between best and worst options (measured on the task with largest difference).           
+
+> Axis Best option Spread
+> (G) Gaze encoding Coord-PE 9.8pp (NFI) (B) Visual backbone V-JEPA 2.1 8.1pp (NFI) (S) Layer sharing Per-layer (4 ind.) 5.2pp (OAR) (A) LLM adaptation LoRA (rank 8) 5.2pp (OI-H)
+
+NFI (9.8pp), where precise fixation history is critical for determining which objects were never attended. 
+
+(B) Visual backbone: V-JEPA 2.1 consistently outper-forms DINOv2 across matched configurations. V-JEPA’s joint spatiotemporal embeddings (via 3D tubelet patches) capture motion and temporal continuity that DINOv2’s frame-independent features miss. The gap is widest on fixation-sequence tasks (NFI: 8.1pp, OTP: 5.3pp), where temporal context is essential. 
+
+(S) Layer sharing: Per-layer resamplers (four indepen-dent modules) outperform a single shared resampler by 5.2pp on OAR. This confirms that different LLM depths benefit from specialized gaze representations: early layers may need broad spatial modulation while deeper layers require fine-grained object-level focus. 
+
+(A) LLM adaptation: Adding rank-8 LoRA adapters in stage 2 provides a further 5.2pp gain on OI-Hard. LoRA lets the LLM’s own attention patterns adapt to better incorporate the injected gaze residuals, rather than relying solely on additive modulation of frozen representations. All four axes contribute comparably (5–10pp spread), and the gains are largely complementary: removing any single component degrades performance, confirming that the full combination is needed for the best result. 
+
+## 4. Conclusion 
+
+GazeQwen shows that a small resampler ( ∼1–5 M params) with LoRA adapters ( ∼3.5 M params) injecting gaze residu-als into a 7B MLLM can outperform much larger systems on gaze-conditioned video QA. The approach requires no archi-tecture surgery, trains on a single GPU, and the gaze module can be detached for gaze-free operation. Our findings sug-gest the bottleneck in gaze-aware video understanding is not model capacity but the absence of a learned pathway from gaze to internal representations. We release all code to support future work on gaze-guided streaming models. 
+
+## References 
+
+[1] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774 , 2023. 3, 4 [2] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, 
+
+4Chunjiang Ge, et al. Qwen2.5-vl technical report. arXiv preprint arXiv:2511.21631 , 2025. 3, 4 [3] Adrien Bardes, Quentin Garrido, Jean Ponce, Xinlei Chen, Michael Rabbat, Yann LeCun, Mahmoud Assran, and Nico-las Ballas. Revisiting feature prediction for learning visual representations from video. arXiv preprint arXiv:2404.08471 ,2024. 1, 3 [4] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-end object detection with transformers. In European con-ference on computer vision , pages 213–229. Springer, 2020. 2[5] Joya Chen, Zhaoyang Lv, Shiwei Wu, Kevin Qinghong Lin, Chenan Song, Difei Gao, Jia-Wei Liu, Ziteng Gao, Dongxing Mao, and Mike Zheng Shou. Videollm-online: Online video large language model for streaming video. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 18407–18418, 2024. 1, 3, 4 [6] Chaoyou Fu, Haojia Lin, Xiong Wang, Yi-Fan Zhang, Yun-hang Shen, Xiaoyu Liu, Haoyu Cao, Zuwei Long, Heting Gao, Ke Li, et al. Vita-1.5: Towards gpt-4o level real-time vi-sion and speech interaction. arXiv preprint arXiv:2501.01957 ,2025. 3, 4 [7] Shenghao Fu, Qize Yang, Yuan-Ming Li, Yi-Xing Peng, Kun-Yu Lin, Xihan Wei, Jian-Fang Hu, Xiaohua Xie, and Wei-Shi Zheng. Vispeak: Visual instruction feedback in streaming videos. pages 21778–21788, 2025. 1, 3, 4 [8] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. Lora: low-rank adaptation of large language models. arxiv preprint. 
+
+arXiv preprint arXiv:2106.09685 , 2021. 1, 3 [9] Muhammet Ilaslan, Chenan Song, Joya Chen, Difei Gao, Weixian Lei, Qianli Xu, Joo Lim, and Mike Shou. Gazevqa: A video question answering dataset for multiview eye-gaze task-oriented collaborations. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Pro-cessing , pages 10462–10479, 2023. 1, 3, 4 [10] Bolin Lai, Fiona Ryan, Wenqi Jia, Miao Liu, and James M Rehg. Listen to look into the future: Audio-visual egocentric gaze anticipation. In European Conference on Computer Vision , pages 192–210. Springer, 2024. 1 [11] Daeun Lee, Subhojyoti Mukherjee, Branislav Kveton, Ryan A Rossi, Viet Dac Lai, Seunghyun Yoon, Trung Bui, Franck Dernoncourt, and Mohit Bansal. Streamgaze: Gaze-guided temporal reasoning and proactive understanding in streaming videos. arXiv preprint arXiv:2512.01707 , 2025. 1, 3, 4 [12] Yin Li, Miao Liu, and James M Rehg. In the eye of the beholder: Gaze and actions in first person video. IEEE trans-actions on pattern analysis and machine intelligence , 45(6): 6731–6747, 2021. 1 [13] Junming Lin, Zheng Fang, Chi Chen, Zihao Wan, Fuwen Luo, Peng Li, Yang Liu, and Maosong Sun. Streamingbench: Assessing the gap for mllms to achieve streaming video un-derstanding. arXiv preprint arXiv:2411.03628 , 2024. 1 [14] Jiajun Liu, Yibing Wang, Hanghang Ma, Xiaoping Wu, Xi-aoqi Ma, Xiaoming Wei, Jianbin Jiao, Enhua Wu, and Jie Hu. Kangaroo: A powerful video-language model supporting long-context video input: J. liu et al. International Journal of Computer Vision , 134(3):114, 2026. 3, 4 [15] Anthropic PBC. Introducing claude 4. Online blog post, 2025. 3, 4 [16] Taiying Peng, Jiacheng Hua, Miao Liu, and Feng Lu. In the eye of mllm: Benchmarking egocentric video intent un-derstanding with gaze-guided prompting. arXiv preprint arXiv:2509.07447 , 2025. 1 [17] Rui Qian, Shuangrui Ding, Xiaoyi Dong, Pan Zhang, Yuhang Zang, Yuhang Cao, Dahua Lin, and Jiaqi Wang. Dispider: Enabling video llms with active real-time interaction via dis-entangled perception, decision, and reaction. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 24045–24055, 2025. 3, 4 [18] Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Shenglong Ye, Jie Shao, et al. Internvl3. 5: Advancing open-source multimodal models in versatility, reasoning, and efficiency. 
+
+arXiv preprint arXiv:2508.18265 , 2025. 3, 4 [19] Kun Yan, Zeyu Wang, Lei Ji, Yuntao Wang, Nan Duan, and Shuai Ma. Voila-a: Aligning vision-language models with user’s gaze attention, 2024. 3 [20] Yuan Yao, Tianyu Yu, Ao Zhang, Chongyi Wang, Junbo Cui, Hongji Zhu, Tianchi Cai, Haoyu Li, Weilin Zhao, Zhihui He, et al. Minicpm-v: A gpt-4v level mllm on your phone. arXiv preprint arXiv:2408.01800 , 2024. 3, 4 [21] Haoji Zhang, Yiqin Wang, Yansong Tang, Yong Liu, Jiashi Feng, Jifeng Dai, and Xiaojie Jin. Flash-vstream: Memory-based real-time understanding for long video streams, 2024. 3, 4 [22] Mengmi Zhang, Keng Teck Ma, Joo Hwee Lim, Qi Zhao, and Jiashi Feng. Deep future gaze: Gaze anticipation on egocen-tric videos using adversarial networks. In Proceedings of the IEEE conference on computer vision and pattern recognition ,pages 4372–4381, 2017. 1 
+
+5
