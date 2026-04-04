@@ -6,64 +6,61 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-03
-- 运行时间：2026-04-03 20:04:40 UTC
+- 最新运行日期：2026-04-04
+- 运行时间：2026-04-04 19:51:16 UTC
 - 运行状态：成功
-- 本次总论文数：14
-- 精读区：3
+- 本次总论文数：13
+- 精读区：2
 - 速读区：11
 
 ### 今日简报（AI）
-今日深入探讨眼动追踪与多模态大模型的融合，重点解析 AI 建议下的用户建模与实时视频理解。
-核心结论指出眼动数据需结合用户先验才能精准建模，同时 GazeQwen 实现了轻量化注视驱动的视频感知。
-推荐关注眼动技术在提升人机交互效率及 6DoF 运动生成等实时交互场景中的落地潜力。
-- 详情：[/202604/03/README](/202604/03/README)
+深度解析 13 篇前沿成果，聚焦 AI 建议下的用户建模与群体共享注意力估计。
+重点揭示了融合眼动与先验知识在 AI 决策中的建模优势，以及通过反馈细化提升群体共享注意力识别的精准度。
+建议关注多模态感知在人机协作中的应用，特别是如何结合眼动与手势理解复杂环境下的用户意图。
+- 详情：[/202604/04/README](/202604/04/README)
 
 ### 精读区论文标签
-1. [Eyes Can't Always Tell: Fusing Eye Tracking and User Priors for User Modeling under AI Advice Conditions](/202604/03/2604.01741v1-eyes-cant-always-tell-fusing-eye-tracking-and-user-priors-for-user-modeling-under-ai-advice-conditions)  
+1. [Eyes Can't Always Tell: Fusing Eye Tracking and User Priors for User Modeling under AI Advice Conditions](/202604/04/2604.01741v1-eyes-cant-always-tell-fusing-eye-tracking-and-user-priors-for-user-modeling-under-ai-advice-conditions)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：融合眼动追踪和用户先验以建模认知状态
-2. [GazeQwen: Lightweight Gaze-Conditioned LLM Modulation for Streaming Video Understanding](/202604/03/2603.25841v1-gazeqwen-lightweight-gaze-conditioned-llm-modulation-for-streaming-video-understanding)  
+   evidence：融合眼动追踪和用户先验知识，在自适应AI中建模认知状态
+2. [End-to-End Shared Attention Estimation via Group Detection with Feedback Refinement](/202604/04/2604.01714v1-end-to-end-shared-attention-estimation-via-group-detection-with-feedback-refinement)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：基于注视调节的视频理解大语言模型
-3. [GUIDE: A Benchmark for Understanding and Assisting Users in Open-Ended GUI Tasks](/202604/03/2603.25864v1-guide-a-benchmark-for-understanding-and-assisting-users-in-open-ended-gui-tasks)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：用于感知用户行为、推断意图并在GUI任务中提供协助的基准
+   evidence：利用个体注视热图进行共享注意力估计
 
 ### 速读区论文标签
-1. [ReMoGen: Real-time Human Interaction-to-Reaction Generation via Modular Learning from Diverse Data](/202604/03/2604.01082v1-remogen-real-time-human-interaction-to-reaction-generation-via-modular-learning-from-diverse-data)  
+1. [Beyond Language: Grounding Referring Expressions with Hand Pointing in Egocentric Vision](/202604/04/2603.26646v1-beyond-language-grounding-referring-expressions-with-hand-pointing-in-egocentric-vision)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：实时人类交互到反应的生成
-2. [EgoFlow: Gradient-Guided Flow Matching for Egocentric 6DoF Object Motion Generation](/202604/03/2604.01421v1-egoflow-gradient-guided-flow-matching-for-egocentric-6dof-object-motion-generation)  
+   evidence：结合手势指向和语音的多模态指示性视觉定位
+2. [CompassAD: Intent-Driven 3D Affordance Grounding in Functionally Competing Objects](/202604/04/2604.02060v1-compassad-intent-driven-3d-affordance-grounding-in-functionally-competing-objects)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：从第一视角观察中建模语义意图和时间动力学
-3. [Night Eyes: A Reproducible Framework for Constellation-Based Corneal Reflection Matching](/202604/03/2604.01909v1-night-eyes-a-reproducible-framework-for-constellation-based-corneal-reflection-matching)  
+   evidence：意图驱动的物体交互指令
+3. [Eye-head coordination during goal-directed orienting in mice](/202604/04/biorxiv-10-64898-2026-03-30-715285-v1-eye-head-coordination-during-goal-directed-orienting-in-mice)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：可复现的角膜反射眼动追踪框架
-4. [Protracted development in children of perceptual segregation of competing talking faces in the multisensory cocktail party problem](/202604/03/biorxiv-10-64898-2026-03-20-706527-v2-protracted-development-in-children-of-perceptual-segregation-of-competing-talking-faces-in-the-multisensory-cocktail-party-problem)  
+   evidence：目标导向定位过程中的眼头协调
+4. [The Computational and Neural Basis of Zero-Shot Control in Dynamic Pursuit](/202604/04/biorxiv-10-64898-2026-03-30-715455-v1-the-computational-and-neural-basis-of-zero-shot-control-in-dynamic-pursuit)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：支持多感官目标分离的眼动动力学
-5. [EEG Foundation Model Improves Online Directional Motor Imagery Brain-computer Interface Control](/202604/03/biorxiv-10-64898-2026-03-24-714020-v1-eeg-foundation-model-improves-online-directional-motor-imagery-brain-computer-interface-control)  
+   evidence：用于实时控制和目标识别的聚光灯注意力和计算基元
+5. [Acoustic Salience Drives Pupillary Dynamics in an Interrupted, Reverberant Task](/202604/04/biorxiv-10-64898-2026-03-31-715639-v1-acoustic-salience-drives-pupillary-dynamics-in-an-interrupted-reverberant-task)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：用于实时脑机接口控制和交互的在线EEG基础模型
-6. [Does Structured Intent Representation Generalize? A Cross-Language, Cross-Model Empirical Study of 5W3H Prompting](/202604/03/2603.25379v1-does-structured-intent-representation-generalize-a-cross-language-cross-model-empirical-study-of-5w3h-prompting)  
+   evidence：空间选择性注意任务期间的瞳孔扩张
+6. [Can Individual Internal Models Predict Idiosyncratic Scene Exploration?](/202604/04/biorxiv-10-64898-2026-04-01-715777-v1-can-individual-internal-models-predict-idiosyncratic-scene-exploration)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：内部模型预测特异性场景探索和眼动行为
+7. [Shared Representation for 3D Pose Estimation, Action Classification, and Progress Prediction from Tactile Signals](/202604/04/2603.25906v1-shared-representation-for-3d-pose-estimation-action-classification-and-progress-prediction-from-tactile-signals)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：人机交互中的结构化意图表示
-7. [Shared Representation for 3D Pose Estimation, Action Classification, and Progress Prediction from Tactile Signals](/202604/03/2603.25906v1-shared-representation-for-3d-pose-estimation-action-classification-and-progress-prediction-from-tactile-signals)  
+   evidence：用于人机交互的动作分类和进度多模态预测
+8. [DiffusionAnything: End-to-End In-context Diffusion Learning for Unified Navigation and Pre-Grasp Motion](/202604/04/2603.26322v1-diffusionanything-end-to-end-in-context-diffusion-learning-for-unified-navigation-and-pre-grasp-motion)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：为人机交互预测运动进度和动作分类
-8. [Towards GUI Agents: Vision-Language Diffusion Models for GUI Grounding](/202604/03/2603.26211v1-towards-gui-agents-vision-language-diffusion-models-for-gui-grounding)  
+   evidence：基于视觉的空间注意力和目标条件运动规划
+9. [LatentPilot: Scene-Aware Vision-and-Language Navigation by Dreaming Ahead with Latent Visual Reasoning](/202604/04/2603.29165v1-latentpilot-scene-aware-vision-and-language-navigation-by-dreaming-ahead-with-latent-visual-reasoning)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：多模态用户界面的GUI定位与动作预测
-9. [Beyond Language: Grounding Referring Expressions with Hand Pointing in Egocentric Vision](/202604/03/2603.26646v1-beyond-language-grounding-referring-expressions-with-hand-pointing-in-egocentric-vision)  
+   evidence：通过潜视觉推理进行前瞻性导航的预见性研究
+10. [Benchmarking Interaction, Beyond Policy: a Reproducible Benchmark for Collaborative Instance Object Navigation](/202604/04/2604.00265v1-benchmarking-interaction-beyond-policy-a-reproducible-benchmark-for-collaborative-instance-object-navigation)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于交互的多模态指示性线索与手势指向
-10. [LatentPilot: Scene-Aware Vision-and-Language Navigation by Dreaming Ahead with Latent Visual Reasoning](/202604/03/2603.29165v1-latentpilot-scene-aware-vision-and-language-navigation-by-dreaming-ahead-with-latent-visual-reasoning)  
+   evidence：协作交互与对话用于解决导航中的歧义
+11. [EgoSim: Egocentric World Simulator for Embodied Interaction Generation](/202604/04/2604.01001v1-egosim-egocentric-world-simulator-for-embodied-interaction-generation)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：通过潜视觉推理进行前瞻性导航
-11. [Interactive Tracking: A Human-in-the-Loop Paradigm with Memory-Augmented Adaptation](/202604/03/2604.01974v1-interactive-tracking-a-human-in-the-loop-paradigm-with-memory-augmented-adaptation)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：通过语言指令进行交互式跟踪的人机协同范式
+   evidence：用于具身交互的第一视角世界模拟器
 
 
 <div class="dpr-home-promo-card">
