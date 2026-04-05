@@ -1,0 +1,535 @@
+Title: Streamlined Open-Vocabulary Human-Object Interaction Detection
+
+URL Source: https://arxiv.org/pdf/2603.27500v1
+
+Published Time: Tue, 31 Mar 2026 01:09:28 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Streamlined Open-Vocabulary Human-Object Interaction Detection 
+
+## Chang Sun Dongliang Liao Changxing Ding *
+
+## South China University of Technology   
+
+> eesunchang2024@mail.scut.edu.cn, {liaodl, chxding }@scut.edu.cn
+
+## Abstract 
+
+Open-vocabulary human-object interaction (HOI) detec-tion aims to localize and recognize all human-object inter-actions in an image, including those unseen during training. Existing approaches usually rely on the collaboration be-tween a conventional HOI detector and a Vision-Language Model (VLM) to recognize unseen HOI categories. How-ever, feature fusion in this paradigm is challenging due to significant gaps in cross-model representations. To address this issue, we introduce SL-HOI , a Stream Lined open-vocabulary HOI detection framework based solely on the powerful DINOv3 model. Our design leverages the comple-mentary strengths of DINOv3’s components: its backbone for fine-grained localization and its text-aligned vision head for open-vocabulary interaction classification. Moreover, to facilitate smooth cross-attention between the interaction queries and the vision head’s output, we propose first feed-ing both the interaction queries and the backbone image tokens into the vision head, effectively bridging their rep-resentation gaps. All DINOv3 parameters in our approach are frozen, with only a small number of learnable param-eters added, allowing a fast adaptation to the HOI detec-tion task. Extensive experiments show that SL-HOI achieves state-of-the-art performance on both the SWiG-HOI and HICO-DET benchmarks, demonstrating the effectiveness of our streamlined model architecture. Code is available at https://github.com/MPI-Lab/SL-HOI. 
+
+## 1. Introduction 
+
+Human-Object Interaction (HOI) detection [9] is a funda-mental vision task that involves not only localizing humans and objects in an image but also recognizing the interactions between each human-object pair. It is critical for applica-tions such as video analysis [43], scene understanding [22], and robotics [32]. Compared with object detection, HOI de-tection is more dependent on the image context to infer the interaction categories. Moreover, in the open-vocabulary 
+
+> *Corresponding author
+
+setting, HOI detectors face the additional challenge of cat-egory generalization, requiring classification of long-tailed or even unseen HOI categories during training. Existing works rely on large-scale pre-trained Vision-Language Models (VLMs) to achieve open-vocabulary HOI detection. They can be categorized into two groups, as shown in Fig. 1(a) and Fig. 1(b). The first group of meth-ods [2, 13, 25, 33] is based on collaboration between a VLM and a conventional HOI detector, primarily by ex-tracting generalizable interaction representations from the VLM for the HOI detector. The second group of ap-proaches [18, 20, 27, 42] directly transforms a VLM into an HOI detector for both interactive human-object detection and interaction classification. Unfortunately, both categories of methods have limita-tions. Since the methods in the first group require two sepa-rately trained models, they tend to be complex in structure. Moreover, the fusion of features between the HOI detec-tor and the VLM is challenging due to significant gaps in the cross-model representations. The methods in the sec-ond category are generally based on the CLIP model [35]. However, the CLIP model falls short in extracting fine-grained visual representations, since its training objective is to align holistic features between an image and its cap-tion. The above analysis motivates us to develop the next-generation VLM-based HOI detection model that is both simple in model structure and superior in open-vocabulary HOI detection performance. Accordingly, we propose a Stream Lined open-vocabulary HOI detector, namely SL-HOI , that streamlines interactive human-object detection and interaction classifi-cation. Specifically, we adopt the dino.txt variant [14] of the DINOv3 model [37] as the VLM. This variant consists of a DINOv3 backbone and a text-aligned vision head (hereafter “backbone” and “vision head”, respec-tively). The backbone is pre-trained using large-scale self-supervised learning. It captures fine-grained visual features suitable for dense prediction, which we use for interactive human-object detection. To achieve this goal, we add a small detection decoder that uses the backbone’s output patch tokens as the key and value. The vision 1    
+
+> arXiv:2603.27500v1 [cs.CV] 29 Mar 2026 Instance Detector
+> VLM Interaction Decoder
+> Boxes Classes (a) VLM-collaborated method. VLM
+> Instance Decoder
+> Classes Boxes (b) VLM-only method. Boxes
+> DINOv3 Backbone
+> Vision Head Classes
+> Instance Decoder (c) Our SL-HOI.
+> Figure 1. An illustration of the dominant architectural paradigms for open-vocabulary HOI detection. (a) VLM-collaborated methods that adopt both a VLM and a conventional HOI detector. (b) VLM-only methods that employ a single VLM for open-vocabulary HOI detection. (c) Our SL-HOI leverages the complementary strengths of DINOv3’s backbone and vision head.
+
+head aligns visual features with open-vocabulary captions, which is ideal for generalizable interaction classification. Similar to popular one-stage detectors HOI [25], the output embeddings of the detection decoder serve as interaction queries in this step. However, directly performing cross-attention between the interaction queries and the vision head’s output still suffers from a representation gap. To address this prob-lem, we propose to force the interaction queries and the vision head’s output tokens to share a common representa-tion space. We achieve this by feeding both the interaction queries and the backbone’s output image tokens into the vi-sion head, rather than just the latter. Another advantage of this strategy is that it yields semantically enriched interac-tion queries. Then, we perform cross-attention between the refined interaction queries and the vision head’s output to-kens, and the output is used for open-vocabulary interaction classification. In our approach, DINOv3 serves as the sole backbone for HOI detection, with all its parameters frozen. This stream-lined design, as illustrated in Fig. 1(c), contains only a small number of trainable parameters for an end-to-end HOI de-tection framework, allowing efficient adaptation to HOI de-tection. Extensive experiments demonstrate the effective-ness of our design and show that SL-HOI achieves state-of-the-art performance on both the popular SWiG-HOI [41] and HICO-DET [4] benchmarks. 
+
+## 2. Related Work 
+
+2.1. HOI Detector Structures 
+
+Existing methods decompose HOI detection into two sub-tasks: object detection and interaction classification. Based on this division, HOI detection architectures are commonly grouped into two-stage and one-stage ones. The two-stage models [8, 39, 48, 50, 52] typically em-ploy an existing object detector to first localize humans and objects, and then perform human-object pairing and inter-action classification in the second stage. Various features can support interaction classification, including visual fea-tures [52], spatial features [48], human pose [39, 50], and language features [8]. The two-stage methods have the ad-vantage of a clear model structure: humans and objects are detected first, allowing the second stage to focus on interac-tion classification. Their main disadvantage is inefficiency in enumerating human-object pairs and potential error prop-agation from inaccurate detections in the first stage. The one-stage methods perform interactive human-object detection and interaction classification in a single forward pass. Early one-stage designs represent an inter-acting human-object pair by an interaction region, e.g., a single point [24], a set of points [51], and the union box of a human-object pair [15]. Modern designs typically adopt the Detection Transformer (DETR) [3] as the backbone, and pre-train its parameters for the object detection task. Thanks to the powerful cross-attention mechanism in DETR, these methods can represent an interaction region more flexibly and incorporate more image-level context. Moreover, many variants of the HOI queries have been developed in DETR: some [34, 38] adopt a single query to predict the human, the object, and the interaction category in an HOI triplet simultaneously, while others [25, 47] employ independent queries for the three elements. Our approach falls into the one-stage paradigm. Unlike most existing one-stage approaches, our objective is to de-sign a simple and streamlined architecture that is strong for both open-vocabulary and closed-set HOI detection. 
+
+2.2. Open-Vocabulary HOI Detection 
+
+The annotation of HOI triples is time-consuming, which af-fects the diversity of HOI categories in the training data. Therefore, recent research has increasingly focused on open-vocabulary HOI detection, which aims to recognize HOI triplets that are even unseen during training. The two-stage HOI detection methods [16, 17, 19] are usually straightforward to extend to recognize unseen HOI cate-gories. They typically adopt an off-the-shelf object detector to perform human and object detection in the first stage, and use a VLM to classify interactions within the detected human-object region in the second stage. The one-stage open-vocabulary HOI detection methods are more diverse and can be grouped into three categories. The first category of methods is based on compositional learning [10, 11], which encourages models to be generalizable by recombin-ing seen <human-verb-object > triplets. The second cate-2gory of methods [23, 45] employs large-scale retraining to enhance the generalization ability of HOI detectors. The third category of methods resorts to VLMs to obtain ro-bust representations for unseen HOI categories. Moreover, VLM-based approaches can be divided into two types. The first type of approaches [2, 13, 25, 33] retains a conven-tional HOI detector for interactive human-object localiza-tion and leverages a VLM mainly for interaction classifi-cation. Since two separately trained models are adopted, these approaches tend to be more complex in their archi-tectures and struggle to fuse features across the two mod-els. To alleviate this problem, the second type of ap-proaches [18, 20, 27, 42] employs a single VLM for both interactive human-object detection and interaction classifi-cation. Although they excel at open-vocabulary interaction classification, their detection performance is often weak due to a lack of fine-grained visual features. This is be-cause most VLMs are pre-trained for image-level tasks, and their internal representations often lack the precise, region-specific details required for object localization. In this paper, we also rely on a single VLM for open-vocabulary HOI detection. Unlike existing approaches, we adopt the latest DINOv3 model [37] as the backbone. We streamline it for HOI detection and carefully address the representation gaps between modules, achieving the state-of-the-art open-vocabulary HOI detection performance. 
+
+## 3. Preliminaries 
+
+DINOv3. DINOv3 [37] leverages self-distillation to learn rich feature representations and employs the Gram anchor-ing strategy to preserve dense spatial details during large-scale self-supervised training. It uses a Vision Trans-former (ViT) [7] architecture with L self-attention layers. It splits an input image I ∈ RH×W ×3 into non-overlapping patches, projects them into patch tokens, and augments them with positional embeddings. These image patch to-kens, a [CLS] token xcls , and a set of register tokens xreg 
+
+[6] form the input sequence of ViT. The VIT’s output (de-noted as final ZL) contains contextualized features for all image tokens. 
+
+dino.txt . dino.txt [14] extends the ViT-L/16 back-bone of DINOv3 with a vision head and a text encoder for Locked-image Tuning (LiT) [46]. The vision head consists of two self-attention blocks that refine backbone features, jointly processing the class token, register tokens, and patch tokens to enhance inter-token dependencies and project vi-sual features into the shared text embedding space. This in-creases the semantic richness of patch tokens while slightly reducing local details. During LiT, the DINOv3 backbone is frozen and only the text encoder and the vision head are trained. Text-image alignment is enforced by aligning both the class token and the mean-pooled patch features with the corresponding text embeddings.      
+
+> (a) DINOv3 backbone.
+> (b) dino.txt vision head.
+> Figure 2. Visualization of attention maps from the last self-attention block of (a) DINOv3 backbone and (b) dino.txt vi-sion head. The left column shows the original image of a person petting a horse, the middle column displays the attention map, and the right column overlays the attention on the original image. The red dot marks the queried patch located on the person. All other image patch tokens are as keys.
+
+## 4. Method 
+
+4.1. Overview 
+
+Motivations. Our work begins with a fundamental ques-tion: can a single, unified model naturally provide the dis-tinct feature types required for both precise localization and broad semantic classification? The attention maps in Fig. 2 provide a compelling affirmative. We observed an explicit functional specialization within the dino.txt model. The attention map of the DINOv3 backbone, shown in Fig. 2(a), is tightly focused, attending to small, specific areas in an image. This focus provides the fine-grained spatial detail essential for instance detection [5]. In contrast, the vision head in Fig. 2(b) exhibits holistic attention that aggregates the entire relational context. This allows it to form an ideal foundation for interaction classification [38]. This discov-ery of inherent, complementary roles becomes our architec-tural principle: we harness the backbone for detailed spatial representation, while the head provides semantic compre-hension. This enables us to construct a streamlined one-stage framework. 
+
+Overall Architecture. We illustrate the overall architec-ture of SL-HOI in Fig. 3. It is a one-stage framework built on the DINOv3 model. Given an input image I ∈
+
+RH×W ×3, the frozen DINOv3 backbone produces image tokens Xb ∈ RN ×D , where N and D denote the token number and the embedding dimension, respectively. These tokens are used for both interactive human-object instance detection and interaction classification tasks. For the first task, we adopt the standard detection de-coder in HOI detection works [25]. It has one set of learn-able human queries Qh ∈ RNq ×d and one set of object queries Qo ∈ RNq ×d. The obtained decoder embeddings 
+
+Eh and Eo are used to predict the human and object bound-3Split & Flatten 
+
+DINOv3 Backbone  
+
+> Detection Adapter & Decoder
+> Regression Classi fi cation
+
+Vision Head 
+
+Cross-Attention Block     
+
+> <person ,jump ,skateboard >Image Token Interaction Query Human Query
+> Object Query
+> Frozen
+> Training
+
+Figure 3. Overall architecture of our SL-HOI framework. A frozen DINOv3 ViT encoder (backbone) provides features for two branches. The first branch performs standard instance detection, localizing interactive human-object pairs. The second branch, our core contribution, refines interaction queries in a two-step process. We feed the initial interaction queries Qr along with image tokens into the frozen vision head. This yields semantically enriched queries Q′ 
+
+> r
+
+and contextualized image tokens Xhead . Subsequently, we employ a single learnable cross-attention block that uses these enriched queries to re-attend to Xhead , producing higher-quality embeddings Er , which are used for open-vocabulary interaction classification. 
+
+ing boxes, respectively. For the second task, we form initial interaction queries 
+
+Qr ∈ RNq ×D by performing element-wise averaging on 
+
+Eh and Eo. We reduce the representation gap between 
+
+Qr and the output of the vision head by feeding Qr and 
+
+Xb together to the frozen vision head, resulting in mutually adapted interaction queries Q′ 
+
+> r
+
+and image tokens Xhead . Fi-nally, we perform cross-attention between Q′ 
+
+> r
+
+and Xhead ,and the output decoder embeddings Er are used for open-vocabulary interaction classification. 
+
+4.2. Interactive Human-Object Detection 
+
+We first reduce the embedding dimension of Xb to d us-ing a convolutional layer of 1 × 1. We then add positional encodings Epos to the image patch tokens. The resulting features are further processed by a detection adapter con-sisting of LE self-attention layers. The above process can be formulated as follows: 
+
+F = Adapter(Conv( Xb) + Epos ). (1) Then, we adopt a transformer decoder that includes LD
+
+cross-attention layers for interactive human-object detec-tion. It has two independent sets of learnable queries: Qh
+
+for humans and Qo for objects. Both sets of queries adopt 
+
+F as the key and value. This yields refined embeddings Eh
+
+and Eo:
+
+Eh, Eo = Decoder( Qh, Qo, F). (2) Finally, we detect the human and object instances as fol-lows: 
+
+ˆbh = MLP h(Eh), ˆbo = MLP o(Eo), (3) where ˆbh and ˆbo denote the regressed human and object bounding boxes, respectively. 
+
+4.3. Interaction Classification 
+
+Although the pre-trained DINOv3 model offers rich fea-tures, these are not inherently optimized for classifying human-object interactions. To bridge this gap, we introduce a streamlined two-step process to adapt DINOv3’s features for this task. We begin this by forming initial interaction queries, Qr , by projecting the mean of interactive human-object pair embeddings to the dimension of the frozen vi-sion head: 
+
+Qr = Proj(( Eh + Eo) /2) . (4) 
+
+Semantic Bootstrapping in the Frozen Vision Head. In the first step, we bootstrap the interaction queries, Qr , us-ing high-level semantic context from the frozen vision head, denoted as Fhead .The interaction queries Qr are concatenated with the backbone’s image tokens, Xb, and passed through the vi-sion head’s self-attention layers at no additional training cost: 
+
+[Q′ 
+
+> r
+
+; Xhead ] = Fhead ([ Qr ; Xb]) . (5) This operation yields two key outputs. The first is a set of semantically enriched interaction queries, Q′ 
+
+> r
+
+, aligned with the head’s text-semantic space. The second is a set of 
+
+query-influenced image tokens, Xhead . These image tokens are now contextually modulated by task-specific interaction queries. 4Hierarchical Refinement via a Cross-Attention Block. 
+
+Although bootstrapped queries Q′ 
+
+> r
+
+alone improve clas-sification performance, a streamlined architecture should take advantage of all available information. The query-influenced image tokens, Xhead , represent a valuable con-textualized feature source that should not be ignored. In the second step, we leverage the contextualized information in Xhead . We introduce a lightweight, learnable decoder, 
+
+Gdecoder , that refines the enriched queries Q′ 
+
+> r
+
+by condition-ing on image tokens influenced by them: 
+
+Er = Gdecoder (Q′ 
+
+> r
+
+, Xhead ). (6) Composed of a single learnable cross-attention layer and an MLP layer, this decoder distills the most salient cues from contextualized tokens, producing the final specialized decoder embeddings Er for open-vocabulary classification. This hierarchical process—a coarse semantic alignment fol-lowed by a focused, learnable refinement—is key to the per-formance of our method. The resulting decoder embeddings 
+
+Er are therefore maximally informed and specialized for accurate open-vocabulary classification of interactions. 
+
+Open-Vocabulary Predictions. For the final classifica-tion, the refined interaction decoder embeddings Er =
+
+{e(i) 
+
+> r
+
+} are first mapped to the text embedding space via a linear projection layer. Let the projected embeddings be 
+
+e′(i) 
+
+> r
+
+. We then compute class probabilities by measuring the cosine similarity between these projected embeddings and the text embeddings Et = {e(j) 
+
+> t
+
+}, which are pre-computed for all interaction categories using a frozen text encoder. The probability is given by: 
+
+pij = exp( τ · cos( e′(i) 
+
+> r
+
+, e(j) 
+
+> t
+
+)) 
+
+P 
+
+> k∈R
+
+exp( τ · cos( e′(i) 
+
+> r
+
+, e(k) 
+
+> t
+
+)) , (7) where pij denotes the probability that the i-th interaction representation is classified into the j-th category, τ is a learnable temperature, and R is the set of all interaction categories. This yields the final open-vocabulary interac-tion classification results. 
+
+## 5. Experiments 
+
+5.1. Datasets and Metrics 
+
+Datasets. We conduct experiments on two widely used benchmarks, SWiG-HOI [41] and HICO-DET [4]. The SWiG-HOI dataset provides diverse human-object interac-tions across 406 action and 1,000 object categories. Its test set contains about 14,000 images and roughly 5,500 rela-tion categories, among which over 1,000 relations are un-seen during training, making it a suitable benchmark for open-vocabulary HOI detection. The HICO-DET dataset consists of 600 relation categories, formed by combining 117 action categories and 80 object categories, where the object categories are defined following COCO [26]. In the open-vocabulary setting, we follow [10, 42] to remove 120 rare interaction categories from the training set while retain-ing them in the test set. 
+
+Evaluation Metrics. We follow the settings of previous work [4, 25, 42] and use mean Average Precision (mAP) for the evaluation. We define a true positive when both hu-man and object bounding boxes have an Intersection over Union (IoU) greater than 0.5 with the ground truth, and the predicted interaction label matches the ground truth. 
+
+5.2. Implementation Details 
+
+We adopt the ViT-L/16 variant of DINOv3 as our visual backbone. To facilitate a fair comparison, its parameter count is comparable to that of the CLIP model [35] with a ViT-L/14 backbone. The detection adapter consists of 
+
+LE = 2 self-attention layers, and the detection feature di-mension is set to d = 256 . The instance decoder is com-posed of LD = 3 layers, and we use Nq = 64 learnable queries for human and object instances. The Gdecoder be-fore the interaction classification is a 1-layer transformer decoder, and its feature dimension is D = 1024 . For train-ing, we follow the settings of previous works: [42] for the SWiG-HOI dataset and [25] for the HICO-DET dataset. Specifically, SWiG-HOI adopts a contrastive objective in which in-batch negatives are used for training, whereas HICO-DET is trained to classify interactions across the en-tire category set. The model is optimized with AdamW [29] using a learning rate of 1 × 10 −4. All experiments are con-ducted on 8 NVIDIA RTX 4090 GPUs, with a batch size of 32 per GPU for SWiG-HOI and 2 per GPU for HICO-DET. 
+
+5.3. Comparison in the Open-Vocabulary Settings 
+
+We evaluate the performance of our model on both the SWiG-HOI and HICO-DET datasets. Following the exper-imental settings in [42] and [25], we conduct comparisons with existing methods from multiple perspectives. 
+
+SWiG-HOI. As presented in Tab. 1, SL-HOI establishes a new state-of-the-art across all metrics. We attribute this suc-cess not only to a stronger vision backbone but also to the intrinsic design of our model. Specifically, on the rare and non-rare categories, SL-HOI outperforms MP-HOI-L [44], the previous leading method in these categories by 6.10% and 4.86%, respectively. The generalization capability of our model is further highlighted by its performance on the unseen category, where it surpasses the second-best method, SGC-Net [27], by 6.58%. This advantage is maintained in the full category, where SL-HOI achieves a 7.47% im-provement over SGC-Net. To isolate the contribution of our model’s architecture, we note that simply equipping more powerful backbones does not yield equivalent performance. For instance, even when augmented with larger backbones 5such as Swin-Large [28] and CLIP-ViT-L/14 along with ad-ditional pre-training, MP-HOI-L does not achieve commen-surate gains. This result underscores that the streamlined ar-chitectural design of SL-HOI is uniquely effective in lever-aging the rich features of DINOv3 for open-vocabulary HOI detection. 
+
+Table 1. Comparison on the SWiG-HOI dataset (mAP %). 
+
+Method Unseen Rare Non-rare Full 
+
+With object detection pre-training 
+
+QPIC [38] 6.21 10.84 16.95 11.12 GEN-VLKT [25] - 10.41 20.91 10.87 MP-HOI-S [44] - 14.78 20.28 12.61 MP-HOI-L [44] - 18.59 25.76 16.21 
+
+Without object detection pre-training 
+
+THID [42] 10.04 12.82 17.67 13.26 CMD-SE [18] 10.70 14.64 21.46 15.26 SGC-Net [27] 12.46 16.55 23.67 17.20 INP-CC [20] 11.02 16.74 22.84 16.74 Ours 19.04 24.69 30.62 24.67 
+
+HICO-DET, Open-Vocabulary Setting. The results of our method on the HICO-DET dataset are presented in Tab. 2. In the HICO-DET open-vocabulary setting, object labels are still derived from COCO [26], so methods pre-trained on COCO object detection tend to perform better due to the overlapping label space [20, 27]. We therefore report two groups in Tab. 2 for fair comparison. Even un-der this biased condition, SL-HOI achieves a strong perfor-mance. Compared with methods that use object detection pre-training, SL-HOI achieves improvements of 2.16% and 1.50% in the seen and full categories, respectively. While BC-HOI [13] reports higher performance in the unseen cat-egory, our method remains overall competitive. Compared with approaches without object detection pre-training, SL-HOI achieves larger gains of 17.26%, 14.65%, and 15.27% in the unseen, seen, and full categories, respectively. These results clearly demonstrate the robustness of our method in different datasets and evaluation settings. 
+
+5.4. Comparison in the Closed Setting 
+
+We further evaluate our method in the closed setting of the HICO-DET dataset following [25], where all 600 in-teraction categories are present during training. We com-pare our results with two-stage and one-stage HOI detec-tion methods, as summarized in Tab. 3. SL-HOI outper-forms all other methods in this setting. Specifically, SL-HOI surpasses the previous state-of-the-art BC-HOI [13], with significant gains of +2.04% on the full set, +1.95% on 
+
+Table 2. Comparison on the HICO-DET dataset in the open-vocabulary setting (mAP %). 
+
+Method Backbone Unseen Seen Full 
+
+With object detection pre-training 
+
+GEN-VLKT [25] ResNet50 + CLIP-ViT-B/32 21.36 32.91 30.56 HOICLIP [33] ResNet50 + CLIP-ViT-B/32 25.53 34.85 32.99 CLIP4HOI [31] ResNet50 + CLIP-ViT-B/16 28.47 35.48 34.08 LOGICHOI [21] ResNet50 + CLIP-ViT-B/32 25.97 34.93 33.17 UniHOI [2] ResNet50 + BLIP-2-ViT-G/14 28.68 33.16 32.27 BCOM [40] ResNet50 + CLIP-ViT-L/14 28.52 35.04 33.74 CMMP [19] ResNet50 + CLIP-ViT-L/14 35.98 37.42 37.13 EZ-HOI [16] ResNet50 + CLIP-ViT-L/14 34.24 37.35 36.73 HOLa [17] ResNet50 + CLIP-ViT-B/16 30.61 35.08 34.19 BC-HOI [13] ResNet50 + BLIP-2-ViT-G/14 42.31 40.67 40.99 
+
+VRDiff [1] ResNet50 + CLIP-ViT-L/14 38.92 40.83 40.45 
+
+Without object detection pre-training 
+
+THID [42] CLIP-ViT-B/16 15.53 24.32 22.96 CMD-SE [18] CLIP-ViT-B/16 16.70 23.95 22.35 SGC-Net [27] CLIP-ViT-B/16 23.27 28.34 27.22 INP-CC [20] CLIP-ViT-B/16 17.38 24.74 23.13 Ours DINOv3-ViT-L/16 40.53 42.99 42.49 
+
+rare, and +2.07% on non-rare categories. Notably, this ro-bust performance in the closed setting is achieved without relying on object detection pre-training from datasets like COCO, demonstrating the powerful convergence capabili-ties and inherent strength of our framework. 
+
+Table 3. Comparison on the HICO-DET dataset in the closed set-ting (mAP %).                                                                             
+
+> Method Backbone Rare Non-rare Full
+> Two-stage methods
+> UPT [49] ResNet50 25.94 33.36 31.66 CLIP4HOI [31] ResNet50 + CLIP-ViT-B/16 33.95 35.74 35.33 CMMP [19] ResNet50 + CLIP-ViT-L/14 37.75 38.25 38.14 BCOM [40] ResNet50 + CLIP-ViT-L/14 39.90 39.17 39.34 EZ-HOI [16] ResNet50 + CLIP-ViT-L/14 37.70 38.89 38.61 HOLa [17] ResNet50 + CLIP-ViT-L/14 38.66 39.18 39.05 VRDiff [1] ResNet50 + CLIP-ViT-L/14 41.69 41.31 41.40
+> One-stage methods
+> QPIC [38] ResNet50 21.85 31.23 29.07 CDN [47] ResNet50 27.39 32.64 31.44 GEN-VLKT [25] ResNet50 + CLIP-ViT-B/32 29.25 35.10 33.75 DOQ [34] ResNet50 + CLIP-ViT-B/16 29.19 34.50 33.28 LOGICHOI [21] ResNet50 + CLIP-ViT-B/32 32.03 36.22 35.47 HOICLIP [33] ResNet50 + CLIP-ViT-B/32 31.12 35.74 34.69 FGAHOI [30] Swin-Large 30.71 39.11 37.18 DP-HOI [23] ResNet50 + CLIP-ViT-B/32 34.36 37.22 36.56 UniHOI [2] ResNet50 + BLIP-2-ViT-G/14 39.91 40.11 40.06 BC-HOI [13] ResNet50 + BLIP-2-ViT-G/14 45.76 42.18 43.01 Ours DINOv3-ViT-L/16 47.71 44.25 45.05
+
+65.5. Ablation Studies 
+
+We conduct comprehensive ablation studies on the SWiG-HOI dataset to validate the core design of our framework. Our analysis is threefold. First, we perform an additive analysis to quantify the contribution of each key architec-tural component, with results presented in Tab. 4. Second, we compare our final model against several plausible design variants to justify our specific architectural choices, as sum-marized in Tab. 5. Finally, we analyze the impact of varying the number of encoder layers in our detection adapter, as il-lustrated in Fig. 4. 
+
+Architecture Design. Tab. 4 presents ablation studies on the key architectural components of our method. The ta-ble begins with a strong baseline model, whose architecture is illustrated in the supplementary material. To construct this baseline, we replace our proposed interaction classi-fication module with a more conventional design, such as that in HOICLIP [33]. Specifically, a 3-layer transformer decoder is used to perform cross-attention between inter-action queries and the semantic features of the frozen vi-sion head. We call this fusion strategy late-fusion hereafter. All other parameters remain identical to those of our final model. In particular, this baseline already achieves a high performance of 16.55%, 21.66%, 27.75%, and 21.82% on the unseen, rare, non-rare, and full categories of the SWiG-HOI dataset, respectively, which we attribute to the power-ful representations provided by the DINOv3 backbone. Next, we replace this late-fusion decoder with our Se-mantic Bootstrapping . In this step, the interaction queries are processed alongside the image tokens within the frozen vision head. This allows the queries to benefit from the pre-trained head parameters directly and to interact fully with the image tokens via the head’s self-attention blocks. This single change yields substantial gains of +1.54%, +1.61%, +1.08%, and +1.46% across the unseen, rare, non-rare, and full categories. Finally, we introduce Hierarchical Refine-ment , which re-utilizes the query-influenced image tokens produced by the previous stage. The interaction queries re-attend to these contextualized tokens, forming our com-plete framework SL-HOI. This step further improves per-formance by +0.95%, +1.42%, +1.79%, and +1.39%. The analysis reveals a clear division of benefits. Se-mantic Bootstrapping shares the rich semantic space of the frozen head, significantly boosting generalization on unseen and rare categories. Hierarchical Refinement, on the other hand, leverages image tokens cued by the HOI detection task, yielding larger gains across rare and non-rare cate-gories. In total, SL-HOI achieves cumulative improvements of +2.49%, +3.03%, +2.87%, and +2.85% over the strong baseline. This clearly demonstrates the effectiveness of our design and its ability to successfully adapt the powerful DI-NOv3 model for the open-vocabulary HOI detection task.                 
+
+> Table 4. Ablation study of our model’s architectural components on the SWiG-HOI dataset (mAP %).
+> Configuration Unseen Rare Non-rare Full
+> Baseline 16.55 21.66 27.75 21.82 + Semantic Bootstrapping 18.09 23.27 28.83 23.28 + Hierarchical Refinement 19.04 24.69 30.62 24.67
+
+Variants of SL-HOI. Our method can be conceptually un-derstood as a form of multi-scale feature fusion, combining features from before and after the vision head. However, our approach makes two critical distinctions from conventional multi-scale designs: 1) Rather than only fusion with the final output features, we leverage the head’s internal, pre-trained computational forward pathway. 2) Task-specific interaction queries contextually modulate the image tokens processed by the vision head. To validate the importance of these two design choices, we introduce several variants in our ablation study, with results summarized in Tab. 5. To investigate the first point, we compare our method against two alternatives that use a learnable decoder for fusion rather than our Semantic Bootstrapping. The first variant, labeled “Late Fusion (Head only)”, serves as our baseline model, in which a decoder performs cross-attention solely over the head’s output tokens. The second “Late Fu-sion (Multi-Scale)” extends this by attending to both the backbone and the head output tokens. As shown in Tab. 5, both of these learnable fusion strategies are suboptimal. A single standalone decoder alone struggles to match the per-formance of our approach. In contrast, our method effec-tively transfers the head’s generalization capabilities by pro-cessing queries directly within its frozen, pre-trained self-attention blocks. To address the second point, we return to our whole model and introduce a modification labeled “Ours w/ At-tention Mask”. In this variant, we mask the attention mech-anism during Semantic Bootstrapping to prevent the im-age tokens from being influenced by the interaction queries. These “pure” image tokens, now lacking task-specific cues, lead to a drop in performance across all metrics. This result is significant: it demonstrates that the interaction queries function not only as information receivers but also as infor-mation givers, dynamically refining the image representa-tions for the downstream HOI detection task. 
+
+Number of encoder layers. Fig. 4 presents the ablation studies on the number of encoder layers in our detec-tion adapter. Adapting pre-trained DINOv3 features for downstream tasks, particularly for dense prediction, re-quires a delicate balance. Since DINOv3’s representations are learned via self-supervision, its parameters are kept frozen to preserve their quality. However, a frozen back-bone presents a challenge for DETR-based [3] architec-tures, which benefit from end-to-end optimization. This 70 1 2 3 4 5                   
+
+> #Encoder Layers
+> 16
+> 17
+> 18
+> 19
+> 20
+> Performance mAP(%)
+> 18.34 18.43
+> 19.04*
+> 18.35
+> 17.61 17.88
+> Unseen
+> 012345
+> #Encoder Layers
+> 22
+> 23
+> 24
+> 25
+> 26
+> Performance mAP(%)
+> 24.74
+> 25.07*
+> 24.69
+> 23.93
+> 24.22
+> 23.43
+> Rare
+> 012345
+> #Encoder Layers
+> 27
+> 28
+> 29
+> 30
+> 31
+> Performance mAP(%)
+> 28.20
+> 30.17
+> 30.62*
+> 29.24
+> 29.82
+> 28.76
+> Non-rare
+> 012345
+> #Encoder Layers
+> 22
+> 23
+> 24
+> 25
+> 26
+> Performance mAP(%)
+> 23.95
+> 24.60 24.67*
+> 23.78 23.88
+> 23.29
+> Full
+
+Figure 4. Ablation studies on the number of encoder layers in the detection adapter on the SWiG-HOI dataset (mAP %). Table 5. Ablation study of variants of our proposed method on the SWiG-HOI dataset (mAP %). 
+
+Configuration Unseen Rare Non-rare Full 
+
+Late Fusion (Head only) 16.55 21.66 27.75 21.82 Late Fusion (Multi-Scale) 15.73 21.63 28.49 21.77 Semantic Bootstrapping 18.09 23.27 28.83 23.28 Ours w/ Attention Mask 17.28 24.64 29.81 24.01 
+
+Ours 19.04 24.69 30.62 24.67 
+
+makes the number of encoder layers in the detection adapter a critical hyperparameter. Using too many layers risks cor-rupting the rich DINOv3 features, while using too few may not adequately adapt them to the demands of the HOI de-tection task. As illustrated in Fig. 4, simply increasing the number of encoder layers does not lead to better performance. This finding contrasts with the original DETR paper’s conclu-sion [3], which found that deeper encoders generally yield monotonic performance gains. We observe that setting the number of encoder layers to 2 achieves the best trade-off, yielding the highest performance on the full category. Therefore, we use two encoder layers in all our experiments. 
+
+5.6. Qualitative Analysis 
+
+We also perform qualitative experiments to evaluate SL-HOI, focusing on analyzing the attention maps for our two-step interaction classification. As shown in Fig. 5, the attention map during the se-mantic bootstrapping stage characteristically covers a broad area. This behavior stems mainly from the frozen vision head, which was pre-trained to align image patch tokens with textual captions. This objective encourages broader information exchange among tokens, leading to greater at-tention to capture rich contextual information. As the model transitions to the hierarchical refinement stage, the nature of the attention shifts. We identify two factors that drive this adaptation: (1) The preceding semantic bootstrapping stage aligns interaction queries and image tokens within a shared semantic space, which helps guide the attention toward po-tential interaction regions. (2) The now-unfrozen, learnable cross-attention block allows the mechanism to specialize for the HOI detection objective, refining its focus from the broader context. This two-stage process yields final atten-
+
+(a) 1st Self-Attention (b) 2nd Self-Attention (c) Cross Attention 
+
+Figure 5. Visualization of attention maps across the interaction classification stage. The left two are in the self-attention blocks of the frozen head during Semantic Bootstrapping, and the right one is from the cross-attention block in Hierarchical Refinement, illustrating a Local-Global-Local interaction reasoning process. 
+
+tion maps that balance contextual understanding with a fo-cus on salient interaction cues, a distinct characteristic of our model’s decoding process. 
+
+## 6. Conclusion and Limitations 
+
+In this paper, we present SL-HOI, a streamlined one-stage framework for open-vocabulary HOI detection built upon the DINOv3 model. We leverage the complementary strengths of DINOv3’s backbone and vision head to effec-tively address both interactive human-object detection and open-vocabulary interaction classification tasks. Our design includes a novel two-step interaction classification process that bridges representation gaps and enhances feature uti-lization. Extensive experiments on two popular benchmarks demonstrate that SL-HOI achieves state-of-the-art perfor-mance in open-vocabulary HOI detection while maintaining a simple architecture with few trainable parameters. Our work has certain limitations. For example, using the ViT backbone in the DINOv3 model may incur higher compu-tational costs than traditional CNN-based HOI detectors. 
+
+Broader Impacts. By advancing HOI detection, our work can benefit many fields, such as robotics and assistive tech-nologies. To the best of our knowledge, our method has no obvious negative social impacts. 
+
+Acknowledgement. This work was supported by the National Natural Science Foundation of China un-der Grant 62476099 and 62076101, Guangdong Basic and Applied Basic Research Foundation under Grant 2024B1515020082 and 2023A1515010007, the Guang-dong Provincial Key Laboratory of Human Digital Twin under Grant 2022B1212010004, the TCL Young Scholars Program. 8References 
+
+[1] Ping Cao, Yepeng Tang, Chunjie Zhang, Xiaolong Zheng, Chao Liang, Yunchao Wei, and Yao Zhao. Visual relation diffusion for human-object interaction detection. In ICCV ,2025. 6 [2] Yichao Cao, Qingfei Tang, Xiu Su, Song Chen, Shan You, Xiaobo Lu, and Chang Xu. Detecting any human-object in-teraction relationship: Universal HOI detector with spatial prompt learning on foundation models. In NeurIPS , 2023. 1, 3, 6 [3] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-end object detection with transformers. In ECCV , 2020. 2, 7, 8 [4] Yu-Wei Chao, Yunfan Liu, Xieyang Liu, Huayi Zeng, and Jia Deng. Learning to detect human-object interactions. In 
+
+WACV , 2018. 2, 5, 11 [5] Zhe Chen, Yuchen Duan, Wenhai Wang, Junjun He, Tong Lu, Jifeng Dai, and Yu Qiao. Vision transformer adapter for dense predictions. In ICLR , 2023. 3 [6] Timoth´ ee Darcet, Maxime Oquab, Julien Mairal, and Piotr Bojanowski. Vision transformers need registers. In ICLR ,2024. 3, 11 [7] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-vain Gelly, Jakob Uszkoreit, and Neil Houlsby. An image is worth 16x16 words: Transformers for image recognition at scale. In ICLR , 2021. 3 [8] Chen Gao, Jiarui Xu, Yuliang Zou, and Jia-Bin Huang. DRG: dual relation graph for human-object interaction detection. In 
+
+ECCV , 2020. 2 [9] Saurabh Gupta and Jitendra Malik. Visual semantic role la-beling. arXiv , abs/1505.04474, 2015. 1 [10] Zhi Hou, Xiaojiang Peng, Yu Qiao, and Dacheng Tao. Vi-sual compositional learning for human-object interaction de-tection. In ECCV , 2020. 2, 5 [11] Zhi Hou, Baosheng Yu, and Dacheng Tao. Discovering human-object interaction concepts via self-compositional learning. In ECCV , 2022. 2 [12] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. Lora: Low-rank adaptation of large language models. In 
+
+ICLR , 2022. 13 [13] Yupeng Hu, Changxing Ding, Chang Sun, Shaoli Huang, and Xiangmin Xu. Bilateral collaboration with large vision-language models for open vocabulary human-object interac-tion detection. In ICCV , 2025. 1, 3, 6 [14] Cijo Jose, Th´ eo Moutakanni, Dahyun Kang, Federico Baldassarre, Timoth´ ee Darcet, Hu Xu, Daniel Li, Marc Szafraniec, Micha¨ el Ramamonjisoa, Maxime Oquab, Oriane Sim´ eoni, Huy V. Vo, Patrick Labatut, and Piotr Bojanowski. Dinov2 meets text: A unified framework for image- and pixel-level vision-language alignment. In CVPR , 2025. 1, 3, 11 [15] Bumsoo Kim, Taeho Choi, Jaewoo Kang, and Hyunwoo J. Kim. Uniondet: Union-level detector towards real-time human-object interaction detection. In ECCV , 2020. 2 [16] Qinqian Lei, Bo Wang, and Robby T. Tan. EZ-HOI: VLM adaptation via guided prompt learning for zero-shot HOI de-tection. In NeurIPS , 2024. 2, 6 [17] Qinqian Lei, Bo Wang, and Robby T. Tan. Hola: Zero-shot hoi detection with low-rank decomposed vlm feature adapta-tion. In ICCV , 2025. 2, 6 [18] Ting Lei, Shaofeng Yin, and Yang Liu. Exploring the po-tential of large foundation models for open-vocabulary HOI detection. In CVPR , 2024. 1, 3, 6 [19] Ting Lei, Shaofeng Yin, Yuxin Peng, and Yang Liu. Ex-ploring conditional multi-modal prompts for zero-shot HOI detection. In ECCV , 2024. 2, 6 [20] Ting Lei, Shaofeng Yin, Qingchao Chen, Yuxin Peng, and Yang Liu. Open-vocabulary hoi detection with interaction-aware prompt and concept calibration. In ICCV , 2025. 1, 3, 6[21] Liulei Li, Jianan Wei, Wenguan Wang, and Yi Yang. Neural-logic human-object interaction detection. In NeurIPS , 2023. 6[22] Rongjie Li, Songyang Zhang, Dahua Lin, Kai Chen, and Xuming He. From pixels to graphs: Open-vocabulary scene graph generation with vision-language models. In CVPR ,2024. 1 [23] Zhuolong Li, Xingao Li, Changxing Ding, and Xiangmin Xu. Disentangled pre-training for human-object interaction detection. In CVPR , 2024. 3, 6 [24] Yue Liao, Si Liu, Fei Wang, Yanjie Chen, Chen Qian, and Jiashi Feng. PPDM: parallel point detection and matching for real-time human-object interaction detection. In CVPR ,2020. 2 [25] Yue Liao, Aixi Zhang, Miao Lu, Yongliang Wang, Xiaobo Li, and Si Liu. GEN-VLKT: simplify association and en-hance interaction understanding for HOI detection. In CVPR ,2022. 1, 2, 3, 5, 6, 11 [26] Tsung-Yi Lin, Michael Maire, Serge J. Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Doll´ ar, and C. Lawrence Zitnick. Microsoft COCO: common objects in context. In ECCV , 2014. 5, 6 [27] Xin Lin, Chong Shi, Zuopeng Yang, Haojin Tang, and Zhili Zhou. Sgc-net: Stratified granular comparison network for open-vocabulary HOI detection. In CVPR , 2025. 1, 3, 5, 6 [28] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo. Swin transformer: Hierarchical vision transformer using shifted windows. In 
+
+ICCV , 2021. 6 [29] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. In ICLR , 2019. 5 [30] Shuailei Ma, Yuefeng Wang, Shanze Wang, and Ying Wei. FGAHOI: fine-grained anchors for human-object interaction detection. PAMI , 2024. 6 [31] Yunyao Mao, Jiajun Deng, Wengang Zhou, Li Li, Yao Fang, and Houqiang Li. CLIP4HOI: towards adapting CLIP for practical zero-shot HOI detection. In NeurIPS , 2023. 6 [32] Esteve Valls Mascaro, Daniel Sliwowski, and Dongheui Lee. HOI4ABOT: human-object interaction anticipation for hu-
+
+9man intention reading collaborative robots. In CoRL , 2023. 1[33] Shan Ning, Longtian Qiu, Yongfei Liu, and Xuming He. HOICLIP: efficient knowledge transfer for HOI detection with vision-language models. In CVPR , 2023. 1, 3, 6, 7, 12 [34] Xian Qu, Changxing Ding, Xingao Li, Xubin Zhong, and Dacheng Tao. Distillation using oracle queries for transformer-based human-object interaction detection. In 
+
+CVPR , 2022. 2, 6 [35] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. Learning transferable visual models from natural language supervision. In ICML , 2021. 1, 5 [36] Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, San-jeev Satheesh, Sean Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael S. Bernstein, Alexander C. Berg, and Li Fei-Fei. Imagenet large scale visual recognition chal-lenge. IJCV , 2015. 11 [37] Oriane Sim´ eoni, Huy V. Vo, Maximilian Seitzer, Fed-erico Baldassarre, Maxime Oquab, Cijo Jose, Vasil Khali-dov, Marc Szafraniec, Seungeun Yi, Micha¨ el Ramamon-jisoa, Francisco Massa, Daniel Haziza, Luca Wehrstedt, Jianyuan Wang, Timoth´ ee Darcet, Th´ eo Moutakanni, Leonel Sentana, Claire Roberts, Andrea Vedaldi, Jamie Tolan, John Brandt, Camille Couprie, Julien Mairal, Herv´ e J´ egou, Patrick Labatut, and Piotr Bojanowski. Dinov3. arXiv ,abs/2508.10104, 2025. 1, 3 [38] Masato Tamura, Hiroki Ohashi, and Tomoaki Yoshinaga. QPIC: query-based pairwise human-object interaction de-tection with image-wide contextual information. In CVPR ,2021. 2, 3, 6 [39] Bo Wan, Desen Zhou, Yongfei Liu, Rongjie Li, and Xuming He. Pose-aware multi-level feature network for human object interaction detection. In ICCV , 2019. 2 [40] Guangzhi Wang, Yangyang Guo, Ziwei Xu, and Mohan S. Kankanhalli. Bilateral adaptation for human-object interac-tion detection with occlusion-robustness. In CVPR , 2024. 6 [41] Suchen Wang, Kim-Hui Yap, Henghui Ding, Jiyan Wu, Jun-song Yuan, and Yap-Peng Tan. Discovering human interac-tions with large-vocabulary objects via query and multi-scale detection. In ICCV , 2021. 2, 5, 11 [42] Suchen Wang, Yueqi Duan, Henghui Ding, Yap-Peng Tan, Kim-Hui Yap, and Junsong Yuan. Learning transferable human-object interaction detector with natural language su-pervision. In CVPR , 2022. 1, 3, 5, 6, 11 [43] Nan Xi, Jingjing Meng, and Junsong Yuan. Open set video HOI detection from action-centric chain-of-look prompting. In ICCV , 2023. 1 [44] Jie Yang, Bingliang Li, Ailing Zeng, Lei Zhang, and Ruimao Zhang. Open-world human-object interaction detection via multi-modal prompts. In CVPR , 2024. 5, 6 [45] Hangjie Yuan, Shiwei Zhang, Xiang Wang, Samuel Albanie, Yining Pan, Tao Feng, Jianwen Jiang, Dong Ni, Yingya Zhang, and Deli Zhao. Rlipv2: Fast scaling of relational language-image pre-training. In ICCV , 2023. 3 [46] Xiaohua Zhai, Xiao Wang, Basil Mustafa, Andreas Steiner, Daniel Keysers, Alexander Kolesnikov, and Lucas Beyer. Lit: Zero-shot transfer with locked-image text tuning. In 
+
+CVPR , 2022. 3 [47] Aixi Zhang, Yue Liao, Si Liu, Miao Lu, Yongliang Wang, Chen Gao, and Xiaobo Li. Mining the benefits of two-stage and one-stage HOI detection. In NeurIPS , 2021. 2, 6 [48] Frederic Z. Zhang, Dylan Campbell, and Stephen Gould. Spatially conditioned graphs for detecting human-object in-teractions. In ICCV , 2021. 2 [49] Frederic Z. Zhang, Dylan Campbell, and Stephen Gould. Ef-ficient two-stage detection of human-object interactions with a novel unary-pairwise transformer. In CVPR , 2022. 6 [50] Xubin Zhong, Changxing Ding, Xian Qu, and Dacheng Tao. Polysemy deciphering network for robust human-object in-teraction detection. IJCV , 2021. 2 [51] Xubin Zhong, Xian Qu, Changxing Ding, and Dacheng Tao. Glance and gaze: Inferring action-aware points for one-stage human-object interaction detection. In CVPR , 2021. 2 [52] Tianfei Zhou, Wenguan Wang, Siyuan Qi, Haibin Ling, and Jianbing Shen. Cascaded human-object interaction recogni-tion. In CVPR , 2020. 2 
+
+10 Streamlined Open-Vocabulary Human-Object Interaction Detection 
+
+# Supplementary Material 
+
+## A. Training Strategy 
+
+To ensure fair comparison with prior work, we follow the standard training protocols commonly adopted for each benchmark. As discussed in Sec. 5.2, SWiG-HOI [41] and HICO-DET [4] rely on distinct supervisory setups; there-fore, rather than performing dataset-specific tuning, we ad-here to the established training practices used in prior work. Specifically, we follow THID [42] for SWiG-HOI and GEN-VLKT [25] for HICO-DET: • SWiG-HOI: we adopt most of THID’s default configu-ration. The loss weights for bounding-box L1, bounding-box GIoU, interaction classification, and confidence pre-diction are set to 5.0, 2.0, 5.0, and 10 .0, respectively. Training is conducted for 100 epochs with a base learn-ing rate of 1 × 10 −4, decayed by a factor of 10 at epochs 
+
+60 and 90 . For data augmentation, we follow the com-monly used small-scale multi-resolution strategy ( 224 -
+
+320 ), which stabilizes contrastive HOI training by main-taining rich in-batch negatives. Random horizontal flip-ping, light color jittering, and interaction-aware random cropping are applied before resizing, followed by Ima-geNet [36] normalization. • HICO-DET: we adopt GEN-VLKT’s training scheme. In addition to interaction classification, an auxiliary object-classification loss is used, and thus the confidence loss is removed. A head-level semantic token is further introduced as an additional key-value input for the in-stance decoder, consistent with prior architectures. The loss weights for bounding-box L1, bounding-box GIoU, object classification, and interaction classification are set to 2.5, 1.0, 1.0, and 2.0. Training is performed for 60 
+
+epochs with a base learning rate of 1 × 10 −4, reduced by a factor of 10 at epoch 40 . While GEN-VLKT employs a longer 60+30 schedule, our model converges reliably un-der a shorter 40+20 decay pattern. To ensure fair compar-ison to strong HICO-DET baselines, we adopt the large-scale multi-resolution augmentation ( 480 -800 ), together with the same flipping and light color-jittering scheme as in SWiG-HOI. Interaction-aware cropping may option-ally be applied to preserve human-object spatial structure. Overall, supervision on SWiG-HOI is intrinsically stronger because it has larger label space and is more chal-lenging, making it a more representative testbed for open-vocabulary HOI learning. 
+
+## B. Clarification on Image Tokens 
+
+Image tokens in this paper contain three types: the [CLS] 
+
+token, register tokens [6], and patch tokens, as introduced in Sec. 3. The [CLS] token captures global image-level semantics; register tokens serve only as auxiliary tokens during the forward pass and are not used by downstream heads; patch tokens encode local visual information and are the only tokens consumed by our instance detector. During the semantic bootstrapping stage, we follow the input format of the vision head [14] while inserting inter-action queries before the patch tokens. The token sequence is  CLS , Reg 1, . . . , Reg 4, Q 1, . . . , Q Nq , P 1, . . . , P N
+
+ ,
+
+where Qi denotes interaction queries and Pi denotes patch tokens from the backbone. In the hierarchical refinement stage, the image tokens used as keys and values in cross-attention are 
+
+CLS ′, P ′, P ′
+
+> 1
+
+, . . . , P ′
+
+> N
+
+ , P ′ = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+P ′ 
+
+> i
+
+,
+
+where ′ indicates tokens output by the vision head. Two considerations motivate this design: (1) register tokens are strictly auxiliary and are thus excluded from downstream prediction heads; (2) text embeddings are aligned with both the [CLS] token and the mean patch token, reinforcing se-mantic consistency between text features and global/region-aggregated visual representations. 
+
+## C. Text-Encoder-Based Similarity Classifier 
+
+For each interaction category rj , we construct a descrip-tive sentence “a photo of a person <action+ing > a/an <ob-ject >”. For example, “ride horse” is expressed as “a photo of a person riding a horse”. This textual description is encoded using the dino.txt [14] text encoder, produc-ing a 2D = 2048 -dimensional embedding e(j) 
+
+> t
+
+. The first 
+
+D = 1024 dimensions correspond to the [CLS] token, and the remaining D = 1024 are aligend with the mean-pooled patch tokens. To match the dimension, we project the D = 1024 interaction decoder embeddings e(i) 
+
+> r
+
+into the same 2D = 2048 -dimensional space, enabling direct similarity computation. Because the first and second D di-mensions of the text embedding capture different semantic levels, we also explored computing similarities separately and combining them via a weighted sum. However, this al-ternative produced slightly inferior performance compared to the unified projection. 
+
+## D. Variant Models 
+
+The architectures of the variant models are presented in Fig. 6 and Fig. 7. 11 Split & Flatten 
+
+DINOv3 Backbone 
+
+Detection Adapter & Decoder  
+
+> Regression Classi fi cation
+
+Vision Head 
+
+Interaction Decoder     
+
+> <person ,jump ,skateboard >
+> Interaction Query Human Query
+> Object Query
+> Frozen
+> Training
+
+Figure 6. Overall architecture of our baseline framework. Split & Flatten 
+
+DINOv3 Backbone      
+
+> Detection Adapter & Decoder
+> Regression Classi fi cation
+> <person ,jump ,skateboard >
+
+Vision Head 
+
+> Keep only
+> Image Token Interaction Query Human Query
+> Object Query
+> Frozen
+> Training
+
+Figure 7. Overall architecture of our Semantic Bootstrapping (only) framework. 
+
+D.1. Baseline Model 
+
+As illustrated in Fig. 6, the interaction stage of our baseline model follows the overall structure of HOICLIP [33], em-ploying a late fusion strategy for interaction classification. Semantic cues from the VLM are injected into the interac-tion queries through cross-attention. Contrary to HOICLIP, we do not rely on backbone features to assist interaction detection, as validated by the ablation results in Tab. 5 for “Late Fusion (Head only)” and “Late Fusion (Multi-Scale)”. Due to the high dimensionality of token representations, the cross-attention output is first projected down to d = 256 .After cross-attention, the resulting interaction embeddings are then projected to match the dimension of the text em-bedding space. 
+
+D.2. Semantic Bootstrapping Model 
+
+The Semantic Bootstrapping Model is conceptually simple. Compared to the final model, it removes the cross-attention block, as shown in Fig. 7. Only the interaction-query out-puts from the vision head are retained. Our experiments indicate that these tokens alone are already sufficient for in-teraction classification and exhibit stronger representational quality than the baseline model. As demonstrated in the ab-lation study (Tab. 4), this design yields consistent and sub-stantial improvements across all metrics. 
+
+## E. Failure Cases and Analysis 
+
+We provide a failure-case analysis to clarify where the cur-rent model still struggles. 
+
+Typical failure categories. We observe two representative failure scenarios: crowded scenes and small-object detec-tion. • Crowded scenes: multiple overlapping human–object instances increase assignment ambiguity and can cause missed detections. • Small-object detection: very small targets are sensitive to slight spatial offsets, leading to localization errors in 12 (a) Crowded scene (b) Small-object detection        
+
+> Figure 8. Representative failure cases. Left: crowded scene where the detected interactions mainly include sitting at and eating at
+> a dining table. Right: small-object detection where the detected interactions mainly include wearing, standing on, holding a snow-board, and wearing, carrying, standing on, holding, riding a skis.
+
+human or object boxes. 
+
+Error patterns. In crowded scenes (e.g., Fig. 8(a)), while the model successfully detects primary interactions such as 
+
+sitting at and eating at a dining table, it is generally robust but still shows occasional misses. For example, a small fork may not be detected even when the main interaction is cor-rectly recognized. In small-object cases (e.g., Fig. 8(b)), the model identifies complex interaction sets like wearing, standing on, and holding a snowboard/skis, but both hu-man and object boxes can drift from the true targets. We attribute this mainly to spatial information compression in ViT downsampling, where subtle local offsets of tiny ob-jects become less distinguishable, increasing the failure risk for precise small-object localization. 
+
+## F. Training Strategy Comparison 
+
+We compare several training recipes under the same evalu-ation protocol on SWiG-HOI (mAP %). Beyond the default frozen strategy, we additionally evaluate partial fine-tuning and parameter-efficient adaptation (LoRA [12]). 
+
+Template for training recipes. For reproducibility, we summarize the practical configurations used in our compar-ison: • Frozen strategy (default): keep the vision backbone and vision head frozen; train detection adapter, instance de-coder, and interaction modules with base learning rate 
+
+1 × 10 −4.• Partial fine-tuning: unfreeze the vision head and use a reduced learning rate of 2 × 10 −5 (i.e., 1/5 of the base learning rate) to preserve pre-trained semantics during adaptation. • LoRA strategy: apply LoRA on the vision head attention 
+
+qkv input projection and output projection layers, with rank r = 16 and scaling factor α = 32 ; non-LoRA back-bone parameters remain frozen. As shown in Tab. 6, additional training complexity does not necessarily yield meaningful gains; a simple strategy is already effective in practice.                 
+
+> Table 6. Comparison of training recipes on the SWiG-HOI dataset (mAP %).
+> Training Recipe Unseen Rare Seen Full
+> LoRA fine-tune (all layers) 18.99 24.40 29.91 24.34 Partial fine-tune (last layer) 18.63 24.37 30.01 24.26 Ours (frozen) 19.04 24.69 30.62 24.67
+
+## G. Pseudo-Code 
+
+To illustrate the workflow of our method, we provide a sim-plified pseudo-code example in Fig. 9, covering the core computations corresponding to the main equations in Sec. 4. 13 import torch.nn as nn import torch.nn.functional as Fclass SL_HOI(nn.Module): def __init__(self, backbone, head_model, det_encoder, det_decoder, fusion_decoder): super().__init__() # Foundation models (parameters are frozen) self.backbone = backbone self.head_model = head_model # Learnable modules self.det_encoder = det_encoder self.det_decoder = det_decoder self.fusion_decoder = fusion_decoder self.query_h = nn.Embedding(N_q, d) # Human queries self.query_o = nn.Embedding(N_q, d) # Object queries # Projection layers for dimension matching self.input_proj = nn.Conv2d(D, d, kernel_size=1) self.query_proj = nn.Linear(d, D) self.cls_proj = nn.Linear(D, D_text) self.logit_scale = nn.Parameter(torch.tensor(2.6592)) # Freeze pre-trained model parameters self.freeze_models() def freeze_models(self): for param in self.backbone.parameters(): param.requires_grad = False for param in self.head_model.parameters(): param.requires_grad = False def forward(self, image, text_features): # 1. Feature extraction from frozen backbone # and Interactive instance detection (Eq.1 & Eq.2) with torch.no_grad(): X_b = self.backbone(image) F = self.det_encoder(self.input_proj(X_b)) E_h, E_o = self.det_decoder(self.query_h.weight, self.query_o.weight, F) # 2. Semantic Bootstrapping (Eq. 4 & Eq. 5) Q_r = self.query_proj((E_h + E_o) / 2) Q_r_prime, X_head = self.head_model(Q_r, X_b) # 3. Hierarchical Refinement(Eq. 6) E_r = self.fusion_decoder(query=Q_r_prime, key_value=X_head) # 4. Open-vocabulary predictions (Eq. 7) E_r_proj = F.normalize(self.cls_proj(E_r), dim=-1) text_features = F.normalize(text_features, dim=-1) logits = self.logit_scale.exp() * E_r_proj @ text_features.t() return logits 
+
+Figure 9. An oversimplified PyTorch-style pseudocode of our SL-HOI framework. It illustrates the core logic, including the two-step interaction refinement and the prediction of interaction logits, while omitting many implementation details for clarity. 
+
+14
