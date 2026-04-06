@@ -1,0 +1,506 @@
+Title: COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing
+
+URL Source: https://arxiv.org/pdf/2604.02056v1
+
+Published Time: Fri, 03 Apr 2026 01:09:45 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing 
+
+# Hao Wang 1,2∗, Yanyu Qian 3,2∗, Pengcheng Weng 1,2∗
+
+# Zixuan Xia 1,2∗, William Dan 2, Yangxin Xu 2, Fei Wang 2# 
+
+> 1
+
+Universität Bern, Switzerland, 2Xi’an Jiaotong University, China, 3Nanyang Technological University, Singapore {hao.wang,pengcheng.weng,zixuan.xia}@students.unibe.ch,william.anze.dan@gmail.com,yanyu003@e.ntu.edu.sg li7032202@stu.xjtu.edu.cn,feynmanw@xjtu.edu.cn 
+
+∗Equal contribution, #Corresponding author. 
+
+## Abstract 
+
+Missing modalities remain a major challenge for multimodal sens-ing, because most existing methods adapt the fusion process to the observed subset by dropping absent branches, using subset-specific fusion, or reconstructing missing features. As a result, the fusion head often receives an input structure different from the one seen during training, leading to incomplete fusion and degraded cross-modal interaction. We propose COMPASS, a missing-modality fusion framework built on the principle of fusion completeness: the fusion head always receives a fixed 𝑁 -slot multimodal input, with one token per modality slot. For each missing modality, COM-PASS synthesizes a target-specific proxy token from the observed modalities using pairwise source-to-target generators in a shared latent space, and aggregates them into a single replacement to-ken. To make these proxies both representation-compatible and task-informative, we combine proxy alignment, shared-space regu-larization, and per-proxy discriminative supervision. Experiments on XRF55, MM-Fi, and OctoNet under diverse single- and multiple-missing settings show that COMPASS outperforms prior methods on the large majority of scenarios. Our results suggest that preserv-ing a modality-complete fusion interface is a simple and effective design principle for robust multimodal sensing. 
+
+## CCS Concepts 
+
+• Computing methodologies → Activity recognition and un-derstanding ; Computer vision tasks ; Machine learning; • Human-centered computing → Ubiquitous and mobile computing sys-tems and tools. 
+
+## Keywords 
+
+multimodal sensing, human activity recognition 
+
+## 1 Introduction 
+
+Multimodal sensing systems that combine heterogeneous sensors, such as WiFi, mmWave radar, RFID, RGB cameras, and LiDAR, are increasingly used in intelligent environments for human activity recognition and behavior understanding [ 24 , 25 , 31 ]. By leverag-ing complementary cues across sensing streams, multimodal mod-els often achieve substantially stronger performance than single-modality systems [ 29 ]. In real deployments, however, one or more modalities are frequently unavailable at inference time due to sensor failure, occlusion, power constraints, communication instability, or privacy restrictions [ 22 ]. This makes missing-modality robustness a practical requirement rather than a corner case. A natural way to handle missing modalities is to adapt the model to the observed subset. Existing approaches typically skip absent branches, switch to subset-dependent or conditioned fusion mod-ules [ 3 , 12 , 14 ] (see Fig. 1(b)), or reconstruct missing signals or features through imputation [ 15 , 21 , 28 ] (see Fig. 1(c)). While these strategies can alleviate information loss, they often overlook a more structural problem: the fusion module is usually trained to com-bine a fixed set of modality representations, but is then asked to operate on a different input pattern at test time. We argue that the missing-modality problem is therefore not only an information-loss problem, but also a fusion-interface mismatch problem. This mismatch is especially clear when fusion is viewed as a slot-based computation: the fusion operator learns to consume one representation per modality slot during training, but at inference time the number of inputs, their arrangement, and the resulting cross-modal interactions all change. Even feature-imputation meth-ods do not fully resolve this, because a generated substitute may be plausible in feature space yet poorly matched to the interaction pattern expected by the fusion head. To address this, we propose COMPASS (Com plete Multimodal Fusion via Proxy Tokens and Shared Spaces), a framework built on the principle of fusion completeness : every modality slot is al-ways populated by exactly one token, either a real token from an observed modality or a generated proxy token for a missing one. Modality-specific encoders produce heterogeneous feature se-quences, which are projected into a shared latent space. For each missing target modality, COMPASS uses directed source-to-target proxy generators to synthesize target-specific proxy tokens from each observed modality and aggregates them into a single replace-ment token, so the fusion head always receives the same 𝑁 -slot input regardless of the missingness pattern (see Fig. 1(d)). A key advantage of this design is that proxy generation is explic-itly tied to the needs of fusion. The goal is not merely to reconstruct a visually or statistically plausible feature, but to produce a slot-filling representation that is compatible with the downstream fusion interface. To make this possible, we combine three complementary training signals: a proxy alignment loss that anchors generated proxies to the real target representations during synthetic masking, a shared-space regularization term that shapes the latent geometry for reliable cross-modal transfer, and a per-proxy discriminative loss that makes each generated token individually useful for the downstream task. Our contributions are summarized as follows:  
+
+> arXiv:2604.02056v1 [cs.CV] 2 Apr 2026 Conference’17, July 2017, Washington, DC, USA Wang et al.
+
+Figure 1: Comparison of fusion input layouts under different missing-modality strategies. (a) All modalities present: the fusion head receives the full token set. (b) Skip: absent modalities are dropped, changing the fusion input structure. (c) Imputation: a single observed modality generates a proxy token for the missing slot. (d) COMPASS : all observed modalities contribute directed proxy tokens, which are aggregated into each missing slot, preserving the fixed 𝑁 -token fusion interface. 
+
+• We formulate missing-modality multimodal sensing as a 
+
+slot-complete fusion problem, where robustness requires pre-serving a fixed modality-complete fusion interface rather than adapting fusion to each observed subset. 
+
+• We introduce COMPASS , a proxy-based missing-modality frame-work that populates every missing modality slot using pair-wise source-to-target generators in a shared latent space. 
+
+• We design a three-level training strategy—proxy alignment, shared-space regularization, and per-proxy discriminative supervision—that makes generated proxies both representation-aligned and task-informative. 
+
+• We evaluate COMPASS on three ubiquitous sensing bench-marks, i.e., XRF55 [ 20 ], MM-Fi [ 2], and OctoNet [ 26 ] under diverse single- and multiple-missing settings, showing im-provements over strong missing-modality baselines in most scenarios. 
+
+## 2 Related Work 2.1 Missing-modality multimodal learning. 
+
+A large body of prior work studies multimodal learning under miss-ing modalities, where one or more inputs are unavailable during training or inference. One line of research improves robustness by adapting models to observed subsets. Branch-skipping methods remove absent inputs, while more advanced approaches use subset-dependent fusion, missingness-aware conditioning, or modality indicators so that a single model can handle different modality com-binations [ 3 , 12 , 14 ]. These reduce the need for separate models but still result in varying fusion pathways and input structures across samples. Another line focuses on recovering missing information via re-construction, imputation, or cross-modal transfer. Methods learn shared/specific subspaces, distill multimodal knowledge into uni-modal branches, or reconstruct missing features from observed modalities [ 8 , 15 , 21 , 28 ]. While effective under limited missingness, performance often degrades when multiple modalities are absent. Moreover, these methods typically optimize feature similarity or task loss without explicitly ensuring compatibility with the fusion operator. We argue that existing approaches mainly treat missing modali-ties as subset adaptation or feature recovery. In contrast, COMPASS 
+
+formulates the problem as fusion-interface preservation . Instead of modifying fusion pathways or relying solely on imputation, 
+
+COMPASS restores a modality-complete token set before fusion, en-abling a unified computation across all missingness patterns. 
+
+## 2.2 Cross-modal proxy and prompt tokens. 
+
+Learnable tokens that represent missing or auxiliary information have become effective in multimodal learning. CMPTs [ 17 ] intro-duce cross-modal proxy tokens to approximate missing modality class tokens, using low-rank adapters [ 9 ] and joint alignment-task optimization. This shows that compact surrogates can replace full modality reconstruction [5]. Prompt-based methods similarly prepend learnable tokens to pretrained transformers for efficient adaptation [ 11 ]. In missing-modality settings, they learn modality- or scenario-aware prompts to improve robustness. While lightweight, they often require multi-ple prompts across layers or modality patterns. 
+
+COMPASS shares the token-based idea but differs in key aspects. First, proxy generation occurs outside modality encoders via di-rected source-to-target generators. Second, it enforces a fixed modality-complete fusion interface, where each missing modality corre-sponds to a required slot. Third, when multiple modalities are available, COMPASS aggregates multiple proxy estimates for the same target. Finally, proxies are supervised by both alignment and discriminative objectives, making them directly useful for classifi-cation. 
+
+## 2.3 Cross-modal alignment and shared latent learning. 
+
+Another line of work aligns heterogeneous modalities into a shared latent space. Contrastive frameworks such as CLIP and Image-Bind use paired data and shared objectives to learn aligned embed-dings [ 6 , 16 ]. While powerful, they are often costly and less suitable for medium-scale sensor datasets. Non-contrastive methods regulate latent geometry using vari-ance and redundancy reduction. VICReg and Barlow Twins encour-age informative, non-collapsed representations without negative pairs [1, 27], making them appealing for multimodal sensing. Recent work further emphasizes geometry-aware regularization. For example, DAGR introduces intra-modal dispersion and inter-modal anchoring to structure embeddings [ 23 ]. This complements our approach: in COMPASS , shared-space learning is not the final goal but a prerequisite for reliable proxy transfer. Only with compatible latent geometry can source-specific proxies for the same missing COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing Conference’17, July 2017, Washington, DC, USA 
+
+Figure 2: The COMPASS framework, shown with modality 𝑣 𝑗 missing at inference. Each observed modality 𝑣 𝑖 passes through its encoder 𝐸 𝑖 and projection 𝑃 𝑖 , producing a token sequence z𝑖 ∈ R𝐿 ×𝑑 in a shared latent space; mean-pooling then gives a global token ¯z𝑖 ∈ R𝑑 . When 𝑣 𝑗 is absent, each observed source feeds z𝑖 into a directed generator 𝐺 𝑖 →𝑗 (a single-layer Transformer with a learnable proxy query), and the per-source outputs are mean-averaged ( ⊕) into one proxy token ˆt𝑗 for the missing slot. Every slot receives exactly one token—a real global token or an aggregated proxy—so the fusion input is always 𝑁 tokens. These are summed ( Σ), layer-normalized, and fed to the task head for prediction ˆy. Dashed lines mark training-only signals: Lalign pulls each proxy toward the real target ¯z𝑗 (available via synthetic masking), while Lss (VICReg) regularizes pairs of observed global tokens. 
+
+modality be aligned, aggregated, and fused. Thus, unlike generic alignment methods, our design explicitly supports slot-complete proxy construction for missing-modality fusion. 
+
+## 3 Methods 3.1 Problem Formulation 
+
+We first describe the missing-modality inference setting and the design principle underlying COMPASS . This setup motivates the method components introduced in the following subsections, in-cluding representation construction, fixed-slot fusion, and training under synthetic missingness. We consider a setting where entire modalities may be missing at inference in an 𝑁 -modality sensing system. Let V = {𝑣 1, . . . , 𝑣 𝑁 }
+
+denote the full modality set. During training, all modalities are available. During inference, only an arbitrary non-empty subset 
+
+O ⊆ V is observed, while the remaining modalities M = V \ O are missing. The observed set may vary across samples due to sensor failure, occlusion, or deployment constraints. Most existing approaches adapt fusion to the observed subset. Branch-skipping methods [ 14 ] simply omit absent modalities from fusion, teacher–student methods [ 21 ] distill cross-modal knowledge into unimodal encoders, and generative methods [ 28 ] reconstruct missing representations. Although effective in different settings, these approaches generally make the fusion input structure or the fusion computation depend on the missingness pattern. 
+
+COMPASS follows a different principle. Instead of changing the fusion head, it preserves a fixed fusion interface : every modality slot is always populated by exactly one token, either a real token from an observed modality or a learned proxy token for a missing modality. Fusion is then applied to this modality-complete token set using the same computation under all missingness patterns. Unlike subset-adaptive fusion methods, COMPASS enforces a modality-complete interface at inference time by reconstructing one token for every modality slot, allowing the same fusion rule to be used regardless of which modalities are missing. The pipeline has four stages: (1) modality-specific encoding, (2) shared-space projection, (3) cross-modal proxy generation for missing modalities, and (4) fixed fusion over a modality-complete token set. Figure 2 illustrates the overall architecture. 
+
+## 3.2 Modality Reconstruction 
+
+Based on the problem setup above, we next describe how COMPASS 
+
+constructs modality representations and generates proxy tokens to populate the fixed fusion interface. Conference’17, July 2017, Washington, DC, USA Wang et al. 
+
+Each modality 𝑣 𝑚 is processed by a modality-specific encoder 
+
+𝐸 𝑚 , which maps raw input x𝑚 to a feature sequence 
+
+h𝑚 = 𝐸 𝑚 (x𝑚 ) ∈ R𝐿 𝑚 ×𝑑 , (1) where 𝐿 𝑚 is the modality-specific token count and 𝑑 is the embed-ding dimension. The encoders are chosen according to modality type. For example, image-like sensors such as RGB or depth produce spatial feature tokens through convolutional backbones [ 7], while point-cloud and RF modalities are encoded by modality-appropriate architectures such as Point Transformer [ 30 ]. Depending on the dataset, encoders may be frozen to preserve pretrained represen-tations or fine-tuned for the downstream task; the exact choice is specified in Section 4. Because different modalities yield heterogeneous feature struc-tures, we map all modality features into a shared latent space using modality-specific projection heads 𝑃 𝑚 :
+
+z𝑚 = 𝑃 𝑚 (h𝑚 ) ∈ R𝐿 ×𝑑 , (2) where 𝐿 is a shared token count across modalities. Each projection head consists of a pointwise convolution, batch normalization [ 10 ], and a learned linear resampling layer that maps 𝐿 𝑚 tokens to 𝐿 
+
+tokens. After projection, all modalities share the same token dimen-sion and token count, which enables a common proxy-generation mechanism. In addition to the projected token sequence, we compute one global token per modality: 
+
+¯z𝑚 = MeanPool (z𝑚 ) ∈ R𝑑 . (3) This global token serves as the compact modality-level representa-tion used in fusion and as the alignment target for proxy supervi-sion. When modality 𝑣 𝑗 is missing, COMPASS constructs a proxy to-ken for its slot from the observed modalities. The intuition is that each observed modality provides a partial cross-modal cue about the missing target, and these cues can be transformed into target-specific proxy tokens in the shared space. For each directed modality pair (𝑣 𝑖 → 𝑣 𝑗 ), we define a learnable generator 𝐺 𝑖 →𝑗 with a dedicated proxy query 
+
+p𝑖 →𝑗 ∈ R1×𝑑 . (4) Given the projected token sequence of source modality 𝑣 𝑖 , the gen-erator produces a pair-specific proxy token for target modality 
+
+𝑣 𝑗 :
+
+ˆt𝑖 →𝑗 = 𝐺 𝑖 →𝑗 (p𝑖 →𝑗 , z𝑖 ) ∈ R𝑑 . (5) Concretely, 𝐺 𝑖 →𝑗 concatenates the proxy query with the source token sequence to form 
+
+[p𝑖 →𝑗 ; z𝑖 ] ∈ R(𝐿 +1) × 𝑑 , (6) processes this sequence using a single-layer Transformer encoder [ 19 ], and takes the output at the proxy-query position as ˆt𝑖 →𝑗 . Through self-attention, the query selectively attends to the most relevant source tokens, allowing the generated proxy to adapt to the source content. When multiple modalities are observed, their pair-specific proxy tokens are aggregated to obtain the final proxy token for the missing modality: 
+
+ˆt𝑗 = 1
+
+|O| ∑︁ 𝑣 𝑖 ∈ O 
+
+ˆt𝑖 →𝑗 . (7) We use uniform averaging rather than a quality-aware weight-ing scheme. A natural alternative would be to weight each source contribution by the task head’s prediction confidence on the in-dividual proxy. In practice, we find that per-proxy discriminative supervision (Section 3.3, Eq. 18) narrows the quality gap between source-specific proxies; as a result, confidence weighting does not improve results (see supplementary material for ablation). We use directed pair-specific generators because cross-modal transfer is generally asymmetric: the information useful for recon-structing modality 𝑣 𝑗 from 𝑣 𝑖 need not match the reverse direction. This design is therefore more expressive than a shared generator across all source–target pairs. Its parameter cost scales as 𝑁 (𝑁 − 1),which is practical in multimodal sensing settings with a small num-ber of modalities (typically 3–4), where preserving a fixed fusion interface is more important than minimizing pairwise generator count. 
+
+## 3.3 Fixed Fusion and Training Objectives 
+
+With modality representations and proxy tokens defined, we next introduce how COMPASS combines them under a fixed fusion rule. We then describe the training objectives that make the resulting tokens both structurally complete and useful for downstream pre-diction. After proxy generation, each modality slot is represented by exactly one fusion token. For observed modalities, this token is the real global token; for missing modalities, it is the aggregated proxy token. We denote the final token assigned to modality slot 𝑚 by 
+
+t𝑚 =
+
+(¯z𝑚 , if 𝑣 𝑚 ∈ O ,
+
+ˆt𝑚 , if 𝑣 𝑚 ∈ M . (8) Although each modality is represented as a token sequence in the shared space, COMPASS performs fusion over one global token per modality. This keeps the fusion interface fixed and lightweight, while leaving the full token sequence available for content-adaptive proxy generation. The fused representation is obtained by summing all modality-slot tokens: 
+
+f =
+
+> 𝑁
+
+∑︁ 
+
+> 𝑚 =1
+
+t𝑚 . (9) A task head 𝑔 task (·) = Linear (LayerNorm (·)) maps the fused fea-ture to the prediction: 
+
+ˆy = 𝑔 task (f). (10) We use summation rather than a learnable aggregation module such as attention-based fusion. First, once all modality slots are populated with aligned tokens in a shared latent space, additive fusion preserves each modality contribution without introducing extra parameters. Second, summation guarantees that the fusion computation remains identical under all missingness patterns. As a result, the fusion head always receives the same structured input: one token per modality slot. COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing Conference’17, July 2017, Washington, DC, USA 
+
+Proxy generation provides structural completeness, but useful proxy tokens must also be aligned with real modality representa-tions and remain informative for the downstream task. Accordingly, training combines task supervision, feature-level alignment, shared-space regularization, and proxy-level discriminative supervision. 
+
+Task loss. The primary objective is the task loss on the fused prediction: 
+
+Ltask = ℓtask ( ˆy, y), (11) where ℓtask denotes cross-entropy with label smoothing [18]. 
+
+Proxy alignment loss. To align each pair-specific proxy token with the corresponding real target representation, we minimize the mean squared error between generated proxy tokens and real global tokens: 
+
+Lalign = 1
+
+𝐾 ∑︁ 𝑣 𝑖 ∈ O , 𝑣 𝑗 ∈ M 
+
+ˆt𝑖 →𝑗 − ¯z𝑗 2 , (12) where 𝐾 = |O| |M| is the number of valid source–target pairs. This loss is available only during training, when synthetically masked modalities still provide real target features as supervision. 
+
+Shared-space regularization. Pairwise proxy alignment alone does not guarantee that the shared latent space has a geometry suit-able for cross-modal transfer. We therefore regularize the shared space using VICReg [1] on real global tokens. Let 
+
+Z𝑚 ∈ R𝐵 ×𝑑 (13) denote the batch of global tokens for modality 𝑣 𝑚 . For each observed modality pair (𝑣 𝑖 , 𝑣 𝑗 ), we compute a VICReg loss on the correspond-ing token batches, and average the resulting losses across all  | O | 
+
+> 2
+
+
+
+observed pairs: 
+
+Lss = 𝜇 inv ℓinv + 𝜇 var ℓvar + 𝜇 cov ℓcov . (14) Specifically, 
+
+• Invariance 
+
+ℓinv = 1
+
+𝐵 ∑︁ 𝑏 
+
+¯z(𝑏 ) 
+
+> 𝑖
+
+− ¯z(𝑏 )
+
+> 𝑗
+> 2
+
+, (15) which aligns paired global tokens across modalities; 
+
+• Variance 
+
+ℓvar = 12∑︁ 𝑚 ∈ { 𝑖,𝑗 }
+
+1
+
+𝑑 ∑︁ 𝑘 
+
+max  0, 1 − Std (Z𝑚 [:, 𝑘 ]) , (16) which prevents dimensional collapse; 
+
+• Covariance 
+
+ℓcov = 12∑︁ 𝑚 ∈ { 𝑖,𝑗 }
+
+1
+
+𝑑 ∑︁ 𝑘 ≠𝑙 
+
+Cov (Z𝑚 [:, 𝑘 ], Z𝑚 [:, 𝑙 ]) 2, (17) which decorrelates latent dimensions. The total Lss averages the above over all  | O | 
+
+> 2
+
+ observed modality pairs. We choose VICReg because it improves cross-modal align-ment while avoiding representational collapse, without requiring negative pairs or very large batch sizes. 
+
+Per-proxy discriminative loss. Feature alignment encourages proxy tokens to resemble real modality features, but not necessarily to be individually predictive. We therefore apply the same task head to each pair-specific proxy token and impose an auxiliary discrimina-tive loss: 
+
+Lproxy = 1
+
+𝐾 ∑︁ 𝑣 𝑖 ∈ O , 𝑣 𝑗 ∈ M 
+
+ℓtask 
+
+ 𝑔 task (ˆt𝑖 →𝑗 ), y. (18) This term encourages every generated proxy token to carry task-relevant information rather than merely matching the target feature geometry. 
+
+Total objective. The overall training objective is 
+
+L = Ltask + 𝜆 𝑎 Lalign + 𝜆 𝑠 Lss + 𝜆 𝑝 Lproxy , (19) where 𝜆 𝑎 , 𝜆 𝑠 , and 𝜆 𝑝 balance the auxiliary losses. When no modality is masked, we set Lalign = Lproxy = 0 and retain only Ltask and Lss .
+
+## 3.4 Training Strategy 
+
+During training all modalities are observed, so we simulate missing-ness by randomly masking a subset of modalities while retaining their real features as supervision targets. With probability 𝑝 drop , we first sample the number of observed modalities 
+
+𝑘 ∼ Uniform {1, . . . , 𝑁 − 1}, (20) and then uniformly sample an observed subset O ⊂ V such that 
+
+|O| = 𝑘 . The remaining modalities M = V \ O are treated as missing in the fusion path and replaced by proxy tokens, while their real features remain available as supervision targets for Lalign .With probability 1 − 𝑝 drop , we keep all modalities observed. We adopt uniform sampling over the observed-set cardinality so that training is not dominated by subsets of intermediate size, which would occur if one sampled uniformly over all subsets in the power set. This exposes the model more evenly to different missingness severities. In all experiments, we set 𝑝 drop = 0.7.At inference time, only the actually available modalities are encoded, and proxy tokens are generated only for truly missing modalities. This training–inference asymmetry is essential: it en-ables supervised proxy learning during training while avoiding information leakage at test time. Algorithm 1 summarizes the overall training procedure. 
+
+## 4 Experiments 4.1 Experimental Setup 
+
+Datasets. We evaluate COMPASS on three multimodal human sens-ing benchmarks for human activity recognition (HAR). 
+
+MM-Fi [ 2] contains over 320k synchronized frames from 40 subjects with five modalities: RGB images (I), Depth images (D), LiDAR point clouds (L), mmWave radar point clouds (R), and WiFi-CSI (W). For HAR, it provides 27 action categories, including 14 daily activities and 13 rehabilitation exercises. Following [ 3], we exclude WiFi-CSI because each WiFi sample spans only 100 ms and is insufficient to capture action-level patterns. We follow the S1 Random Split protocol from [2]. 
+
+XRF55 [20 ] comprises 42.9K radio-frequency samples from 39 subjects with three modalities: mmWave Range-Doppler & Range-Angle heatmaps (R), WiFi-CSI (W), and RFID phase series (RF). Conference’17, July 2017, Washington, DC, USA Wang et al. 
+
+Algorithm 1 COMPASS Training 
+
+Require: Training set D, encoders {𝐸 𝑚 }, projections {𝑃 𝑚 }, gener-ators {𝐺 𝑖 →𝑗 } with proxy queries {p𝑖 →𝑗 }, task head 𝑔 task , drop probability 𝑝 drop , loss weights 𝜆 𝑎 , 𝜆 𝑠 , 𝜆 𝑝 
+
+Ensure: Optimized parameters  
+
+> 1:
+
+for each mini-batch (X, y) from D do  
+
+> 2:
+
+for each modality 𝑣 𝑚 ∈ V do  
+
+> 3:
+
+z𝑚 ← 𝑃 𝑚 (𝐸 𝑚 (x𝑚 ))  
+
+> 4:
+
+¯z𝑚 ← MeanPool (z𝑚 ) 
+
+> 5:
+
+end for  
+
+> 6:
+
+if random () < 𝑝 drop then  
+
+> 7:
+
+Sample 𝑘 ∼ Uniform {1, . . . , 𝑁 − 1} 
+
+> 8:
+
+Sample O ⊂ V with |O| = 𝑘  
+
+> 9:
+
+M ← V \ O  
+
+> 10:
+
+else  
+
+> 11:
+
+O ← V , M ← ∅  
+
+> 12:
+
+end if  
+
+> 13:
+
+for each 𝑣 𝑗 ∈ M do  
+
+> 14:
+
+for each 𝑣 𝑖 ∈ O do  
+
+> 15:
+
+ˆt𝑖 →𝑗 ← 𝐺 𝑖 →𝑗 (p𝑖 →𝑗 , z𝑖 ) 
+
+> 16:
+
+end for  
+
+> 17:
+
+ˆt𝑗 ← 1
+
+> | O |
+
+Í𝑣 𝑖 ∈ O ˆt𝑖 →𝑗  
+
+> 18:
+
+end for  
+
+> 19:
+
+for each modality slot 𝑚 = 1, . . . , 𝑁 do  
+
+> 20:
+
+assign t𝑚 ← ¯z𝑚 if 𝑣 𝑚 ∈ O , else ˆt𝑚  
+
+> 21:
+
+end for  
+
+> 22:
+
+f ← Í𝑁 𝑚 =1 t𝑚  
+
+> 23:
+
+ˆy ← 𝑔 task (f) 
+
+> 24:
+
+compute Ltask and Lss  
+
+> 25:
+
+if M ≠ ∅ then  
+
+> 26:
+
+compute Lalign and Lproxy  
+
+> 27:
+
+else  
+
+> 28:
+
+Lalign ← 0, Lproxy ← 0 
+
+> 29:
+
+end if  
+
+> 30:
+
+L ← L task + 𝜆 𝑎 Lalign + 𝜆 𝑠 Lss + 𝜆 𝑝 Lproxy  
+
+> 31:
+
+update parameters using ∇L  
+
+> 32:
+
+end for 
+
+It covers 55 action classes spanning fitness activities and human-computer interactions. We use the original split setting from [20]. 
+
+OctoNet [ 26 ] is a large-scale IoT sensing dataset with eight modalities. We use five non-vision modalities: IMU (I), UWB (U), WiFi-CSI (W), Time-of-Flight (T), and mmWave (M), covering 62 activity classes and yielding 31 modality combinations. 
+
+Evaluation metric. For HAR, we report top-1 classification accu-racy (%). 
+
+Baselines. We compare COMPASS against: (1) Feature-level fu-sion baseline [ 4]: modality-specific features are extracted with pre-trained encoders, concatenated, and fused via an MLP with average pooling. A separate model is retrained for each modality combina-tion. (2) X-Fi [ 3 ]: a modality-invariant foundation model that uses a cross-modal transformer (X-Fusion) and a modality-existence-list training strategy to handle arbitrary modality combinations with a single model. X-Fi results are obtained by evaluating a single model, trained once, across all modality combinations at test time. Other missing-modality methods (e.g., ShaSpec [ 21 ], SMIL [ 15 ]) target vision–language tasks and do not provide implementations for RF sensing modalities; we therefore compare against methods with available RF sensing evaluations. 
+
+Implementation details. We adopt the same modality-specific en-coder backbones as X-Fi [ 3] for fair comparison. For MM-Fi HAR we use ResNet-18 [ 7] for RGB and Depth, and Point Transformer [ 30 ]for LiDAR and mmWave. For XRF55, ResNet-18 is used for all three modalities following [ 20 ]. For MM-Fi, all encoder backbones are fine-tuned end-to-end. For XRF55, encoders are fine-tuned with a reduced backbone learning rate ( 0.1×). For OctoNet, we use frozen ResNet-18 backbones for all five modalities. Each modality feature is projected to 𝐿 =32 tokens with dimension 𝑑 =512 . Proxy generators are single-layer Transformer encoders with 8 attention heads. We set 𝑝 drop =0.7 for synthetic masking. Loss weights are 𝜆 𝑎 =0.2, 𝜆 𝑠 =0.3,
+
+𝜆 𝑝 =0.5; VICReg sub-coefficients are (𝜇 inv , 𝜇 var , 𝜇 cov ) = (5, 25 , 1). We train with AdamW [ 13 ] (base learning rate 10 −4, backbone learning rate 10 −5, weight decay 5×10 −2 for XRF55 and 5×10 −4 for MM-Fi and OctoNet) using a warmup-polynomial schedule (5-epoch warmup, power 0.9). Batch size is 32 for XRF55 and OctoNet, and 16 for MM-Fi. We train for 100 epochs on XRF55, 50 on MM-Fi, and 20 on OctoNet, selecting the checkpoint with best validation accuracy. All experiments run on NVIDIA H100 GPUs. 
+
+## 4.2 Main Results 
+
+We evaluate COMPASS under all possible modality combinations at test time: each combination represents a missing-modality scenario in which only the listed modalities are observed and the rest are missing. The baseline trains a separate model per combination; X-Fi and COMPASS each train a single model and evaluate across all combinations. 
+
+Human Activity Recognition. Table 1 and Table 2 report HAR accuracy on MM-Fi and XRF55 under all modality combinations, respectively. XRF55 results are from the best single run (3-seed average: 84 .3% ±0.15% ); MM-Fi is a single run. COMPASS outperforms both baselines on the majority of scenarios across both datasets. On XRF55, COMPASS reaches a 7-scenario average of 84.6%, ver-sus 72.1% for X-Fi. The gains are largest when observed modali-ties can compensate for missing ones through proxy generation: WiFi+RFID (missing mmWave) jumps from 58.1% (X-Fi) to 86.3%, and mmWave+RFID (missing WiFi) from 86.5% to 91.2%. In both cases the proxy tokens for the missing slot carry cross-modal infor-mation that branch-skipping methods discard entirely. On MM-Fi, the 15-combination average reaches 70.6%, com-pared with 62.5% for X-Fi and 59.7% for Baseline. The pattern is similar: gains concentrate where proxy-mediated transfer matters most. RGB+LiDAR improves from 35.2% to 60.4% (+25.2pp); single-modality LiDAR rises from 52.7% to 80.1%. X-Fi retains a slight edge for mmWave alone (85.7% vs. 83.2%) and two mmWave-containing pairs (I+R, D+R), likely because its multi-layer cross-attention is more expressive when the dominant modality already provides sufficient signal on its own. On OctoNet, Table 3 reports per-combination accuracy under the in-distribution protocol, where 5 modalities produce 31 possi-ble subsets. COMPASS wins or ties 30 of 31 individual combinations. COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing Conference’17, July 2017, Washington, DC, USA 
+
+Table 1: HAR accuracy (%) on the MM-Fi. “Baseline” denotes the feature-level fusion baseline retrained per combination. X-Fi and COMPASS each use a single model for all combinations. Modalities: Image (I), Depth (D), LiDAR (L), Radar (R).                                                   
+
+> Category Observed Modalities Baseline X-Fi COMPASS
+> Single  I25.3 26.5 37.1
+> D49.9 48.1 52.0
+> L63.9 52.7 80.1
+> R85.0 85.7 83.2 Dual I+D 45.2 45.3 49.3
+> I+L 23.8 35.2 60.4
+> I+R 66.9 73.4 72.0 D+L 49.7 51.6 66.3
+> D+R 74.1 79.8 78.1 L+R 85.6 88.7 90.4
+> Triple  I+D+L 43.0 48.7 64.1
+> I+D+R 69.1 70.7 74.9
+> I+L+R 68.2 77.8 84.0
+> D+L+R 72.9 80.5 84.7
+> Full I+D+L+R 72.6 72.2 82.1
+
+Table 2: HAR accuracy (%) on the XRF55 dataset. “Baseline” denotes the feature-level fusion baseline retrained per com-bination. X-Fi and COMPASS each use a single model for all combinations. Modalities: Radar (R), WiFi (W), RFID (RF).                           
+
+> Category Observed Modalities Baseline X-Fi COMPASS
+> Single  R82.1 83.9 90.5
+> W77.8 55.7 85.4
+> RF 42.2 42.5 48.4
+> Dual  R+W 86.8 88.2 95.1
+> R+RF 71.4 86.5 91.2
+> W+RF 55.6 58.1 86.3
+> Full R+W+RF 70.6 89.8 95.1
+
+Single-modality and dual-modality averages reach 88.3% and 97.1%, surpassing X-Fi by 28.0 and 10.7 percentage points respectively. Even at higher modality counts where all methods approach sat-uration, COMPASS maintains a consistent edge (99.1% vs. 96.1% for triple, 99.7% vs. 99.0% for quad). The pattern mirrors XRF55 and MM-Fi: proxy-mediated transfer yields the largest gains in the low-modality regime where missing slots must be filled from limited observations. 
+
+## 4.3 Representation Geometry Analysis 
+
+To better understand why COMPASS improves missing-modality ro-bustness, we analyze the geometry of the learned representations on XRF55. Since COMPASS relies on a shared latent space to gen-erate target-specific proxy tokens from the observed modalities, this design implicitly requires two properties: (i) representations from different modalities should become cross-modally compatible, and (ii) semantic class structure should remain discriminative after alignment. Figure 3 compares X-Fi and COMPASS from three perspectives. Panel (a) shows that X-Fi features remain strongly separated by modality: mmWave, WiFi, and RFID occupy largely different re-gions, suggesting that the learned space is not sufficiently shared for reliable cross-modal substitution. In contrast, Panel (b) shows that 
+
+Table 3: OctoNet HAR accuracy (%) for all 31 modality com-binations under the in-distribution protocol. Modalities: IMU (I), UWB (U), WiFi (W), ToF (T), mmWave (M). Best per row in bold. ∗X-Fi collapses on ToF-only due to its 8 ×8 input producing only one post-ResNet-18 token.                                                                                                   
+
+> Category Observed Modalities Baseline X-Fi COMPASS
+> Single  I77.6 94.0 94.9
+> U65.7 75.1 90.0
+> W68.9 58.9 89.7
+> T74.4 7.6 ∗89.3
+> M68.2 65.6 77.4
+> Dual
+> I+U 93.2 99.2 99.3
+> I+W 95.7 97.8 99.0
+> I+T 97.2 94.3 98.5
+> I+M 95.3 97.5 98.5
+> U+W 90.8 91.5 96.9
+> U+T 89.0 76.5 95.1
+> U+M 86.5 91.7 93.9
+> W+T 92.9 61.9 96.4
+> W+M 88.9 86.3 96.1
+> T+M 91.3 66.8 97.1
+> Triple
+> I+U+W 99.3 99.4 99.6
+> I+U+T 98.3 99.2 98.8 I+U+M 98.9 99.4 99.9
+> I+W+T 99.3 97.8 99.3
+> I+W+M 99.2 98.9 99.6
+> I+T+M 99.2 97.5 99.6
+> U+W+T 97.4 92.1 98.3
+> U+W+M 98.3 97.6 99.0
+> U+T+M 96.9 92.4 98.5
+> W+T+M 97.1 86.7 98.8
+> Quad  I+U+W+T 99.6 99.4 99.6
+> I+U+W+M 100 99.4 100
+> I+U+T+M 99.2 99.6 99.6
+> I+W+T+M 99.6 98.9 99.9
+> U+W+T+M 99.2 97.8 99.4
+> Full I+U+W+T+M 99.9 99.4 99.9
+
+COMPASS maps the three modalities into a much more aligned space, where modality-specific boundaries are substantially reduced. This is precisely the condition required for cross-modal proxy transfer: if different modalities do not live in comparable regions of the latent space, a proxy synthesized from one modality cannot reliably fill another modality slot. A natural concern is that shared-space regularization may over-align modality features and weaken class discrimination. Panel (c) quantifies this using two class-level geometry metrics: cross-modal compactness (cosine similarity between same-class centroids from different modalities) and inter-class separation (minimum cosine dis-tance from one class centroid to centroids of other classes). COMPASS 
+
+shifts the class distribution upward and to the right relative to X-Fi, indicating that it achieves both tighter cross-modal alignment and stronger class-wise separation. This directly addresses the concern that stronger alignment may erase modality-specific discriminabil-ity: the shared-space design creates a geometry in which proxy tokens are both transferable across modalities and discriminative for downstream fusion. Conference’17, July 2017, Washington, DC, USA Wang et al. 
+
+Figure 3: Representation geometry on XRF55. (a) X-Fi embeddings colored by modality: three modalities remain separated, indicating weak shared-space alignment. (b) COMPASS embeddings: modality boundaries are substantially reduced, enabling reliable cross-modal proxy transfer. (c) Quantitative comparison: each point is one class; x-axis is cross-modal compactness (cosine similarity between same-class centroids from different modalities), y-axis is inter-class separation (minimum cosine distance to other class centroids). COMPASS improves both alignment and separation. Table 4: Proxy token ablation and masking sensitivity (XRF55 HAR). Top: proxy effectiveness. Bottom: masking probability 
+
+𝑝 drop (3-seed means).                                  
+
+> Configuration WiFi+RFID RFID All 7-Avg
+> No proxy (drop missing) 61.0 44.8 89.1 76.9 Proxy only (no alignment) 74.6 44.2 90.5 79.6
+> COMPASS (full) 86.3 48.4 95.1 84.6
+> 𝑝 drop =0.380.5 50.5 95.0 83.4
+> 𝑝 drop =0.580.1 49.8 95.1 83.5
+> 𝑝 drop =0.785.0 48.5 95.1 84.3
+> 𝑝 drop =0.980.1 49.3 95.0 83.7
+
+## 4.4 Ablation Studies 
+
+Proxy token effectiveness. We compare COMPASS against a no-proxy baseline that uses the same backbone, projection, and sum fusion but zeros out missing slots instead of generating proxies. Table 4 reports results on XRF55. Even without alignment su-pervision, proxy tokens alone raise the 7-scenario average from 76.9% to 79.6%. Adding alignment and regularization pushes this to 84.6%; the WiFi+RFID scenario—the hardest case—improves most (74.6% → 86.3%). The best masking probability is 𝑝 drop =0.7; the gain is driven by WiFi+RFID (85.0% vs. ∼80% at other rates), indicating that frequent proxy practice is most critical when both modalities in a pair are weak. 
+
+Fusion strategy and efficiency. COMPASS uses element-wise sum-mation to aggregate proxy-complete tokens. Table 5 compares summation against concatenation followed by a linear layer, and multi-head cross-attention fusion. Summation performs best while introducing no fusion parameters, suggesting that once modality slots are populated with aligned tokens, a fixed additive fusion rule is sufficient. Both models share the same backbones (20.5M parameters). X-Fi spends 11.6M on multi-layer cross-attention fu-sion; COMPASS spends 12.6M on proxy generators but zero on fusion. Total size is similar (32.9M vs. 34.0M), yet COMPASS is 1.9 × faster with all modalities present and 2.6 × faster with a single modality, because sum fusion avoids iterative attention layers. 
+
+Table 5: Fusion strategy and efficiency (XRF55 HAR). Top: fusion comparison (all variants use the same proxy genera-tion and alignment). Bottom: model size and latency (H100, batch=1).                     
+
+> Fusion Params (fusion) All 7-Avg
+> Concatenation + Linear 788K 93.3 81.0 Cross-Attention (1-layer) 1.05M 92.8 81.2
+> Summation (ours) 095.1 84.6
+> Params Fusion Params Latency (all / 1-mod) X-Fi 32.9M 11.6M 9.49 / 4.48 ms
+> COMPASS 34.0M 04.91 / 1.71 ms
+
+## 5 Conclusion 
+
+COMPASS keeps the fusion interface fixed regardless of which modal-ities are missing: absent slots are filled with cross-modal proxy tokens generated from the available modalities, and the fusion head always operates on the same 𝑁 -token input. Pairwise proxy gener-ators, shared-space regularization, and per-proxy task supervision together make the generated tokens both aligned to the real repre-sentations and individually informative for the downstream task. On XRF55, MM-Fi, and OctoNet HAR, this outperforms branch-skipping and cross-attention baselines on the large majority of evaluated scenarios, with the largest gains where weak modalities must borrow information from stronger ones. On OctoNet with five modalities and 31 combinations, COMPASS raises single-modality and dual-modality averages by up to 28 and 11 percentage points over X-Fi. Model size is comparable to X-Fi; inference is 1.9–2.6 ×
+
+faster. 
+
+Limitations. Sum fusion has no learnable parameters, which is an advantage for speed but limits the modeling of complex cross-modal interactions. RFID-only accuracy (48.4%) remains low—stronger cross-modal alignment can erode modality-specific discriminability for inherently weak modalities, and we have not fully resolved this trade-off. We have not yet evaluated COMPASS on regression tasks such as human pose estimation, which involve spatial alignment challenges beyond classification. COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing Conference’17, July 2017, Washington, DC, USA 
+
+## References 
+
+[1] Adrien Bardes, Jean Ponce, and Yann LeCun. 2022. VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning. In The Tenth Interna-tional Conference on Learning Representations, ICLR 2022, Virtual Event, April 25-29, 2022 . OpenReview.net. https://openreview.net/forum?id=xm6YD62D1Ub [2] Xinyan Chen, He Huang, Chris Xiaoxuan Lu, Lihua Xie, Yuecong Xu, Jianfei Yang, Shenghai Yuan, Yunjiao Zhou, and Han Zou. 2023. MM-Fi: Multi-Modal Non-Intrusive 4D Human Dataset for Versatile Wireless Sensing. In NeurIPS (NeurIPS 2023) . 18756–18768. doi:10.52202/075280-0822 [3] Xinyan Chen and Jianfei Yang. 2025. X-Fi: A Modality-Invariant Foundation Model for Multimodal Human Sensing. In The Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025 . OpenRe-view.net. https://openreview.net/forum?id=b42wmsdwmB [4] Avigyan Das, Pritam Sil, Pawan Kumar Singh, Vikrant Bhateja, and Ram Sarkar. 2021. MMHAR-EnsemNet: A Multi-Modal Human Activity Recognition Model. 
+
+IEEE Sensors Journal 21, 10 (2021), 11569–11576. doi:10.1109/JSEN.2020.3034614 [5] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xi-aohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. In 9th Interna-tional Conference on Learning Representations, ICLR 2021, Virtual Event, Austria, May 3-7, 2021 . OpenReview.net. https://openreview.net/forum?id=YicbFdNTTy [6] Rohit Girdhar, Alaaeldin El-Nouby, Zhuang Liu, Mannat Singh, Kalyan Vasudev Alwala, Armand Joulin, and Ishan Misra. 2023. ImageBind One Embedding Space to Bind Them All. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 15180–15190. doi:10.1109/cvpr52729.2023.01457 [7] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. 2016. Deep Residual Learning for Image Recognition. In 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 770–778. doi:10.1109/cvpr.2016.90 [8] Geoffrey E. Hinton, Oriol Vinyals, and Jeffrey Dean. 2015. Distilling the Knowl-edge in a Neural Network. CoRR abs/1503.02531 (2015). arXiv:1503.02531 http://arxiv.org/abs/1503.02531 [9] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. LoRA: Low-Rank Adaptation of Large Language Models. In The Tenth International Conference on Learning Representations, ICLR 2022, Virtual Event, April 25-29, 2022 . OpenReview.net. https://openreview.net/forum?id=nZeVKeeFYf9 [10] Sergey Ioffe and Christian Szegedy. 2015. Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift. In ICML (JMLR Workshop and Conference Proceedings) . JMLR.org, 448–456. http://proceedings. mlr.press/v37/ioffe15.html [11] Menglin Jia, Luming Tang, Bor-Chun Chen, Claire Cardie, Serge Belongie, Bharath Hariharan, and Ser-Nam Lim. 2022. Visual Prompt Tuning . Springer Nature Switzerland, 709–727. doi:10.1007/978-3-031-19827-4_41 [12] Jinghui Liu, Daniel Capurro, Anthony Nguyen, and Karin Verspoor. 2023. Attention-based multimodal fusion with contrast for robust clinical prediction in the face of missing modalities. Journal of Biomedical Informatics 145 (Sept. 2023), 104466. doi:10.1016/j.jbi.2023.104466 [13] Ilya Loshchilov and Frank Hutter. 2019. Decoupled Weight Decay Regularization. In 7th International Conference on Learning Representations, ICLR 2019, New Or-leans, LA, USA, May 6-9, 2019 . OpenReview.net. https://openreview.net/forum? id=Bkg6RiCqY7 [14] Mengmeng Ma, Jian Ren, Long Zhao, Davide Testuggine, and Xi Peng. 2022. Are Multimodal Transformers Robust to Missing Modality?. In 2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 18156–18165. doi:10.1109/cvpr52688.2022.01764 [15] Mengmeng Ma, Jian Ren, Long Zhao, Sergey Tulyakov, Cathy Wu, and Xi Peng. 2021. SMIL: Multimodal Learning with Severely Missing Modality. Proceedings of the AAAI Conference on Artificial Intelligence 35, 3 (May 2021), 2302–2310. doi:10.1609/aaai.v35i3.16330 [16] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. In ICML (Proceedings of Machine Learning Research) , Marina Meila and Tong Zhang (Eds.). PMLR, 8748–8763. http:// proceedings.mlr.press/v139/radford21a.html [17] Md Kaykobad Reza, Ameya Patil, Mashhour Solh, and M. Salman Asif. 2025. Robust Multimodal Learning via Cross-Modal Proxy Tokens. Trans. Mach. Learn. Res. 2025 (2025). https://openreview.net/forum?id=Wtc6wvcYJ0 [18] Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jon Shlens, and Zbigniew Wojna. 2016. Rethinking the Inception Architecture for Computer Vision. In 
+
+2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 2818–2826. doi:10.1109/cvpr.2016.308 [19] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. 2017. Attention is All you Need. In Advances in Neural Information Processing Systems 30: An-nual Conference on Neural Information Processing Systems 2017, December 4-9, 2017, Long Beach, CA, USA , Isabelle Guyon, Ulrike von Luxburg, Samy Bengio, Hanna M. Wallach, Rob Fergus, S. V. N. Vishwanathan, and Roman Garnett (Eds.). 5998–6008. https://proceedings.neurips.cc/paper/2017/hash/ 3f5ee243547dee91fbd053c1c4a845aa-Abstract.html [20] Fei Wang, Yizhe Lv, Mengdie Zhu, Han Ding, and Jinsong Han. 2024. XRF55: A Radio Frequency Dataset for Human Indoor Action Analysis. Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies 8, 1 (March 2024), 1–34. doi:10.1145/3643543 [21] Hu Wang, Yuanhong Chen, Congbo Ma, Jodie Avery, Louise Hull, and Gustavo Carneiro. 2023. Multi-Modal Learning with Missing Modality via Shared-Specific Feature Modelling. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 15878–15887. doi:10.1109/cvpr52729.2023.01524 [22] Renjie Wu, Hu Wang, and Hsiang-Ting Chen. 2024. A Comprehensive Survey on Deep Multimodal Learning with Missing Modality. CoRR abs/2409.07825 (2024). arXiv:2409.07825 doi:10.48550/ARXIV.2409.07825 [23] Zixuan Xia, Hao Wang, Pengcheng Weng, Yanyu Qian, Yangxin Xu, William Dan, and Fei Wang. 2026. When Gradient Optimization Is Not Enough: † Dispersive and Anchoring Geometric Regularizer for Multimodal Learning. arXiv preprint arXiv:2601.21670 (2026). [24] Jiang Xiao, Huichuwu Li, Minrui Wu, Hai Jin, M. Jamal Deen, and Jiannong Cao. 2022. A Survey on Wireless Device-free Human Sensing: Application Scenarios, Current Solutions, and Open Issues. Comput. Surveys 55, 5 (Dec. 2022), 1–35. doi:10.1145/3530682 [25] Jianfei Yang, Xinyan Chen, Han Zou, Chris Xiaoxuan Lu, Dazhuo Wang, Sumei Sun, and Lihua Xie. 2023. SenseFi: A library and benchmark on deep-learning-empowered WiFi human sensing. Patterns 4, 3 (2023). [26] Dongsheng Yuan, Xie Zhang, Weiying Hou, Sheng Lyu, Yuemin Yu, Luca Jiang-Tao Yu, Chengxiao Li, and Chenshu Wu. 2025. OctoNet: A Large-Scale Multi-Modal Dataset for Human Activity Understanding Grounded in Motion-Captured 3D Pose Labels. In Advances in Neural Information Processing Systems 38: Annual Conference on Neural Information Processing Systems 2025, NeurIPS 2025, December 1–7, 2025, San Diego, CA, USA . https://openreview.net/forum?id=z3TftXOizf [27] Jure Zbontar, Li Jing, Ishan Misra, Yann LeCun, and Stéphane Deny. 2021. Barlow Twins: Self-Supervised Learning via Redundancy Reduction. In ICML (Proceedings of Machine Learning Research) , Marina Meila and Tong Zhang (Eds.). PMLR, 12310–12320. http://proceedings.mlr.press/v139/zbontar21a.html [28] Yue Zhang, Chengtao Peng, Qiuli Wang, Dan Song, Kaiyan Li, and S. Kevin Zhou. 2025. Unified Multi-Modal Image Synthesis for Missing Modality Imputation. 
+
+IEEE Transactions on Medical Imaging 44, 1 (Jan. 2025), 4–18. doi:10.1109/tmi. 2024.3424785 [29] Fei Zhao, Chengcui Zhang, and Baocheng Geng. 2024. Deep Multimodal Data Fusion. Comput. Surveys 56, 9 (April 2024), 1–36. doi:10.1145/3649447 [30] Hengshuang Zhao, Li Jiang, Jiaya Jia, Philip Torr, and Vladlen Koltun. 2021. Point Transformer. In 2021 IEEE/CVF International Conference on Computer Vision (ICCV) . IEEE, 16239–16248. doi:10.1109/iccv48922.2021.01595 [31] Ce Zheng, Wenhan Wu, Chen Chen, Taojiannan Yang, Sijie Zhu, Ju Shen, Nasser Kehtarnavaz, and Mubarak Shah. 2023. Deep Learning-based Human Pose Esti-mation: A Survey. Comput. Surveys 56, 1 (Aug. 2023), 1–37. doi:10.1145/3603618
