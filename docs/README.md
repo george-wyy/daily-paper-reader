@@ -6,67 +6,70 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-06
-- 运行时间：2026-04-06 20:27:40 UTC
+- 最新运行日期：2026-04-07
+- 运行时间：2026-04-07 20:36:45 UTC
 - 运行状态：成功
-- 本次总论文数：15
-- 精读区：4
+- 本次总论文数：16
+- 精读区：5
 - 速读区：11
 
 ### 今日简报（AI）
-今日聚焦人机交互前沿，深度解析 15 篇关于用户建模与协作预测的最新研究。
-核心结论指出，融合眼动追踪与用户先验能显著优化 AI 建议效果，而动作-意图联合预测则是提升人机协作效率的关键。
-推荐关注结构化意图通信与实时交互生成技术，以应对多模态场景下的模型鲁棒性挑战。
-- 详情：[/202604/06/README](/202604/06/README)
+今日深度探索 XR 交互与第一视角行为预测，精选 16 篇论文揭示多模态感知新趋势。
+重点推荐结合眼动与手势的 SwEYEpinch 文本输入技术，以及利用视线增强 VLLM 预测人机交互的创新方法。
+建议关注大模型在课堂行为分析与意图驱动 3D 感知中的跨界应用。
+- 详情：[/202604/07/README](/202604/07/README)
 
 ### 精读区论文标签
-1. [Eyes Can't Always Tell: Fusing Eye Tracking and User Priors for User Modeling under AI Advice Conditions](/202604/06/2604.01741v1-eyes-cant-always-tell-fusing-eye-tracking-and-user-priors-for-user-modeling-under-ai-advice-conditions)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：融合眼动追踪和用户先验进行用户建模与认知状态预测
-2. [Joint Prediction of Human Motions and Actions in Human-Robot Collaboration](/202604/06/2604.03065v1-joint-prediction-of-human-motions-and-actions-in-human-robot-collaboration)  
+1. [SwEYEpinch: Exploring Intuitive, Efficient Text Entry for Extended Reality via Eye and Hand Tracking](/202604/07/2604.03520v1-sweyepinch-exploring-intuitive-efficient-text-entry-for-extended-reality-via-eye-and-hand-tracking)  
+   标签：评分：10.0/10、query:gaze-intent
+   evidence：基于注视的交互和滑动中预测
+2. [Leveraging Gaze and Set-of-Mark in VLLMs for Human-Object Interaction Anticipation from Egocentric Videos](/202604/07/2604.03667v1-leveraging-gaze-and-set-of-mark-in-vllms-for-human-object-interaction-anticipation-from-egocentric-videos)  
+   标签：评分：10.0/10、query:gaze-intent
+   evidence：通过注视点轨迹理解用户意图以进行交互预测
+3. [Joint Prediction of Human Motions and Actions in Human-Robot Collaboration](/202604/07/2604.03065v1-joint-prediction-of-human-motions-and-actions-in-human-robot-collaboration)  
    标签：评分：9.0/10、query:gaze-intent
    evidence：用于人类运动和动作联合估计与预测的概率框架
-3. [CompassAD: Intent-Driven 3D Affordance Grounding in Functionally Competing Objects](/202604/06/2604.02060v1-compassad-intent-driven-3d-affordance-grounding-in-functionally-competing-objects)  
+4. [Eyes Can't Always Tell: Fusing Eye Tracking and User Priors for User Modeling under AI Advice Conditions](/202604/07/2604.01741v1-eyes-cant-always-tell-fusing-eye-tracking-and-user-priors-for-user-modeling-under-ai-advice-conditions)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：多物体功能性落地中的意图驱动指令
-4. [Rapidly deploying on-device eye tracking by distilling visual foundation models](/202604/06/2604.02509v1-rapidly-deploying-on-device-eye-tracking-by-distilling-visual-foundation-models)  
+   evidence：在AI环境下融合眼动追踪和用户先验进行用户建模
+5. [Cost-Efficient Multi-Scale Fovea for Semantic-Based Visual Search Attention](/202604/07/2604.03836v1-cost-efficient-multi-scale-fovea-for-semantic-based-visual-search-attention)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：用于AR/VR应用的端侧眼动追踪
+   evidence：用于实时视觉搜索和注视点渲染的贝叶斯注意力框架
 
 ### 速读区论文标签
-1. [Structured Intent as a Protocol-Like Communication Layer: Cross-Model Robustness, Framework Comparison, and the Weak-Model Compensation Effect](/202604/06/2603.29953v1-structured-intent-as-a-protocol-like-communication-layer-cross-model-robustness-framework-comparison-and-the-weak-model-compensation-effect)  
+1. [CompassAD: Intent-Driven 3D Affordance Grounding in Functionally Competing Objects](/202604/07/2604.02060v1-compassad-intent-driven-3d-affordance-grounding-in-functionally-competing-objects)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：结构化意图表示以保留用户目标
-2. [ReMoGen: Real-time Human Interaction-to-Reaction Generation via Modular Learning from Diverse Data](/202604/06/2604.01082v1-remogen-real-time-human-interaction-to-reaction-generation-via-modular-learning-from-diverse-data)  
+   evidence：意图驱动指令的目标定位
+2. [Can LLMs Reason About Attention? Towards Zero-Shot Analysis of Multimodal Classroom Behavior](/202604/07/2604.03401v1-can-llms-reason-about-attention-towards-zero-shot-analysis-of-multimodal-classroom-behavior)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：基于多源线索的实时人类交互反应生成
-3. [EgoFlow: Gradient-Guided Flow Matching for Egocentric 6DoF Object Motion Generation](/202604/06/2604.01421v1-egoflow-gradient-guided-flow-matching-for-egocentric-6dof-object-motion-generation)  
+   evidence：利用视线和姿态对学生注意力进行多模态分析
+3. [Determined by User Needs: A Salient Object Detection Rationale Beyond Conventional Visual Stimuli](/202604/07/2604.03526v1-determined-by-user-needs-a-salient-object-detection-rationale-beyond-conventional-visual-stimuli)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：从多模态第一视角观察中建模语义意图和物体运动
-4. [FocusVLA: Focused Visual Utilization for Vision-Language-Action Models](/202604/06/2603.28740v1-focusvla-focused-visual-utilization-for-vision-language-action-models)  
+   evidence：显著目标检测中的主动用户需求
+4. [ClickAIXR: On-Device Multimodal Vision-Language Interaction with Real-World Objects in Extended Reality](/202604/07/2604.04905v1-clickaixr-on-device-multimodal-vision-language-interaction-with-real-world-objects-in-extended-reality)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：XR中的多模态视觉语言交互，并与基于眼动的选择进行了对比
+5. [Probabilistic Co-Control in Brain-Computer Interfaces: Uncertainty as a Control Signal in Brain-to-Text Decoding](/202604/07/biorxiv-10-64898-2026-04-02-715749-v1-probabilistic-co-control-in-brain-computer-interfaces-uncertainty-as-a-control-signal-in-brain-to-text-decoding)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：神经解码中的概率接口与不确定性协同控制
+6. [Benchmarking Interaction, Beyond Policy: a Reproducible Benchmark for Collaborative Instance Object Navigation](/202604/07/2604.00265v1-benchmarking-interaction-beyond-policy-a-reproducible-benchmark-for-collaborative-instance-object-navigation)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：VLA模型中用于动作生成的聚焦视觉利用
-5. [RAAP: Retrieval-Augmented Affordance Prediction with Cross-Image Action Alignment](/202604/06/2603.29419v1-raap-retrieval-augmented-affordance-prediction-with-cross-image-action-alignment)  
+   evidence：人机对话中的协作交互与歧义消除
+7. [Learning Humanoid Navigation from Human Data](/202604/07/2604.00416v1-learning-humanoid-navigation-from-human-data)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：预测接触后的动作以实现有目的的机器人交互
-6. [Learning Humanoid Navigation from Human Data](/202604/06/2604.00416v1-learning-humanoid-navigation-from-human-data)  
+   evidence：从人类数据中实时预测合理的未来轨迹分布
+8. [EgoSim: Egocentric World Simulator for Embodied Interaction Generation](/202604/07/2604.01001v1-egosim-egocentric-world-simulator-for-embodied-interaction-generation)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：从人类数据和视觉记忆中预测未来轨迹
-7. [ActivityNarrated: An Open-Ended Narrative Paradigm for Wearable Human Activity Understanding](/202604/06/2604.00767v1-activitynarrated-an-open-ended-narrative-paradigm-for-wearable-human-activity-understanding)  
+   evidence：用于连续具身交互的自我中心世界模拟器
+9. [Gaze to Insight: A Scalable AI Approach for Detecting Gaze Behaviours in Face-to-Face Collaborative Learning](/202604/07/2604.03317v1-gaze-to-insight-a-scalable-ai-approach-for-detecting-gaze-behaviours-in-face-to-face-collaborative-learning)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于人类活动叙事的多模态可穿戴传感器数据
-8. [ProCap: Projection-Aware Captioning for Spatial Augmented Reality](/202604/06/2604.00912v1-procap-projection-aware-captioning-for-spatial-augmented-reality)  
+   evidence：从协作学习视频数据中自动检测注视行为
+10. [VA-FastNavi-MARL: Real-Time Robot Control with Multimedia-Driven Meta-Reinforcement Learning](/202604/07/2604.03998v1-va-fastnavi-marl-real-time-robot-control-with-multimedia-driven-meta-reinforcement-learning)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：空间增强现实的智能交互
-9. [COMPASS: Complete Multimodal Fusion via Proxy Tokens and Shared Spaces for Ubiquitous Sensing](/202604/06/2604.02056v1-compass-complete-multimodal-fusion-via-proxy-tokens-and-shared-spaces-for-ubiquitous-sensing)  
+   evidence：基于多媒体驱动元强化学习的实时人机交互
+11. [AnyUser: Translating Sketched User Intent into Domestic Robots](/202604/07/2604.04811v1-anyuser-translating-sketched-user-intent-into-domestic-robots)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：针对缺失模态的泛在感知多模态融合框架
-10. [Spatial-Aware Conditioned Fusion for Audio-Visual Navigation](/202604/06/2604.02390v1-spatial-aware-conditioned-fusion-for-audio-visual-navigation)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：多模态视听线索融合用于导航和目标分布预测
-11. [Optimizing Intermediate Representations: A Framework for Low-Cost, High-Accuracy Behavior Quantification](/202604/06/biorxiv-10-64898-2026-03-29-715170-v1-optimizing-intermediate-representations-a-framework-for-low-cost-high-accuracy-behavior-quantification)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：低成本高精度的行为量化框架
+   evidence：通过草图和视觉进行多模态意图预测
 
 
 <div class="dpr-home-promo-card">
