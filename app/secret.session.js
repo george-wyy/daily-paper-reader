@@ -925,9 +925,9 @@
             <input type="radio" name="secret-setup-provider" value="plato" />
             <span><strong>使用柏拉图（BLTCY）API</strong>：沿用当前推荐链路，聊天区可直接复用官方模型列表。</span>
           </label>
-          <label style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-            <input type="radio" name="secret-setup-provider" value="openai-compatible" />
-            <span><strong>使用 OpenAI-compatible API</strong>：模型 1 用于 GitHub workflow 论文概述，最多 3 个模型都可用于聊天区。</span>
+          <label style="display:flex; align-items:center; gap:6px; margin-bottom:6px; opacity:0.5; cursor:not-allowed;">
+            <input type="radio" name="secret-setup-provider" value="openai-compatible" disabled />
+            <span><strong>使用 OpenAI-compatible API</strong>：模型 1 用于 GitHub workflow 论文概述，最多 3 个模型都可用于聊天区。（暂时禁用）</span>
           </label>
           <div style="font-size:12px; color:#666; margin-bottom:10px;">
             说明：自定义 OpenAI-compatible 模式下，为避免不兼容的 <code>/rerank</code> 请求，
