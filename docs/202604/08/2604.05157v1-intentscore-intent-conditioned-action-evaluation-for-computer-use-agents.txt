@@ -1,0 +1,641 @@
+Title: IntentScore: Intent-Conditioned Action Evaluation for Computer-Use Agents
+
+URL Source: https://arxiv.org/pdf/2604.05157v1
+
+Published Time: Wed, 08 Apr 2026 00:12:02 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+# IntentScore: Intent-Conditioned Action Evaluation for Computer-Use Agents 
+
+Rongqian Chen Yu Li Zeyu Fang Sizhe Tang Weidong Cao Tian Lan 
+
+George Washington University, Washington D.C., USA 
+
+{rongqianc, yul, joey.fang, s.tang1, weidong.cao, tlan }@gwu.edu 
+
+Abstract 
+
+Computer-Use Agents (CUAs) leverage large language models to execute GUI operations on desktop environments, yet they generate actions with-out evaluating action quality, leading to irreversible errors that cascade through subsequent steps. We propose IntentScore , a plan-aware re-ward model that learns to score candidate actions from 398K offline GUI interaction steps spanning three operating systems. IntentScore trains with two complementary objectives: contrastive alignment for state-action relevance and margin ranking for action correctness. Architecturally, it embeds each candidate’s planning intent in the action encoder, enabling discrimination between candidates with similar actions but different ratio-nales. IntentScore achieves 97.5% pairwise discrimination accuracy on held-out evaluation. Deployed as a re-ranker for Agent S3 on OSWorld, an environment entirely unseen during training, IntentScore improves task success rate by 6.9 points, demonstrating that reward estimation learned from heterogeneous offline trajectories generalizes to unseen agents and task distributions. 
+
+1 Introduction 
+
+Computer-Use Agents (CUAs) leverage large language models (LLMs) to plan and execute graphical user interface (GUI) operations on desktop environments. At each step, the agent observes the current screen (typically as a screenshot), reasons about the task progress, and generates executable GUI actions such as mouse clicks, keyboard inputs, and scrolls Liu et al. (2025b); Wang et al. (2025a); Agashe et al. (2024; 2025). Recent systems such as Gonzalez-Pumariega et al. (2025); Yang et al. (2025) have demonstrated impressive capabilities on complex multi-step tasks spanning web browsing, document editing, and system administration. However, these systems share a critical limitation: a single LLM call produces a single action or simply selects the first or most frequent one, discarding the opportunity to compare alternatives Sager et al. (2025); Renze & Guven (2024). Recent studies show that CUAs frequently produce errors due to misalignment with the task context or intent Sager et al. (2025). These errors may cascade since the environment state shifts and recovery is difficult: once a wrong button is clicked or a dialog is dismissed, the environment state changes and recovery is difficult Lee et al. (2026). A natural mitigation is to sample multiple candidate actions, evaluate, rank and select the best one Tang et al. (2026). However, using the same LLM to self-evaluate its own candidates doubles inference cost and introduces self-preference bias Wang et al. (2024b); Madaan et al. (2023), while methods that require parallel environment instances for test-time scaling are impractical under real-world compute and latency constraints. What is needed is a lightweight, independently trained model that can reliably distinguish correct actions from plausible-but-wrong alternatives without additional LLM calls or environment copies. We observe that large-scale offline GUI trajectory datasets already provide the raw material to build such a model. Datasets like AgentNet (Kim et al., 2025) contain hundreds of 1
+
+> arXiv:2604.05157v1 [cs.AI] 6 Apr 2026
+
+thousands of interaction steps across multiple operating systems, each annotated with per-step correctness labels. Crucially, different operating systems (Windows, Mac, Ubuntu) instantiate distinct MDPs that share abstract GUI patterns (dialog flows, menu hierarchies, form layouts) yet differ in visual appearance and interaction conventions. A reward model trained on this multi-environment data should learn patterns of action correctness that transfer across environment boundaries (Ishfaq et al., 2024; Xia et al., 2025). We formalize this intuition through the lens of in-context reinforcement learning (ICRL) (Zhu et al., 2024): rather than learning a policy, we learn a reward estimator from offline trajectories spanning a diverse family of MDPs, which generalizes to unseen environments and agents at deployment time without further training. We propose IntentScore , a lightweight plan-aware dual-encoder reward model that instan-tiates this framework. IntentScore is pretrained on 398K GUI interaction steps across three operating systems and finetuned on the target Ubuntu domain, learning two comple-mentary objectives: contrastive alignment (InfoNCE), which captures state-action relevance, and reward learning (margin ranking), which captures action correctness. A key finding is that contrastive alignment alone assigns nearly identical scores to correct and incorrect actions, and reward learning is essential to inject the correctness signal. Architecturally, 
+
+IntentScore embeds each candidate’s planning intent in the action encoder rather than the state encoder, enabling discrimination between candidates with similar surface actions but different rationales. At deployment, IntentScore serves as a reward-guided re-ranker: it scores each candidate action generated by the CUA backbone and selects the highest-quality one, requiring no additional LLM calls, environment copies, or agent modifications. Our contributions are: 
+
+• A plan-aware dual-encoder reward model that embeds each candidate’s planning intent in the action encoder, enabling discrimination between candidates with similar surface actions but different rationales. 
+
+• A dual-objective training framework combining contrastive alignment (InfoNCE) and reward learning (margin ranking), addressing the finding that alignment alone captures state-action relevance but not action correctness (score gap 0.002 vs. 0.046). 
+
+• A two-stage training pipeline (cross-OS pretraining on 398K steps across three OS families followed by target-domain finetuning) that yields +2.6 points on Ubuntu evaluation through cross-environment transfer. 
+
+• End-to-end deployment validation: IntentScore integrated as a re-ranker for CUA baseline on OSWorld achieves 52.1% task success rate (+6.9 points), demonstrating that reward estimation learned from offline multi-environment data transfers to an unseen agent and task distribution. 
+
+2 Related work 
+
+Computer-Use Agents. LLM-based GUI automation has progressed rapidly along two axes: architecture and data scaling , and action selection quality . On the first axis, systems have improved by scaling training data (Cheng et al., 2024; Wang et al., 2024a), introducing large-scale annotated trajectory datasets (Wang et al., 2025a), and designing specialized agent-computer interfaces (Yang et al., 2024). Skill-based augmentation (Wang et al., 2025b) and semantic-action bridging (Liu et al., 2025a) further extend agent capabilities. On benchmarks such as OSWorld (Xie et al., 2024), WebArena (Zhou et al., 2023), and AndroidWorld (Rawles et al.), end-to-end success rates remain well below human performance, with failures frequently cascading from local action errors (Zheng et al., 2024; Sager et al., 2025). On the second axis, recent work has begun to address action selection quality. Agent S3 (Gonzalez-Pumariega et al., 2025) samples multiple candidates and selects via Best-of-N. GTA-1 (Yang et al., 2025) applies test-time scaling by sampling multiple action proposals and using an MLLM judge to select the best one, while Agent Alpha (Tang et al., 2026) introduces tree search over candidate trajectories. WMA Web Agent (Chae et al., 2024) takes a world-model approach, predicting the next state for each candidate via a learned 2transition model before scoring with a value function. Computer-Using World Model (Guan et al., 2026) further explores this direction by employing a diffusion model to simulate future screen states, enabling action evaluation through predicted visual outcomes. These methods improve action selection but rely on heavyweight components: additional LLM judge calls (GTA-1), environment rollouts (Agent Alpha), or a separate transition/diffusion model (WMA, CU-World Model). IntentScore instead trains a single lightweight reward model (13M parameters) that directly estimates action quality from (state, action, intent), requiring no additional LLM calls, environment copies, or transition model, while generalizing across environment boundaries via multi-OS offline training. 
+
+In-context reinforcement learning. In-context reinforcement learning (ICRL) studies how agents can internalize the ability to adapt to unseen environments from offline trajectories, enabling zero-shot generalization without per-task gradient updates (Zhu et al., 2024; Lin et al., 2023). Algorithm Distillation (Laskin et al., 2023) distills RL learning histories into a Transformer’s forward pass, while DPT (Lee et al., 2024) pretrains on multi-task offline datasets to learn in-context decision-making. Subsequent work extends ICRL to partially observable settings (Son et al.) and broader task distributions (Polubarov et al.). A common thread is that training across diverse MDP families yields capabilities that transfer to unseen environments, precisely the property we exploit for GUI action evaluation. However, prior ICRL work focuses on policy learning in low-dimensional control tasks. IntentScore 
+
+instead addresses reward estimation in a high-dimensional, real-world setting with visual observations, natural language plans, and executable code, learning from multi-OS GUI trajectories to score actions in unseen environments and agents at deployment time. 
+
+3 Method 
+
+3.1 Problem Formulation 
+
+Computer-Use Agents interact with desktop environments to complete user-specified tasks. We formalize each interaction as a Markov decision process M = ( S, A, T, R ), where S
+
+is the state space, A is the action space, T (st+1 | st, a t) is the transition function, and 
+
+R(st, a t) → { 0, 1} is the reward function indicating per-step correctness. At each time step 
+
+t, the agent observes a state st = ( vt, c t) consisting of a screenshot vt and textual context 
+
+ct = ( obs t, inst , reflect t), where obs t is the current observation, inst is the task instruction, and reflect t is a reflection on the previous action. The agent then selects a GUI action at ∈ A 
+
+specified by executable code and screen coordinates. Different operating systems instantiate different MDPs, as Windows, Mac, and Ubuntu share abstract GUI patterns yet differ in visual layout, widget behavior, and interaction conventions. We denote a family of K such MDPs as M = {Mk}Kk=1 .At each step, the agent generates N candidate actions via parallel LLM sampling with temperature. Each candidate i produces an executable action a(i) 
+
+> t
+
+= ( act (i) 
+
+> t
+
+, code (i) 
+
+> t
+
+, xy (i) 
+
+> t
+
+), where act (i) 
+
+> t
+
+is a natural-language action description, code (i) 
+
+> t
+
+is the executable code, and xy (i) 
+
+> t
+
+are the screen coordinates. Alongside the action, each candidate generates a planning intent g(i) 
+
+> t
+
+= thought (i) 
+
+> t
+
+, the LLM’s rationale for why the action should be taken. Standard practice selects the first or most frequent candidate and discards the rest. If we can instead evaluate the quality of each candidate, we can select better actions without retraining the LLM, achieving inference-time scaling. 
+
+From offline trajectories to in-context reward learning. Large-scale GUI trajectory datasets such as AgentNet (Kim et al., 2025) provide the raw material to build such an evaluator. AgentNet contains trajectories across multiple operating systems, each annotated with per-step correctness labels: 
+
+D =
+
+> K
+
+[
+
+> k=1
+
+n
+
+τ (k) 
+
+> j
+
+=  s(j)1 , a (j)1 , r (j)1 , . . . , s (j) 
+
+> Tj
+
+, a (j) 
+
+> Tj
+
+, r (j)
+
+> Tj
+
+oNk
+
+> j=1
+
+(1) 3where k indexes the operating system, j indexes the task within OS k, Nk is the number of trajectories in OS k, Tj is the trajectory length, and rt ∈ { 0, 1} is the per-step correctness annotation. The multi-OS structure of D aligns naturally with the in-context reinforcement learning (ICRL) framework (Laskin et al., 2023; Lee et al., 2024), which demonstrates that training on offline trajectories from a diverse family of MDPs yields generalizable capabilities that transfer to unseen environments without per-task fine-tuning. Theoretical results support such transfer: Zhang et al. (2026a) show that Q-value estimation error between two MDPs M and M ′ is bounded by their structural distance d(M, M ′). GUI environments across operating systems exhibit small inter-MDP distance, as dialog flows, menu hierarchies, and form layouts are largely shared despite surface-level visual differences. The dataset D
+
+spanning three OS families therefore serves as a multi-MDP training distribution from which we learn a transferable reward estimator. Our goal is to learn an intent-conditioned action-value estimator ˆQθ parameterized by θ that selects the best candidate at each step: 
+
+a∗ 
+
+> t
+
+= arg max 
+
+> i
+
+ˆQθ
+
+
+
+st, a (i) 
+
+> t
+
+Ht, g (i)
+
+> t
+
+
+
+(2) where Ht = {(st′ , a t′ )}t−1 
+
+> t′=t−W
+
+denotes the in-context experience from the W most recent steps and g(i) 
+
+> t
+
+is the planning intent of candidate i. The conditioning on g(i) 
+
+> t
+
+is central to our approach. The history Ht contains demonstrations from heterogeneous contexts with varying GUI layouts and action semantics, and without intent conditioning the estimator treats all demonstrations equally regardless of relevance to the candidate’s goal. Conditioning on g(i)
+
+> t
+
+recontextualizes the history so that only intent-aligned demonstrations contribute to the value estimate. 
+
+3.2 IntentScore reward model architecture 
+
+The reward model consists of three components (Figure 1). An in-context history encoder summarizes the previous K=3 steps via a 2-layer GRU (Chung et al., 2014) over frozen SigLIP (Zhai et al., 2023) screenshot embeddings and frozen MPNet (Song et al., 2020) text embeddings (observation, action, code, coordinates). A state encoder 
+
+maps the current screenshot, textual context, and history summary to an L2-normalized 384d vector s, computed once per step and shared across all candidates. An intention-aware action encoder maps each candidate’s execution details—action description, code, coordinates— and its planning intention to an L2-normalized 384d vector a. The planning intention is deliberately placed in the action encoder rather than the state encoder: because each candidate proposes a different rationale (e.g., “press Enter to save” vs. “click Cancel to go back”), this yields distinct action embeddings and enables discrimination between candidates with similar surface actions but different intents. The estimated reward is the temperature-scaled cosine similarity f (st, a t) = s⊤a/τ , where τ is learnable. The full model has ∼13M trainable parameters and scores each candidate in under 1ms on CPU. Architectural details are in Appendix A. 
+
+3.3 Dual-objective training: contrastive alignment and reward learning IntentScore learns two complementary objectives from offline trajectories. Contrastive alignment captures which actions are relevant to which states, i.e., the structural patterns of GUI interaction. Reward learning captures which actions are correct, i.e., the per-step reward signal. Each is addressed with a dedicated loss: InfoNCE for alignment, margin ranking for reward learning. 
+
+State-action alignment via InfoNCE ( Lalign ). The first objective learns state-action co-occurrence patterns across the MDP family. For a batch of B state-action pairs {(si, ai)}Bi=1 ,we use symmetric InfoNCE (van den Oord et al., 2018): 
+
+Lalign = 12B
+
+> B
+
+X
+
+> i=1
+
+wi
+
+"
+
+− log es⊤ 
+
+> iai/τ
+
+PBj=1 es⊤   
+
+> iaj/τ
+
+− log ea⊤ 
+
+> isi/τ
+
+PBj=1 ea⊤  
+
+> isj/τ
+
+#
+
+(3) 4Dataset  
+
+> Pretrain (397k steps)
+> Finetune (77k steps)
+> Frozen Encoders
+> History Module
+> State Embedding
+> s
+
+𝑪𝒐𝒔 (𝒔 , 𝒂 )/𝝉    
+
+> Loss= L_align +𝝀 "L_margin
+
+step t -3
+
+step t -2
+
+step t -1
+
+step t (now)            
+
+> The current state shows
+> LibreOffice writer is open with the
+> table insertion menu displayed…
+> Use libreoffice calc to open the file
+> and and insert a line chart with the
+> tables
+> Observation
+> The previous action has
+> successfully saved the chart, and
+> the data is checked to be correct…
+> Reflection
+> Click on the cell in the grid that
+> corresponding to 𝟐 ×𝟐 table
+> pyautogui.click (x=0.369, y=0.156)
+> I have successfully completed…
+> For the next step I need to …
+> Thought
+> Code
+> Action
+> Instruction
+> x=0.013, y=0.373
+> Parameters
+> SigLIP
+> Screenshot
+> MPNet
+> Text
+> GRU
+> 2-layer
+> step t -3vision
+> obs
+> act
+> code
+> xy
+> hist
+> step t -2vision
+> obs
+> act
+> code
+> xy
+> step t -1vision
+> obs
+> act
+> code
+> param
+> vision
+> obs
+> inst
+> rfl
+> Current State
+> Step t
+> State
+> MLP
+> Screenshots Plan -aware Action
+> Encoder
+
+…
+
+> Action
+> MLP
+> 𝐭𝐡𝐭 !
+> 𝐚𝐜𝐭 !
+> 𝐜𝐨𝐝𝐞 !
+> Candidate #1
+> 𝐩𝐚𝐫𝐚𝐦 !
+> ✅
+> 𝐭𝐡𝐭 "
+> 𝐚𝐜𝐭 "
+> 𝐜𝐨𝐝𝐞 "
+> Candidate # 2
+> 𝐩𝐚𝐫𝐚𝐦 "
+> ❌
+
+𝒂 !
+
+…
+
+Loss #1: InfoNCE       
+
+> ...
+> ...
+> +
+> ⋱
+> Positive (diagonal)
+> In -batch negatives
+> 𝒂 𝟏
+> 𝒔 𝟏
+> +
+> +
+> 𝒂 𝟐 𝒂 𝟑 𝒂 𝑵
+> 𝒔 𝟐
+> 𝒔 𝟑
+> +𝒔 𝑵
+> 𝑪𝒐𝒔 (𝒔 𝟏 ,𝒂 𝟏 ),𝑪𝒐𝒔 (𝒔 𝟐 ,𝒂 𝟐 ),…
+> Learns: “is this action RELATED to this
+> state?”
+
+Loss #2: Margin Ranking                           
+
+> Learns: “is this the RIGHT action for this
+> state?” Correct action 𝒂 !
+> (positive)
+> Hard negatives 𝒂 "
+> (same task)
+> Current state 𝒔 𝒕
+> 𝑺𝒄𝒐𝒓𝒆 𝒂 𝒕 =𝟎 .𝟔𝟓
+> 𝑺𝒄𝒐𝒓𝒆 𝒂 𝒕 "𝟏 =𝟎 .𝟒𝟖
+> 𝑺𝒄𝒐𝒓𝒆 𝒂 𝒕 $𝟏 =𝟎 .𝟒𝟒
+> 𝑺𝒄𝒐𝒓𝒆 𝒂 𝒆𝒓𝒓 =𝟎 .𝟒𝟏
+> 𝑴𝒂𝒙 (𝟎 ,𝒎 −𝒔𝒄𝒐𝒓𝒆 !−𝒔𝒄𝒐𝒓𝒆 ")
+> MPNet
+> Text
+> Action Embedding
+
+𝒂 0Action Embedding Figure 1: Architecture of IntentScore . The state encoder is computed once per step; the intention-aware action encoder is computed per candidate. Reward estimation is temperature-scaled cosine similarity. Training uses a dual objective: state-action alignment (InfoNCE) plus reward learning (margin ranking on hard negatives). where diagonal entries are positives and all off-diagonal entries serve as in-batch negatives. The weight wi reflects task completion confidence: wi = 1 .0 for steps from completed tasks, 0 .3for failed tasks, and 0 .7 for tasks with unknown completion status. Only correct steps ( rt = 1) are used as positive training samples. With batch size 1024, each positive pair is contrasted against 1023 negatives from potentially different operating systems, encouraging the model to learn cross-environment state-action patterns. However, as we show in Section 4.2, this objective alone does not yield a useful reward function: incorrect actions that are semantically related to the current screen receive equally high alignment scores. 
+
+Reward learning via margin ranking ( Lmargin ). The second objective explicitly learns from the reward signal rt to discriminate correct from incorrect actions. For each training step t with correct action a+ (rt = 1), we construct hard negatives a− from two sources: (1) temporally adjacent steps ( t±1 in the same task), whose actions are semantically similar but temporally incorrect, and (2) steps with rt = 0 (labeled-incorrect actions), representing actual mistakes. The margin ranking loss enforces a minimum separation: 
+
+Lmargin = 1
+
+|N | 
+
+X
+
+(a+,a −)∈N 
+
+max  0, m − f (s, a +) + f (s, a −) (4) where m is the target margin, f (s, a ) = s⊤a/τ is the reward score, and N is the set of (positive, negative) pairs constructed for the same state s. Contrastive alignment teaches which actions are relevant to a state; reward learning teaches which action is correct . We verify this complementary distinction empirically in Section 4.2. 
+
+Combined objective. The total training objective combines both components: 
+
+L = Lalign + λ Lmargin (5) where λ controls the relative weight of reward learning. This dual objective ensures the reward model learns both what is relevant (alignment) and what is correct (reward) from the offline trajectories. 53.4 Two-stage training pipeline 
+
+Stage 1: Cross-OS pretraining. The reward model is pretrained on 398,828 steps spanning three MDP families: 77,448 Ubuntu steps plus 321,380 Windows and Mac steps from AgentNet. By training across diverse GUI patterns (Windows start menus, Mac docks, Ubuntu panels, various dialog styles), the model learns reward estimation patterns invariant to specific implementations. 
+
+Stage 2: Target-domain finetuning. The pretrained model is finetuned on the target Ubuntu subset with a reduced learning rate and increased reward learning weight λ, pre-serving cross-OS capability while sharpening reward discrimination for the target domain. Deployment on OSWorld (Section 4.3) then tests generalization to entirely unseen tasks and agents. 
+
+Training details. Both stages use AdamW with cosine annealing, batch size 1024, and gradient clipping at max norm 1.0. Random word dropout (30–50% of words, 75% probability per sample) is applied to action and code text throughout training, preventing overfitting to surface-level text patterns and improving robustness to paraphrased descriptions from different LLM backbones. Validation combines in-batch retrieval accuracy (30%) and pairwise adjacent-step discrimination accuracy (70%) with early stopping. Total training completes on a single A100 GPU. Full hyperparameters are in Appendix C. 
+
+3.5 Deployment on OSWorld Computer Use Agent 
+
+> State
+> State
+> Encoder
+> Action
+> Encoder
+> Action
+> Encoder
+
+…   
+
+> Latent Space
+> Action #1
+> Action #2
+> 𝑪𝒐𝒔 (𝒔 ,𝒂 𝟏 )=0.57
+> 𝑪𝒐𝒔 (𝒔 ,𝒂 𝟐 )=0.34
+> 𝑪𝒐𝒔 (𝒔 ,𝒂 𝟑 )=0.41
+
+Figure 2: Deployment inference pipeline. The CUA generates multiple candidate actions for the current state. The state and action en-coders map inputs into a shared latent space, where cosine similarity determines action qual-ity. We deploy IntentScore as a reward-guided re-ranker within Agent S3 on OS-World, an environment entirely unseen dur-ing training. Agent S3 uses GPT-5-mini for planning and UI-TARS-1.5-7B (Qin et al., 2025) for visual grounding, generating N
+
+candidate plans per step via temperature sampling. Candidates whose executable code is identical or whose click coordinates differ by fewer than 20 px are merged before scoring. IntentScore then scores each unique candidate and selects the highest-scoring one above a threshold σ = 0 .10; if all candidates fall below σ, the scorer defers to Agent S3’s default choice. We restrict to GUI-only actions to isolate the effect of action selection. Field mapping details are in Appendix E. 
+
+4 Results 
+
+4.1 Experimental setup 
+
+Dataset. We train on the AgentNet dataset (Kim et al., 2025), which contains 398,828 GUI interaction steps across Ubuntu (77k steps, 5k tasks) and Windows/Mac (321k steps, 17.6k tasks). Tasks span four main domains: work, professional, daily, and system, with medium-to-high complexity involving multi-application workflows, professional knowledge requirements, and uncommon feature usage. Each step includes a 1920 ×1080 screenshot, natural-language observation and action descriptions, executable pyautogui code, the agent’s thought and reflection, the task instruction, and a correctness label. Data split details are in Appendix B. 
+
+Deployment benchmark. We evaluate end-to-end on OSWorld (Xie et al., 2024), a benchmark of 361 real-world computer tasks in fully functional Ubuntu virtual machines. Tasks span 10 application domains: Chrome, GIMP, LibreOffice Calc/Impress/Writer, VLC, 6Table 1: Ablation study on training methodology. Hard = adjacent-step discrimination accuracy; Real Inc. = detection of labeled-incorrect actions; Gap1 mean = mean pairwise score gap on Hard test; Gap >0.10 = fraction of Hard test pairs exceeding the deployment override threshold. All evaluations use the held-out Ubuntu test set with task-level splits.                                
+
+> Model Hard Real Inc. Gap1 mean Gap1 >0.10
+> Alignment loss only (baseline) 0.866 0.917 0.202 69.5% + Margin ranking loss( m=0 .10, λ=1 .0) 0.879 0.931 0.213 71.9% + Aggressive margin ( m=0 .20, λ=2 .0) 0.886 0.935 0.251 76.8% + MPNet + SigLIP2 + larger model 0.902 0.928 0.309 79.5% + Intention-aware action encoder 0.949 0.962 0.362 87.8% + Cross-OS pretraining ( IntentScore )0.975 0.997 0.373 93.2%
+
+VSCode, Thunderbird, OS-level operations, and multi-application workflows. Each task is judged by execution-based scripts that verify the final system state rather than action trajectories, making evaluation robust to alternative solution paths. Crucially, OSWorld is 
+
+entirely unseen during training: neither its tasks, OS images, nor application configurations appear in AgentNet, making it a rigorous test of cross-environment generalization. 
+
+4.2 Offline evaluation on AgentNet 
+
+All the offline evaluations are pairwise: given a state, the model scores a correct and an incorrect action; the test passes if the correct action receives a higher score. We evaluate on 2,000 held-out test pairs under two settings: Hard : the negative is drawn from an immediately adjacent step ( t±1) in the same task, sharing nearly identical UI context and representing the most realistic challenge; Real Incorrect : the negative is an action labeled incorrect within the same task, testing detection of actual human-labeled mistakes. Beyond accuracy, we report the mean pairwise score gap and the fraction of pairs exceeding a 0.10 gap (the deployment override threshold), as these directly predict deployment effectiveness. Table 2: Architecture and input ablation.                 
+
+> Model Hard Real Inc.
+> Input ablation
+> Full (baseline) 0.866 0.917
+> w/o vision 0.851 0.905 w/o tho. & ref. 0.786 0.829 w/o code 0.833 0.897 w/o history 0.842 0.912
+> Architecture & paradigm
+> Transformer encoder 0.755 0.769 Binary classification 0.073 0.117
+
+Table 3: Raw cosine similarity gap between correct and incorrect actions under each train-ing objective.          
+
+> Model Correct Incorrect Gap2
+> Alignment only 0.613 0.611 0.002 Align. + Margin 0.701 0.655 0.046
+
+Main results. Table 1 presents the full ablation trajectory on training methodology from the alignment-only baseline to the final 
+
+IntentScore model. Each row adds one component, isolating its contribution. In-tentScore achieves 97.5% on adjacent-step discrimination and 99.7% on real incorrect step detection, which representing a 10.9% and 8.0% improvement over the alignment-only baseline, respectively. Critically, 93.2% of Hard test pairs produce score gaps exceed-ing the 0.10 deployment threshold, meaning the vast majority of IntentScore ’s correct decisions would translate to confident over-rides at deployment time. Among individual components, the intention-aware action en-coder yields the single largest gain (+4.7% on Hard), confirming that planning rationale can make the actions more discriminative. Cross-OS pretraining contributes a further +2.6% despite substantial visual differences between Windows, Mac, and Ubuntu. Table 2 provides complementary ablations on input modalities and architecture. Removing thought and reflection causes the largest drop ( −8.0%), consistent with the intention-aware encoder’s importance in Table 1. Code removal ( −3.3%) and vision removal ( −1.5%) confirm that both executable details and visual context contribute, though less critically. 7Table 4: Per-domain success rate (%) on OSWorld. TDB = Thunderbird. Green indicates improvement over baseline; red indicates regression. IntentScore improves Agent S3 on 7 of 10 domains under the constrained deployment configuration.                                             
+
+> Model Chrome GIMP Calc Impress Writer Multi OS TDB VLC VSCode All
+> S3 (baseline) 53.2 53.8 42.6 46.8 52.2 29.0 58.3 66.7 29.4 60.9 45.2 S3 + IntentScore 65.2 53.8 51.1 44.7 56.5 38.7 70.8 66.7 47.1 65.2 52.1
+> ∆+12.0 =+8.5 -2.1 +4.3 +9.7 +12.5 =+17.7 +4.3 +6.9
+
+On the architecture side, replacing the dual-encoder with a Transformer encoder degrades performance sharply, and binary classification collapses entirely, validating the contrastive dual-encoder design. 
+
+Contrastive alignment vs. reward learning. Table 3 isolates the effect of each training objective. The alignment-only model assigns nearly identical mean scores to correct (0.613) and incorrect (0.611) actions, a gap of just 0.002. This is expected: Lalign learns which actions are relevant to a given state, but an incorrect action at step t+1 is equally relevant to the current screen as the correct action at step t, since both interact with the same UI context. Adding Lmargin increases the gap to 0.046 (23 ×), because the margin ranking loss explicitly enforces a separation between correct and incorrect actions regardless of their relevance. This near-zero gap echoes the collapse problem identified in joint-embedding predictive architectures, where learned encoders can map all inputs to a constant vector that trivially minimizes the contrastive loss (Maes et al., 2026). The two objectives are thus complementary: alignment provides the representational structure, and reward learning injects the correctness signal that alignment cannot capture on its own. 
+
+Cross-OS pretraining improves target-domain performance. Despite substantial visual differences between Windows, Mac, and Ubuntu, pretraining on 398K cross-OS steps before finetuning on 77K Ubuntu steps yields +2.6% on Hard and +3.5% on Real Incorrect. This suggests that abstract GUI patterns (dialog flows, menu hierarchies, form layouts) are sufficiently shared across operating systems to transfer reward estimation capability, consistent with the small inter-MDP structural distance discussed in Section 3.1. Additional ablations on style robustness, encoder choices, history architectures, and error analysis are provided in Appendix D. 
+
+4.3 Online evaluation on OSWorld 
+
+Table 5: End-to-end task success rate on OS-World (361 tasks). SR = success rate, OR = override rate.                  
+
+> System SR OR
+> S3 w/ N=3(baseline) 45.2% —S3 + random selection 44.2% (-1.0) 56.9% S3 + LLM self-evaluation 45.8% (+0.6) 52.1% S3 + Alignment only 48.0% (+2.8) 40.1% S3 + IntentScore 52.1% (+6.9) 46.6%
+
+Main results. Table 5 reports end-to-end task success rates on OSWorld. All methods generate N = 3 candidate actions per step with the same LLM backbone and visual grounding model. We deliberately use a constrained configuration: fewer par-allel candidates ( N = 3), shorter horizon (50), a smaller reasoning backbone (GPT-5-mini), and coding-based actions disabled, compared to the SOTA Agent S3 setup. This constrained setting both reflects real-istic deployment conditions and amplifies the effect of action selection errors: with fewer steps and weaker planning, each individual action matters more, providing a more sensitive testbed for evaluating IntentScore ’s scoring capability. Under these conditions, random selection and LLM self-evaluation show no meaningful improvement over the baseline, indicating that naive diversification and self-preference-biased evaluation are insufficient. The alignment-only scorer reaches 48.0%, showing that learned representations already outperform LLM-based selection. IntentScore 
+
+achieves 52.1% (+6.9 over baseline), with a 46.6% override rate indicating selective rather than indiscriminate intervention. 8Per-domain analysis. Table 4 breaks down success rates by application domain. In-tentScore improves 7 of 10 domains, with the large gains on Chrome (+12.0), and multi-app tasks (+9.7), i.e., domains where tasks involve navigating nested menus and targeting small UI elements, precisely the setting where distinguishing between similar-looking candidate actions matters most. GIMP and Thunderbird show no change, likely within noise given the small per-domain sample sizes. The slight regression on Impress ( −2.1) may reflect a combination of limited training coverage for presentation-specific operations and the domain’s high dependence on precise visual grounding, where the frozen vision encoder’s limitations become a bottleneck that the scorer cannot compensate for. Table 6: Scorer behavior across 361 OSWorld tasks.          
+
+> Step-level decision distribution
+> Total steps 6,826 Dedup (all candidates identical) 2,288 (33.5%) Scored by model 4,538 (66.5%)
+> Among scored steps
+> Agree (scorer confirms #1) 2,118 (46.7%) Defer (low confidence) 304 (6.7%) Override (scorer selects different) 2,116 (46.6%)
+> Score statistics
+> Mean selected score 0.490 Mean top1–top2 gap 0.118 Mean unique candidates / step 2.19
+
+Scorer behavior analysis. Table 6breaks down IntentScore ’s decisions across 6,826 steps. One-third of steps are deduplicated before scoring, reflect-ing limited diversity among N = 3 can-didates—the mean unique candidates per step is only 2.19. Among scored steps, the scorer overrides Agent S3’s default in 46.6% of cases, with a mean top-1 to top-2 gap of 0.118, confirming that overrides are backed by meaningful score separation rather than marginal differences. The 6.7% defer rate shows the threshold σ effectively filters out-of-distribution inputs where the scorer lacks reliable signal. 
+
+Offline-to-online gap analysis. While 
+
+IntentScore achieves 97.5% pairwise accuracy offline, the online improvement (+6.9 points) is more modest, reflecting several compounding factors. First, distribution shift between AgentNet training data and Agent S3’s outputs remains imperfectly bridged (Appendix E): Agent S3 produces longer, multi-statement executable code blocks and structured planning formats that differ from AgentNet’s single-action annotations, creating input patterns unseen during training. Sec-ond, the action space at deployment is more diverse than the offline test set: Agent S3 generates free-form candidates whose phrasing, coordinate conventions, and code style vary substantially from AgentNet’s annotation schema, reducing scorer confidence on novel inputs. Third, errors in sequential decision-making accumulate: once the scorer selects a suboptimal action, or fails to override an incorrect one, the resulting state diverges from any training trajectory, making subsequent scoring increasingly unreliable. These factors jointly limit the translation from offline discrimination accuracy to online task completion, and suggest that closing this gap requires either training on agent-generated data or online adaptation of the reward model. 
+
+5 Conclusion 
+
+We presented IntentScore , a plan-aware reward model that scores Computer-Use Agent actions by learning from multi-environment offline GUI trajectories. Our results demonstrate that contrastive alignment and reward learning serve complementary roles, that planning intent is highly informative for action evaluation, and that reward estimation capability transfers across operating system boundaries. Deployed as a re-ranker for Agent S3 on OSWorld, an environment entirely unseen during training, IntentScore improves task success rate by 6.9 points with a single 13M-parameter model. The gap between offline discrimination accuracy (97.5%) and online improvement suggests that closing the distribution shift between training data and deployment agents, and extending reward estimation to multi-step lookahead, are promising directions for future work. 9References 
+
+Saaket Agashe, Jiuzhou Han, Shuyu Zhu, and Diyi Yang. Agent s: An open agentic framework that uses computers like a human. arXiv preprint arXiv:2410.08164 , 2024. Saaket Agashe, Kyle Wong, Vincent Tu, Jiachen Yang, Ang Li, and Xin Eric Wang. Agent s2: A compositional generalist-specialist framework for computer use agents, 2025. URL https://arxiv. org/abs/2504.00906 , 2:10–16, 2025. Fabio Bellavia, Zhenjun Zhao, Luca Morelli, and Fabio Remondino. Image matching filtering and refinement by planes and beyond. arXiv preprint arXiv:2411.09484 , 2024. Hyungjoo Chae, Namyoung Kim, Minju Gwak, Gwanwoo Song, Jihoon Kim, Kai Tzu iunn Ong, Sunghwan Kim, Dongha Lee, and Jinyoung Yeo. World models for web agents. In The First Workshop on System-2 Reasoning at Scale, NeurIPS’24 , 2024. URL 
+
+https://openreview.net/forum?id=NWU6AaJv48 .Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li YanTao, Jianbing Zhang, and Zhiyong Wu. Seeclick: Harnessing gui grounding for advanced visual gui agents. In 
+
+Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 9313–9332, 2024. Junyoung Chung, Caglar Gulcehre, KyungHyun Cho, and Yoshua Bengio. Empirical evaluation of gated recurrent neural networks on sequence modeling. arXiv preprint arXiv:1412.3555 , 2014. Zeyu Fang and Tian Lan. Learning from random demonstrations: Offline reinforcement learning with importance-sampled diffusion models. arXiv preprint arXiv:2405.19878 ,2024. Zeyu Fang, Yuxin Lin, Cheng Liu, Beomyeol Yu, Zeyuan Yang, Rongqian Chen, Taeyoung Lee, Mahdi Imani, and Tian Lan. Uncertainty mitigation and intent inference: A dual-mode human-machine joint planning system. arXiv preprint arXiv:2603.07822 , 2026a. Zeyu Fang, Zuyuan Zhang, Mahdi Imani, and Tian Lan. Manifold-constrained energy-based transition models for offline reinforcement learning. arXiv preprint arXiv:2602.02900 ,2026b. Gonzalo Gonzalez-Pumariega, Vincent Tu, Chih-Lun Lee, Jiachen Yang, Ang Li, and Xin Eric Wang. The unreasonable effectiveness of scaling agents for computer use. arXiv preprint arXiv:2510.02250 , 2025. Yiming Guan, Rui Yu, John Zhang, Lu Wang, Chaoyun Zhang, Liqun Li, Bo Qiao, Si Qin, He Huang, Fangkai Yang, et al. Computer-using world model. In ICLR 2026 the 2nd Workshop on World Models: Understanding, Modelling and Scaling , 2026. Haque Ishfaq, Thanh Nguyen-Tang, Songtao Feng, Raman Arora, Mengdi Wang, Ming Yin, and Doina Precup. Offline multitask representation learning for reinforcement learning. 
+
+Advances in Neural Information Processing Systems , 37:70557–70616, 2024. Woojin Kim, Sangwon Lee, and Joonhyung Park. AgentNet: A scalable framework for multi-step agent trajectory generation. arXiv preprint arXiv:2501.00000 , 2025. Michael Laskin, Luyu Wang, Junhyuk Oh, Emilio Parisotto, Stephen Spencer, Richie Steigerwald, DJ Strouse, Steven Hansen, Angelos Filos, Ethan Brooks, Maxime Gazda, Hiroki Sahni, Satinder Singh, and Volodymyr Mnih. In-context reinforcement learning with algorithm distillation. In International Conference on Learning Representations ,2023. Jonathan N Lee, Annie Xie, Aldo Pacchiano, Yash Chandak, Chelsea Finn, Ofir Nachum, and Emma Brunskill. Supervised pretraining can learn in-context reinforcement learning. In Advances in Neural Information Processing Systems , 2024. 10 Nicholas Lee, Lutfi Eren Erdogan, Chris Joseph John, Surya Krishnapillai, Michael W Mahoney, Kurt Keutzer, and Amir Gholami. Agentic test-time scaling for webagents. 
+
+arXiv preprint arXiv:2602.12276 , 2026. Yu Li, Tian Lan, and Zhengling Qi. When right meets wrong: Bilateral context conditioning with reward-confidence correction for grpo. arXiv preprint arXiv:2603.13134 , 2026a. Yu Li, Rui Miao, Zhengling Qi, and Tian Lan. Arise: Agent reasoning with intrinsic skill evolution in hierarchical reinforcement learning. arXiv preprint arXiv:2603.16060 , 2026b. Yu Li, Sizhe Tang, Rongqian Chen, Fei Xu Yu, Guangyu Jiang, Mahdi Imani, Nathaniel D Bastian, and Tian Lan. Acdzero: Graph-embedding-based tree search for mastering automated cyber defense. arXiv preprint arXiv:2601.02196 , 2026c. Licong Lin, Yu Bai, and Song Mei. Transformers as decision makers: Provable in-context reinforcement learning via supervised pretraining. arXiv preprint arXiv:2310.08566 , 2023. Shuai Liu, Peng Zhang, and Xi Chen. SEAgent: Bridging semantic understanding and action generation for computer-use agents. arXiv preprint arXiv:2503.00208 , 2025a. Zhaoyang Liu, JingJing Xie, Zichen Ding, Zehao Li, Bowen Yang, Zhenyu Wu, Xuehui Wang, Qiushi Sun, Shi Liu, Weiyun Wang, et al. Scalecua: Scaling open-source computer use agents with cross-platform data. arXiv preprint arXiv:2509.15221 , 2025b. Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler Hallinan, Luyu Gao, Sarah Wiegreffe, Uri Alon, Nouha Dziri, Shrimai Prabhumoye, Yiming Yang, et al. Self-refine: Iterative refinement with self-feedback, 2023. URL https://arxiv. org/abs/2303.17651 , 2303, 2023. Lucas Maes, Quentin Le Lidec, Damien Scieur, Yann LeCun, and Randall Balestriero. Leworldmodel: Stable end-to-end joint-embedding predictive architecture from pixels. 
+
+arXiv preprint arXiv:2603.19312 , 2026. Andrei Polubarov, Lyubaykin Nikita, Alexander Derevyagin, Ilya Zisman, Denis Tarasov, Alexander Nikulin, and Vladislav Kurenkov. Vintix: Action model via in-context rein-forcement learning. In Forty-second International Conference on Machine Learning .Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, et al. UI-TARS: Pioneering automated GUI interaction with native agents. arXiv preprint arXiv:2501.12326 , 2025. Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervision. In International Conference on Machine Learning , 2021. Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William E Bishop, Wei Li, Folawiyo Campbell-Ajala, et al. Androidworld: A dynamic benchmarking environment for autonomous agents. In The Thirteenth International Conference on Learning Representations .Matthew Renze and Erhan Guven. Self-reflection in large language model agents: Effects on problem-solving performance. In 2024 2nd International Conference on Foundation and Large Language Models (FLLM) , pp. 516–525, 2024. doi: 10.1109/FLLM63129.2024. 10852426. Pascal J Sager, Benjamin Meyer, Peng Yan, Rebekka von Wartburg-Kottler, Layan Etaiwi, Aref Enayati, Gabriel Nobel, Ahmed Abdulkadir, Benjamin F Grewe, and Thilo Stadel-mann. A comprehensive survey of agents for computer use: Foundations, challenges, and future directions. arXiv preprint arXiv:2501.16150 , 2025. Jaehyeon Son, Soochan Lee, and Gunhee Kim. Distilling reinforcement learning algorithms for in-context model-based planning. In The Thirteenth International Conference on Learning Representations .11 Kaitao Song, Xu Tan, Tao Qin, Jianfeng Lu, and Tie-Yan Liu. Mpnet: Masked and permuted pre-training for language understanding. Advances in neural information processing systems , 33:16857–16867, 2020. Sizhe Tang, Rongqian Chen, and Tian Lan. Agent alpha: Tree search unifying generation, exploration and evaluation for computer-use agents. arXiv preprint arXiv:2602.02995 ,2026. Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Representation learning with contrastive predictive coding. In Advances in Neural Information Processing Systems , 2018. Junyang Wang, Haiyang Xu, Haitao Jia, Xi Zhang, Ming Yan, Weizhou Shen, Ji Zhang, Fei Huang, and Jitao Sang. Mobile-agent-v2: Mobile device operation assistant with effective navigation via multi-agent collaboration. Advances in Neural Information Processing Systems , 37:2686–2710, 2024a. Peiyi Wang, Lei Li, Liang Chen, Zefan Cai, Dawei Zhu, Binghuai Lin, Yunbo Cao, Lingpeng Kong, Qi Liu, Tianyu Liu, et al. Large language models are not fair evaluators. In 
+
+Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 9440–9450, 2024b. Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tianbao Xie, Junli Wang, Jiaqi Deng, Xiaole Guo, Yiheng Xu, Chen Henry Wu, et al. Opencua: Open foundations for computer-use agents. arXiv preprint arXiv:2508.09123 , 2025a. Zhenyu Wang, Yifei Hu, Xurui Wang, and Lanjun Li. CUA-Skill: Automating computer tasks with skill-augmented computer-use agents. arXiv preprint arXiv:2502.17018 , 2025b. Yu Xia, Jingru Fan, Weize Chen, Siyu Yan, Xin Cong, Zhong Zhang, Yaxi Lu, Yankai Lin, Zhiyuan Liu, and Maosong Sun. Agentrm: Enhancing agent generalization with reward modeling. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 19277–19290, 2025. Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng, Dongchan Shi, Joel Tao, et al. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. arXiv preprint arXiv:2404.07972 , 2024. John Yang, Carlos E Jimenez, Alexander Wettig, Kilian Lieret, Shunyu Yao, Karthik Narasimhan, and Ofir Press. Swe-agent: Agent-computer interfaces enable automated software engineering. Advances in Neural Information Processing Systems , 37:50528–50652, 2024. Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Amrita Saha, Zeyuan Chen, et al. Gta1: Gui test-time scaling agent. arXiv preprint arXiv:2507.05791 , 2025. Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, and Lucas Beyer. Sigmoid loss for language image pre-training. arXiv preprint arXiv:2303.15343 , 2023. Zuyuan Zhang, Vaneet Aggarwal, and Tian Lan. Lisfc-search: Lifelong search for network sfc optimization under non-stationary drifts. arXiv preprint arXiv:2602.14360 , 2026a. Zuyuan Zhang, Zeyu Fang, and Tian Lan. Structuring value representations via geometric coherence in markov decision processes. arXiv preprint arXiv:2602.02978 , 2026b. Zhenjun Zhao. Balf: Simple and efficient blur aware local feature detector. In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision , pp. 3362–3372, 2024. Zhenjun Zhao, Heng Yang, Bangyan Liao, Yingping Zeng, Shaocheng Yan, Yingdong Gu, Peidong Liu, Yi Zhou, Haoang Li, and Javier Civera. Advances in global solvers for 3d vision. arXiv preprint arXiv:2602.14662 , 2026. 12 Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. GPT-4V(ision) is a generalist web agent, if grounded. In Ruslan Salakhutdinov, Zico Kolter, Katherine Heller, Adrian Weller, Nuria Oliver, Jonathan Scarlett, and Felix Berkenkamp (eds.), Proceedings of the 41st International Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pp. 61349–61385. PMLR, 21–27 Jul 2024. Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building autonomous agents. arXiv preprint arXiv:2307.13854 , 2023. Zhenwen Zhu, Yutong Wan, Kevin Zhang, Jing Shao, and Bin Ye. A survey on in-context reinforcement learning. arXiv preprint arXiv:2408.10706 , 2024. 13 A Model architecture details 
+
+Table 7 summarizes the detailed specifications of each component in the IntentScore 
+
+reward model. Table 7: Detailed architecture of IntentScore . All text fields use frozen all-mpnet-base-v2 embeddings (768d); screenshots use frozen SigLIP-SO400M embeddings (1152d). The shared output dimension is 384.                                                                    
+
+> Component Specification In-context history encoder
+> Input per step [vt′∥obs t′∥act t′∥code t′∥xy t′]∈R3074
+> Step projection Linear(3074, 512) →GELU →LayerNorm(512) Sequence model 2-layer GRU, hidden size 384, dropout 0.1 Output Last hidden state h∈R384
+> Padding Zero-padding when fewer than K=3 previous steps exist
+> State encoder
+> Input [vt∥obs t∥inst ∥reflect t∥h]∈R3840
+> MLP Linear(3840, 1024) →GELU →LN(1024) →Dropout(0.1) →Linear(1024, 768)
+> →GELU →Linear(768, 384) Output L2-normalized s∈R384
+> Action encoder
+> Input [thought t∥act t∥code t∥xy t]∈R2306
+> MLP Linear(2306, 1024) →GELU →LN(1024) →Dropout(0.1) →Linear(1024, 512)
+> →GELU →Linear(512, 384) Output L2-normalized a∈R384
+> Temperature Learnable τ, init elog 0 .07 ≈0.07, clamped to [0 .01 ,1.0] (Radford et al., 2021)
+> Total ∼13M trainable parameters
+
+B Data statistics 
+
+45.9% of Ubuntu tasks contain at least one incorrect step, providing hard negatives for the margin ranking loss. All evaluation uses a task-level split of the Ubuntu subset: 85% train / 10% validation / 5% test, ensuring no step from a test task appears during training. The cross-OS data (Windows + Mac) is used only during Stage 1 pretraining and does not overlap with the evaluation split. The effectiveness of cross-OS transfer relies on shared geometric structure across MDP families—an assumption supported by recent theoretical work on structuring value representations via geometric coherence (Zhang et al., 2026b). Ubuntu subset key statistics: 
+
+• Task completion: True = 2,316 (46.3%), False = 357 (7.1%), None = 2,327 (46.5%) 
+
+• Steps with incorrect actions: 45.9% of tasks contain ≥1 incorrect step 
+
+• Thought field present: 59% of steps (45,750 / 77,448) 
+
+• XY coordinate range: normalized [0 , 1] 
+
+• Screenshot resolution: 1920 ×1080 
+
+• Consecutive screenshot overlap: zafter [i] = zbefore [i + 1] within same task (verified) Table 8: AgentNet dataset statistics by operating system. 
+
+Ubuntu Windows + Mac Total 
+
+Tasks 5,000 17,625 22,625 Steps 77,448 321,380 398,828 Thought present 59% varies —14 Table 9: Complete training hyperparameters for IntentScore .
+
+Parameter Stage 1 (Pretrain) Stage 2 (Finetune) 
+
+Data 398K steps (Ubuntu+Win+Mac) 77K steps (Ubuntu) Epochs 30 40 Learning rate 5 × 10 −4 1 × 10 −4
+
+Margin weight ( λ) 2.0 3.0 Margin ( m) 0.20 0.20 Batch size 1024 1024 Optimizer AdamW AdamW Weight decay 10 −4 10 −4
+
+Scheduler CosineAnnealingLR CosineAnnealingLR Min learning rate 10 −6 10 −6
+
+Gradient clipping max norm 1.0 max norm 1.0 Temperature init 0.07 from Stage 1 Temperature range [0 .01 , 1.0] [0 .01 , 1.0] History length 3 steps 3 steps Embedding dim 384 384 Text encoder all-mpnet-base-v2 (768d) same Vision encoder SigLIP-SO400M (1152d) same Text augmentation 75% prob, 30–50% dropout same Augment variants 3 per step same Task weights 1.0 / 0.3 / 0.7 same Trainable params ∼13M ∼13M Hardware Single A100 GPU same 
+
+C Training hyperparameters D Additional ablations 
+
+Style robustness. A critical requirement for cross-environment generalization is robustness to action text phrasing, as different CUA backbones produce different text styles. The binary classification approach exhibits style sensitivity of 0.999, meaning the score is determined by text style rather than state-action compatibility. Our dual-encoder architecture with text augmentation reduces this to 0.031 (32 × improvement), enabling deployment with LLM backbones unseen during training. 
+
+History architectures. We evaluated GRU 3-step, extended 5-step with visual change signals, skip connections, and parallel modality channels in the alignment-only setting. The simple GRU 3-step consistently performs best, indicating the in-context history encoder is not the bottleneck—consistent with findings in hierarchical RL that flat temporal summaries can outperform deeper skill abstractions when the action space is already well-structured (Li et al., 2026b). IntentScore retains this design. 
+
+Vision encoder. SigLIP vs. SigLIP2 produced near-identical alignment-only results (Hard 0.866 vs. 0.858). Adjacent screenshot cosine similarity exceeds 0.94 in both, confirming consecutive GUI screenshots are nearly identical in frozen embedding space. This near-invariance of visual embeddings across consecutive steps parallels challenges in energy-based transition modeling, where learned dynamics must capture meaningful state changes despite high input similarity (Fang et al., 2026b). Other related works on visual feature quality and robustness include Zhao (2024); Bellavia et al. (2024); Zhao et al. (2026). 
+
+Text encoder. MiniLM (384d) vs. MPNet (768d) yielded similar alignment-only results; however, IntentScore uses MPNet for its higher-dimensional embeddings (768d vs. 384d), which provides additional capacity for the intention-aware action encoder. With the full 15 IntentScore pipeline, MPNet contributes to the +3.6% gain shown in the “MPNet + SigLIP2 + larger model” row of Table 1. 
+
+Negative type matters more than quantity. Adjacent-step negatives ( t±1) are the most effective training signal for Hard test performance, as they require distinguishing temporally close actions that share nearly identical UI context—a challenge shared by offline RL methods that must learn from suboptimal demonstrations without environment interaction (Fang & Lan, 2024). Adding incorrect-step negatives (labeled rt = 0) improves detection of actual mistakes but slightly dilutes the adjacent-step gradient. The final model uses a balanced mix of both. 
+
+Margin parameters require careful tuning. Increasing the margin from m = 0 .10 to 
+
+m = 0 .20 and the weight from λ = 1 .0 to λ = 2 .0 yields a 2.0-point gain on Hard accuracy. The sensitivity to margin parameters echoes findings in reward-confidence calibration for policy optimization (Li et al., 2026a). The finetuning stage uses λ = 3 .0, further sharpening reward discrimination for the target Ubuntu domain. 
+
+Alignment-only failure analysis. Analysis of 200 failures from the alignment-only model shows a median score gap of −0.07 (narrow margin), with failures split evenly between 
+
+t−1 and t+1 negatives. Nearly all share a pattern: two actions that are both relevant to the current UI state but differ in temporal correctness. This failure mode is analogous to the challenge of distinguishing structurally similar but semantically different states in graph-based action evaluation (Li et al., 2026c), and is precisely the gap that the margin ranking loss addresses by injecting an explicit correctness signal. 
+
+IntentScore residual failures. With the reduced failure rate ( ∼2.5%), remaining errors concentrate on: (1) steps where the planning intention is absent or uninformative (41% of AgentNet steps lack intention annotations), limiting the intention-aware action encoder’s advantage; and (2) genuine data noise where actions have identical text, code, and coordinates. Incorporating explicit intent inference and uncertainty estimation, as explored in human-machine joint planning systems (Fang et al., 2026a), could help address the missing-intention cases. 
+
+E Field mapping for Agent S3 deployment 
+
+Agent S3’s output format differs from AgentNet’s training data, requiring field mapping at inference time. Table 10 summarizes the required transformations. Table 10: Field mapping from Agent S3’s output format to IntentScore ’s input format. The planning intention is extracted from each candidate’s plan, enabling per-candidate reward estimation. 
+
+Scorer field Agent S3 source Parsing 
+
+observation Plan (Screenshot Analysis) Regex extraction thought Plan (Next Action) Per-candidate extraction action NL description from plan code Comment extraction code exec code Remove import prefix xy Pixel coords from exec code Normalize by resolution reflection reflection field Direct (null → empty) 
+
+F Binary classification baselines 
+
+We also explored binary classification, training an MLP to predict whether a (state, action) pair is correct. Table 11 summarizes this progression. Although progressively adding features (V1 →V3) improves AUC from 0.770 to 0.887, these gains are misleading: they are evaluated 16 on a step-level split where training and test steps can come from the same task. On the stricter task-level split used for all IntentScore evaluations, binary classifiers collapse entirely (Hard accuracy 7.3%, Table 2), because they memorize task-specific surface patterns rather than learning generalizable state-action relationships. The Transformer variant (V4) fails even on the step-level split (AUC 0.510, chance level). These failures motivated the switch to the contrastive dual-encoder architecture. Table 11: Binary classification baselines (step-level split). Accuracy improves with additional features but is evaluated on an easier split; on the task-level split used for IntentScore ,binary classification collapses to 7.3% (Table 2). 
+
+Model Features AUC Top-1/5 
+
+V1 baseline vision + obs + act + inst 0.770 56.4% V2 + thought + reflection 0.847 66.5% V3 + code 0.887 69.3% V4 (Transformer) same as V3 0.510 29.0% 
+
+G Case studies 
+
+We present a detailed analysis of a successful OSWorld task (“write grammar test answers into a document”) where IntentScore overrides Agent S3’s default candidate at critical steps. The task involves a multi-application workflow: opening grammar test documents, reading questions, switching between windows, typing answers, and saving. Figure 3 visualizes 
+
+IntentScore ’s decisions across all 28 steps; Figures 4–7 detail four representative overrides. 
+
+Trajectory overview. Across 27 steps, IntentScore overrides Agent S3’s default in 10 steps (37%), agrees in 11 steps (41%), and defers to deduplication in 3 steps (11%). Three steps (18–19, 26) generated only a single candidate (no alternatives to compare), so the scorer was not invoked. Override steps with large gaps (e.g., step 7, gap=0.236) reflect high-confidence corrections, while small-gap overrides (e.g., step 27, gap=0.038) can still be critical for task success. Notably, agree steps can also have large gaps (e.g., step 9, gap=0.236), indicating selective intervention rather than indiscriminate overriding.                            
+
+> 12345678910 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28
+> 0
+> 0.1
+> 0.2
+> 0.3
+
+★
+
+★
+
+★
+
+★  
+
+> Open docs Read test 2 & write answers Read test 3, write answers & save
+> Top-1  − Top-2 score gap
+> Override
+> Agree
+> Dedup
+> Single cand.
+
+Figure 3: Decision timeline for a complete OSWorld trajectory (27 steps, task: “write gram-mar test answers”). Each bar shows the score gap between the top-ranked and second-ranked candidate, colored by IntentScore ’s decision: override (select a different candidate), 
+
+agree (confirm Agent S3’s default), or dedup (all candidates identical). Red stars mark the four detailed case studies below. 
+
+Case 1: Reliable window navigation via planning intent (step 7). The agent has just opened “Grammer test 2.docx” and needs to switch back to “Answer.docx” to enter the answers. Agent S3’s default candidate proposes Alt+Tab (score 0.401), a keyboard shortcut 17 whose target window depends on the OS window stacking order and is therefore unreliable in a multi-document workflow. A third candidate proposes PageDown (score 0.308), which would scroll within the current document rather than switching windows, a clearly incorrect action. IntentScore instead selects Candidate #2 (score 0.637 ), which clicks the “Window” menu in LibreOffice Writer’s menu bar to deterministically select “Answer.docx” from the list of open documents. The score gap of 0.236 is the largest in this trajectory, and the discrimination is driven by the planning intent: Candidate #2’s rationale explicitly states “I’ll switch back to the Answer.docx window using LibreOffice Writer’s Window menu instead of using Alt+Tab,” while Candidate #1’s rationale mentions “use a window-switch hotkey.” The intent-aware action encoder maps these different rationales to distinct embeddings, enabling IntentScore to favor the more reliable navigation strategy.            
+
+> #Action (intent summary) Score
+> 1Alt+Tab (“use hotkey to switch”) 0.401
+> 2Click “Window” menu (“use menu to select Answer.docx”) 0.637
+> 3PageDown (“scroll to see more questions”) 0.308
+
+Figure 4: Case study 1 (step 7): IntentScore overrides Alt+Tab in favor of the “Window” menu for reliable document switching. The score gap of 0.236 reflects the intent-aware encoder’s ability to distinguish navigation strategies. 
+
+Case 2: Consistent preference for deterministic navigation (step 10). Three steps later, the agent is back in “Answer.docx” and needs to switch to “Grammer test 2.docx” to read its questions. The Window menu is already open, listing both documents. Agent S3’s default proposes Ctrl+F6 (score 0.138), a LibreOffice-specific hotkey that cycles through open documents in an order the agent cannot predict. IntentScore overrides to Candidate #2 (score 0.333 ), which clicks the “Window” menu entry for “Grammer test 2.docx” directly. The gap of 0.196 is the second largest in this trajectory. Combined with step 7, this shows that IntentScore consistently penalizes non-deterministic navigation hotkeys in favor of explicit menu selection—a pattern learned from offline trajectories where hotkey-based switching frequently leads to wrong-window errors. 
+
+Case 3: Precise cursor placement (step 16). The agent has returned to “Answer.docx” and needs to place the cursor at the correct position to type the Test 2 answers. All three candidates click on the same line ( y=0.417), but at different horizontal positions with different intents: Candidate #1 clicks “in the blank area immediately below ‘Grammar test 2:’ ” ( x=0.347, score 0.472); Candidate #2 clicks “on the blank line immediately below the heading” ( x= 0.411, score 0.549); Candidate #3 clicks “immediately to the right of the text ‘Grammar test 2:’ ” ( x= 0.383, score 0.618 ). IntentScore selects Candidate #3, which places the cursor directly after the colon—the most precise insertion point for appending the answer string on a new line. The other two candidates risk placing the cursor on the wrong line or at an offset position, which could corrupt the document formatting. This case 18 # Action (intent summary) Score 
+
+1 Ctrl+F6 (“use hotkey to cycle documents”) 0.138 
+
+2 Click “Window” → Grammer test 2 (“select target from menu”) 0.333 
+
+Figure 5: Case study 2 (step 10): IntentScore again overrides a navigation hotkey (Ctrl+F6 ) in favor of the “Window” menu. The screenshot shows Answer.docx with the Window menu open, listing both documents. demonstrates that the intent-aware encoder distinguishes candidates with nearly identical coordinates but different spatial reasoning. 
+
+# Action (intent summary) Score 
+
+1 Click below “Grammar test 2:” (“blank area below”) 0.472 2 Click below the heading (“blank line below heading”) 0.549 
+
+3 Click right of “Grammar test 2:” (“place cursor after colon”) 0.618 
+
+Figure 6: Case study 3 (step 16): Three click candidates target the same line at slightly different positions. IntentScore selects the one that places the cursor directly after “Grammar test 2:” for precise text insertion. 
+
+Case 4: Format-preserving text entry (step 17). Immediately after cursor placement, the agent must type the Test 2 answer string. All three candidates type the same content (“baaad”), but differ in formatting: Candidate #1 types "baaad" without a leading newline; Candidate #2 types "\nbaaad" with a leading newline; Candidate #3 types "\nbaaad" with 19 an explicit enter=False flag. IntentScore selects Candidate #2 (score 0.494 ), which includes the newline character \n to place the answer on a new line below the heading— matching the format established for Test 1, where “bbbad” appears on its own line beneath “Grammar test 1:”. Without the leading newline, the answer would be appended directly after the colon on the same line (“Grammar test 2: baaad”), breaking the expected format. Since OSWorld’s evaluation scripts verify the final document content against a ground-truth template, incorrect formatting would cause the task to fail despite the answer itself being correct. This case shows that IntentScore captures formatting conventions from offline trajectories—a subtle but task-critical signal that distinguishes candidates with identical semantic content. 
+
+# Action (intent summary) Score 
+
+1 type("baaad") (no newline, appends on same line) 0.479 
+
+2 type(" \nbaaad") (newline first, matches Test 1 format) 0.494 
+
+3 type(" \nbaaad", enter=False) (newline, explicit no-enter) 0.472 
+
+Figure 7: Case study 4 (step 17): Three type candidates with identical content but different formatting. IntentScore selects the one with a leading \n, preserving the line-by-line format established for Test 1. Without the newline, the answer would appear on the same line as the heading, failing the evaluation. 20
