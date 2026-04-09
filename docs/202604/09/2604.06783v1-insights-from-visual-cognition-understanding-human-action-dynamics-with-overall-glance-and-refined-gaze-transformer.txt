@@ -1,0 +1,526 @@
+Title: Insights from Visual Cognition: Understanding Human Action Dynamics with Overall Glance and Refined Gaze Transformer
+
+URL Source: https://arxiv.org/pdf/2604.06783v1
+
+Published Time: Thu, 09 Apr 2026 00:40:02 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Insights from Visual Cognition: Understanding Human Action Dynamics with Overall Glance and Refined Gaze Transformer 
+
+## Bohao Xing a, Deng Li a, Rong Gao a, Xin Liu a,∗ and Heikki Kälviäinen a,b 
+
+> a
+
+Department of Computational Engineering, Lappeenranta-Lahti University of Technology LUT, Finland 
+
+> b
+
+Faculty of Information Technology, Brno University of Technology, Czech Republic 
+
+A R T I C L E I N F O 
+
+Keywords :Action Recognition Transformer Video Understanding Spatiotemporal 
+
+A B S T R A C T 
+
+Recently, Transformer has made significant progress in various vision tasks. To balance computation and efficiency in video tasks, recent works heavily rely on factorized or window-based self-attention. However, these approaches split spatiotemporal correlations between regions of interest in videos, limiting the models’ ability to capture motion and long-range dependencies. In this paper, we argue that, similar to the human visual system, the importance of temporal and spatial information varies across different time scales, and attention is allocated sparsely over time through glance and gaze behavior. Is equal consideration of time and space crucial for success in video tasks? Motivated by this understanding, we propose a dual-path network called the Overall Glance and Refined Gaze (OG-ReG) Transformer. The Glance path extracts coarse-grained overall spatiotemporal information, while the Gaze path supplements the Glance path by providing local details. Our model achieves state-of-the-art results on the Kinetics-400, Something-Something v2, and Diving-48, demonstrating its competitive performance. The code will be available at https://github.com/linuxsino/OG-ReG. 
+
+## 1. Introduction 
+
+Action recognition is a crucial task that has garnered extensive attention in video understanding. Convolutional Neural Networks (CNNs) [66, 76, 72, 63, 10, 59, 73, 86, 46, 21, 20, 32] have made remarkable progress in this field. More recently, the introduction of Transformer into computer vi-sion [16] has led to great success in various image tasks [71, 47, 68, 9, 98, 37, 22]. Subsequently, research on Transformer has been extended to video tasks [4, 53, 1, 36, 49]. However, due to a large number of video tokens, vanilla self-attention becomes computationally expensive, making it impractical for extracting overall spatiotemporal features. Some works focused on factorized [4, 1] or window-based [49, 85] self-attention to reduce the computational burden. Although these approaches partially resolved the computational cost problem of self-attention, they still sever the motion of regions of interest (ROI) in space and time, as illustrated in Figure 1. This limitation becomes more prominent, particularly when both the object and the camera are in motion. However, humans can quickly glance global temporal order of changes and track ROI in time and space. When examining object details, an additional gaze is needed to observe local spatial information such as shape, color, texture, etc. If we aim to make the model perform as efficiently as humans in video tasks, what should we consider for the temporal and spatial dimensions of videos? We first acknowledge that sensory events are highly interdependent both in space and time [2]. Therefore, separating time and space [53, 4, 1, 49, 85] may impair the overall spatiotemporal features. However, does this mean that we should treat time and space equally, as did in previous methods [10, 59, 4, 53, 
+
+> ∗
+
+Corresponding author  
+
+> linuxsino@gmail.com
+
+(X. Liu) 
+
+1, 49, 40, 45]? In the human visual system, observation is sparse and attention is allocated over time through glance and gaze behavior [33, 15]. This suggests that the human visual system places different emphasis on time and space at different time scales. How can we apply this understanding to current action recognition settings and networks? In humans, after observ-ing actions, memories are formed [55, 67], which make up visual perception. It is assumed that observation and memory occur across three time scales: long-term memory, clip-level view, and frame-level observation. This helps us understand the varying importance of time and space at different scales. For long-term-level memory (referring to a single video containing multiple actions), people typically model the re-lationships between multiple actions, placing more emphasis on spatial information than temporal information, as shown in MeMViT [83]. We believe this is because the interpre-tation or comprehension of individual actions has already been achieved [55]. For clip-level view (referring to a single video containing one action, as a part of a long-term-level memory, which is similar to most existing action recognition datasets), we should prioritize the temporal order as tem-poral information is crucial for agnostic actions and spatial information is more redundant with temporal information [28, 70]. Many human actions and interactions involve an ordered sequence of back-and-forth responses that cannot be modeled using a single or a few frames [5]. For frame-level observation (referring to a frame and its neighboring frames in a clip-level video), we should focus more on the local spatial information of ROI captured by a glance than on local temporal information, obtaining detailed information through gaze behavior. 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 1 of 12          
+
+> arXiv:2604.06783v1 [cs.CV] 8 Apr 2026 OG-ReG (b)
+> (a)
+> (c)
+> Figure 1: The differences between window-based attention and glance-like attention. (a) Frame sequences ( pushing notebook so that it falls off the table ) from SSv2 [25] dataset. (b) In window-based self-attention (e.g., Video-Swin [49]), a square represents a
+> window within which self-attention performs its calculations. When an object (marked with red) zooms, moves, and rotates across many different windows in frame sequences, the tokens in the yellow or green window of the first frame merely communicate with the tokens of the same object in subsequent frames at the later stage of the network. It is difficult to obtain an excellent receptive field to learn spatiotemporal information, particularly to model motion. (c) After spatial downsampling, each square (which represents a token ) can communicate freely with others, resulting in an attention mechanism that resembles a glance.
+
+The latter two levels should be taken into consideration. Humans store a bound trace of different action represen-tations on time when forming memories [55]. However, current action recognition is based on clipped videos, where each video is within such temporal boundaries. In particular, during clip-level viewing, temporal information is crucial. Even if some actions that heavily rely on spatial information may appear to lack temporal information, this determination can only be made after viewing. Therefore, we reiterate that temporal information is invaluable when observing agnostic actions without prior knowledge. Furthermore, in this paper, the issue of the frame sampler [31, 84, 95] is not discussed and instead only fixed stride [10] or uniform [25] sampling is utilized, as it may disrupt the visual tempo and typically exists as a separate component without efficient communi-cation with the backbone. In summary, we propose a dual-path network called Overall Glance and Refined Gaze Transformer (shown in igure 3), with Spatial-only Downsampling Attention (SoDA) in the Glance path to capture coarse-grained spatiotemporal information on clip level, and Masked Dynamic Convolution (MDConv) in the Gaze path to capture detailed local spatial or temporal information on frame level. We hope this can effectively leverage the advantages of the human visual sys-tem. In experiments, we find that a special balance between 2D and 3D convolution in Gaze path is required, rather than solely relying on 3D convolution as previous works [10, 59, 73, 86] did. We convert the token similarity matrix 
+
+𝑨 in the Glance path into a frame similarity matrix, which can be seen as visual tempos [21, 90] as illustrated in Fig-ure 2. This guides the balancing of 2D and 3D convolutions, allowing for adaptive handling of varying visual tempos through their combination. As shown in Table 5, imbalanced local temporal and spatial information leads to decreased performance. This work offers the following contributions: 1) We rethink Transformer in action recognition and investigate the importance of time and space in video. Our proposed method incorporates the glance and gaze mecha-nisms, which mimic the human visual system. Although the glance and gaze mechanism has been applied in other fields [91, 96, 34], to the best of our knowledge, there is no relevant research in action recognition, especially considering the difference between time and space in videos. 2) We propose Spatial-only Downsampling Attention (SoDA) to effectively process overall spatiotemporal in-formation with low computational cost on clip level. This method allows for a similar function to the Glance mech-anism, as the human visual system is sensitive to low-frequency content and motion. To the best of our knowledge, this is the first work to achieve competitive results using only coarse-grained overall self-attention in each network stage. Our method is not strictly a multi-scale approach, despite our consideration of multiple levels in time. Previous works have explored global or multi-scale attention, including [45, 74, 40, 89], but they are either highly complex or rely on a fine-grained branch. In contrast, our approach achieves better performance than Video-Swin [49] by 2.7% on SSv2 using only coarse-grained overall self-attention, as demonstrated in Table 6.      
+
+> Bohao Xing et al.: Preprint submitted to Elsevier Page 2 of 12 OG-ReG (a)
+> (b)
+> (c)
+> (d)
+> Stage 1
+> Block 0
+> (e)
+> Stage 3
+> Block 5
+> Figure 2: By visualizing the similarity matrices and their corresponding three video sequences ((a) a fast tempo, (b) a slow tempo, (c) a slower tempo) from the same action category, we demonstrate that matrix 𝑨 can effectively capture the tempo characteristics of the actions.
+
+3) Compared to the state-of-the-art models, the proposed OG-ReG demonstrates remarkable performance on multiple benchmarks while also reducing computation costs. The model excels not only on spatial-heavy datasets (such as K400) but also shows substantial improvement on temporal-heavy datasets (such as SSv2). 
+
+## 2. Related Work 
+
+2.1. CNN-based Video Action Recognition 
+
+CNN-based video action recognition methods [66, 76, 72, 10, 59, 73, 86, 20] typically utilized two-stream net-works, 3D convolution, or a combination thereof to extract appearance and motion information. As efficiency emerged as a significant concern, researchers began to investigate 2D convolution with temporal modeling [46, 21, 32]. Resently, MixRes [50] combined hierarchical motion modeling and a Temporal Multiscale Motion Excitation (TMME) mod-ule to effectively capture short-term and long-term mo-tion features. MCNet [52] integrated contextual visual and motion features through novel modules like the Tempo-ral Optical Flow Learning Module (TOFLM) and Contex-tual Visual Features Learning Module (CVFLM) to achieve robust action recognition in dark environments. GSLTA-CDFSAR [26] introduced a framework for cross-domain few-shot action recognition that aligns global sequences and local tuples using multiple-level distillation and domain-adaptive augmentation. CANet [23] leveraged plug-and-play modules to effectively capture motion information across temporal, spatial, and channel dimensions in video-based action recognition. 
+
+2.2. Transformer-based Video Action Recognition 
+
+The exceptional performance of Transformer in image tasks has led to its introduction in video action recogni-tion. Several approaches, including VTN [53], Timesformer [4], and ViViT [1] explored the factorization of the en-coder, self-attention, and dot-product for videos. Video-Swin Transformer [49] reduced computation by utilizing window-based attention. MViT [17, 45] employed a pool-ing attention mechanism to reduce computation costs. De-formable Video Transformer [74] leveraged motion cues to identify a sparse set of space-time locations to attend to for each query. Uniformer [40] integrated local and global self-attention in a concise transformer format but considered one type of dependency, either global or local, in a single layer and sacrifices either global information during local modeling or vice versa [65]. TPS [85] had a similar computa-tion and memory cost as 2D self-attention, achieved through patch shift operations. CLIP-MDMF [27] leveraged local and global temporal context extractors, probability prompt selectors, and multi-view mutual distillation to achieve su-perior accuracy and robustness by effectively fusing textual and visual modalities. In addition, there are several studies focusing on co-learning and multimodal learning [24, 54, 58, 61, 88, 38, 87, 80] that we have not compared with in this paper. The reason for this is that these methods employ a larger amount of training data and more robust training strategies. 
+
+2.3. Reducing the Computation Cost of Self-Attention 
+
+The computation cost of self-attention increases expo-nentially with the number of input tokens, making it in-tractable for visual tasks. To address the issue, several recent works focused on image tasks [77, 78, 93, 94, 17, 45] re-duced the complexity of self-attention by combining it with key-value spatial reduction. Other works [47, 14, 29] focused on window-based attention. However, the window-based methods may still limit the ability to capture long-range relations, especially for video inputs; the key-value spatial reduction methods may damage the spatial information. MViTv2 [45] not only has the aforementioned limitations, but also is insufficient for videos, especially for long-term action recognition and anticipation, and did not address the issue of self-attention’s lack of high-frequency information. 
+
+2.4. Combining Transformer and Convolution 
+
+Many recent studies attempted to combine Transformer and convolution due to their complementary feature extrac-tion properties. According to [56, 97], self-attention has weak inductive bias may impede training, and serves as a low-pass filter, with superior performance, generalization, and robustness compared to convolution. In contrast, con-volution acts as a high-pass filter and remains essential. GG-Transformer [91] incorporated convolution in parallel with the value branch within self-attention. Uniformer [41, 40] used local attention in the early stages and global attention in the later stages. MixFormer [11] leveraged bi-directional in-teractions across branches to provide complementary infor-mation. Inception Transformer [65] employed an Inception mixer to explicitly combine the benefits of self-attention, convolution, and max-pooling. Next-ViT [39] presented a   
+
+> Bohao Xing et al.: Preprint submitted to Elsevier Page 3 of 12
+
+OG-ReG Stem   
+
+> Patch
+> Embedding
+> OG -ReG
+> Block
+> Stage 1
+> Patch Merging &
+> Patch Embedding
+> OG -ReG
+> Block
+> Stage 2
+> Patch Merging &
+> Patch Embedding
+> OG -ReG
+> Block
+> Stage 3
+> Patch Merging &
+> Patch Embedding
+> OG -ReG
+> Block
+> Stage 4 Input Video
+> (a) Architecture
+> FFN
+> Linear
+> MDConv
+> Linear Linear
+> Glance
+> Path
+> Gaze
+> Path
+> SoDA
+> (b) OG -ReG Bloc k
+> Norm
+> Norm
+
+Figure 3: The framework of OG-ReG Transformer. (a) An overview of the proposed Overall Glance and Refined Gaze (OG-ReG) Transformer. (b) The fundamental building block of OG-ReG, namely the OG-ReG block. 
+
+cascaded network with self-attention and convolution, con-sidering the latency and accuracy trade-off. However, most of the aforementioned methods have primarily focused on image tasks. To our knowledge, the integration of Trans-former and convolution for video understanding has received relatively little attention, particularly in terms of considering the unique properties of video data. Uniformer [40] used local attention to address “local redundancy”, but had a vague definition of it, treated temporal and spatial informa-tion equally, and did not discuss the redundancy in time and space. 
+
+2.5. Glance and Gaze 
+
+Glance and Gaze [15] is a beneficial mechanism within human visual system [13, 21, 91, 51]. Individuals typically survey a scene quickly to identify and track ROI, and then examine the details of the ROI more closely. It extracts visual elementary features at different frequencies [7, 3, 30], which echoes Transformer and convolution [60, 56]. Although glance and gaze have been studied in image recognition [91], human-object interaction [91], speech enhancement [34], and others, there is no relevant research that has considered it for action recognition. 
+
+2.6. Spatiotemporal Redundancy in Videos 
+
+Spatiotemporal redundancy refers to the significant amount of redundant information between adjacent frames in both time and space in a video. Redundancy has been stud-ied in various video tasks [69, 62, 82, 8, 42, 40], but it is important to consider that redundancy differs in both time and space. Neglecting this may impede the design of efficient action recognition methods. On the one hand, temporal downsampling and image-centric baseline may encounter challenges in fine-grained action understanding and may be insufficient for inputs that require a deeper multi-frame understanding of event relationships or dynamics [5]. Therefore, spatiotemporal redundancy should not be defined only in the time domain. On the other hand, the ablation study in VideoMAE [28, 70] has shown that space-only/tube sampling with a higher masking ratio can work better than time-only/frame sampling with a lower ratio. This means that the spatial redundancy in videos is much greater than the temporal redundancy. The fact of the difference in redundancy between time and space in videos also supports our hypothesis. 
+
+2.7. Visual Tempo 
+
+Visual tempo is used to characterize the dynamics and temporal scale of action [21, 90]. The complex temporal structure of action instances, particularly in terms of the var-ious visual tempos, raises a challenge for action recognition. SlowFast [21], DTPN [92], and TPN [90] focused on input-level frame pyramid that has level-wise frames sampled at different rates. Previous works only focused on the input visual tempo, without integrating with the human visual system or studying the balance of local temporal and spatial information. 
+
+## 3. Methods 
+
+3.1. OG-ReG Transformer 
+
+Our aim is to design an effective attention mechanism that imitates human glance behavior to extract overall spa-tiotemporal information in videos, taking into account the varying importance and redundancy of temporal and spa-tial information. Figure 3 illustrates the architecture of our Overall Glance and Refined Gaze Transformer. Additional details of model variants (OG-ReG- T, S, B) are provided in the Supplemental Materials. We start with a video  ∈
+
+ℝ𝑇 𝑖𝑛 ×𝐻 𝑖𝑛 ×𝑊 𝑖𝑛 ×3 , where 𝑇 𝑖𝑛 represents the number of frames, and each frame has 𝐻 𝑖𝑛 × 𝑊 𝑖𝑛 × 3 pixels. Overlapped 3D patches as tokens are embedded by Conv Stem with total stride 2 × 4 × 4 . After patch embedding, we obtain input 3D tokens 𝑍 0 ∈ ℝ 𝑇 𝑖𝑛       
+
+> 2×𝐻 𝑖𝑛
+> 4×𝑊 𝑖𝑛
+> 4×𝐶 𝑒𝑚𝑏
+
+.A vanilla or hierarchical visual transformer consists of 
+
+𝐿 encoders with MSA, Layer-Norm (LN) and FFN. The transformer encoder could be represented as ̂
+
+𝒁 𝑙 = MSA(LN( 𝒁 𝑙 −1 )) + 𝒁 𝑙 −1 ,
+
+𝒁 𝑙 = FFN(LN( ̂𝒁 𝑙 )) + ̂ 𝒁 𝑙 , (1) where 𝒁 𝑙 −1 , 𝒁 𝑙 ∈ ℝ𝑁 ×𝑑 𝑚 denote the input and output features the block 𝑙 , respectively. To simplify the notation, the MSA operation is described in the setting of single-head attention and drop the layer superscripts of weights and neglect LN as follows: 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 4 of 12 OG-ReG FFN   
+
+> Spatial -only
+> Downsamplin glinear
+> linear
+> linear
+> linear MDConv
+> Upsampling
+> Upsampling
+> linear
+> linear
+> matrix product
+> Softmax
+> elemwnt -wise sum
+> Glance
+> Path
+> Stage Stage
+> Gaze
+> Path
+> Gaze
+> Path
+> SoDA
+
+Figure 4: Details of the OG-ReG block (neglecting Layer-Norm). 
+
+𝑸 , 𝑲 , 𝑽 = 𝒁 𝑙 −1 𝑾 𝑄 , 𝒁 𝑙 −1 𝑾 𝐾 , 𝒁 𝑙 −1 𝑾 𝑉 ,̂ 
+
+𝒁 𝑙 = Sof tMax( 𝑸𝑲 𝑇 ∕
+
+√
+
+𝑑 )𝑽 , (2) where 𝑾 𝑄 , 𝑾 𝐾 , 𝑾 𝑉 are the weights of linear projection, and 
+
+𝑸 , 𝑲 , 𝑽 represent the 𝑞𝑢𝑒𝑟𝑦 , 𝑘𝑒𝑦 and 𝑣𝑎𝑙𝑢𝑒 . Our network architecture fundamentally adheres to the design principles of a hierarchical vision transformer. The essential distinction lies in our utilization of SoDA in conjunction with MDConv to emulate the mechanisms of human visual perception. 
+
+3.2. Overall Glance Path 
+
+To effectively extract overall spatiotemporal features, we propose the Spatial-only Downsampling Attention (SoDA), which is based on the principle of reducing redundant spa-tiotemporal information as discussed in Section 2. This allows for a more coarse-grained self-attention to be imple-mented for video tasks. In layer 𝑙 , the input tokens 𝒁 𝑙 −1 ∈
+
+ℝ𝑁 ×𝐶 , where 𝑁 = 𝑇 𝑙 −1 × 𝐻 𝑙 −1 × 𝑊 𝑙 −1 . Considering the redundancy of spatial information in videos, we perform a downsampling operation exclusively on the spatial dimen-sions of the input tokens (as illustrated in Figure 4). This approach not only significantly reduces computational costs but also achieves commendable results for action recogni-tion, as demonstrated in Table 6. The formulation of SoDA (a single head) in layer 𝑙 can be expressed as 
+
+𝒁 ′ 
+
+> 𝑙 −1
+
+= DR( 𝒁 𝑙 −1 ),
+
+𝑸 , 𝑲 , 𝑽 = 𝒁 ′
+
+> 𝑙 −1
+
+𝑾 𝑄 , 𝒁 ′
+
+> 𝑙 −1
+
+𝑾 𝐾 , 𝒁 ′
+
+> 𝑙 −1
+
+𝑾 𝑉 ,̂ 
+
+𝒁 𝑙 = 𝑨𝑽 , 𝑨 = Sof tMax( 𝑸𝑲 𝑇 ∕
+
+√
+
+𝑑 ),̂ 
+
+𝒁 ′ 
+
+> 𝑙
+
+= UR( ̂𝒁 𝑙 ) + UR( 𝑽 ),
+
+(3) Where 𝑾 𝑄 , 𝑾 𝐾 , 𝑾 𝑉 are linear projections and 𝑑 is the hidden dimension in self-attention. The operations for re-ducing and restoring the spatial resolution of the input are denoted as DR( ⋅) and UR( ⋅), respectively, and can be defined as follows: 
+
+DR( 𝑿 ) = ReS(Down(ReS( 𝑿 ), 𝑠 )) ,
+
+UR( 𝑿 ) = ReS(Up(ReS( 𝑿 ), 𝑠 )) . (4) 0 
+
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 1
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> 0
+> Reshape
+> Mean
+> Ada
+> Pool
+> Reshape FC
+> ReLU
+> Softmax
+> FC
+> elemwnt -wise product
+> scalar product
+> elemwnt -wise sum
+
+Figure 5: Details of the MDConv. 
+
+Here, 𝑿 ∈ ℝ𝑁 ×𝐶 represents an input, where 𝑠 represents the downsample/upsample ratio, typically is set to [8 , 4, 2, 1] 
+
+at different stages. The operations of reducing/restoring the spatial resolution of the input only. ReS( 𝑿 ) reshapes the input sequence of 𝑿 ∈ ℝ𝑁 ×𝐶 to ℝ𝑇 ×𝐻 ×𝑊 ×𝐶 or back. 
+
+Down( 𝒙 , 𝑠 ) and Up( 𝑿 , 𝑠 ) downsample the feature 𝑿 ∈
+
+ℝ𝑇 ×𝐻 ×𝑊 ×𝐶 to ℝ𝑇 × 𝐻 𝑠 × 𝑊 𝑠 ×𝐶 , or upsample back. 
+
+3.3. Refined Gaze Path 
+
+To extract local spatiotemporal information, we discov-ered that relying solely on 3D convolutions, as in previous works [10, 59, 73, 86] did, is inadequate. Instead, it is necessary to modulate 2D and 3D convolutions differently for time and space. To achieve this, we convert token simi-larity matrix 𝑨 from the Glance path to the frame similarity matrix to guide the balance of local temporal and spatial information. We introduce the MDConv, which integrates 2D and 3D convolution (refer to the bottom of Figure 3 for details). Specifically, given the input after linear projection ̃𝒁 𝑙 −1 ∈ ℝ𝑇 𝑙 −1 ×𝐻 𝑙 −1 ×𝑊 𝑙 −1 ×𝐶 𝑙 −1 , the MDConv is formulated as follows: 
+
+𝜋 2𝑑 , 𝜋 3𝑑 = Attention( 𝑨 ),
+
+s. t. 0 ≤ 𝜋 2𝑑 , 𝜋 3𝑑 ≤ 1, 𝜋 2𝑑 + 𝜋 3𝑑 = 1 ,
+
+𝑾 2𝑑 +3 𝑑 = 𝜋 2𝑑 𝑾 2𝑑 + 𝜋 3𝑑 𝑾 3𝑑 ,̃𝒁 𝑙 = MDConv( ̃𝒁 𝑙 −1 , 𝑨 ) = ̃ 𝒁 𝑙 −1 𝑾 2𝑑 +3 𝑑 + 𝒃 ,
+
+(5) where Attention( ⋅) converts the token similarity matrix 𝑨 to the modulation factors [𝜋 2𝑑 , 𝜋 3𝑑 ] (shown in Figure 5). 𝑾 2𝑑 ,
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 5 of 12 OG-ReG 
+
+𝑾 3𝑑 denote the weights, and 𝒃 represents the biases. By reshaping and averaging the matrix we obtain 𝑨 ′ ∈ ℝ𝑇 ×𝑇 ,which represents the frame similarity (see Figure 2). To handle different frame sampling rates during inference ( 𝑇 ′)from training ( 𝑇 , typically 𝑇 = 𝑇 ′), as the shape of the FC parameters (related to 𝑇 ) is fixed, we add an adaptive pooling layer to adjust the matrix to match the training shape. Finally, we obtain the modulation factors [𝜋 2𝑑 , 𝜋 3𝑑 ] for the 2D and 3D kernels. To add 𝑾 2𝑑 with 𝑾 3𝑑 in PyTorch, we mask the tem-poral dimension of 3D kernel to obtain a 2D Conv. Let ̃𝑾 3𝑑 ∈ ℝ𝑘𝑑 ×𝑘ℎ ×𝑘𝑤 be a 3D convolution kernel, where 𝑘𝑑 ,
+
+𝑘ℎ and 𝑘𝑤 are the dimension of time, height and weight. We perform element-wise production between the kernel and the fixed mask 𝑴 ∈ ℝ𝑘𝑑 ×𝑘ℎ ×𝑘𝑤 to obtain the 2D convolution kernel with a 3D shape: ̃ 𝑾 2𝑑 = 𝑴 ⊙̃ 𝑾 3𝑑 . To extract information of the central frame, we set 𝑴 [ 𝑘𝑑 −1 2 , ∶, ∶] = 1 
+
+for central time elements and 0 for the others. This process functionally transforms a 3D kernel into a 2D one. Through MDConv, the Gaze path captures local high-frequency infor-mation and complements the features obtained by the Glance path. Although the method of modulating convolution ker-nels has also been used in Dynamic Convolution [12], it only focused on image tasks, while we consider the characteristics of videos when designing mask and attention mechanisms. The two paths and their interactions mimic that humans quickly glance at the global temporal order of changes and track ROI in time and space, and when examining object details, an additional gaze is needed to observe local spatial and local temporal information. 
+
+## 4. Experiments 
+
+4.1. Datasets 
+
+The Kinetics-400 (K400) [10] is a widely used, large-scale, spatial-heavy action recognition dataset comprised of approximately 240k training video clips and 20k validation video clips in 400 categories of human actions. The video clips are collected from YouTube and trimmed to about 10 seconds. The Something-Something v2 (SSv2) [25] is a large-scale, temporal-heavy dataset of daily actions that focuses on object motion, without differentiating manipu-lated objects. It contains approximately 221k video clips and 174 classes. The Diving-48 v2 dataset [44] is a fine-grained video dataset of competitive diving and includes 18k trimmed video clips of 48 specific dive actions. 
+
+4.2. Experiment setup 
+
+Training We follow the data processing approach and training strategies of Video-Swin [49] and PST [85] for all datasets. During training, we resize the short side of raw images to 256, then apply random resized crop, random flip, and AutoAugment for augmentation and employ an AdamW optimizer for 30 epochs using a cosine decay learning rate scheduler and 2.5 epochs of linear warmup. The backbone is initialized from the model pretrained on ImageNet-1K for K400 and Diving-48. For SSv2 and Diving-48, we use the K400 to accomplish pretraining. Unless specified otherwise, for all model variants, 32 frames are sampled from each full-length video by using a temporal stride of 2 for K400 and adopting a uniform random sampling strategy for SSv2 and Diving-48. For OG-ReG-T, the base learning rate, stochastic depth rate, weight decay, and batch size are set to 10 −3 ,0.1, 0.02, and 64, respectively. For the larger model OG-ReG-B, learning rate, drop path rate, and weight decay is set to 3 × 10 −4 , 0.3, 0.05, respectively. For detailed training and pretraining settings, please refer to the supplementary material. 
+
+Testing We adopt the testing strategy in SOTA methods [1, 49, 85] for a fair comparison. In addition, we use the dense sampling strategy [1] with 4 views and three-crop during inference on K400. For SSv2 and Diving-48, we adopt uniform sampling and three-crop testing. 
+
+4.3. Comparison with SOTA 
+
+K400. Table 1 shows comparisons with the SOTA in terms of the pretrained dataset, classification results, infer-ence protocol, FLOPs, and parameter numbers, including both convolution-based and Transformer-based on K400. OG-ReG-T achieves 79 .5% top-1 accuracy and outperforms the majority of CNN-based methods with fewer total FLOPs. Compared to Transformer-based methods, our OG-ReG-B achieves 73 .0% with less computation cost. With a fair comparison to Video-Swin [49] and PST [85], our OG-ReG outperforms them on different sizes and pretrained datasets. Our OG-ReG-T outperforms Video-Swin-T [49] by 0.7% 
+
+and PST-T [85] by 1.3% .
+
+SSv2. The comparison of SOTA with our approach on SSv2 is shown in Table 2. Our OG-ReG-T obtains 68 .9% 
+
+top-1 accuracy, which outperforms all the CNN-based meth-ods with similar FLOPs and outperforms most Transformer-based methods with larger FLOPs and pretrained datasets. Specifically, OG-ReG-T outperforms Video-Swin-T by 2.7% 
+
+and PST-T [85] by 1.6% . OG-ReG-S pretrained on ImageNet-1K+K400 outperforms Video-Swin-B [49] and PST-B [85] pretrained on ImageNet-21K+K400 by 0.6% and 1.0% . OG-ReG-B pretrained on ImageNet-21K+K400 outperforms Video-Swin-B [49] and PST-B [85] by 2.1% and 2.5% . The performance of the OG-ReG family on SSv2 demonstrates its remarkable temporal modeling ability. 
+
+Diving-48 v2. In Tables 3, we further report the per-formances of OG-ReG on Diving-48 v2. The experimental results confirm that our method has excellent capability on fine-grained action dataset. 
+
+4.4. Ablation study 
+
+To verify our hypothesis, a series of experiments are conducted in this subsection, using OG-ReG-T (pretrained on ImageNet-1K) on K400 and SSv2 datasets. 
+
+Clip Level. We begin with a straightforward experiment to verify our hypothesis stated in the Introduction: temporal information is crucial for action recognition on clip level. As shown in Table 4, downsampling the temporal dimension with 3D convolution leads to a 0.9% top-1 accuracy decrease                                                                                                                                                                    
+
+> Bohao Xing et al.: Preprint submitted to Elsevier Page 6 of 12 OG-ReG
+> Table 1
+> Comparison with state-of-the-art on K400. Method Pretrain Top-1 Top-5 Views FLOPs Param R(2+1)D [73] -72.0 90.0 10 × 1 75 61.8 I3D [10] ImageNet-1K 72.1 90.3 1 × 1 108 28.0 NL-I3D [79] ImageNet-1K 77.7 93.3 6 × 10 32 35.3 CoST [35] ImageNet-1K 77.5 93.2 3 × 10 33 35.3 SlowFast-R50 [21] ImageNet-1K 75.6 92.1 3 × 10 36 32.4 X3D-XL [20] -79.1 93.9 3 × 10 48 11.0 TSM [46] ImageNet-1K 74.7 91.4 3 × 10 65 24.3 TEINet [48] ImageNet-1K 76.2 92.5 3 × 10 66 30.4 TEA [43] ImageNet-1K 76.1 92.5 3 × 10 70 24.3 TDN [75] ImageNet-1K 77.5 93.2 3 × 10 72 24.8 Timesformer-L [4] ImageNet-21K 80.7 94.7 1 × 3 2380 121.4 ViT-B-VTN [53] ImageNet-21K 78.6 93.7 1 × 1 4218 114.0 ViViT-L/16x2 320 [1] ImageNet-21K 81.3 94.7 4 × 3 3992 310.8 DVT-B [74] ImageNet-21K 81.5 95.2 1 × 5 128 -UniFormer-B, 32 [40] ImageNet-1K 82.9 95.4 4 × 1 256 -MViTv2-B, 32 [45] 82.9 95.7 1 × 5 225 51.2 Video-Swin-T [49] ImageNet-1K 78.8 93.6 4 × 3 88 28.2 Video-Swin-S [49] ImageNet-1K 80.6 94.5 4 × 3 166 49.8 Video-Swin-B [49] ImageNet-1K 80.6 94.6 4 × 3 282 88.1 Video-Swin-B [49] ImageNet-21K 82.7 95.5 4 × 3 282 88.1 PST-T [85] ImageNet-1K 78.2 92.2 4 × 3 72 28.5 PST-B [85] ImageNet-21K 81.8 95.4 4 × 3 247 88.8 OG-ReG-T ImageNet-1K 79.5 94.2 4 × 3 73 32.4 OG-ReG-S ImageNet-1K 80.8 94.7 4 × 3 139 61.9 OG-ReG-B ImageNet-1K 81.0 94.9 4 × 3 245 96.6 OG-ReG-B ImageNet-21K 83.0 95.7 4 × 3 245 96.6
+
+on K400 and a 0.7% decrease on SSv2. This could be attributed to two reasons: first, the temporal dimension is crucial to self-attention and should not be downsampled; second, downsampling and pixel shuffle methods are inap-propriate. To further investigate the latter issue, we also attempted to use R(2+1)D convolution to replace the 3D operation. As seen in Table 4, both in 3D and R(2+1)D settings, there is a significant drop, indicating that temporal downsampling is not appropriate for self-attention on clip level for video action recognition. 
+
+Frame Level. We further studied the importance of local temporal and spatial information, based on the effec-tive modeling of overall spatiotemporal information. We experimented with different MDConv patterns on various datasets, including 2D, 3D, fixed 2D+3D ( 𝜋 2𝑑 = 𝜋 3𝑑 =0.5), factorized 3D, and 2D+3D. The results are presented in Table 5. Comparing the 2D+3D and variants revealed that balancing local temporal and spatial information can achieve the best performance. This may be because the overall spatiotemporal attention can more effectively extract temporal information, while coordinating the extraction of local spatiotemporal information requires the modulation of 2D and 3D information. 
+
+Contributions of the Two Paths. We further investi-gated the specific contributions of the two paths. As shown in Table 6, combining the two paths improved the performance. Our SoDA achieved 0.3% lower accuracy on K400 compared to Video-Swin-T, but 2% higher on SSv2, demonstrating that SoDA pays more attention to temporal information. MDConv has a competitive performance with Video-Swin on SSv2. These results indicate that window-based attention disrupts the overall spatiotemporal information, especially temporal information. The experiment also confirms that SoDA tends to the low-frequency characteristic and MD-Conv tends to the high-frequency characteristic, as shown by the Fourier spectrum of OG-ReG-T in Figure 6. Despite downsampling the input, SoDA can still learn sufficient low-frequency information. Furthermore, as the network stage gets deeper, SoDA plays an increasingly important role, occupying more components. In addition, it can be observed that in the early stage of the network, there are sufficient spectral components and no significant differences between Video-Swin-B and ours can be seen. However, in the later stage of the network, our method exhibits clearer spectral features, while Video-Swin-B appears to have some noise. The above ablation experiments verified our hypothesis in the Introduction. 
+
+Guiding Manner. As shown in Table 7, we investigated the difference between our guiding manner and Dynamic Convolution [12]. Our method is significantly superior to Dynamic Convolution [12] because the average pooling operation in its attention mechanism leads to severe loss of spatiotemporal information. However, our mask mechanism   
+
+> Bohao Xing et al.: Preprint submitted to Elsevier Page 7 of 12
+
+OG-ReG 
+
+Table 2 
+
+Comparison with state-of-the-art on SSv2. Method Pretrain Top-1 Top-5 Views FLOPs Param TSM [46] K400 63.4 88.5 3 × 2 65 24.3 TEINet [48] ImageNet-1K 62.1 - 1 × 1 66 30.4 TDN [75] ImageNet-1K 65.3 89.5 1 × 1 72 24.8 ACTION-Net [81] ImageNet-1K 64.0 89.3 1 × 1 70 28.1 SlowFast-R101, 8x8 [21] K400 63.1 87.6 3 × 1 106 53.3 MSNet [32] ImageNet-1K 64.7 89.4 1 × 1 101 24.6 blVNet [18] ImageNet-1K 65.2 90.3 1 × 1 129 40.2 Timesformer-HR [4] ImageNet-21K 62.5 - 3 × 1 1703 121.4 ViViT-L/16x2 [1] ImageNet-21K 65.9 89.9 3 × 1 903 352.1 Mformer-L [57] ImageNet-21K+K400 68.1 91.2 3 × 1 1185 86 X-ViT [6] ImageNet-21K+K400 66.2 90.6 3 × 1 283 92 SIFAR-L [19] ImageNet-21K+K400 64.2 88.4 3 × 1 576 196 DVT-B [74] ImageNet-21K+K400 68.0 91.0 3 × 1 128 -UniFormer-B, 32 [40] ImageNet-1K + K400 71.2 92.8 3 × 1 259 -MViTv2-B, 32 [45] K400 70.5 92.7 3 × 1 225 51.1 Video-Swin-T [49] - 66.2 90.8 3 × 1 - -Video-Swin-B [49] ImageNet-21K+K400 69.6 92.7 3 × 1 321 88.1 PST-T [85] ImageNet-1K+K400 67.3 90.5 3 × 1 72 28.5 PST-B [85] ImageNet-21K+K400 69.2 91.9 3 × 1 247 88.8 OG-ReG-T ImageNet-1K+K400 68.9 91.2 3 × 1 73 32.4 OG-ReG-S ImageNet-1K+K400 70.4 92.3 3 × 1 139 61.9 OG-ReG-B ImageNet-21K+K400 71.7 93.1 3 × 1 245 96.6 
+
+Table 3 
+
+Comparison with state-of-the-art on Diving-48 v2. Method Pretrain Top-1 Top-5 Views FLOPs Param SlowFast-R101, 8x8 [21] K400 77.6 - 3 × 1 106 53.3 Timesformer [4] ImageNet-21K 74.9 - 3 × 1 196 121.4 Timesformer-HR [4] ImageNet-21K 78.0 - 3 × 1 1703 121.4 Timesformer-L [4] ImageNet-21K 81.0 - 3 × 1 2380 121.4 DVT-B [74] ImageNet-1K 86.0 - - 128 -PST-T [85] ImageNet-1K 79.2 98.2 3 × 1 72 28.5 PST-T [85] ImageNet-1K+K400 81.2 98.7 3 × 1 72 28.5 PST-B [85] ImageNet-21K 83.6 98.5 3 × 1 247 88.1 PST-B [85] ImageNet-21K+K400 85.0 98.6 3 × 1 247 88.1 OG-ReG-T ImageNet-1K 83.9 98.1 3 × 1 73 32.4 OG-ReG-T ImageNet-1K+K400 84.9 98.7 3 × 1 139 61.9 OG-ReG-B ImageNet-21K 87.0 98.5 3 × 1 245 96.6 OG-ReG-B ImageNet-21K+K400 88.1 98.9 3 × 1 245 96.6 
+
+and attention mechanism better leverage the characteristics of videos. 
+
+Frame Number. Based on the experiments in Non-local [79] and our hypothesis, we investigated whether increasing the number of frames can improve performance, as shown in Table 8. While performance does improve, overfitting is observed in SSv2 due to information redundancy between frames caused by the denser uniform sampling strategy. 
+
+Convolution in Self-Attention. As shown in Table 9, within the variants of self-attention, the use of 2D convolu-tion is also more effective than 3D convolution. A possible reason for this could be that the inflating operation may disrupt the features learned by self-attention in pretraining. We hope that these findings can provide insights for future network designs. 
+
+4.5. Visualization 
+
+We provide more visualization details in this subsection. 
+
+Grad-Cam. We select two representative scenarios to demonstrate the ability of our method to capture motion, with corresponding heatmaps generated using Grad-CAM [64] in the last layer. Figure 7a illustrates a scene where the camera moves while the object remains stationary. The heatmap can be observed to follow the object’s movement in the opposite direction of the camera, indicating our method’s ability to perceive the camera’s motion. In Figure 7b, the object is moving while the camera is stationary, and the 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 8 of 12 OG-ReG 
+
+Table 4 
+
+Ablation study on Clip Level on K400 and SSv2. Spatial Temporal Pixel Shuffle K400 SSv2 Top-1 Top-5 Top-1 Top-5 2D w/o 2D 79.5 94.2 68.9 91.2 
+
+3D 3D 78.6 93.5 68.2 90.9 2D 1D R(2+1)D 76.2 92.5 66.3 90.0 
+
+Table 5 
+
+Ablation study on Frame Level pattern on K400 and SSv2. Pattern K400 SSv2 Top-1 Top-5 Top-1 Top-5 2D 79.2 94.0 68.5 91.3 3D 79.1 93.8 68.6 91.2 fixed 2D + 3D 79.2 94.0 68.5 91.2 factorized 3D 79.3 93.7 68.6 91.2 2D+3D 79.5 94.2 68.9 91.2 
+
+Table 6 
+
+Ablation study on Contributions of the Two Paths on K400 and SSv2. SoDA MDConv K400 SSv2 Top-1 Top-5 Top-1 Top-5 
+
+✓ 78.5 93.6 68.2 90.9 
+
+✓ 77.0 92.7 66.0 90.0 
+
+✓ ✓ 79.5 94.2 68.9 91.2 
+
+Video-Swin-T [49] 78.8 93.6 66.2 90.8 PST-T [85] 78.2 92.2 67.3 90.5 Stage1   
+
+> Stage2
+> Stage3
+> (SoDA)
+> Glance Path
+> (MDConv)
+> Gaze Path Combined Viseo -Swin -B
+
+Figure 6: Fourier spectrum of features in OG-ReG-T and Video-Swin-B. 
+
+heatmap changes with the object’s collapse, indicating the ability of our method to perceive the object’s motion. In contrast, the heatmap of Video-Swin [49] shows a fixed pattern, focusing on the center of the image, and it does not change with the movement of objects and the camera in time 
+
+Table 7 
+
+Ablation study on Guide Manner on K400 and SSv2. Manner K400 SSv2 Top-1 Top-5 Top-1 Top-5 Dynamic Conv [12] 79.3 94.1 68.5 91.3 Ours 79.5 94.2 68.9 91.2 
+
+Table 8 
+
+Ablation study on Frame Number on K400 and SSv2. Frame K400 SSv2 Top-1 Top-5 Top-1 Top-5 32 w. D 78.6 93.5 68.2 90.9 32 w/o D 79.5 94.2 68.9 91.2 64 w. D 79.8 94.1 69.6 91.7 
+
+64 w/o D 80.2 94.3 69.5 91.6 
+
+Table 9 
+
+Ablation study on Convolution in Self-Attention on K400 and SSv2. Conv in MSA K400 SSv2 Top-1 Top-5 Top-1 Top-5 2D 79.5 94.2 68.9 91.2 
+
+3D 79.0 93.8 68.5 91.1 
+
+and space and blindly compares the similarity of all tokens in all. It strongly supports our motivation. 
+
+Visual tempo. We provide additional visualizations of the visual tempo to further demonstrate the effectiveness of the frame similarity. As shown in Figure 7c, our method can effectively detect the end boundaries of fast-tempo actions, exemplified by the moment the keybound is dropped into the glass at the sixth frame. Additionally, as depicted in Figure 7d, our method can accurately capture the duration range of actions with a longer temporal extent, for instance, such as the motion of reaching out and retracting the arm from the fourth to the eighth frame. 
+
+## 5. Conclusions 
+
+In this paper, we analyze the importance of spatial and temporal information at different time scales, and propose a method with SoDA and NDConv, which is similar to the glance and gaze and can efficiently process coarse-grained 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 9 of 12 OG-ReG 
+
+overall spatiotemporal information on clip level while sup-plementing the local detailed information required for glance on frame level. In spite of these observations, open problems remain. The proposed is still not as efficient as the hu-man visual system in predicting and attending to important spatiotemporal cues. We will prioritize the combination of time and space at different stages of the network based on some findings and efficiently model time and selectively process some important spatial information [5] as future work. Predicting important events’ timing and location, as humans do, is crucial for future video models. 
+
+## References 
+
+[1] Arnab, A., Dehghani, M., Heigold, G., Sun, C., Lučić, M., Schmid, C., 2021. Vivit: A video vision transformer, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 6836– 6846. [2] Attneave, F., 1954. Some informational aspects of visual perception. Psychological review 61, 183. [3] Bar, M., 2003. A cortical mechanism for triggering top-down facili-tation in visual object recognition. Journal of cognitive neuroscience 15, 600–609. [4] Bertasius, G., Wang, H., Torresani, L., 2021. Is space-time attention all you need for video understanding?, in: International Conference on Machine Learning, p. 4. [5] Buch, S., Eyzaguirre, C., Gaidon, A., Wu, J., Fei-Fei, L., Niebles, J.C., 2022. Revisiting the" video" in video-language understanding, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 2917–2927. [6] Bulat, A., Perez Rua, J.M., Sudhakaran, S., Martinez, B., Tzimiropou-los, G., 2021. Space-time mixing attention for video transformer. Advances in Neural Information Processing Systems 34, 19594– 19607. [7] Bullier, J., 2001. Integrated model of visual processing. Brain research reviews 36, 96–107. [8] Caballero, J., Ledig, C., Aitken, A., Acosta, A., Totz, J., Wang, Z., Shi, W., 2017. Real-time video super-resolution with spatio-temporal networks and motion compensation, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 4778– 4787. [9] Carion, N., Massa, F., Synnaeve, G., Usunier, N., Kirillov, A., Zagoruyko, S., 2020. End-to-end object detection with transformers, in: European Conference on Computer Vision, Springer. pp. 213–229. [10] Carreira, J., Zisserman, A., 2017. Quo vadis, action recognition? a new model and the kinetics dataset, in: proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 6299– 6308. [11] Chen, Q., Wu, Q., Wang, J., Hu, Q., Hu, T., Ding, E., Cheng, J., Wang, J., 2022. Mixformer: Mixing features across windows and dimensions, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 5249–5259. [12] Chen, Y., Dai, X., Liu, M., Chen, D., Yuan, L., Liu, Z., 2020. Dynamic convolution: Attention over convolution kernels, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion, pp. 11030–11039. [13] Chen, Y., Fan, H., Xu, B., Yan, Z., Kalantidis, Y., Rohrbach, M., Yan, S., Feng, J., 2019. Drop an octave: Reducing spatial redundancy in convolutional neural networks with octave convolution, in: Proceed-ings of the IEEE/CVF International Conference on Computer Vision, pp. 3435–3444. [14] Chu, X., Tian, Z., Wang, Y., Zhang, B., Ren, H., Wei, X., Xia, H., Shen, C., 2021. Twins: Revisiting the design of spatial attention in vision transformers. Advances in Neural Information Processing Systems 34, 9355–9366. [15] Deubel, H., Schneider, W.X., 1996. Saccade target selection and object recognition: Evidence for a common attentional mechanism. Vision research 36, 1827–1837. [16] Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., et al., 2020. An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 . [17] Fan, H., Xiong, B., Mangalam, K., Li, Y., Yan, Z., Malik, J., Feicht-enhofer, C., 2021a. Multiscale vision transformers, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 6824–6835. [18] Fan, Q., Chen, C.F.R., Kuehne, H., Pistoia, M., Cox, D., 2019. More is less: Learning efficient video representations by big-little network and depthwise temporal aggregation. Advances in Neural Information Processing Systems 32. [19] Fan, Q., Panda, R., et al., 2021b. An image classifier can suffice for video understanding. arXiv preprint arXiv:2106.14104 . [20] Feichtenhofer, C., 2020. X3d: Expanding architectures for efficient video recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 203–213. [21] Feichtenhofer, C., Fan, H., Malik, J., He, K., 2019. Slowfast networks for video recognition, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 6202–6211. [22] Gao, R., Liu, X., Xing, B., Yu, Z., Schuller, B.W., Kälviäinen, H., 2026. Identity-free artificial emotional intelligence via micro-gesture understanding. IEEE Transactions on Affective Computing . [23] Gao, X., Chang, Z., Ran, X., Lu, Y., 2024. Canet: Comprehensive attention network for video-based action recognition. Knowledge-Based Systems 296, 111852. URL: https://www.sciencedirect. com/science/article/pii/S0950705124004866 , doi: https://doi.org/10. 1016/j.knosys.2024.111852 .[24] Girdhar, R., Singh, M., Ravi, N., van der Maaten, L., Joulin, A., Misra, I., 2022. Omnivore: A single model for many visual modalities, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 16102–16112. [25] Goyal, R., Ebrahimi Kahou, S., Michalski, V., Materzynska, J., West-phal, S., Kim, H., Haenel, V., Fruend, I., Yianilos, P., Mueller-Freitag, M., et al., 2017. The" something something" video database for learning and evaluating visual common sense, in: Proceedings of the IEEE International Conference on Computer Vision, pp. 5842–5850. [26] Guo, F., Qi, H., Zhang, X., Zhu, L., Sun, J., 2025. Gslta-cdfsar: Global sequences and local tuples alignment for cross-domain few-shot action recognition. Knowledge-Based Systems 311, 113041. URL: https://www.sciencedirect.com/science/article/ pii/S0950705125000887 , doi: https://doi.org/10.1016/j.knosys.2025. 113041 .[27] Guo, F., Wang, Y., Qi, H., Jin, W., Zhu, L., Sun, J., 2024. Multi-view distillation based on multi-modal fusion for few-shot ac-tion recognition (clip-mdmf). Knowledge-Based Systems 304, 112539. URL: https://www.sciencedirect.com/science/article/ pii/S0950705124011730 , doi: https://doi.org/10.1016/j.knosys.2024. 112539 .[28] He, K., Chen, X., Xie, S., Li, Y., Dollár, P., Girshick, R., 2022. Masked autoencoders are scalable vision learners, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 16000–16009. [29] Huang, Z., Ben, Y., Luo, G., Cheng, P., Yu, G., Fu, B., 2021. Shuffle transformer: Rethinking spatial shuffle for vision transformer. arXiv preprint arXiv:2106.03650 . [30] Kauffmann, L., Ramanoël, S., Peyrin, C., 2014. The neural bases of spatial frequency processing during scene perception. Frontiers in integrative neuroscience 8, 37. [31] Korbar, B., Tran, D., Torresani, L., 2019. Scsampler: Sampling salient clips from video for efficient action recognition, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 6232– 6242. [32] Kwon, H., Kim, M., Kwak, S., Cho, M., 2020. Motionsqueeze: Neural motion feature learning for video understanding, in: European 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 10 of 12 OG-ReG 
+
+Conference on Computer Vision, Springer. pp. 345–362. [33] Large, E.W., Jones, M.R., 1999. The dynamics of attending: How people track time-varying events. Psychological review 106, 119. [34] Li, A., Zheng, C., Zhang, L., Li, X., 2022a. Glance and gaze: A collab-orative learning framework for single-channel speech enhancement. Applied Acoustics 187, 108499. [35] Li, C., Zhong, Q., Xie, D., Pu, S., 2019. Collaborative spatiotemporal feature learning for video action recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 7872–7881. [36] Li, D., Shao, J., Xing, B., Gao, R., Wen, B., Kälviäinen, H., Liu, X., 2026. Msf-mamba: Motion-aware state fusion mamba for efficient micro-gesture recognition. IEEE Transactions on Multimedia . [37] Li, D., Xing, B., Liu, X., 2024. Enhancing micro gesture recognition for emotion understanding via context-aware visual-text contrastive learning. IEEE Signal Processing Letters 31, 1309–1313. [38] Li, D., Xing, B., Liu, X., Xia, B., Wen, B., Kälviäinen, H., 2025. Deemo: De-identity multimodal emotion recognition and reasoning, in: Proceedings of the 33rd ACM International Conference on Multi-media, pp. 5707–5716. [39] Li, J., Xia, X., Li, W., Li, H., Wang, X., Xiao, X., Wang, R., Zheng, M., Pan, X., 2022b. Next-vit: Next generation vision transformer for efficient deployment in realistic industrial scenarios. arXiv preprint arXiv:2207.05501 . [40] Li, K., Wang, Y., Gao, P., Song, G., Liu, Y., Li, H., Qiao, Y., 2022c. Uniformer: Unified transformer for efficient spatiotemporal representation learning. arXiv preprint arXiv:2201.04676 . [41] Li, K., Wang, Y., Zhang, J., Gao, P., Song, G., Liu, Y., Li, H., Qiao, Y., 2022d. Uniformer: Unifying convolution and self-attention for visual recognition. arXiv preprint arXiv:2201.09450 . [42] Li, S., Bak, S., Carr, P., Wang, X., 2018a. Diversity regularized spatiotemporal attention for video-based person re-identification, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 369–378. [43] Li, Y., Ji, B., Shi, X., Zhang, J., Kang, B., Wang, L., 2020. Tea: Temporal excitation and aggregation for action recognition, in: Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 909–918. [44] Li, Y., Li, Y., Vasconcelos, N., 2018b. Resound: Towards action recognition without representation bias, in: Proceedings of the Eu-ropean Conference on Computer Vision (ECCV), pp. 513–528. [45] Li, Y., Wu, C.Y., Fan, H., Mangalam, K., Xiong, B., Malik, J., Feichtenhofer, C., 2021. Improved multiscale vision transformers for classification and detection. arXiv preprint arXiv:2112.01526 . [46] Lin, J., Gan, C., Han, S., 2019. Tsm: Temporal shift module for efficient video understanding, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 7083–7093. [47] Liu, Z., Lin, Y., Cao, Y., Hu, H., Wei, Y., Zhang, Z., Lin, S., Guo, B., 2021. Swin transformer: Hierarchical vision transformer using shifted windows, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 10012–10022. [48] Liu, Z., Luo, D., Wang, Y., Wang, L., Tai, Y., Wang, C., Li, J., Huang, F., Lu, T., 2020. Teinet: Towards an efficient architecture for video recognition, in: Proceedings of the AAAI Conference on Artificial Intelligence, pp. 11669–11676. [49] Liu, Z., Ning, J., Cao, Y., Wei, Y., Zhang, Z., Lin, S., Hu, H., 2022. Video swin transformer, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 3202–3211. [50] Lu, X., Zhao, S., Cheng, L., Zheng, Y., Fan, X., Song, M., 2024. Mixed resolution network with hierarchical motion mod-eling for efficient action recognition. Knowledge-Based Systems 294, 111686. URL: https://www.sciencedirect.com/science/article/ pii/S0950705124003216 , doi: https://doi.org/10.1016/j.knosys.2024. 111686 .[51] Min, J., Zhao, Y., Luo, C., Cho, M., 2022. Peripheral vision trans-former. arXiv preprint arXiv:2206.06801 . [52] Munsif, M., Khan, S.U., Khan, N., Hussain, A., Kim, M.J., Baik, S.W., 2024. Contextual visual and motion salient fusion frame-work for action recognition in dark environments. Knowledge-Based Systems 304, 112480. URL: https://www.sciencedirect. com/science/article/pii/S0950705124011146 , doi: https://doi.org/10. 1016/j.knosys.2024.112480 .[53] Neimark, D., Bar, O., Zohar, M., Asselmann, D., 2021. Video transformer network, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 3163–3172. [54] Ni, B., Peng, H., Chen, M., Zhang, S., Meng, G., Fu, J., Xiang, S., Ling, H., 2022. Expanding language-image pretrained models for general video recognition, in: European Conference on Computer Vision, Springer. pp. 1–18. [55] Paller, K.A., Wagner, A.D., 2002. Observing the transformation of experience into memory. Trends in cognitive sciences 6, 93–102. [56] Park, N., Kim, S., 2022. How do vision transformers work? arXiv preprint arXiv:2202.06709 . [57] Patrick, M., Campbell, D., Asano, Y., Misra, I., Metze, F., Feichten-hofer, C., Vedaldi, A., Henriques, J.F., 2021. Keeping your eye on the ball: Trajectory attention in video transformers. Advances in Neural Information Processing Systems 34, 12493–12506. [58] Piergiovanni, A., Kuo, W., Angelova, A., 2023. Rethinking video vits: Sparse video tubes for joint image and video learning, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 2214–2224. [59] Qiu, Z., Yao, T., Mei, T., 2017. Learning spatio-temporal repre-sentation with pseudo-3d residual networks, in: proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 5533– 5541. [60] Raghu, M., Unterthiner, T., Kornblith, S., Zhang, C., Dosovitskiy, A., 2021. Do vision transformers see like convolutional neural networks? Advances in Neural Information Processing Systems 34, 12116–12128. [61] Rasheed, H., Khattak, M.U., Maaz, M., Khan, S., Khan, F.S., 2023. Fine-tuned clip models are efficient video learners, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion, pp. 6545–6554. [62] Rav-Acha, A., Pritch, Y., Peleg, S., 2006. Making a long video short: Dynamic video synopsis, in: 2006 IEEE Computer Society Conference on Computer Vision and Pattern Recognition (CVPR’06), IEEE. pp. 435–441. [63] Russakovsky, O., Deng, J., Su, H., Krause, J., Satheesh, S., Ma, S., Huang, Z., Karpathy, A., Khosla, A., Bernstein, M., Berg, A.C., Fei-Fei, L., 2015. ImageNet Large Scale Visual Recognition Challenge. International Journal of Computer Vision (IJCV) 115, 211–252. doi: 10.1007/s11263-015-0816-y .[64] Selvaraju, R.R., Cogswell, M., Das, A., Vedantam, R., Parikh, D., Batra, D., 2017. Grad-cam: Visual explanations from deep networks via gradient-based localization, in: Proceedings of the IEEE/CVF International Conference on Computer Vision. [65] Si, C., Yu, W., Zhou, P., Zhou, Y., Wang, X., Yan, S., 2022. Inception transformer. arXiv preprint arXiv:2205.12956 . [66] Simonyan, K., Zisserman, A., 2014. Two-stream convolutional networks for action recognition in videos. Advances in Neural Information Processing Systems 27. [67] Stefan, K., Cohen, L.G., Duque, J., Mazzocchio, R., Celnik, P., Sawaki, L., Ungerleider, L., Classen, J., 2005. Formation of a motor memory by action observation. Journal of Neuroscience 25, 9339– 9346. [68] Strudel, R., Garcia, R., Laptev, I., Schmid, C., 2021. Segmenter: Transformer for semantic segmentation, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 7262– 7272. [69] Tang, C.W., 2007. Spatiotemporal visual considerations for video coding. IEEE Transactions on Multimedia 9, 231–238. [70] Tong, Z., Song, Y., Wang, J., Wang, L., 2022. Videomae: Masked autoencoders are data-efficient learners for self-supervised video pre-training. arXiv preprint arXiv:2203.12602 . 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 11 of 12 OG-ReG 
+
+[71] Touvron, H., Cord, M., Douze, M., Massa, F., Sablayrolles, A., Jégou, H., 2021. Training data-efficient image transformers & distillation through attention, in: International Conference on Machine Learning, PMLR. pp. 10347–10357. [72] Tran, D., Bourdev, L., Fergus, R., Torresani, L., Paluri, M., 2015. Learning spatiotemporal features with 3d convolutional networks, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 4489–4497. [73] Tran, D., Wang, H., Torresani, L., Ray, J., LeCun, Y., Paluri, M., 2018. A closer look at spatiotemporal convolutions for action recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 6450–6459. [74] Wang, J., Torresani, L., 2022. Deformable video transformer, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 14053–14062. [75] Wang, L., Tong, Z., Ji, B., Wu, G., 2021a. Tdn: Temporal differ-ence networks for efficient action recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 1895–1904. [76] Wang, L., Xiong, Y., Wang, Z., Qiao, Y., Lin, D., Tang, X., Gool, L.V., 2016. Temporal segment networks: Towards good practices for deep action recognition, in: European Conference on Computer Vision, Springer. pp. 20–36. [77] Wang, W., Xie, E., Li, X., Fan, D.P., Song, K., Liang, D., Lu, T., Luo, P., Shao, L., 2021b. Pyramid vision transformer: A versatile backbone for dense prediction without convolutions, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 568–578. [78] Wang, W., Xie, E., Li, X., Fan, D.P., Song, K., Liang, D., Lu, T., Luo, P., Shao, L., 2022. Pvt v2: Improved baselines with pyramid vision transformer. Computational Visual Media 8, 415–424. [79] Wang, X., Girshick, R., Gupta, A., He, K., 2018. Non-local neural networks, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 7794–7803. [80] Wang, Y., He, Y., Li, Y., Li, K., Yu, J., Ma, X., Li, X., Chen, G., Chen, X., Wang, Y., et al., 2023. Internvid: A large-scale video-text dataset for multimodal understanding and generation. arXiv preprint arXiv:2307.06942 . [81] Wang, Z., She, Q., Smolic, A., 2021c. Action-net: Multipath ex-citation for action recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 13214– 13223. [82] Wei, Z., Ngan, K.N., 2009. Spatio-temporal just noticeable distortion profile for grey scale image/video in dct domain. IEEE Transactions on Circuits and Systems for Video Technology 19, 337–346. [83] Wu, C.Y., Li, Y., Mangalam, K., Fan, H., Xiong, B., Malik, J., Feicht-enhofer, C., 2022. Memvit: Memory-augmented multiscale vision transformer for efficient long-term video recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recog-nition, pp. 13587–13597. [84] Wu, Z., Xiong, C., Ma, C.Y., Socher, R., Davis, L.S., 2019. Adaframe: Adaptive frame selection for fast video recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recog-nition, pp. 1278–1287. [85] Xiang, W., Li, C., Wang, B., Wei, X., Hua, X.S., Zhang, L., 2022. Spatiotemporal self-attention modeling with temporal patch shift for action recognition. arXiv preprint arXiv:2207.13259 . [86] Xie, S., Sun, C., Huang, J., Tu, Z., Murphy, K., 2018. Rethinking spatiotemporal feature learning: Speed-accuracy trade-offs in video classification, in: Proceedings of the European Conference on Com-puter Vision (ECCV), pp. 305–321. [87] Xing, B., Liu, X., Zhao, G., Liu, C., Fu, X., Kälviäinen, H., 2025. Emotionhallucer: Evaluating emotion hallucinations in multimodal large language models. arXiv preprint arXiv:2505.11405 . [88] Xing, B., Yu, Z., Liu, X., Yuan, K., Ye, Q., Xie, W., Yue, H., Yang, J., Kälviäinen, H., 2024. Emo-llama: Enhancing facial emotion un-derstanding with instruction tuning. arXiv preprint arXiv:2408.11424 .[89] Yan, S., Xiong, X., Arnab, A., Lu, Z., Zhang, M., Sun, C., Schmid, C., 2022. Multiview transformers for video recognition, in: Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 3333–3343. [90] Yang, C., Xu, Y., Shi, J., Dai, B., Zhou, B., 2020. Temporal pyramid network for action recognition, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 591– 600. [91] Yu, Q., Xia, Y., Bai, Y., Lu, Y., Yuille, A.L., Shen, W., 2021. Glance-and-gaze vision transformer. Advances in Neural Information Processing Systems 34, 12992–13003. [92] Zhang, D., Dai, X., Wang, Y.F., 2019. Dynamic temporal pyramid network: A closer look at multi-scale modeling for activity detection, in: Computer Vision–ACCV 2018: 14th Asian Conference on Com-puter Vision, Perth, Australia, December 2–6, 2018, Revised Selected Papers, Part IV 14, Springer. pp. 712–728. [93] Zhang, Q., Yang, Y.B., 2021. Rest: An efficient transformer for visual recognition. Advances in Neural Information Processing Systems 34, 15475–15485. [94] Zhang, Q.L., Yang, Y.B., 2022. Rest v2: Simpler, faster and stronger. arXiv preprint arXiv:2204.07366 . [95] Zhi, Y., Tong, Z., Wang, L., Wu, G., 2021. Mgsampler: An explain-able sampling strategy for video action recognition, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 1513–1522. [96] Zhong, X., Qu, X., Ding, C., Tao, D., 2021. Glance and gaze: Inferring action-aware points for one-stage human-object interaction detection, in: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pp. 13234–13243. [97] Zhou, D., Yu, Z., Xie, E., Xiao, C., Anandkumar, A., Feng, J., Alvarez, J.M., 2022. Understanding the robustness in vision transformers, in: International Conference on Machine Learning, PMLR. pp. 27378– 27394. [98] Zhu, X., Su, W., Lu, L., Li, B., Wang, X., Dai, J., 2020. Deformable detr: Deformable transformers for end-to-end object detection. arXiv preprint arXiv:2010.04159 . 
+
+Bohao Xing et al.: Preprint submitted to Elsevier Page 12 of 12 OG-ReG Video-Swin-B OG-ReG-T  Input 
+
+(a) Turning the camera right while filming a chair. Video-Swin-B OG-ReG-T  Input (b) Poking a stack of blocks so the stack collapses. (a) 
+
+> (b)
+
+(c) Dropping a keybound into a glass. (a)  
+
+> (b)
+
+(d) Covering a phone with a blanket. 
+
+Figure 7: Grad-Cam and Visual tempo Visualization. Bohao Xing et al.: Preprint submitted to Elsevier Page 13 of 12
