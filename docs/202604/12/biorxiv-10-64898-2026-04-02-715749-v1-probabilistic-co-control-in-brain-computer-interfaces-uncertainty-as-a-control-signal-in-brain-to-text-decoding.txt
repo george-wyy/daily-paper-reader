@@ -1,0 +1,2339 @@
+Title: Probabilistic Co-Control in Brain-Computer Interfaces: Uncertainty as a Control Signal in Brain-to-Text Decoding
+
+URL Source: https://www.biorxiv.org/content/10.64898/2026.04.02.715749v1.full.pdf
+
+Number of Pages: 34
+
+Markdown Content:
+# Probabilistic Co-Control in Brain-Computer Interfaces: 1
+
+# Uncertainty as a Control Signal in Brain-to-Text Decoding 2
+
+Jingya Huang 1, Sowmya Manojna Narasimha 2, Aashish N. Patel 1,3 , Ram Dyuthi Sristi 1, Gal 3
+
+Mishne 4, and Vikash Gilja 14
+
+1Department of Electrical and Computer Engineering, UC San Diego 5
+
+2Neuroscience Graduate Program, UC San Diego 6
+
+3Institute for Neural Computation, UC San Diego 7
+
+4Halıcıo˘ glu Data Science Institute, UC San Diego 8
+
+Abstract 9
+
+Neural decoders serve as probabilistic interfaces in co-control brain-to-text BCIs, where pre-10 
+
+dicted uncertainty shapes hypothesis generation and language model integration, enabling decisions 11 
+
+to be made safely under uncertainty. However, it remains unclear whether these decoders produce 12 
+
+reliable and informative uncertainty, or how training objectives shape these properties. This work 13 
+
+characterizes and improves uncertainty representations in brain-to-text decoding. We extend two 14 
+
+metrics, calibration error (ECE) and resolution (RES), to evaluate sequential probabilistic predictions 15 
+
+from frame-level phoneme estimates to word-level hypotheses, quantifying the reliability and infor-16 
+
+mativeness of model uncertainty. Using this framework, we analyze neural decoders trained with 17 
+
+connectionist temporal classification (CTC). To isolate the causal role of uncertainty independent of 18 
+
+accuracy, we manipulate predicted probability distributions while holding predicted sequences fixed. 19 
+
+Motivated by the observed failures, we further examine the role of the training objective and propose 20 
+
+a two-stage cross-entropy (CE) formulation that decouples alignment inference from classification. 21 
+
+We show that widely used CTC-trained neural decoders in brain-to-text BCIs produce systemati-22 
+
+cally over-confident predictions, with high confidence persisting even when predictions are incorrect. 23 
+
+Controlled manipulations of the prediction reveal that improved ECE and RES enhance hypothe-24 
+
+sis generation and language-model integration by promoting diverse alternatives and more effective 25 
+
+re-ranking of hypotheses aligned with user intent. Mechanistically, CTC relies on over-confident 26 
+
+predictions to resolve alignment ambiguity. Replacing CTC with CE loss yields significantly more 27 
+
+reliable and informative probabilistic predictions without degrading decoding accuracy. Uncertainty 28 
+
+emerges as a system-level design variable in brain-to-text interfaces. Calibrated uncertainty from 29 
+
+neural decoders enables effective integration with independently trained language models and reli-30 
+
+able error detection. This work reframes uncertainty from a passive output into an active control 31 
+
+signal, identifies key components and evaluation criteria for probabilistic co-control, and outlines a 32 
+
+pathway toward next-generation BCIs that supports increasingly complex interactions with the world. 33 
+
+Keywords: Brain–computer interfaces (BCI), Co-control system, Brain-to-text decoding, Probabilistic 34 
+
+inference, Uncertainty quantification, Sequence modeling of neural activity, Language modeling 35 
+
+1
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Figure 1: Co-control Brain-Computer Interface (BCI) prototyped with the brain-to-text system. 
+
+Schematic of a co-control BCI in which decoded intent and estimated uncertainty propagate through inference, integration, and action layers to guide system behavior. A neural decoder maps intracortical signals to a predictive distribution 𝑝 ND over candidate text sequences. These distributions are combined with language model priors 𝑝 LM via ranked arbitration ( 𝑝 ND ⊗ 𝑝 LM ) to produce the decoded hypotheses, with performance governed by the uncertainty encoded in 𝑝 ND . Beyond decoding, uncertainty serves as an interface for interaction: it highlights likely errors for user feedback, supports efficient correction, and enables safety-aware downstream control by gating actions based on uncertainty. This framework illustrates how uncertainty functions as a central mechanism for reliable probabilistic co-control in BCI systems, demonstrated here in the context of discrete brain-to-text decoding. 
+
+# 1 Introduction 36 
+
+Brain–computer interfaces (BCIs) aim to restore communication and movement [1, 2] in a manner 37 
+
+that is effective, safe, and minimizes cognitive burden [3, 4], ultimately restoring independence for 38 
+
+individuals with paralysis. Decoded neural signals may directly drive assistive devices that facilitate 39 
+
+daily activities through communication interfaces [5–12], software applications [13, 14], wheelchair or 40 
+
+robotic limbs [15–23]. As a result, deployed BCIs are often safety-critical, as misinterpreted user intent 41 
+
+can trigger conflicts or irreversible actions [3, 23, 24]. In this setting, average predictive accuracy alone 42 
+
+is insufficient, though it is the performance measure most commonly reported. Uncertainty estimates 43 
+
+provide an informative signal when a system’s outputs should be treated with caution or deferred for 44 
+
+intervention as established in safety-critical domains (e.g., robotics and medical diagnosis [25–30]). 45 
+
+Reliable and informative uncertainty estimates are therefore a fundamental requirement for practical BCI 46 
+
+deployment. 47 
+
+The need for high-quality uncertainty estimates is amplified in modern BCI architectures that employ 48 
+
+co-control [31,32], where neural decoders and behavior models (e.g., language models, motion planners) 49 
+
+jointly determine control outputs. As BCIs scale to more complex behaviors, decoding must resolve a large 50 
+
+space of possible outputs, typically requiring substantial paired neural–behavior data. However, such data 51 
+
+2
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+are difficult to collect, especially for users who require assistance, and are often limited in both quantity and 52 
+
+precision. Brain-to-text BCIs exemplify this challenge [11,12,33–39], where participants cannot produce 53 
+
+overt speech, handwriting, or typing. Instead, intended text is inferred through experimental protocols. 54 
+
+As a result, supervision is weak: it lacks fine-grained temporal alignment between neural activity and 55 
+
+behavior and obscures trial-to-trial variability in the underlying behavior. Co-control mitigates these 56 
+
+limitations by leveraging independently trained behavior models that encode statistical regularities over 57 
+
+behavior. These models act as priors over the space of possible outputs, constraining decoding and 58 
+
+thereby reducing reliance on large amounts of paired neural–behavior data while improving performance. 59 
+
+Co-control also enables the extensible integration of additional components, supporting scalable and 60 
+
+modular BCI design (Fig. 1). 61 
+
+Although brain-to-text BCIs are often framed as directly mapping neural activity to text, existing 62 
+
+systems are more accurately understood as inherently operating under co-control. Co-control refers to 63 
+
+the joint construction of control signals in a shared hypothesis space, where multiple modules contribute 64 
+
+by weighting candidate hypotheses according to their estimated uncertainty. In practice, this is realized 65 
+
+through pretrained language models [40–45] correcting, and refining neural decoder outputs [11, 12, 66 
+
+35–39, 46–49]. Similar co-control paradigms have emerged in BCI-enabled high-degree-of-freedom 67 
+
+reach-and-grasp robotic control tasks [22, 50, 51]. In these modular pipelines, neural decoders operate as 68 
+
+components within a broader system in which downstream models impose learned behavioral structure 69 
+
+and constraints. Although such integration enables substantial performance gains, including language-70 
+
+model-guided error correction in brain-to-text decoding [11,12,35–39,46–49, 52,53] and obstacle-aware 71 
+
+motion planning in brain-to-grasp control [22,50,51], it also amplifies the importance of how uncertainty 72 
+
+is represented and communicated across system components. Miscalibrated uncertainty can lead to 73 
+
+failures at both extremes: excessive assistance may override user intent and hinder goal achievement, 74 
+
+while insufficient assistance can result in poor control and uncorrected errors, ultimately leading to 75 
+
+misalignment between behavior-model assistance and user intent that impacts usability, safety, and user 76 
+
+trust [28, 31, 51, 54–56]. 77 
+
+Effective co-control in systems like brain-computer interfaces relies on an uncertainty-governed 78 
+
+division of labor, much like a collaborative human transcription team. In this analogy, the primary 79 
+
+decoder, whether a human transcriber or a BCI neural decoder, serves as the interface that translates raw 80 
+
+signals into initial commands, ideally flagging segments of ambiguity or low confidence. A downstream 81 
+
+“editor”, such as a human proofreader or a BCI language model, refines these outputs by focusing 82 
+
+on flagged regions and using contextual consistency to infer likely corrections without direct access 83 
+
+to the original signal (audio or neural activity). Crucially, the success of this collaboration hinges on 84 
+
+how accurately uncertainty is communicated between these stages: the editor’s ability to intervene is 85 
+
+fundamentally limited if the uncertainty conveyed by the transcriber or neural decoder is misaligned 86 
+
+with the underlying signal variability. In the transcription analogy, this corresponds to expressing high 87 
+
+confidence despite degraded audio (e.g., noise or overlapping speech), or low confidence when the signal 88 
+
+is clear, both of which misguide the editor’s corrections. In the BCI setting, signal variability reflects 89 
+
+ambiguity in neural activity, while uncertainty should indicate how reliably the decoder maps that activity 90 
+
+to intended phonemes or words. When this alignment fails, downstream modules cannot distinguish 91 
+
+between reliable and unreliable predictions, undermining effective co-control. Thus, uncertainty is not 92 
+
+3
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+a secondary diagnostic, but the central signal that governs arbitration between independently trained 93 
+
+components, ensuring that the final output reflects the user’s intent rather than the bias of any single 94 
+
+module. 95 
+
+In brain-to-text BCIs, this interaction occurs through probabilistic outputs rather than discrete predic-96 
+
+tions, allowing downstream modules to reason about uncertainty. Neural decoders produce a distribution 97 
+
+over text tokens across time, which is processed by pretrained language models to generate and re-rank 98 
+
+candidate sentences [40–45] (Fig. 1). Ideally, elevated uncertainty in the neural decoder output would 99 
+
+signal potential errors, expand the set of candidate hypotheses explored during sequential decoding, and 100 
+
+shift control toward the language model for correction. However, in practice, the quality of this uncertainty 101 
+
+signal is rarely examined explicitly. Most brain-to-text systems are evaluated primarily using end-to-end 102 
+
+metrics, such as error rates (e.g., word, phoneme, or character error rate; WER, PER, CER), commu-103 
+
+nication rate (e.g., words or characters per minute; WPM, CPM), or semantic relevance (e.g., BLEU, 104 
+
+BERTScore) [11,12,35–39,46–49,52,57–62], obscuring how uncertainty is represented, interpreted, and 105 
+
+acted upon within the co-controlled architecture. As a result, neural decoders are often optimized to be 106 
+
+“decisive” at the expense of being “informative”. In practice, this can lead to overconfident predictions 107 
+
+that disrupt uncertainty-governed co-control, impairing appropriate control allocation under ambiguity 108 
+
+and promoting overcorrection that obscures the user’s intended output. This raises several fundamental 109 
+
+questions: Does a more accurate neural decoder necessarily lead to better integrated system behavior 110 
+
+under co-control? What determines the quality of uncertainty estimates in its predictions? And can 111 
+
+uncertainty itself be systematically quantified and can its quality be improved to enable more principled 112 
+
+and reliable co-control? 113 
+
+The challenge of obtaining reliable and informative uncertainty estimates in classification is not 114 
+
+unique to BCIs. In image classification, deep neural networks can achieve high predictive accuracy while 115 
+
+producing poorly calibrated uncertainty estimates [63–66]. This gap between accuracy and reliability has 116 
+
+motivated extensive work on uncertainty quantification, including post-hoc calibration methods [64–66], 117 
+
+conformal prediction [67,68], Bayesian neural networks [69], and ensemble approaches [70,71]. However, 118 
+
+most of these methods are developed for static, instance-level prediction. Extending uncertainty estimation 119 
+
+to sequential, structured decoding, where probabilities propagate across time and interact with search and 120 
+
+downstream models, is substantially more challenging. 121 
+
+Brain–computer interfaces represent a particularly demanding instance of this broader problem. Neu-122 
+
+ral decoding is sequential and structured, and uncertainty estimates must be reliable to preserve user intent 123 
+
+as probabilistic predictions propagate through intermediate inference stages. In this work, we use brain-124 
+
+to-text decoding as a prototype for probabilistic co-control, offering a principled framework to study how 125 
+
+neural decoder predictions of user intent are combined with complex behavioral priors, such as language 126 
+
+models, through probabilistic interfaces. First, we introduce a principled evaluation framework to quantify 127 
+
+the reliability and informativeness of probabilistic predictions across multiple temporal scales by leverag-128 
+
+ing calibration error and resolution, which is defined as the ability of predicted probabilities to distinguish 129 
+
+correct from incorrect outcomes, grounded in proper scoring rule decompositions [72]. Second, we show 130 
+
+that widely used neural decoders trained with the connectionist temporal classification (CTC) loss pro-131 
+
+duce systematically over-confident predictions. Third, through oracle interventions, we demonstrate that 132 
+
+4
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Figure 2: Neural decoder (ND) uncertainty governs hypothesis generation and Language model (LM) integration. Schematic illustrating how ND uncertainty shapes sequence probabilities, which determine (A) the diversity and separation of candidate hypotheses during generation, and (B) how these hypotheses are ranked and integrated with the language model. Three characteristic regimes of 𝑝 ND are shown: over-confident, under-confident, and calibrated. A calibrated 𝑝 ND supports effective and adaptive co-control. improved calibration and resolution for uncertainty estimates, substantially increase hypothesis diversity 133 
+
+and enhance downstream integration with language models. Finally, we provide mechanistic insight by 134 
+
+showing that CTC implicitly relies on over-confident predictions to resolve alignment ambiguity. By 135 
+
+replacing this objective with a two-stage CTC and cross-entropy (CE) formulation that first stabilizes 136 
+
+alignments and then focuses on classification, we obtain neural decoders with significantly more reliable 137 
+
+and informative probabilistic predictions, enabling more principled co-control. 138 
+
+# 2 Methods 139 
+
+2.1 Brain-to-Text BCI and Dataset 140 
+
+Brain-to-text BCIs decode neural activity during attempted speech to generate text for individuals with 141 
+
+paralysis. We analyze publicly available data from participants T12 [12] and T15 [35], recorded during 142 
+
+the delayed sentence production task in which participants attempted to speak prompted sentences. Neural 143 
+
+activity and cued sentences form paired input–label data for training. 144 
+
+Neural data were recorded from two 96-channel Utah arrays implanted in ventral motor cortical 145 
+
+speech regions (T12: 128 channels in areas 44 and 6v across 19 days [12]; T15: 256 channels in area 146 
+
+6v, 4, and 55b [35] across 45 days). We use the preprocessed signals provided with the datasets without 147 
+
+modification. These include threshold crossings ( −4.5×RMS) and spike-band power, binned at 20 ms, 148 
+
+smoothed, and normalized to form input features X1: 𝑇 ∈ R𝑇 ×𝐷 . Models were trained and evaluated on 149 
+
+5
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+data pooled across recording days unless otherwise specified. 150 
+
+As intelligible speech or articulatory kinematics cannot be recorded from these participants, su-151 
+
+pervision is derived from task prompts. Each sentence is converted into a phoneme sequence y1: 𝑁 =152 
+
+(𝑠 ′
+
+> 1
+
+, . . . , 𝑠 ′ 
+
+> 𝑁
+
+), 𝑠 ′ 
+
+> 𝑛
+
+∈ V , while the underlying framewise phoneme sequence 𝝅 1: 𝑇 = (𝑠 1, . . . , 𝑠 𝑇 ), 𝑠 𝑡 ∈ V 153 
+
+is treated as latent. The sentence is obtained by collapsing repeated phoneme states, y1: 𝑁 = C( 𝝅 1: 𝑇 ),154 
+
+abstracting away the unknown onset and duration of phonemes during speech production. 155 
+
+Brain-to-text decoding combines neural decoder likelihoods with language prior during inference. 156 
+
+We interpret this process as a form of co-control, in which neural and language models jointly contribute 157 
+
+to inference over a shared hypothesis space, with their influence determined by uncertainty. In this work, 158 
+
+we analyze the probabilistic formulation of this system, viewing neural decoder predictions and their as-159 
+
+sociated uncertainty as control signals within the co-control framework. The following sections formalize 160 
+
+the neural decoding problem, introduce neural decoder variants that predict phoneme distributions from 161 
+
+neural activity, and analyze how uncertainty influences decoding. 162 
+
+2.2 Sequence Neural Decoder (ND) 163 
+
+A brain-to-text neural decoder (ND) is a probabilistic sequence model that maps neural activity X1: 𝑇 164 
+
+to a sequence of predictive distributions over tokens 𝑠 𝑡 ∈ V (e.g., phonemes [12, 35], characters [11], 165 
+
+gestures [36]) at each frame 𝑡 ∈ { 1, . . . , 𝑇 }. Each predictive distribution 𝑝 ND (𝑠 𝑡 | X1: 𝑡 ) defines a 166 
+
+time-varying distribution over token predictions and can be interpreted as uncertainty (Fig. 2). 167 
+
+𝑝 ND (𝑠 𝑡 | X1: 𝑡 ), 𝑠 𝑡 ∈ V . (1) Unlike generic sequence-to-sequence models that learn unconstrained alignments between input X1: 𝑇 and 168 
+
+output y1: 𝑁 sequences, neural decoding operates under a structured but latent temporal alignment, where 169 
+
+neural activity and movement production unfold jointly and monotonically over time. 170 
+
+We model decoding as inference over the latent alignment path 𝝅 1: 𝑇 , with model prediction: 171 
+
+b𝝅 1: 𝑇 = arg max 
+
+> 𝝅 1: 𝑇
+
+𝑝 ND (𝝅 1: 𝑇 | X1: 𝑇 ) = arg max 
+
+> 𝝅 1: 𝑇
+
+Ö 
+
+> 𝑠 𝑡 ∈𝝅 1: 𝑇
+
+𝑝 ND (𝑠 𝑡 |X1: 𝑇 ). (2) The alignment path encodes token identity and duration, with repeated tokens indicating sustained 172 
+
+articulation. Applying the collapse operator C(·) yields the sequence-level hypothesis by1: 𝑁 = C( b𝝅 1: 𝑇 ),173 
+
+corresponding to the model’s estimate of the intended sequence y1: 𝑁 .174 
+
+Supervision for neural decoder training is provided by the intended sentence y1: 𝑁 = (𝑠 ′
+
+> 1
+
+, . . . , 𝑠 ′ 
+
+> 𝑁
+
+).175 
+
+Each sentence (i.e., the prompt-derived phoneme sequence) corresponds to multiple possible alignment 176 
+
+paths, defined by the alignment set A ( y1: 𝑁 ) = {𝝅 1: 𝑇 : C( 𝝅 1: 𝑇 ) = y1: 𝑁 }177 
+
+This formulation separates modeling assumptions, framewise factorization, and the collapse mapping 178 
+
+from the training objective. Supervision may be imposed either at the sequence level by maximizing 179 
+
+the marginal likelihood over alignments with connectionist temporal classification (CTC) loss, or at the 180 
+
+6
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+frame level using inferred alignments with cross-entropy (CE) loss. The two approaches differ in how 181 
+
+supervision is applied to the underlying probabilistic sequence model. 182 
+
+2.3 CTC Neural Decoder 183 
+
+Neural decoders are typically trained with sequence-level supervision using the connectionist tempo-184 
+
+ral classification (CTC) objective [11, 12, 35–39, 46–49, 53]. CTC [73] handles latent alignment by 185 
+
+maximizing the sequence likelihood via marginalization over all alignments 𝝅 1: 𝑇 ∈ A ( y1: 𝑁 ).186 
+
+LCTC = − log 𝑝 ND (y1: 𝑁 |X1: 𝑇 ) = − log ∑︁   
+
+> 𝝅 1: 𝑇 ∈ A( y1: 𝑁 )
+
+𝑝 ND (𝝅 1: 𝑇 | X1: 𝑇 ) (3) Through this marginalization, CTC jointly performs alignment inference and token classification. This 187 
+
+coupling induces “peaky alignment,” where probability mass concentrates on a small number of paths, 188 
+
+as widely observed in sequence labeling tasks using CTC loss [74, 75]. 189 
+
+2.4 CE Neural Decoder 190 
+
+To disentangle alignment from token classification, we use a two-stage framework where CTC-derived 191 
+
+framewise alignments are fixed as supervision for a cross-entropy (CE) decoder, with the goal of allowing 192 
+
+the predictive distribution to better reflect classification uncertainty. 193 
+
+The most probable CTC alignment b𝝅 1: 𝑇 is unconstrained and may collapse to a sequence inconsistent 194 
+
+with the ground truth, i.e., C( b𝝅 1: 𝑇 ) ≠ y1: 𝑁 . We therefore compute a forced alignment [76]: 195 
+
+𝝅 ★ 
+
+> 1: 𝑇
+
+= arg max    
+
+> 𝝅 1: 𝑇 ∈ A( y1: 𝑁 )
+
+𝑝 ND (𝝅 1: 𝑇 | X1: 𝑇 ). (4) Using 𝝅 ★ 
+
+> 1: 𝑇
+
+as supervision, the CE decoder is trained with a framewise cross-entropy objective to align 196 
+
+the predictive distribution with 𝝅 ★ 
+
+> 1: 𝑇
+
+.197 
+
+Reinterpreting CTC as iterative CE training CTC can be viewed as an iterative CE fitting in which 198 
+
+predictive distribution conditioned on the target sequence act as soft training targets [77]. At each 199 
+
+iteration, the CTC gradient is equivalent to that of a CE loss with soft targets e𝑝 ND :200 
+
+𝜕 LCTC 
+
+𝜕 logit = 𝑝 ND (𝑠 ) − e𝑝 ND (𝑠 ) = 𝜕 LCE 
+
+𝜕 logit , e𝑝 ND (𝑠 ) = 𝑝 ND (𝑠 𝑡 = 𝑠 | X1: 𝑇 , y1: 𝑁 ) (5) Since these targets e𝑝 ND (𝑠 ) depend on the model parameters, CTC training iteratively fits both alignment 201 
+
+and token classification. This coupling provides a mechanism for the emergence of peaky alignments, as 202 
+
+the moving targets bias optimization toward a small number of high-probability alignments. In contrast, 203 
+
+our approach uses the same final alignment 𝝅 ★ 
+
+> 1: 𝑇
+
+but fixes it as the classification target during CE training. 204 
+
+This leads to a different optimization trajectory even when the inferred alignment is identical. If the forced 205 
+
+7
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+alignment is accurate, the decoder may learn token probabilities that more faithfully reflect classification 206 
+
+uncertainty rather than alignment ambiguity. 207 
+
+2.5 Fusing Neural Decoder Predictions ( CTC ⊗ CE , CTC ⊗ CTC )208 
+
+To interpolate between alignment-driven and classification-driven regimes, we combine the predictive 209 
+
+distributions 𝑝 CTC and 𝑝 CE from CTC- and CE-trained models, respectively, using product-of-experts 210 
+
+(PoE) [78]. The combined predictive distribution 𝑝 CTC ⊗CE is defined as: 211 
+
+log 𝑝 CTC ⊗CE = 𝛾 log 𝑝 CTC + ( 1 − 𝛾 ) log 𝑝 CE − log 𝑍 (6) where 𝑍 is the normalization constant. This formulation defines a continuous family of decoders spanning 212 
+
+classification-driven CE ( 𝛾 = 0) and alignment-driven CTC ( 𝛾 = 1). Similarly, we define CTC ⊗ CTC 213 
+
+by combining two independently trained CTC models using the same formulation, serving as a control 214 
+
+for fusion effects independent of training objective. 215 
+
+2.6 Brain-to-Text Decoding Algorithm 216 
+
+Brain-to-text decoding follows a multi-stage probabilistic inference pipeline [11, 12, 35–39, 46–49, 53]. 217 
+
+The system first performs framewise neural decoding with ND to estimate phoneme predictive distri-218 
+
+butions over time, 𝑝 ND (Eq. 1), which are then integrated into sequence probabilities during hypothesis 219 
+
+generation and subsequently integrated with a language model (LM). Candidate hypotheses are then 220 
+
+identified via lattice-based search over sequence probabilities or fused scores (Fig. 2). 221 
+
+The probability of sequence y1: 𝑁 is given by the marginal distribution over all alignments A ( y1: 𝑁 ):222 
+
+𝑝 ND (y1: 𝑁 | X1: 𝑇 ) =∑︁   
+
+> 𝝅 1: 𝑇 ∈ A( y1: 𝑁 )
+
+𝑝 ND (𝝅 1: 𝑇 | X1: 𝑇 ). (7) The LM is integrated with ND in log-probability space, with a weight 𝛽 controlling its contribution: 223 
+
+RND-LM (y1: 𝑁 ) = log 𝑝 ND (y1: 𝑁 | X1: 𝑇 ) + 𝛽 log 𝑝 LM (y1: 𝑁 ). (8) Beam search selects the top-𝐾 hypotheses bY1: 𝐾 based on 𝑝 ND (y1: 𝑁 | X1: 𝑇 ), corresponding to sequences 224 
+
+generated by the neural decoder alone, or based on the fused score RND-LM (y1: 𝑁 ) over a lattice constructed 225 
+
+from a lexicon graph and an n-gram language model using a weighted finite-state transducer (WFST) [41, 226 
+
+42]. This produces top-𝐾 hypotheses bYND-LM 1: 𝐾 that combine user intent inferred by the neural decoder 227 
+
+with linguistic priors from the language model: 228 
+
+bY1: 𝐾 = arg top-K 
+
+> y1: 𝑁
+
+𝑝 ND (y1: 𝑁 | X1: 𝑇 ), bYND-LM 1: 𝐾 = arg top-K 
+
+> y1: 𝑁
+
+RND-LM (y1: 𝑁 ). (9) Neural decoder and language model integration operate at the word level, where words define the shared 229 
+
+hypothesis space for co-control. Sequence scores decompose additively over word units. 230 
+
+8
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+2.7 Evaluating Probabilistic Inference at Multiple Timescales 231 
+
+Predictive distributions 𝑝 ND (Eq. 1) provide richer information than point estimates such as the sequence 232 
+
+hypothesis by1: 𝑁 or alignment b𝝅 1: 𝑇 (Eq. 2). While error metrics assess correctness, proper scoring rules 233 
+
+evaluate how well predicted probabilities reflect outcome likelihoods. Effective probabilistic predictions 234 
+
+require both calibration and resolution, measuring alignment with empirical correctness and the ability to 235 
+
+distinguish outcomes, respectively. In co-control BCIs (i.e. brain-to-text), these uncertainty estimates act 236 
+
+as control signals guiding hypothesis generation, behavior model integration, and user feedback (Fig. 1), 237 
+
+and their evaluation across timescales reveal how uncertainty propagates from frame-level predictions to 238 
+
+structured outputs such as words (Fig. 2). 239 
+
+For a probabilistic predictor ˆ 𝑝 : X → Δ𝐾 −1 producing 𝑃 = ˆ𝑝 (X), the Brier score BS ( ˆ𝑝 ) [65] is the 240 
+
+proper scoring rule which measures the discrepancy between the predictive distribution 𝑃 = ˆ𝑝 (X) and 241 
+
+the realized one-hot outcome 𝑌 . The Brier score decomposes to 242 
+
+BS ( ˆ𝑝 ) = E∥𝑃 − 𝑌 ∥22
+
+ = E∥𝑃 − 𝜂 (𝑃 )∥ 22
+
+| {z }
+
+> reliability
+
+− E∥𝜂 (𝑃 ) − ¯𝜂 ∥22
+
+| {z }
+
+> resolution
+
++ E∥𝑌 − ¯𝜂 ∥22
+
+| {z }
+
+> label variability
+
+. (10) where 𝜂 (𝑞 ) = E[𝑌 | 𝑃 = 𝑞 ] is the true class-frequency vector for instances receiving forecast 𝑞 ∈ Δ𝐾 −1.243 
+
+Reliability measures how closely the predictive distribution matches empirical class frequencies. Reso-244 
+
+lution measures how strongly the forecast partitions the data into subsets with distinct class compositions 245 
+
+relative to the global class prior ¯ 𝜂 . High resolution indicates that different forecast values correspond to 246 
+
+meaningfully different conditional label distributions. The uncertainty term depends only on the class 247 
+
+prior and is therefore fixed for a given dataset. 248 
+
+Evaluating calibration and resolution of the full multiclass distribution can be statistically challenging 249 
+
+because it requires estimating conditional class frequencies over the entire simplex Δ𝐾 −1. A weaker and 250 
+
+more practical notion therefore considers only the probability assigned to the predicted class [63]. Define 251 
+
+the predicted class 𝐺 = arg max 𝑗 𝑃 𝑗 , the confidence 𝐶 = max 𝑗 𝑃 𝑗 = 𝑃 𝐺 , and the correctness indicator 252 
+
+𝐴 = 1 [𝑌 = 𝐺 ], where 1 [·] denotes the indicator function. This induces a binary probabilistic forecasting 253 
+
+problem with forecast 𝐶 ∈ [ 0, 1] and binary outcome 𝐴 ∈ { 0, 1}. Let 𝜇 (𝑐 ) = 𝑃 ( 𝐴 = 1 | 𝐶 = 𝑐 ) be the 254 
+
+outcome, ¯ 𝑎 = 𝑃 ( 𝐴 = 1) be the overall accuracy. 255 
+
+E(𝐶 − 𝐴 )2 = E(𝐶 − 𝜇 (𝐶 )) 2| {z }
+
+> confidence reliability
+
+− E(𝜇 (𝐶 ) − ¯𝑎 )2| {z }
+
+> confidence resolution
+
++ ¯𝑎 (1 − ¯𝑎 )
+
+| {z }
+
+> variability
+
+. (11) Here, confidence reliability measures whether confidences 𝐶 are numerically calibrated, 𝑃 (𝑌 = 𝐺 |256 
+
+𝐶 = 𝑐 ) = 𝑃 ( 𝐴 = 1 | 𝐶 = 𝑐 ) = 𝑐 , while confidence resolution measures whether different confidences 257 
+
+correspond to meaningfully different accuracies. High resolution indicates that predicted confidence is 258 
+
+informative of outcomes, enabling separation between correct and incorrect predictions. 259 
+
+9
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Frame-level Calibration Error and Resolution Frame-level probabilities constitute the fundamental 260 
+
+units of evidence that are accumulated during sequence decoding described in Sec. 2.6. Reliability and 261 
+
+resolution can thus be assessed by examining the relationship between binned predicted confidence ¯ 𝑐 𝑡 ,𝑏 ,262 
+
+associated empirical accuracy b𝑎 𝑡 ,𝑏 , and mean accuracy ¯ 𝑎 𝑡 at this level. 263 
+
+We define confidence 𝑐 𝑡 for each frame and bin it into 𝐵 equal-frequency bins with mean ¯ 𝑐 𝑡 ,𝑏 .264 
+
+𝑐 𝑡 = max  
+
+> 𝑠
+
+𝑝 ND (𝑠 𝑡 = 𝑠 | X1: 𝑇 ) (12) Given explicit frame-level annotations are unavailable for brain-to-text BCI, forced alignment provides 265 
+
+a reference alignment for the ground-truth sentence y1: 𝑁 . We define frame-level correctness as agreement 266 
+
+between the prediction b𝝅 1: 𝑇 = (b𝑠 1, . . . , b𝑠 𝑇 ) (Eq. 2), and reference 𝝅 ★ 
+
+> 1: 𝑇
+
+= (𝑠 ★ 
+
+> 1
+
+, . . . , 𝑠 ★𝑇 ) (Eq. 4) and calculate 267 
+
+the empirical accuracy b𝑎 𝑡 ,𝑏 for each confidence bin B𝑏 .268 
+
+b𝑎 𝑡 ,𝑏 = 1
+
+|B 𝑏 |∑︁ 𝑖 ∈ B 𝑏 
+
+1[b𝑠 𝑖 = 𝑠 ★𝑖 ]. (13) Expected calibration error (ECE) empirically quantifies the reliability of the predictive distribution 269 
+
+by measuring the deviation between confidence and accuracy across confidence bins, approximating the 270 
+
+calibration error E(𝐶 − 𝜇 (𝐶 )) 2 in Eq. 11. Lower ECE indicates better calibration. 271 
+
+ECE =∑︁ 
+
+> 𝑏
+
+|b𝑎 𝑡 ,𝑏 − ¯𝑐 𝑡 ,𝑏 |. (14) Resolution (RES) measures the dispersion of empirical accuracy across confidence bins relative to 272 
+
+the mean accuracy ¯ 𝑎 𝑡 , reflecting the resolution E(𝜇 (𝐶 ) − ¯𝑎 )2 in Eq. 11. Higher RES indicates that 273 
+
+uncertainty better informs error. 274 
+
+RES =∑︁ 
+
+> 𝑏
+
+(b𝑎 𝑡 ,𝑏 − ¯𝑎 𝑡 )2, ¯𝑎 𝑡 =∑︁ 
+
+> 𝑏
+
+b𝑎 𝑡 ,𝑏 . (15) We use the area under the precision–recall curve (AUPR) to further quantify how well confidence 275 
+
+discriminates between correct and incorrect predictions at frame or word levels, where higher AUPR ∈276 
+
+[0, 1] indicates better separability. 277 
+
+Word-level Calibration Error and Resolution Frame-level probabilities reflect the instantaneous 278 
+
+uncertainty of neural decoding. Aggregating these probabilities over the duration of a word allows us 279 
+
+to evaluate how uncertainty propagates from token-level predictions to semantically interpretable words. 280 
+
+This analysis also helps diagnose brain-to-text BCI performance within the co-control framework, as 281 
+
+language models operate primarily at the word level and word-level uncertainty is central to generating 282 
+
+hypotheses bYND-LM 1: 𝐾 (Eq. 9; Sec. 2.6). 283 
+
+Each word corresponds to a contiguous span of tokens in time, we therefore define word-level 284 
+
+10 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+correctness as agreement between the ground-truth 𝑤 in sentence and the predicted word C  b𝝅 𝑇 𝑤 
+
+ over 285 
+
+the corresponding time span 𝑇 𝑤 . Word-level confidence is obtained by aggregating frame-level 𝑝 ND (𝑡 )286 
+
+over the same interval, yielding the confidence 𝑐 𝑤 , accuracy b𝑎 𝑤,𝑏 , and mean confidence ¯ 𝑎 𝑤 .287 
+
+𝑐 𝑤 = exp 1
+
+|𝑇 𝑤 |∑︁ 𝑡 ∈𝑇 𝑤 
+
+log 𝑐 𝑡 
+
+!
+
+, b𝑎 𝑤,𝑏 = 1
+
+|B 𝑏 |∑︁ 𝑖 ∈ B 𝑏 
+
+1
+
+h
+
+C
+
+b𝝅 𝑇 𝑤 𝑖 
+
+
+
+= 𝑤 𝑖 
+
+i
+
+, ¯𝑎 𝑤 =∑︁ 
+
+> 𝑏
+
+b𝑎 𝑤,𝑏 . (16) Using these quantities, ECE and RES are computed analogously to the frame-level: 288 
+
+ECE =∑︁ 
+
+> 𝑏
+
+|b𝑎 𝑤,𝑏 − ¯𝑐 𝑤,𝑏 |, RES =∑︁ 
+
+> 𝑏
+
+(b𝑎 𝑤,𝑏 − ¯𝑎 𝑤 )2. (17) This hierarchical evaluation enables analysis of how uncertainty propagates from lower-level neural 289 
+
+decoder predictions to structured outputs of interest, such as semantically meaningful words. 290 
+
+2.8 Oracle Simulations: Controlled Perturbations of Predictive Distribution 291 
+
+To isolate the role of probabilistic reliability (ECE, Eq. 14) and resolution (RES, Eq. 15) in 𝑝 ND from 292 
+
+recognition accuracy, we introduce oracle-gated calibration to construct uncertainty-aware 𝑝 UA and 293 
+
+overconfident 𝑝 OC model-output 𝑝 MO (Fig. 4A). These oracle simulations modify predictive distributions 294 
+
+while preserving predicted tokens and the ranking of alternatives at each frame, enabling evaluation of 295 
+
+how uncertainty quality alone affects decoding without altering accuracy (Fig. 2). 296 
+
+Oracle-gated calibration applies temperature scaling to 𝑝 MO , redistributing probability mass with the 297 
+
+temperature 𝜏 (·) conditioned on frame-level correctness 𝑔 = 1 b𝑠 𝑖 = 𝑠 ★𝑖 
+
+ based on forced alignment. 298 
+
+𝑝 UA (𝑠 𝑡 ) = softmax 
+
+ log 𝑝 MO 
+
+𝜏 
+
+
+
+, 𝜏 (𝜅 ) =
+
+(𝜅 if b𝑠 𝑖 = 𝑠 ★𝑖  
+
+> 1
+> 𝜅
+
+otherwise . (18) The gated temperature 𝜏 (𝜅 ) sharpens predictions for correct frames and flattens them for incorrect ones, 299 
+
+improving calibration (alignment between confidence and correctness; ECE, Eq. 14) and resolution 300 
+
+(discrimination between correct and incorrect predictions; RES, Eq. 15) at the same time. As a result, 301 
+
+oracle-gated calibration provides an upper bound achievable via post-hoc calibration. 302 
+
+We also introduce an over-confident intervention, in which the predictive distribution is replaced by 303 
+
+a degenerate distribution with Kronecker delta 𝛿 (·) on predicted token b𝑠 𝑡 (Fig. 4A) 304 
+
+𝑝 OC (𝑠 𝑡 ) = 𝛿 (𝑠 𝑡 = b𝑠 𝑡 ). (19) This transformation collapses the multinomial distribution to a vertex of the probability simplex Δ𝐾 −1,305 
+
+eliminating all uncertainty and reducing the decoder to deterministic predictions, worsening both ECE 306 
+
+and RES. Consequently, this intervention represents a lower bound. 307 
+
+Effective decoding depends not only on the confidence of the most likely output, but also on the 308 
+
+11 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+distribution of probability mass over alternative hypotheses. To isolate the role of this structure, we 309 
+
+introduce a flat intervention that redistributes probability mass across competing hypotheses while pre-310 
+
+serving the predicted label. This transformation is applied to 𝑝 MO → 𝑝 MO −Flat and 𝑝 UA → 𝑝 UA −Flat .311 
+
+The over-confident distribution 𝑝 OC is a special case for which 𝑝 OC = 𝑝 OC −Flat .312 
+
+𝑝 Flat =
+
+
+
+𝑝 (b𝑠 𝑡 ), for 𝑠 = b𝑠 𝑡 
+
+1
+
+|V | − 1
+
+ 1 − 𝑝 (b𝑠 𝑡 ), for 𝑠 ≠ b𝑠 𝑡 . (20) Oracle-gated calibration assumes access to framewise labels, which are obtained via forced alignment 313 
+
+conditioned on the ground-truth transcript using the procedure described in Sec. 2.7. This oracle 314 
+
+information is used exclusively for analysis and is not available during standard inference. Accordingly, 315 
+
+oracle-gated calibration is not a realizable algorithm, but a diagnostic intervention used to assess how 316 
+
+unreliable confidence limits decoding behavior under composition. 317 
+
+# 3 Results 318 
+
+In this section, we analyze the role of uncertainty in neural decoding at three levels. First, we evaluate 319 
+
+the quality of the predictive distribution 𝑝 ND produced by neural decoders, showing that commonly 320 
+
+used models exhibit systematic overconfidence (Sec. 3.1). Second, we investigate the functional role of 321 
+
+uncertainty in sequence decoding, demonstrating how the structure of the predictive distribution causally 322 
+
+influences hypothesis generation and integration during inference (Sec. 3.2). Finally, we examine the 323 
+
+mechanisms that shape uncertainty estimation, showing that training objectives strongly influence the 324 
+
+probabilistic semantics of neural decoder outputs (Sec. 3.2). 325 
+
+3.1 Predictive Distribution ( 𝑝 ND ) from Neural Decoders Are Neither Reliable nor Infor-326 
+
+mative 327 
+
+For neural decoders to convey useful uncertainty when decoding user intent, the predictive distribution 328 
+
+(Eq. 1, Fig. 3A) must highlight situations in which neural evidence is weak, ambiguous, or unfamiliar 329 
+
+resulting in predictions that are prone to error. In brain-to-text BCIs, such uncertainty signals guide 330 
+
+interactions with other system components by encouraging diverse hypothesis generation, modulating 331 
+
+reliance on language-model correction, or triggering user confirmation before executing commands in 332 
+
+downstream assistive modules (Fig. 1). Consequently, evaluating the predictive distribution is necessary 333 
+
+in addition to error metrics (e.g., PER, WER) on the decoded sentence. 334 
+
+The quality of probabilistic predictions is determined by two complementary properties: reliability 335 
+
+and informativeness. Reliability (calibration) requires predicted confidence to match empirical correct-336 
+
+ness. For example, predictions assigned confidence 𝑝 ND (b𝑠 𝑡 ) = 0.3 should be correct approximately 30% 337 
+
+of the time, as measured by the expected calibration error ECE (Eq. 14). However, calibration alone 338 
+
+is insufficient: a model with overall accuracy ¯ 𝑎 𝑡 = 0.8 could trivially assign confidence 𝑐 𝑡 = 0.8 to 339 
+
+12 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Figure 3: Neural decoder predictive distributions 𝑝 ND are over-confident A) Example frame-level predictive distribution 𝑝 ND from a CTC-trained neural decoder for the sentence “you actually hand quilted it yourself.” The derived confidence 𝑐 𝑡 is shown below each frame; incorrect frames are highlighted in red. (B) Quantification of frame-level (i–ii) and word-level (iii–iv) uncertainty for participant T15. (i, iii) show confidence distributions for correct vs. incorrect predictions at the frame and word levels, respectively; green bars indicate the ground-truth class, revealing large margins in incorrect predictions and limited resolution. (ii, iv) show reliability diagrams, where binned confidence is compared to empirical accuracy (calibration curve, black dotted line), with the diagonal (grey line) indicating perfect calibration. At both levels, calibration curves lie below the diagonal, indicating systematic over-confidence (high ECE) and low resolution (low RES). (C) Reliability diagrams for participant T12 at the frame (i) and word (ii) levels, showing similar over-confidence. every frame and achieve perfect calibration (ECE = 0) while providing no information about when errors 340 
+
+are likely to occur. Informativeness is captured by resolution RES (Eq. 15), which measures variation 341 
+
+in empirical correctness across confidence levels. Together, ECE and RES characterize probabilistic 342 
+
+prediction quality under proper scoring rule decomposition (Eq. 10, 11) [63, 65, 79–82]. An effective 343 
+
+neural decoder should therefore exhibit both low calibration error and high resolution, allowing the user 344 
+
+13 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+or downstream modules to respond to localized uncertainty in decoded output. 345 
+
+Across all frames, neural decoders assign consistently high confidence (i.e., maximum predicted 346 
+
+probability) to their predictions (Fig. 3B for T12, Fig. 3C for T15). The distribution of framewise 347 
+
+confidence 𝑐 𝑡 (Eq. 12) is strongly concentrated near 1 for CTC-trained decoders (Sec. 2.3) on both 348 
+
+participants. For participant T15, phoneme decoding achieves PER = 0.10. Considering only frames 349 
+
+corresponding to phoneme predictions (excluding the 66% of frames predicting 𝜖 that primarily function 350 
+
+as padding), 4 .6% of frames are incorrect. However, these incorrect frames still receive high confidence 351 
+
+(avg. 0 .817 ± 0.188), only modestly lower than correct frames (avg. 0 .970 ± 0.088), indicating limited 352 
+
+separation between correct and incorrect outcomes (AUPR = 0.211 for T15 and 0 .387 for T12). On 353 
+
+error frames, the probability assigned to the ground-truth phoneme is much lower (avg. 0 .096 ± 0.131), 354 
+
+indicating that probability mass is concentrated on the predicted phoneme despite being incorrect, while 355 
+
+suppressing plausible alternatives. Thus, although frame-level errors are rare, when they occur the model 356 
+
+remains highly confident in incorrect predictions. 357 
+
+To evaluate whether 𝑝 ND are probabilistically meaningful, we analyze calibration using reliabil-358 
+
+ity diagrams and quantify ECE (Eq. 14) and RES (Eq. 15). Reliability diagrams reveal systematic 359 
+
+overconfidence: predictions assigned high confidence frequently exhibit lower empirical accuracy than 360 
+
+expected under ideal calibration (Fig. 3B(ii), Fig. 3C(i)). Quantitatively, the neural decoder exhibits 361 
+
+measurable calibration error (T12: ECE = 0.027, T15: ECE = 0.011), while resolution remains low 362 
+
+(T12: RES = 0.014, T15: RES = 0.002), indicating limited variation in empirical correctness across 363 
+
+confidence levels. These metrics depend on label distribution (Sec. 2.7) and are not directly comparable 364 
+
+across datasets. Together, these results indicate that neural decoder prediction 𝑝 ND provides unreliable 365 
+
+and uninformative uncertainty estimates at the frame level. 366 
+
+This overconfidence propagates when probabilities are aggregated over time (Fig. 3B(iii)-(iv), Fig. 3C(ii)). 367 
+
+At the word level, incorrect predictions remain associated with high confidence (T12: 0 .930 ± 0.071 for 368 
+
+correct vs. 0 .782 ± 0.099 for incorrect; T15: 0 .958 ± 0.047 for correct vs. 0 .889 ± 0.072 for incorrect), 369 
+
+yielding weak separation between correct and incorrect word predictions (AUPR = 0.829 for T12 and 370 
+
+0.547 for T15). Reliability and informativeness also deteriorate with high calibration error (ECE = 0.258 371 
+
+for T12; 0 .155 for T15) and low resolution (RES = 0.107 for T12; 0 .036 for T15). These results indicate 372 
+
+that frame-level overconfidence carries over to word-level uncertainty. 373 
+
+Together, these analyses reveal that neural decoder predictive distributions 𝑝 ND are neither reliable 374 
+
+nor informative. At the frame level, confidence fails to meaningfully distinguish correct from incorrect 375 
+
+phoneme predictions, with probability mass concentrated on the predicted phoneme and little support 376 
+
+for alternatives (Fig. 3 B(ii), Fig. 3 C(i)). When aggregated over time, this overconfidence propagates 377 
+
+and obscures the distinction between correct and erroneous words (Fig. 3 B(iv), Fig. 3 C(ii)). These 378 
+
+results expose two probabilistic failure modes in current neural decoders: frame-level overconfidence and 379 
+
+temporal propagation of overconfidence during sequence decoding. As a result, predictive distribution 380 
+
+provide little information about errors and fail to reliably convey uncertainty to downstream components 381 
+
+or the user. In the next section, we examine how predictive distributions influence decoding behavior, 382 
+
+revealing their role in probabilistic co-control brain-to-text BCIs. 383 
+
+14 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+3.2 Oracle Simulations Reveal the Causal Role of Predictive Distribution in Decoding 384 
+
+Brain-to-text decoding operates entirely on predictive distribution 𝑝 ND (Eq. 1), which downstream mod-385 
+
+ules interpret as uncertainty-aware control signals (Sec. 2.6). Results in Sec. 3.1 show that existing neural 386 
+
+decoders fail to express reliable and informative uncertainty: confidence remains high even when pre-387 
+
+dictions are incorrect. We therefore ask a more fundamental question: to what extent does the predictive 388 
+
+distribution alone constrain decoding performance, independent of accuracy? 389 
+
+To isolate this effect, starting from the model predictive distribution 𝑝 MO analyzed in Sec. 3.1, we 390 
+
+generate two interventions, an over-confident distribution 𝑝 OC and an uncertainty-aware distribution 𝑝 UA ,391 
+
+while holding all other factors fixed (detailed in Sec. 2.8; Fig. 4A). First, we collapse the distribution so 392 
+
+that all the probability mass is assigned to the predicted label at every frame, producing the over-confident 393 
+
+distribution 𝑝 OC (Eq. 19). Because this representation contains no usable uncertainty information, it 394 
+
+serves as a lower bound on the utility of probabilistic prediction. Second, we simulate an uncertainty-395 
+
+aware distribution 𝑝 UA (Eq. 18) using oracle-gated temperature scaling. This intervention increases the 396 
+
+margin between the confidence assigned to correct and incorrect frames while preserving the ranking of 397 
+
+alternative tokens. In this way, 𝑝 UA approximates an upper bound on useful uncertainty estimation. The 398 
+
+three distributions 𝑝 MO , 𝑝 OC , and 𝑝 UA therefore represent alternative realizations of the neural decoder 399 
+
+prediction 𝑝 ND . We propagate these probabilities through the multi-stage decoding pipeline and examine 400 
+
+how they influence hypothesis generation bY1: 𝐾 (Eq. 9) and language-model integration bYND-LM 1: 𝐾 (Eq. 9). 401 
+
+We first examine how different predictive distribution constructions affect the statistical properties of 402 
+
+frame-level confidence. Under the uncertainty-aware intervention 𝑝 UA , predicted confidence exhibits a 403 
+
+bimodal distribution that separates correct from incorrect predictions. Reliability diagrams (Fig. 4B.(i)-404 
+
+(iii)) show that UA closely tracks ideal calibration, whereas the model output MO and over-confident OC 405 
+
+baselines systematically overestimate accuracy to varying degrees. This separation between correct and 406 
+
+incorrect predictions separation substantially increases resolution (RES, Eq. 15), indicating improved 407 
+
+discriminability between correct and incorrect predictions. Resolution values are reported in the order 408 
+
+⟨𝑈 𝐴, 𝑀𝑂, 𝑂𝐶 ⟩; for T12: ⟨0.066 , 0.014 , 0.000 ⟩, and for T15: ⟨0.005 , 0.002 , 0.000 ⟩. At the same 409 
+
+time, UA improves the correspondence between predicted confidence and empirical accuracy, reducing 410 
+
+calibration error (ECE, Eq. 14) (T12: ⟨0.014 , 0.027 , 0.084 ⟩; T15: ⟨0.000 , 0.011 , 0.016 ⟩). Because task 411 
+
+complexity is fixed within each dataset, RES and ECE are directly comparable across the 𝑂𝐶 , 𝑀𝑂 , and 412 
+
+𝑈 𝐴 .413 
+
+Importantly, these improvements persist across temporal aggregation. For word-level predicted 414 
+
+confidence (Sec. 2.7), UA again yields higher RES and lower ECE than 𝑀𝑂 and 𝑂𝐶 (Fig. 4B(iv)-415 
+
+(vi)). Consequently, word-level uncertainty becomes a meaningful indicator of decoding errors: words 416 
+
+assigned low confidence under UA are highly likely to be incorrect, achieving strong error identification 417 
+
+performance (AUPR = 0.992 for T12, 0 .962 for T15). This demonstrates that improved probability 418 
+
+quality translates directly into usable uncertainty signals at the word level. 419 
+
+Reliable probabilities also produce immediate effects on the search dynamics of decoding. During 420 
+
+hypothesis generation, beam search driven by UA explores a broader and more structured hypothesis 421 
+
+space. Although frame-level recognition accuracy is unchanged, the correct sequence appears more 422 
+
+15 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Figure 4: Oracle interventions reveal the causal effect of predictive distributions on decoding, independent of accuracy (A) Illustration of controlled manipulations of the predictive distribution 𝑝 ND 
+
+(restricted to five classes for visualization), showing over-confident ( 𝑝 OC ), uncertainty-aware ( 𝑝 UA ), and flattened variants ( 𝑝 MO −Flat , 𝑝 UA −Flat ), compared to the original model output ( 𝑝 MO ). (B) Comparison of oracle interventions ( 𝑝 OC , 𝑝 UA ) and flattened variants ( 𝑝 MO −Flat , 𝑝 UA −Flat ) to the original neural decoder prediction ( 𝑝 MO ) for participant T12. Reliability diagrams (introduced in Fig. 3) and summary metrics (ECE, RES) show substantial differences in how confidence reflects accuracy across 𝑝 OC , 𝑝 MO , 𝑝 UA at both the frame (i–iii) and word (iv–vi) levels. All manipulations preserve identical frame-wise errors, yet yield different decoding performance for (vii) sequence decoding based on 𝑝 ND alone and (viii) hypothesis integration with the language model. Shaded regions indicate WER for top-1, top-2, and top-100 hypotheses. (C) Decoding performance under the same manipulations applied to 𝑝 MO for participant T15, showing similar dependence of performance on the predictive distribution. Format follows (B). 16 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+frequently among lower-ranked hypotheses, with gains in top-𝐾 ΔOC-UA : 0 .008 (𝐾 = 1), 0 .024 (𝐾 = 5),423 
+
+and 0 .040 (𝐾 = 100 ) for T15; and 0 .014 (𝐾 = 1), 0 .030 (𝐾 = 5), and 0 .049 (𝐾 = 100 ) for T12 424 
+
+(Fig. 4B(vii), Fig. 4C(i)). These improvements indicate that informative uncertainty preserves competing 425 
+
+hypotheses during search rather than prematurely collapsing onto a single hypothesis. 426 
+
+The benefits extend further during hypothesis integration with the language model. Because UA 427 
+
+maintains greater hypothesis diversity, language-model re-ranking operates more effectively and more 428 
+
+consistently promotes the ground-truth sequence. This yields systematic WER reductions across candidate 429 
+
+sets ( ΔOC-UA = ⟨0.025 , 0.012 , 0.003 ⟩ for T15; ⟨0.079 , 0.066 , 0.042 ⟩ for T12; Fig. 4B(vii), Fig. 4C(ii)). 430 
+
+Not all gains from hypothesis generation propagate to integration, as lexicon constraints prune invalid 431 
+
+phoneme sequences and alter the effective predictive distribution by removing some high-confidence but 432 
+
+incorrect hypotheses. Nevertheless, the remaining improvements demonstrate that reliable uncertainty 433 
+
+enables more effective interaction between neural decoding and language-model correction. 434 
+
+Together, these results reveal a third failure mode in current neural decoding systems: unreliable 435 
+
+probability estimates can simultaneously impair both hypothesis generation and hypothesis integration 436 
+
+in decoding (Fig. 2, 4B(vii)-(viii), Fig. 4C(i)-(ii)). When uncertainty is poorly represented, beam search 437 
+
+collapses prematurely, limiting alternative hypotheses, while language-model integration receives unre-438 
+
+liable signals for re-ranking (Fig. 2). Comparisons across simulated outputs (UA, MO, OC) show that 439 
+
+improvements in recognition accuracy (PER) do not necessarily translate to end-to-end gains (WER). 440 
+
+Our analysis shows that WER of system output depends jointly on recognition accuracy and the quality of 441 
+
+uncertainty estimates, such that improvements in PER can be offset by poorly calibrated or uninformative 442 
+
+uncertainty. Reliable and structured uncertainty is therefore not merely desirable, but functionally neces-443 
+
+sary for effective interaction between neural decoding and behavior modules in probabilistic co-control 444 
+
+brain-to-text systems. This oracle analysis highlights a substantial performance gap that can be addressed 445 
+
+through improved uncertainty estimation, motivating the novel neural decoder design introduced in the 446 
+
+following sections. 447 
+
+3.3 Balancing Alignment Learning and Classification Produces Calibrated Probabilities 448 
+
+Neural decoders in brain-to-text BCIs are trained to optimize phoneme recognition under weak supervi-449 
+
+sion, yet their predictive distribution are subsequently used as uncertainty signals by downstream modules. 450 
+
+This raises a central question: can predictive distribution be learned that faithfully reflect uncertainty 451 
+
+while preserving decoding accuracy? A fundamental challenge is that neither framewise labels nor 452 
+
+uncertainty are directly observable, as the alignment between neural activity and phoneme is latent. The 453 
+
+CTC loss marginalizes over all valid alignments (Sec. 2.3), often producing “peaky alignments” that 454 
+
+concentrate frame-level probability mass on a single predicted token. This implicitly selects a dominant 455 
+
+alignment during learning (Sec. 2.4), reinforcing iterative fitting to that alignment hypothesis and thereby 456 
+
+introducing artificial certainty [74,75]. In this setting, the over-confidence required to stabilize alignment 457 
+
+may suppress the proper expression of frame-wise uncertainty arising from model uncertainty, ambiguous 458 
+
+neural evidence, or label noise. 459 
+
+If over-confidence arises primarily from resolving alignment ambiguity, then stabilizing the align-460 
+
+17 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Figure 5: Fusing CTC and CE predictive distributions ( CTC ★ ⊗ CE ) yields more calibrated predic-tions. Conceptual comparison of CE and CTC training. (A) Valid alignment hypotheses under CTC and CE for the example sentence “YO”. (B) Training schemes for CTC, which marginalizes over all valid alignments for the target sequence y, and CE, which is trained with respect to a fixed alignment 𝝅 ★. (C) Comparison of frame- and word-level reliability diagrams (introduced in Fig. 3) and summary metrics (ECE, RES) for 𝑝 CE and 𝑝 CTC across random initialization, and fused 𝑝 CTC ★⊗CE and 𝑝 CTC ★⊗CTC using the best CTC model CTC ★. Decoding performance across models. (D) Hypothesis generation and (E) language model integration, showing improved top-1 and top-5 performance with CTC ★ ⊗ CE. 18 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+ment target should improve the informativeness and reliability of predictive distribution. Conversely, if 461 
+
+uncertainty is dominated by irreducible variability in neural evidence, stabilizing the alignment target 462 
+
+would not improve, and may degrade decoding. To test this hypothesis, we introduce a two-stage training 463 
+
+strategy in which a CTC model infers pseudo-alignments 𝝅 ★ 
+
+> 1: 𝑇
+
+(Eq. 4), which are then fixed to train a CE 464 
+
+model (Sec. 2.4), explicitly decoupling alignment inference from classification. The resulting models, 465 
+
+𝑝 CE and 𝑝 CTC , provide a controlled contrast between alignment-marginalized learning and fixed-target 466 
+
+classification under otherwise identical conditions (Fig. 5A,B). 467 
+
+We first contrast the probabilistic behavior of neural decoders trained with CTC and CE objectives. 468 
+
+Using identical architectures, training data, and alignment hypotheses, we isolate the effect of the training 469 
+
+objective on predictive distribution (Sec. 2.3; 2.4). CTC-trained models achieve higher frame-level 470 
+
+accuracy by a small margin (CTC:0 .848 ± 0.005 vs CE:0 .832 ± 0.002), leading to slightly lower PER 471 
+
+(CTC:0 .212 ±0.009 vs CE:0 .232 ±0.002). Despite this moderate advantage in recognition accuracy, CTC 472 
+
+models produce systematically over-confident probabilities (Sec. 3.1). In contrast, CE-trained models 473 
+
+exhibit markedly different probability behavior (Fig. 5C). In particular, CE achieves higher resolution 474 
+
+(RES: CTC 0 .017 vs CE 0 .022), indicating improved discrimination between correct and incorrect 475 
+
+predictions (AUPR: CTC 0 .426 ± 0.016 vs CE 0 .469 ± 0.006). Although CE exhibits higher calibration 476 
+
+error (ECE: CTC 0 .025 vs CE 0 .051), its reliability curve lies above the diagonal, revealing systematic 477 
+
+under-confidence rather than over-confidence. Correspondingly, the confidence of 𝑝 CE spans a wider 478 
+
+dynamic range and more closely tracks empirical correctness. These results demonstrate that training 479 
+
+objectives can induce qualitatively different uncertainty behaviors beyond simple over-confidence, even 480 
+
+while maintaining comparable recognition accuracy. 481 
+
+Over-confident predictive distribution limit its functional use during decoding. In particular, col-482 
+
+lapsed beam degrade hypothesis generation by suppressing lower-ranked candidates, while extreme token 483 
+
+scores hinder effective hypothesis integration with the language model (Sec. 3.2; Fig. 2). We therefore ask 484 
+
+whether the observed differences in probabilistic behavior between CTC and CE models impact down-485 
+
+stream decoding. Although improved uncertainty estimation does not substantially change the quality 486 
+
+of lower-ranked hypotheses (top-100 WER improves top-1 by ΔWER = 0.108 for CE vs 0 .108 for CTC), 487 
+
+it produces more informative hypothesis scores. As a result, beam search benefits more from language 488 
+
+model integration when using 𝑝 CE , yielding larger WER reductions from pre- (Fig. 5D) to post-integration 489 
+
+(Fig. 5E) ( ΔWER: 0 .222 for 𝑝 CE vs 0 .184 for 𝑝 CTC ). These results show that uncertainty estimation has 490 
+
+functional consequences for decoding by shaping the hypothesis set and their scores, which determine 491 
+
+the effectiveness of language-model re-ranking. 492 
+
+Motivated by the complementary behaviors of CTC and CE models, we evaluate a controlled fusion 493 
+
+using the best-performing CTC model CTC ★ (selected based on validation performance) and compare 494 
+
+CTC ★ ⊗ CE, CTC ★ ⊗ CE against CTC ★ alone (Sec. 2.5). A single interpolation parameter 𝛾 continuously 495 
+
+trades off between alignment-dominant ( 𝑝 CTC ★ ) and explicit uncertainty ( 𝑝 CE ) prediction. As a control, 496 
+
+we also fuse 𝑝 CTC ★ and 𝑝 CTC . Across all 𝛾 , fused models reduce frame- and word-level calibration error, 497 
+
+increase effective resolution, and improve decoding utility relative to either model alone. Performance 498 
+
+peaks at an intermediate 𝛾 = 0.5 ( ΔCTC ★+CE ,CTC ★ = 0.006 , 0.011 , 0.006 for 𝐾 = 1, 5, 100) (Fig. 5C-E). 499 
+
+These improvements indicate that fusing model predictions allows disagreement between models to act 500 
+
+19 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+as a more reliable and informative probability estimate. Combining models with distinct inductive biases 501 
+
+may further amplify this benefit. 502 
+
+Together, these results show that training objectives shape the semantics of predictive distribution. 503 
+
+Although CTC-trained models achieve slightly higher frame-level accuracy, they produce systematically 504 
+
+over-confident predictions consistent with alignment–classification coupling in CTC. By stabilizing the 505 
+
+alignment target, CE training decouples alignment from prediction, yielding predictive distribution whose 506 
+
+uncertainty better tracks empirical correctness. Model fusion further leverages disagreement between 507 
+
+models, especially those with distinct inductive biases such as CTC and CE to improve uncertainty 508 
+
+estimates. Taken together, these findings suggest that uncertainty behavior in neural decoders is not 509 
+
+determined solely by model architecture or data statistics, but can be systematically shaped by the choice 510 
+
+of training objective. 511 
+
+# 4 Discussion 512 
+
+BCI control signals typically contain errors because neural input features are inherently variable and 513 
+
+rarely provide complete evidence of the user’s intended behavior. To support effective and safety-critical 514 
+
+BCIs, neural decoders must therefore do more than produce a single best estimate of user intent: they 515 
+
+must also communicate uncertainty about their predictions. Most prior work has focused on improving 516 
+
+end-to-end accuracy metrics such as word error rate [11,12,35–39,57]. However, neural decoders operate 517 
+
+as probabilistic inference modules within co-control BCI systems, where predictive distribution function 518 
+
+as uncertainty signals that guide downstream components, including language-model integration and user 519 
+
+feedback (Fig. 1). 520 
+
+Our results show that neural decoder predictive distribution (Sec. 2.2) cannot be assumed to faithfully 521 
+
+represent uncertainty. Widely used neural decoders trained with the CTC objective [11,12,35–39,57,73] 522 
+
+exhibit systematic overconfidence, assigning near-deterministic confidence even when predictions are 523 
+
+incorrect (Sec. 3.1). This overconfidence suppresses alternative hypotheses during sequence decoding and 524 
+
+distorts hypothesis arbitration with language models (Sec. 3.2; 3.3). In the following discussion sections, 525 
+
+we synthesize these findings to characterize the consequences of these failure modes for probabilistic 526 
+
+inference (Sec. 4.1), connect the mechanisms underlying overconfident predictions to concrete directions 527 
+
+for improving uncertainty estimation (Sec. 4.2), and articulate broader implications for the design of 528 
+
+effective co-control and its extension to other BCI tasks (Sec. 4.3). More broadly, our work highlights 529 
+
+that relying solely on end-to-end decoding accuracy can obscure critical properties of the neural decoder’s 530 
+
+probabilistic outputs, potentially biasing system design toward specific AI models or evaluation settings 531 
+
+rather than producing reliable uncertainty signals that can support multiple downstream modules. By 532 
+
+opening this “black box,” we aim to characterize and evaluate the implicit control signal, decoder predicted 533 
+
+uncertainty, that governs interaction between neural decoding and AI components in next-generation BCI 534 
+
+systems. 535 
+
+20 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+4.1 Neural Decoders Do Not Provide Informative and Reliable Estimates of Uncertainty 536 
+
+Analysis of predictive distribution from widely used CTC neural decoders for brain-to-text BCI [11, 12, 537 
+
+35–39,57] reveals a consistent probabilistic structure across subject (T12 [12] and T15 [35]). Specifically, 538 
+
+neural decoders exhibit three coupled probabilistic failure modes: predictive distribution collapse toward 539 
+
+near-deterministic frame-level predictions; this overconfidence propagates through time, aggregating into 540 
+
+overconfident word-level predictions; and the resulting certainty suppresses alternative hypotheses during 541 
+
+sequence decoding and distorts the language-model integration. 542 
+
+First, frame-level overconfidence causes the predictive distribution to concentrate on the predicted 543 
+
+phoneme even when the prediction is prone to error. This near-deterministic behavior prevents uncertainty 544 
+
+from being localized within a sequence, yielding poor reliability (high ECE) and low informativeness (low 545 
+
+RES) as quantified by the proposed metrics (Sec. 2.7; Fig. 3). Consequently, downstream components 546 
+
+cannot distinguish frames supported by strong neural evidence from those arising from ambiguous or 547 
+
+noisy input, preventing adaptive responses to local uncertainty. 548 
+
+Second, this miscalibration propagates temporally through the decoding hierarchy. Overconfident 549 
+
+frame predictions accumulate into overconfident word-level predictions (Sec. 2.7, 3.1; Fig. 3). Incor-550 
+
+rect words therefore frequently appear both wrong and certain, making them difficult to flag for user 551 
+
+confirmation or correction. This failure is particularly consequential for low-frequency yet semantically 552 
+
+informative words, which are known to exhibit higher error rates in brain-to-text decoding [83]. When 553 
+
+such errors are accompanied by high confidence, both users and downstream modules lose the ability to 554 
+
+efficiently detect and correct mistakes. 555 
+
+Third, overconfident neural predictions can cause multi-stage decoding to fail by constraining both 556 
+
+hypothesis generation and hypothesis integration (Fig. 2). When predictive distributions concentrate 557 
+
+excessively on a single token, beam search prematurely suppresses alternative hypotheses, thus producing 558 
+
+a narrow candidate set and limiting sequence diversity (Fig. 4 B,C), a failure mode widely observed in 559 
+
+general sequence decoding systems [84–90]. This restricted hypothesis space reduces the effectiveness 560 
+
+of language-model integration, which relies on graded score differences among plausible alternatives to 561 
+
+perform contextual re-ranking and error correction (Fig. 4 B,C). Notably, sentences with higher phoneme 562 
+
+error rates benefit most from calibrated uncertainty (Fig. 6 A). Although these cases contain weaker 563 
+
+contextual information, localized uncertainty preserves candidate hypotheses that would otherwise be 564 
+
+pruned during decoding, allowing the language model to recover from errors more effectively. This helps 565 
+
+explain why improvements in phoneme error rate (PER) do not always translate to lower word error rate 566 
+
+(WER) in integrated systems [57]. Scalar accuracy metrics capture correctness, but not how predictive 567 
+
+uncertainty structures intermediate hypotheses and module interactions in multi-stage inference (Sec. 3.2). 568 
+
+These findings suggest that neural decoder predictive distributions act as control signals governing 569 
+
+decoding behavior. When these signals are miscalibrated, a system may appear accurate while silently 570 
+
+failing during ambiguous predictions. Improving the reliability and informativeness of decoder-predicted 571 
+
+uncertainty is therefore essential for enabling robust hypothesis generation, effective language-model 572 
+
+integration, and ultimately safer co-control BCI systems. 573 
+
+21 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Figure 6: Predicted uncertainty should reflect evidence in the neural signal. (A) Effect of LM integration (WER) across sentences at different decoding error levels (PER), showing a persistent gap between oracle over-confident ( 𝑝 OC , green) and uncertainty-aware ( 𝑝 UA , pink) conditions relative to the model output ( 𝑝 MO , blue). (B) Decoding performance (PER) and uncertainty (confidence) as a function of information degradation: (i–ii) varying the number of electrodes used for offline decoding, and (iii–iv) increasing temporal drift from a model with input network trained on Day 0. In regimes with substantial PER degradation (i, iii), 𝑝 CTC remains over-confident while 𝑝 CE reduces confidence in proportion to performance loss. (C) Example alignments for a sentence under randomly initialized CTC and CE models, compared to a reference alignment 𝝅 ★ (Ref). Errors (CTC ★ vs Ref) illustrate that correct predictions can still yield inconsistent phoneme alignments, reflecting alignment uncertainty. 
+
+4.2 Mechanisms of Miscalibrated Uncertainty and Design Implications 574 
+
+An ideal neural decoder should learn to express uncertainty that is localized in time and reflects the 575 
+
+strength of neural evidence supporting ongoing behavior. Through controlled comparisons between 576 
+
+neural decoders trained with CTC (Sec. 2.3) and CE (Sec. 2.4) objectives, we find that training objectives 577 
+
+strongly influence the uncertainty representation in prediction. The CTC objective couples alignment and 578 
+
+classification, encouraging overconfident predictions that resolve alignment ambiguity. In contrast, de-579 
+
+coupling alignment via CE training preserves accuracy while improving probability resolution (Sec. 3.3), 580 
+
+yielding more informative uncertainty estimates. Training objectives serve as a key design lever for 581 
+
+shaping uncertainty estimation, in addition to determining recognition accuracy. 582 
+
+In brain–computer interfaces, single-trial neural signals are inherently noisy and variable [91–93], 583 
+
+and user control signals fluctuate across attempts due to factors such as fatigue, feedback, and task 584 
+
+familiarity [8, 94–103]. Consequently, reliable uncertainty estimates should adapt to variations in the 585 
+
+22 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+quality of available neural evidence. However, natural variability is difficult to isolate without time-aligned 586 
+
+ground-truth behavior. To address this challenge, we introduce controlled signal degradation experiments 587 
+
+that simulate two common sources of performance decline: progressive channel dropout and cross-588 
+
+session non-stationarity arising from the removal of adaptive input updates. Under these conditions, 589 
+
+CTC-trained decoders remain highly confident despite substantial loss of information, whereas CE-590 
+
+trained models exhibit increased uncertainty as accuracy deteriorates (Fig. 6B). These results suggest that 591 
+
+alignment-driven objectives can override evidence, producing confidence collapse rather than evidence-592 
+
+aligned uncertainty. This distinction becomes particularly important in practical BCI scenarios where 593 
+
+neural signals vary substantially across users and recording conditions, such as differences in clinical 594 
+
+severity [12,35,37,52] or different modes of control (e.g., inner speech [38] versus attempted speech [12, 595 
+
+35,37,52]). In such settings, reliable and evidence-based uncertainty estimation is critical for maintaining 596 
+
+robust system behavior. 597 
+
+Beyond modifying training objectives, another approach to improving uncertainty estimation is 598 
+
+to leverage model ensembles [70]. By combining independently trained models, ensembles capture 599 
+
+uncertainty induced by distinct optimization trajectories. In our experiments, combining CTC and CE 600 
+
+models yields the largest improvements in both uncertainty estimation and decoding accuracy. Analysis 601 
+
+across random initializations reveals that CTC models frequently disagree in their inferred alignments 602 
+
+while still predicting the same phoneme sequence, indicating inherent alignment uncertainty in the learned 603 
+
+representations [104]. In contrast, CE models share a fixed alignment but often disagree on specific token 604 
+
+predictions when segments are likely to contain errors. These complementary disagreement patterns 605 
+
+help explain why combining models trained with different objectives improves uncertainty estimation. 606 
+
+This perspective may also explain why several recent systems with CTC-based neural decoders perform 607 
+
+hypothesis ensembling only after language-model integration and rely on additional large models for 608 
+
+rescoring or rewriting [47,53,57,58]. While effective, this approach often incurs substantial computational 609 
+
+cost and shifts increasing responsibility to large language models, which resolve errors primarily using 610 
+
+semantic context rather than uncertainty conveyed by the neural evidence of user intent. 611 
+
+4.3 Calibrated Uncertainty As A Foundation For Co-control 612 
+
+The central limitation in next-generation co-control BCIs may not be decoding accuracy, but the faithful 613 
+
+representation of uncertainty. While accuracy measures performance in static, monolithic integrations 614 
+
+of neural decoders and behavioral modules, uncertainty estimation determines how effectively neural 615 
+
+decoders collaborate with downstream modules under increasing complexity, partial observability, and 616 
+
+evolving conditions. This shift in perspective reframes uncertainty as a system-level quantity that links 617 
+
+multiple stages of BCI development, from the encoding and decoding of neural signals to the integration, 618 
+
+validation, and execution of predictions by downstream modules. 619 
+
+Uncertainty can take different forms across modalities. In discrete decoding tasks such as brain-620 
+
+to-text, it is expressed as predictive distributions over states, whereas in continuous motor BCIs (e.g., 621 
+
+arm [5, 6, 8–10, 14] and finger movement [105–107]), it naturally appears as variance over movement 622 
+
+trajectories. Across these settings, uncertainty is not merely descriptive, rather it functions as a control 623 
+
+23 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+signal through which neural evidence is communicated, interpreted, and integrated with downstream 624 
+
+modules. However, reliable uncertainty does not arise automatically from standard training paradigms. 625 
+
+Although most objectives produce predictive distributions or variance, the reliability of these uncertainty 626 
+
+estimates is shaped by the objective, often leading to misalignment with the underlying neural evidence. 627 
+
+This suggests that uncertainty must be explicitly modeled and evaluated. A key direction is to develop 628 
+
+uncertainty-aware objectives that align predictive uncertainty with the structure of neural variability, 629 
+
+for example by enforcing consistency between uncertainty estimates and behavior-relevant neural latent 630 
+
+dynamics. Such alignment may improve reliability at fine temporal scales and enable more robust system 631 
+
+behavior. As uncertainty-aware decoders mature, uncertainty signals may increasingly guide decision-632 
+
+making under constraints, including risk-sensitive actions, user–BCI co-adaptation [95, 108–111], and 633 
+
+interaction with multiple modules. Uncertainty not only modulates control, but may define new modes 634 
+
+of interaction in translational BCIs. 635 
+
+Taken together, these directions reinforce the role of uncertainty as a central interface for coordinating 636 
+
+interaction across modules in co-control systems. Viewed through this lens, the neural decoder becomes 637 
+
+a collaborative partner rather than a rigid translator of neural activity, enabling co-control systems that 638 
+
+protect users from errors under weak or ambiguous neural signals. By prioritizing calibrated trust and 639 
+
+principled deferral, such systems can function as reliable, life-enhancing extensions of a person’s com-640 
+
+municative intent while maintaining robustness in safety-critical settings. More broadly, this perspective 641 
+
+suggests a development paradigm for BCIs in which uncertainty serves as the connective layer linking 642 
+
+neurophysiological variability, representation and decoder design, robustness evaluation, and system-643 
+
+level integration. In this view, uncertainty is not merely a property of prediction, but the mechanism, 644 
+
+and ultimately the interface, through which neural intent is translated, evaluated, and integrated with 645 
+
+intelligent systems, enabling safe, adaptive, and interpretable co-control across increasingly complex 646 
+
+behaviors. 647 
+
+# References 648 
+
+[1] Krishna V. Shenoy and Byron M. Yu. Brain–machine interfaces. In Eric R. Kandel, John D. Koester, 649 
+
+Sarah H. Mack, and Steven A. Siegelbaum, editors, Principles of Neural Science , chapter 39. 650 
+
+McGraw-Hill, 6 edition, 2021. 651 
+
+[2] Jacob T Robinson, Sumner L Norman, Matthew R Angle, Timothy G Constandinou, Timothy 652 
+
+Denison, John P Donoghue, Ryan M Field, Andreas Forsland, Sid Kouider, Jos´ e del R Mill´ an, et al. 653 
+
+An application-based taxonomy for brain–computer interfaces. Nature Biomedical Engineering ,654 
+
+9(6):789–791, 2025. 655 
+
+[3] Mariska J Vansteensel, Eran Klein, Ghislaine van Thiel, Michael Gaytant, Zachary Simmons, 656 
+
+Jonathan R Wolpaw, and Theresa M Vaughan. Towards clinical application of implantable brain– 657 
+
+computer interfaces for people with late-stage als: medical and ethical considerations. Journal of 658 
+
+Neurology , 270(3):1323–1336, 2023. 659 
+
+24 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[4] Gerwin Schalk, Peter Brunner, Brendan Z Allison, Surjo R Soekadar, Cuntai Guan, Tim Denison, 660 
+
+J¨ orn Rickert, and Kai J Miller. Translation of neurotechnologies. Nature Reviews Bioengineering ,661 
+
+2(8):637–652, 2024. 662 
+
+[5] Frank H. Guenther, Jonathan S. Brumberg, E. Joseph Wright, Alfonso Nieto-Castanon, Jason A. 663 
+
+Tourville, Mikhail Panko, Robert Law, Steven A. Siebert, Jess L. Bartels, Dinal S. Andreasen, 664 
+
+Princewill Ehirim, Hui Mao, and Philip R. Kennedy. A wireless brain-machine interface for 665 
+
+real-time speech synthesis. PloS one , 4(12):e8218, 2009. 666 
+
+[6] Daniel Bacher, Beata Jarosiewicz, Nicolas Y Masse, Sergey D Stavisky, John D Simeral, Katherine 667 
+
+Newell, Erin M Oakley, Sydney S Cash, Gerhard Friehs, and Leigh R Hochberg. Neural point-668 
+
+and-click communication by a person with incomplete locked-in syndrome. Neurorehabilitation 669 
+
+and neural repair , 29(5):462–471, 2015. 670 
+
+[7] Beata Jarosiewicz, Anish A. Sarma, Daniel Bacher, Nicolas Y. Masse, John D. Simeral, Brittany 671 
+
+Sorice, Erin M. Oakley, Christine Blabe, Chethan Pandarinath, Vikash Gilja, Sydney S. Cash, 672 
+
+Emad N. Eskandar, Gerhard Friehs, Jaimie M. Henderson, Krishna V. Shenoy, John P. Donoghue, 673 
+
+and Leigh R. Hochberg. Virtual typing by people with tetraplegia using a self-calibrating intracor-674 
+
+tical brain-computer interface. Science Translational Medicine , 7(313):313ra179, 2015. 675 
+
+[8] Vikash Gilja, Paul Nuyujukian, Cindy A Chestek, John P Cunningham, Byron M Yu, Joline M Fan, 676 
+
+Mark M Churchland, Matthew T Kaufman, Jonathan C Kao, Stephen I Ryu, and Krishna V Shenoy. 677 
+
+A high-performance neural prosthesis enabled by control algorithm design. Nature Neuroscience ,678 
+
+15(12):1752–1757, 2012. 679 
+
+[9] Vikash Gilja, Chethan Pandarinath, Christine H Blabe, Paul Nuyujukian, John D Simeral, Anish A 680 
+
+Sarma, Brittany L Sorice, J´ anos A Perge, Beata Jarosiewicz, Leigh R Hochberg, Krishna V Shenoy, 681 
+
+and Jaimie M Henderson. Clinical translation of a high-performance neural prosthesis. Nature 682 
+
+Medicine , 21(10):1142–1145, 2015. 683 
+
+[10] Chethan Pandarinath, Paul Nuyujukian, Christine H Blabe, Brittany L Sorice, Jad Saab, Francis R 684 
+
+Willett, Leigh R Hochberg, Krishna V Shenoy, and Jaimie M Henderson. High performance 685 
+
+communication by people with paralysis using an intracortical brain-computer interface. elife ,686 
+
+6:e18554, 2017. 687 
+
+[11] Francis R Willett, Donald T Avansino, Leigh R Hochberg, Jaimie M Henderson, and Krishna V 688 
+
+Shenoy. High-performance brain-to-text communication via handwriting. Nature , 593(7858):249– 689 
+
+254, 2021. 690 
+
+[12] Francis R Willett, Erin M Kunz, Chaofei Fan, Donald T Avansino, Guy H Wilson, Eun Young Choi, 691 
+
+Foram Kamdar, Matthew F Glasser, Leigh R Hochberg, Shaul Druckmann, Krishna V. Shenoy, 692 
+
+and Jaimie M. Henderson. A high-performance speech neuroprosthesis. Nature , 620(7976):1031– 693 
+
+1036, 2023. 694 
+
+25 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[13] Philip R Kennedy, Roy AE Bakay, Melody M Moore, Kim Adams, and John Goldwaithe. Direct 695 
+
+control of a computer from the human central nervous system. IEEE Transactions on rehabilitation 696 
+
+engineering , 8(2):198–202, 2000. 697 
+
+[14] Paul Nuyujukian, Jose Albites Sanabria, Jad Saab, Chethan Pandarinath, Beata Jarosiewicz, Chris-698 
+
+tine H Blabe, Brian Franco, Stephen T Mernoff, Emad N Eskandar, John D Simeral, Leigh R. 699 
+
+Hochberg, Krishna V. Shenoy, and Jaimie M. Henderson. Cortical control of a tablet computer by 700 
+
+people with paralysis. PloS one , 13(11):e0204566, 2018. 701 
+
+[15] Leigh R Hochberg, Mijail D Serruya, Gerhard M Friehs, Jon A Mukand, Maryam Saleh, Abra-702 
+
+ham H Caplan, Almut Branner, David Chen, Richard D Penn, and John P Donoghue. Neuronal 703 
+
+ensemble control of prosthetic devices by a human with tetraplegia. Nature , 442(7099):164–171, 704 
+
+2006. 705 
+
+[16] Leigh R Hochberg, Daniel Bacher, Beata Jarosiewicz, Nicolas Y Masse, John D Simeral, Joern 706 
+
+Vogel, Sami Haddadin, Jie Liu, Sydney S Cash, Patrick Van Der Smagt, and John P. Donoghue. 707 
+
+Reach and grasp by people with tetraplegia using a neurally controlled robotic arm. Nature ,708 
+
+485(7398):372–375, 2012. 709 
+
+[17] Jennifer L Collinger, Brian Wodlinger, John E Downey, Wei Wang, Elizabeth C Tyler-Kabara, 710 
+
+Douglas J Weber, Angus JC McMorland, Meel Velliste, Michael L Boninger, and Andrew B 711 
+
+Schwartz. High-performance neuroprosthetic control by an individual with tetraplegia. The 712 
+
+Lancet , 381(9866):557–564, 2013. 713 
+
+[18] Brian Wodlinger, JE Downey, Elizabeth C Tyler-Kabara, Andrew B Schwartz, ML Boninger, and 714 
+
+Jennifer L Collinger. Ten-dimensional anthropomorphic arm control in a human brain- machine 715 
+
+interface: difficulties, solutions, and limitations. Journal of neural engineering , 12(1):016011, 716 
+
+2015. 717 
+
+[19] Tyson Aflalo, Spencer Kellis, Christian Klaes, Brian Lee, Ying Shi, Kelsie Pejsa, Kathleen 718 
+
+Shanfield, Stephanie Hayes-Jackson, Mindy Aisen, Christi Heck, Charles Liu, and Richard A. 719 
+
+Andersen. Decoding motor imagery from the posterior parietal cortex of a tetraplegic human. 720 
+
+Science , 348(6237):906–910, 2015. 721 
+
+[20] John E Downey, Lucas Brane, Robert A Gaunt, Elizabeth C Tyler-Kabara, Michael L Boninger, 722 
+
+and Jennifer L Collinger. Motor cortical activity changes during neuroprosthetic-controlled object 723 
+
+interaction. Scientific reports , 7(1):16947, 2017. 724 
+
+[21] Sharlene N Flesher, John E Downey, Jeffrey M Weiss, Christopher L Hughes, Angelica J Herrera, 725 
+
+Elizabeth C Tyler-Kabara, Michael L Boninger, Jennifer L Collinger, and Robert A Gaunt. A726 
+
+brain-computer interface that evokes tactile sensations improves robotic arm control. Science ,727 
+
+372(6544):831–836, 2021. 728 
+
+[22] David A. Handelman, Luke E. Osborn, Tessy M. Thomas, Andrew R. Badger, Margaret Thompson, 729 
+
+Robert W. Nickl, Manuel A. Anaya, Jared M. Wormley, Gabriela L. Cantarero, David McMullen, 730 
+
+26 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Nathan E. Crone, Brock Wester, Pablo A. Celnik, Matthew S. Fifer, and Francesco V. Tenore. Shared 731 
+
+control of bimanual robotic limbs with a brain-machine interface for self-feeding. Frontiers in 732 
+
+Neurorobotics , 16:918001, 2022. 733 
+
+[23] Syed Abu Huraira Hussain, Imran Raza, Syed Asad Hussain, Muhammad Hasan Jamal, Tauseef 734 
+
+Gulrez, and Ali Zia. A mental state aware brain computer interface for adaptive control of electric 735 
+
+powered wheelchair. Scientific Reports , 15(1):9880, 2025. 736 
+
+[24] Stephen Rainey, Hannah Maslen, and Julian Savulescu. When thinking is doing: responsibility 737 
+
+for BCI-mediated action. AJOB neuroscience , 11(1):46–58, 2020. 738 
+
+[25] Jakob Gawlikowski, Cedrique Rovile Njieutcheu Tassi, Mohsin Ali, Jongseok Lee, Matthias Humt, 739 
+
+Jianxiang Feng, Anna Kruspe, Rudolph Triebel, Peter Jung, Ribana Roscher, Muhammad Shahzad, 740 
+
+Wen Yang, Richard Bamler, and Xiao Xiang Zhu. A survey of uncertainty in deep neural networks. 741 
+
+Artificial Intelligence Review , 56(Suppl 1):1513–1589, 2023. 742 
+
+[26] Sebastian Thrun. Probabilistic robotics. Communications of the ACM , 45(3):52–57, 2002. 743 
+
+[27] Abdullah A Abdullah, Masoud M Hassan, and Yaseen T Mustafa. A review on bayesian deep 744 
+
+learning in healthcare: Applications and challenges. IEEe Access , 10:36538–36562, 2022. 745 
+
+[28] Arash Ajoudani, Andrea Maria Zanchettin, Serena Ivaldi, Alin Albu-Sch¨ affer, Kazuhiro Kosuge, 746 
+
+and Oussama Khatib. Progress and prospects of the human–robot collaboration. Autonomous 747 
+
+robots , 42(5):957–975, 2018. 748 
+
+[29] Reza Abiri, Ali Rabiee, Sima Ghafoori, and Anna Cetera. Toward human-centered shared autonomy 749 
+
+ai paradigms for human-robot teaming in healthcare. arXiv preprint arXiv:2407.17464 , 2024. 750 
+
+[30] Dario Amodei, Chris Olah, Jacob Steinhardt, Paul Christiano, John Schulman, and Dan Man´ e. 751 
+
+Concrete problems in ai safety. arXiv preprint arXiv:1606.06565 , 2016. 752 
+
+[31] MH Farhadi, Ali Rabiee, Sima Ghafoori, Anna Cetera, Wei Xu, and Reza Abiri. Human-centered 753 
+
+shared autonomy for motor planning, learning, and control applications. Bridging the Gap between 754 
+
+Mind and Machine: Exploring the Future of Human-AI-Neurotechnology Integration , pages 259– 755 
+
+297, 2025. 756 
+
+[32] Lorenzo Tonin, Tom Carlson, Robert Leeb, and Jos´ e del R. Mill´ an. Combining brain–computer 757 
+
+interfaces and assistive technologies: state-of-the-art and challenges. Frontiers in Neuroscience ,758 
+
+9:1–17, 2015. 759 
+
+[33] Christian Herff, Dominic Heger, Adriana De Pesters, Dominic Telaar, Peter Brunner, Gerwin 760 
+
+Schalk, and Tanja Schultz. Brain-to-text: decoding spoken phrases from phone representations in 761 
+
+the brain. Frontiers in neuroscience , 8:141498, 2015. 762 
+
+[34] Christian Herff and Tanja Schultz. Automatic speech recognition from neural signals: a focused 763 
+
+review. Frontiers in neuroscience , 10:429, 2016. 764 
+
+27 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[35] Nicholas S. Card, Maitreyee Wairagkar, Carrina Iacobacci, Xianda Hou, Tyler Singer-Clark, 765 
+
+Francis R. Willett, Erin M. Kunz, Chaofei Fan, Maryam Vahdati Nia, Darrel R. Deo, Aparna 766 
+
+Srinivasan, Eun Young Choi, Matthew F. Glasser, Leigh R. Hochberg, Jaimie M. Henderson, 767 
+
+Kiarash Shahlaie, Sergey D. Stavisky, and David M. Brandman. An accurate and rapidly calibrating 768 
+
+speech neuroprosthesis. New England Journal of Medicine , 391(7):609–618, 2024. 769 
+
+[36] Jaimie J. Jude, Hila Levi-Aharoni, A. J. Acosta, S. B. Allcroft, C. Nicolas, B. E. Lacayo, N. S. 770 
+
+Card, M. Wairagkar, D. M. Brandman, S. D. Stavisky, F. R. Willett, Z. M. Williams, J. D. Simeral, 771 
+
+L. R. Hochberg, and D. B. Rubin. Restoring rapid natural bimanual typing with a neuroprosthesis 772 
+
+after paralysis. Nature Neuroscience , 2026. 773 
+
+[37] Sean L. Metzger, Kaylo T. Littlejohn, Alexander B. Silva, David A. Moses, Margaret P. Seaton, Ran 774 
+
+Wang, Maximilian E. Dougherty, Jessie R. Liu, Peter Wu, Michael A. Berger, Inga Zhuravleva, 775 
+
+Adelyn Tu-Chan, Karunesh Ganguly, Gopala K. Anumanchipalli, and Edward F. Chang. A high-776 
+
+performance neuroprosthesis for speech decoding and avatar control. Nature , 620(7976):1037– 777 
+
+1046, 2023. 778 
+
+[38] Erin M. Kunz, Benyamin Abramovich Krasa, Foram Kamdar, Donald T. Avansino, Nick Hahn, 779 
+
+Seonghyun Yoon, Akansha Singh, Samuel R. Nason-Tomaszewski, Nicholas S. Card, Justin J. 780 
+
+Jude, Brandon G. Jacques, Payton H. Bechefsky, Carrina Iacobacci, Leigh R. Hochberg, Daniel B. 781 
+
+Rubin, Ziv M. Williams, David M. Brandman, Sergey D. Stavisky, Nicholas AuYong, Chethan 782 
+
+Pandarinath, Shaul Druckmann, Jaimie M. Henderson, and Francis R. Willett. Inner speech in 783 
+
+motor cortex and implications for speech neuroprostheses. Cell , 188(17):4658–4673, 2025. 784 
+
+[39] Samuel R. Nason-Tomaszewski, Pranav I. Deevi, Qinwan Rabbani, Brandon G. Jacques, Anna L. 785 
+
+Pritchard, Lahiru N. Wimalasena, Brice A. Richards, Brianna M. Karpowicz, Payton H. Bechef-786 
+
+sky, Nicholas S. Card, Darrel R. Deo, Eun Young Choi, Leigh R. Hochberg, Sergey D. Stavisky, 787 
+
+David M. Brandman, Nicholas AuYong, and Chethan Pandarinath. Restoring brain-to-text com-788 
+
+munication in a person with dysarthria from pontine stroke using an intracortical brain-computer 789 
+
+interface. medRxiv , pages 2026–02, 2026. 790 
+
+[40] Mehryar Mohri, Fernando Pereira, and Michael Riley. Weighted finite-state transducers in speech 791 
+
+recognition. Computer Speech & Language , 16(1):69–88, 2002. 792 
+
+[41] Mehryar Mohri and Michael Riley. Speech recognition with weighted finite-state transducers. In 793 
+
+Springer Handbook of Speech Processing , pages 559–584. Springer, 2008. 794 
+
+[42] Yajie Miao, Mohammad Gowayyed, and Florian Metze. EESEN: End-to-end speech recognition 795 
+
+using deep RNN models and WFST-based decoding. In 2015 IEEE workshop on automatic speech 796 
+
+recognition and understanding (ASRU) , pages 167–174. IEEE, 2015. 797 
+
+[43] Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language 798 
+
+models are unsupervised multitask learners. OpenAI blog , 1(8):9, 2019. 799 
+
+[44] Susan Zhang, Stephen Roller, Naman Goyal, Mikel Artetxe, Moya Chen, Shuohui Chen, Christo-800 
+
+pher Dewan, Mona Diab, Xian Li, Xi Victoria Lin, Todor Mihaylov, Myle Ott, Sam Shleifer, Kurt 801 
+
+28 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+Shuster, Daniel Simig, Punit Singh Koura, Anjali Sridhar, Tianlu Wang, and Luke Zettlemoyer. 802 
+
+OPT: Open pre-trained transformer language models. arXiv preprint arXiv:2205.01068 , 2022. 803 
+
+[45] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, 804 
+
+Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al. Llama 2: Open 805 
+
+foundation and fine-tuned chat models. arXiv preprint arXiv:2307.09288 , 2023. 806 
+
+[46] Jingyuan Li, Trung Le, Chaofei Fan, Mingfei Chen, and Eli Shlizerman. Brain-to-text decod-807 
+
+ing with context-aware neural representations and large language models. Journal of Neural 808 
+
+Engineering , 22(5):056026, 2025. 809 
+
+[47] Yizi Zhang, Linyang He, Chaofei Fan, Tingkai Liu, Han Yu, Trung Le, Jingyuan Li, Scott 810 
+
+Linderman, Lea Duncker, Francis R Willett, Nima Mesgarani, and Liam Paninski. Decoding inner 811 
+
+speech with an end-to-end brain-to-text neural interface. arXiv preprint arXiv:2511.21740 , 2025. 812 
+
+[48] Sheng Feng, Heyang Liu, Yu Wang, and Yanfeng Wang. Towards an end-to-end framework for 813 
+
+invasive brain signal decoding with large language models. arXiv preprint arXiv:2406.11568 ,814 
+
+2024. 815 
+
+[49] Jarod L´ evy, Mingfang Zhang, Svetlana Pinet, J´ er´ emy Rapin, Hubert Banville, St´ ephane d’Ascoli, 816 
+
+and Jean-R´ emi King. Brain-to-text decoding: A non-invasive approach via typing. arXiv preprint 817 
+
+arXiv:2502.17480 , 2025. 818 
+
+[50] Johannes Y Lee, Sangjoon Lee, Abhishek Mishra, Xu Yan, Brandon McMahan, Brent Gaisford, 819 
+
+Charles Kobashigawa, Mike Qu, Chang Xie, and Jonathan C Kao. Brain–computer interface 820 
+
+control with artificial intelligence copilots. Nature Machine Intelligence , pages 1–14, 2025. 821 
+
+[51] Katharina Muelling, Arun Venkatraman, Justin-Stefan Valois, Joseph E. Downey, Jonathan Weiss, 822 
+
+Shervin Javdani, Martial Hebert, Andrew B. Schwartz, Jennifer L. Collinger, J. Andrew Bagnell, 823 
+
+and Siddhartha S. Srinivasa. Autonomy infused teleoperation with application to brain–computer 824 
+
+interface controlled manipulation. Autonomous Robots , 41(6):1401–1422, 2017. 825 
+
+[52] Justin J Jude, Stephanie Haro, Hadar Levi-Aharoni, Hiroaki Hashimoto, Alexander J Acosta, 826 
+
+Nicholas S Card, Maitreyee Wairagkar, David M Brandman, Sergey D Stavisky, Ziv M Williams, 827 
+
+Sydney S. Cash, John D. Simeral, Leigh R. Hochberg, and Daniel B. Rubin. Decoding intended 828 
+
+speech with an intracortical brain-computer interface in a person with longstanding anarthria and 829 
+
+locked-in syndrome. bioRxiv , pages 2025–08, 2025. 830 
+
+[53] Ebrahim Feghhi, Shreyas Kaasyap, Nima Ryan Hadidi, and Jonathan C. Kao. Time-masked 831 
+
+transformers with lightweight test-time adaptation for neural speech decoding. In Proceedings of 832 
+
+the Conference on Neural Information Processing Systems (NeurIPS) , 2025. Poster. 833 
+
+[54] Maggie A Collier, Rithika Narayan, and Henny Admoni. The sense of agency in assistive robotics 834 
+
+using shared autonomy. In 2025 20th ACM/IEEE International Conference on Human-Robot 835 
+
+Interaction (HRI) , pages 880–888. IEEE, 2025. 836 
+
+29 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[55] Shervin Javdani, Siddhartha S. Srinivasa, and J. Andrew Bagnell. Shared autonomy via hindsight 837 
+
+optimization. In Robotics: Science and Systems (RSS) , 2015. 838 
+
+[56] Siddarth Jain and Brenna Argall. Recursive bayesian human intent recognition in shared-control 839 
+
+robotics. In 2018 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) ,840 
+
+pages 3902–3909. IEEE, 2018. 841 
+
+[57] Francis R Willett, Jingyuan Li, Trung Le, Chaofei Fan, Mingfei Chen, Eli Shlizerman, Yue Chen, 842 
+
+Xin Zheng, Tatsuo S Okubo, Tyler Benster, Hyun Dong Lee, Maxwell Kounga, E. Kelly Buchanan, 843 
+
+David Zoltowski, Scott W. Linderman, and Jaimie M. Henderson. Brain-to-text benchmark’24: 844 
+
+Lessons learned. arXiv preprint arXiv:2412.17227 , 2024. 845 
+
+[58] Tyler Benster, Guy Wilson, Reshef Elisha, Francis R Willett, and Shaul Druckmann. A cross-modal 846 
+
+approach to silent speech with llm-enhanced recognition. arXiv preprint arXiv:2403.05583 , 2024. 847 
+
+[59] Jerry Tang, Amanda LeBel, Shailee Jain, and Alexander G Huth. Semantic reconstruction of 848 
+
+continuous language from non-invasive brain recordings. Nature Neuroscience , 26(5):858–866, 849 
+
+2023. 850 
+
+[60] St´ ephane d’Ascoli, Corentin Bel, J´ er´ emy Rapin, Hubert Banville, Yohann Benchetrit, Christophe 851 
+
+Pallier, and Jean-R´ emi King. Towards decoding individual words from non-invasive brain record-852 
+
+ings. Nature Communications , 16(1):10521, 2025. 853 
+
+[61] Ziyi Ye, Qingyao Ai, Yiqun Liu, Maarten de Rijke, Min Zhang, Christina Lioma, and Tuukka 854 
+
+Ruotsalo. Generative language reconstruction from brain recordings. Communications Biology ,855 
+
+8(1):346, 2025. 856 
+
+[62] Zhenhailong Wang and Heng Ji. Open vocabulary electroencephalography-to-text decoding and 857 
+
+zero-shot sentiment classification. In Proceedings of the AAAI Conference on Artificial Intelligence ,858 
+
+volume 36, pages 5350–5358, 2022. 859 
+
+[63] Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q Weinberger. On calibration of modern neural 860 
+
+networks. In International conference on machine learning , pages 1321–1330. PMLR, 2017. 861 
+
+[64] Meelis Kull, Telmo M Silva Filho, and Peter Flach. Beyond sigmoids: How to obtain well-calibrated 862 
+
+probabilities from binary classifiers with beta calibration. 2017. 863 
+
+[65] Meelis Kull, Miquel Perello Nieto, Markus K¨ angsepp, Telmo Silva Filho, Hao Song, and Pe-864 
+
+ter Flach. Beyond temperature scaling: Obtaining well-calibrated multi-class probabilities with 865 
+
+dirichlet calibration. Advances in neural information processing systems , 32, 2019. 866 
+
+[66] Philipp R¨ ochner, Henrique O Marques, Ricardo JGB Campello, and Arthur Zimek. Evaluating 867 
+
+outlier probabilities: assessing sharpness, refinement, and calibration using stratified and weighted 868 
+
+measures. Data Mining and Knowledge Discovery , 38(6):3719–3757, 2024. 869 
+
+[67] Glenn Shafer and Vladimir Vovk. A tutorial on conformal prediction. Journal of machine learning 870 
+
+research , 9(3), 2008. 871 
+
+30 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[68] Yaniv Romano, Matteo Sesia, and Emmanuel Candes. Classification with valid and adaptive 872 
+
+coverage. Advances in neural information processing systems , 33:3581–3591, 2020. 873 
+
+[69] Ranganath Krishnan, Mahesh Subedar, and Omesh Tickoo. Bar: Bayesian activity recognition 874 
+
+using variational inference. arXiv preprint arXiv:1811.03305 , 2018. 875 
+
+[70] Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell. Simple and scalable predictive 876 
+
+uncertainty estimation using deep ensembles. Advances in neural information processing systems ,877 
+
+30, 2017. 878 
+
+[71] Yarin Gal and Zoubin Ghahramani. Dropout as a bayesian approximation: Representing model 879 
+
+uncertainty in deep learning. In international conference on machine learning , pages 1050–1059. 880 
+
+PMLR, 2016. 881 
+
+[72] Tilmann Gneiting and Adrian E Raftery. Strictly proper scoring rules, prediction, and estimation. 882 
+
+Journal of the American statistical Association , 102(477):359–378, 2007. 883 
+
+[73] Alex Graves. Connectionist temporal classification. In Supervised sequence labelling with recur-884 
+
+rent neural networks , pages 61–93. Springer, 2012. 885 
+
+[74] Albert Zeyer, Ralf Schl¨ uter, and Hermann Ney. Why does ctc result in peaky behavior? arXiv 886 
+
+preprint arXiv:2105.14849 , 2021. 887 
+
+[75] Ruizhe Huang, Xiaohui Zhang, Zhaoheng Ni, Li Sun, Moto Hira, Jeff Hwang, Vimal Manohar, 888 
+
+Vineel Pratap, Matthew Wiesner, Shinji Watanabe, Daniel Povey, and Sanjeev Khudanpur. Less 889 
+
+peaky and more accurate ctc forced alignment by label priors. In ICASSP 2024-2024 IEEE 890 
+
+International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 11831– 891 
+
+11835. IEEE, 2024. 892 
+
+[76] Steve Young, Gunnar Evermann, Mark Gales, Thomas Hain, Dan Kershaw, Xunying Liu, Gareth 893 
+
+Moore, Julian Odell, Dave Ollason, Dan Povey, Valtcho Valtchev, and Phil Woodland. The HTK 894 
+
+book. Cambridge university engineering department , 3(175):12, 2002. 895 
+
+[77] Hongzhu Li and Weiqiang Wang. Reinterpreting ctc training as iterative fitting. Pattern Recogni-896 
+
+tion , 105:107392, 2020. 897 
+
+[78] Geoffrey E Hinton. Training products of experts by minimizing contrastive divergence. Neural 898 
+
+computation , 14(8):1771–1800, 2002. 899 
+
+[79] Meelis Kull and Peter Flach. Novel decompositions of proper scoring rules for classification: 900 
+
+Score adjustment as precursor to calibration. In Joint European Conference on Machine Learning 901 
+
+and Knowledge Discovery in Databases , pages 68–85. Springer, 2015. 902 
+
+[80] Antonio Bella, Cesar Ferri, Jos´ e Hern´ andez-Orallo, and Mar´ ıa Jos´ e Ram´ ırez-Quintana. On the 903 
+
+effect of calibration in classifier combination. Applied intelligence , 38(4):566–585, 2013. 904 
+
+31 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[81] Morris H DeGroot and Stephen E Fienberg. The comparison and evaluation of forecasters. Journal 905 
+
+of the Royal Statistical Society: Series D (The Statistician) , 32(1-2):12–22, 1983. 906 
+
+[82] Allan H Murphy. A new vector partition of the probability score. Journal of Applied Meteorology 907 
+
+and Climatology , 12(4):595–600, 1973. 908 
+
+[83] Jingya Huang, Aashish N Patel, Sowmya Manojna Narasimha, Gal Mishne, and Vikash Gilja. 909 
+
+Word-level error analysis in decoding systems: From speech recognition to brain-computer inter-910 
+
+faces. In Interspeech , 2025. 911 
+
+[84] Volodymyr Kuleshov and Percy S Liang. Calibrated structured prediction. Advances in Neural 912 
+
+Information Processing Systems , 28, 2015. 913 
+
+[85] Abhyuday Jagannatha and Hong Yu. Calibrating structured output predictors for natural language 914 
+
+processing. In Proceedings of the conference. Association for Computational Linguistics. Meeting ,915 
+
+volume 2020, page 2078, 2020. 916 
+
+[86] Aviral Kumar and Sunita Sarawagi. Calibration of encoder decoder models for neural machine 917 
+
+translation. arXiv preprint arXiv:1903.00802 , 2019. 918 
+
+[87] Oscar Chang, Dongseong Hwang, and Olivier Siohan. Revisiting the entropy semiring for neural 919 
+
+speech recognition. In Proceedings of the International Conference on Learning Representations 920 
+
+(ICLR) , 2023. Poster. 921 
+
+[88] Tomer Wullach and Shlomo E Chazan. Don’t be so sure! boosting ASR decoding via confidence 922 
+
+relaxation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, pages 923 
+
+13780–13788, 2023. 924 
+
+[89] Dong Yu, Jinyu Li, and Li Deng. Calibration of confidence measures in speech recognition. IEEE 925 
+
+Transactions on Audio, Speech, and Language Processing , 19(8):2461–2473, 2011. 926 
+
+[90] Hu Liu, Sheng Jin, and Changshui Zhang. Connectionist temporal classification with maximum 927 
+
+entropy regularization. Advances in Neural Information Processing Systems , 31, 2018. 928 
+
+[91] John P Cunningham and Byron M Yu. Dimensionality reduction for large-scale neural recordings. 929 
+
+Nature neuroscience , 17(11):1500–1509, 2014. 930 
+
+[92] Saurabh Vyas, Matthew D Golub, David Sussillo, and Krishna V Shenoy. Computation through 931 
+
+neural population dynamics. Annual Review of Neuroscience , 43(1):249–275, 2020. 932 
+
+[93] Jonathan C Kao, Paul Nuyujukian, Stephen I Ryu, Mark M Churchland, John P Cunningham, and 933 
+
+Krishna V Shenoy. Single-trial dynamics of motor cortex and their applications to brain-machine 934 
+
+interfaces. Nature Communications , 6:7759, 2015. 935 
+
+[94] Afsheen Afshar, Gopal Santhanam, M Yu Byron, Stephen I Ryu, Maneesh Sahani, and Krishna V 936 
+
+Shenoy. Single-trial neural correlates of arm movement preparation. Neuron , 71(3):555–564, 937 
+
+2011. 938 
+
+32 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[95] Amy L Orsborn, Helene G Moorman, Simon A Overduin, Maryam M Shanechi, Dragan F 939 
+
+Dimitrov, and Jose M Carmena. Closed-loop decoder adaptation shapes neural plasticity for 940 
+
+skillful neuroprosthetic control. Neuron , 82(6):1380–1393, 2014. 941 
+
+[96] Matthew D Golub, Patrick T Sadtler, Emily R Oby, Kristin M Quick, Stephen I Ryu, Elizabeth C 942 
+
+Tyler-Kabara, Aaron P Batista, Steven M Chase, and Byron M Yu. Learning by neural reassociation. 943 
+
+Nature neuroscience , 21(4):607–616, 2018. 944 
+
+[97] Matthew D Golub, Steven M Chase, Aaron P Batista, and Byron M Yu. Brain–computer in-945 
+
+terfaces for dissecting cognitive processes underlying sensorimotor control. Current opinion in 946 
+
+neurobiology , 37:53–58, 2016. 947 
+
+[98] Matthew D Golub, Byron M Yu, and Steven M Chase. Internal models for interpreting neural 948 
+
+population activity during sensorimotor control. Elife , 4:e10015, 2015. 949 
+
+[99] Aashish N Patel, Geeling Chau, Cheng Chang, Allan Sun, Jingya Huang, Tzyy-Ping Jung, and 950 
+
+Vikash Gilja. Affective response to volitional input perturbations in obstacle avoidance and target 951 
+
+tracking games. In 2021 43rd Annual International Conference of the IEEE Engineering in 952 
+
+Medicine & Biology Society (EMBC) , pages 6679–6682. IEEE, 2021. 953 
+
+[100] Andrew Myrden and Tom Chau. Effects of user mental state on EEG-BCI performance. Frontiers 954 
+
+in human neuroscience , 9:308, 2015. 955 
+
+[101] Songwei Li, Junyi Duan, Yu Sun, Xinjun Sheng, Xiangyang Zhu, and Jianjun Meng. Exploring 956 
+
+fatigue effects on performance variation of intensive brain–computer interface practice. Frontiers 957 
+
+in Neuroscience , 15:773790, 2021. 958 
+
+[102] Francis R Willett, Daniel R Young, Brian A Murphy, William D Memberg, Christine H Blabe, 959 
+
+Chethan Pandarinath, Sergey D Stavisky, Paymon Rezaii, Jad Saab, Benjamin L Walter, Jennifer A. 960 
+
+Sweet, Jonathan P. Miller, Jaimie M. Henderson, Krishna V. Shenoy, John D. Simeral, Beata 961 
+
+Jarosiewicz, Leigh R. Hochberg, Robert F. Kirsch, and A. Bolu Ajiboye. Principled BCI decoder 962 
+
+design and parameter selection using a feedback control model. Scientific reports , 9(1):8881, 2019. 963 
+
+[103] Francis R Willett, Chethan Pandarinath, Beata Jarosiewicz, Brian A Murphy, William D Memberg, 964 
+
+Christine H Blabe, Jad Saab, Benjamin L Walter, Jennifer A Sweet, Jonathan P Miller, Jaimie M 965 
+
+Henderson, Krishna V Shenoy, John D Simeral, Leigh R Hochberg, Robert F Kirsch, and A Bolu 966 
+
+Ajiboye. Feedback control policies employed by people using intracortical brain–computer inter-967 
+
+faces. Journal of Neural Engineering , 14(1):016001, 2017. 968 
+
+[104] Gakuto Kurata and Kartik Audhkhasi. Guiding ctc posterior spike timings for improved posterior 969 
+
+fusion and knowledge distillation. arXiv preprint arXiv:1904.08311 , 2019. 970 
+
+[105] Matthew S Willsey, Nishal P Shah, Donald T Avansino, Nick V Hahn, Ryan M Jamiolkowski, 971 
+
+Foram B Kamdar, Leigh R Hochberg, Frangis R Willett, and Jaimie M Henderson. A high-972 
+
+performance brain–computer interface for finger decoding and quadcopter game control in an 973 
+
+individual with paralysis. Nature Medicine , 31(1):96–104, 2025. 974 
+
+33 
+
+> .CC-BY 4.0 International license available under a was not certified by peer review) is the author/funder, who has granted bioRxiv a license to display the preprint in perpetuity. It is made The copyright holder for this preprint (which this version posted April 6, 2026. ;https://doi.org/10.64898/2026.04.02.715749 doi: bioRxiv preprint
+
+[106] Nishal P Shah, Donald Avansino, Foram Kamdar, Claire Nicolas, Anastasia Kapitonava, Carlos 975 
+
+Vargas-Irwin, Leigh R Hochberg, Chethan Pandarinath, Krishna V Shenoy, Francis R Willett, and 976 
+
+Jamie H Henderson. Pseudo-linear summation explains neural geometry of multi-finger movements 977 
+
+in human premotor cortex. Nature Communications , 16(1):5008, 2025. 978 
+
+[107] Matthew S Willsey, Samuel R Nason-Tomaszewski, Scott R Ensel, Hisham Temmar, Matthew J 979 
+
+Mender, Joseph T Costello, Parag G Patil, and Cynthia A Chestek. Real-time brain-machine inter-980 
+
+face in non-human primates achieves high-velocity prosthetic finger movements using a shallow 981 
+
+feedforward neural network decoder. Nature Communications , 13(1):6899, 2022. 982 
+
+[108] Maneeshika M Madduri, Momona Yamagami, Si Jia Li, Sasha Burckhardt, Samuel A Burden, and 983 
+
+Amy L Orsborn. Computational framework to predict and shape human–machine interactions in 984 
+
+closed-loop, co-adaptive neural interfaces. Nature Machine Intelligence , pages 1–16, 2026. 985 
+
+[109] Karunesh Ganguly and Jose M Carmena. Emergence of a stable cortical map for neuroprosthetic 986 
+
+control. PLoS biology , 7(7):e1000153, 2009. 987 
+
+[110] Andrew Jackson and Eberhard E Fetz. Interfacing with the computational brain. IEEE Transactions 988 
+
+on Neural Systems and Rehabilitation Engineering , 19(5):534–541, 2011. 989 
+
+[111] Emily R Oby, Matthew D Golub, Jay A Hennig, Alan D Degenhart, Elizabeth C Tyler-Kabara, 990 
+
+Byron M Yu, Steven M Chase, and Aaron P Batista. New neural activity patterns emerge with 991 
+
+long-term learning. Proceedings of the National Academy of Sciences , 116(30):15210–15215, 992 
+
+2019. 993 
+
+34
