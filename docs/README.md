@@ -6,70 +6,73 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-14
-- 运行时间：2026-04-14 20:02:35 UTC
+- 最新运行日期：2026-04-16
+- 运行时间：2026-04-16 20:09:30 UTC
 - 运行状态：成功
-- 本次总论文数：16
-- 精读区：5
+- 本次总论文数：17
+- 精读区：6
 - 速读区：11
 
 ### 今日简报（AI）
-今日深度探索眼动感知与意图识别，揭示 AI 如何通过“眼神交流”精准捕捉并适配用户的认知需求。
-满分论文展示了眼动追踪在多模态助手中的核心价值，并证明了注视点对齐能显著提升个性化用户模拟的精度。
-推荐关注眼动技术与家用机器人的结合，感受从“手动指令”向“眼神领会”进化的交互新范式。
-- 详情：[/202604/14/README](/202604/14/README)
+今日深度解析 17 篇 AI 前沿进展，重点聚焦具备长期记忆的主动型智能体与策略博弈中的复杂意图识别。
+PASK 框架通过意图感知显著提升了 Agent 的主动服务能力，而 MISID 数据集则为多模态欺骗识别提供了新基准。
+建议关注 AI 如何从非结构化交互中推断人类动机，这将是通往更懂人心的个性化交互的关键路径。
+- 详情：[/202604/16/README](/202604/16/README)
 
 ### 精读区论文标签
-1. [From Gaze to Guidance: Interpreting and Adapting to Users' Cognitive Needs with Multimodal Gaze-Aware AI Assistants](/202604/14/2604.08062v1-from-gaze-to-guidance-interpreting-and-adapting-to-users-cognitive-needs-with-multimodal-gaze-aware-ai-assistants)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：基于第一视角视频和眼动叠加的眼动感知多模态大模型助手
-2. [Through Their Eyes: Fixation-aligned Tuning for Personalized User Emulation](/202604/14/2604.09368v1-through-their-eyes-fixation-aligned-tuning-for-personalized-user-emulation)  
+1. [PASK: Toward Intent-Aware Proactive Agents with Long-Term Memory](/202604/16/2604.08000v1-pask-toward-intent-aware-proactive-agents-with-long-term-memory)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：将视觉注意力与特定用户的眼动模式对齐以预测行为
-3. [PASK: Toward Intent-Aware Proactive Agents with Long-Term Memory](/202604/14/2604.08000v1-pask-toward-intent-aware-proactive-agents-with-long-term-memory)  
-   标签：评分：8.5/10、query:gaze-intent
-   evidence：具有实时约束的意图感知前瞻性智能体
-4. [Perception Is All You Need: A Neuroscience Framework for Low Cost Sensorless Gaze in HRI](/202604/14/2604.09829v1-perception-is-all-you-need-a-neuroscience-framework-for-low-cost-sensorless-gaze-in-hri)  
+   evidence：具有实时流式意图识别功能的意图感知前瞻性智能体
+2. [MISID: A Multimodal Multi-turn Dataset for Complex Intent Recognition in Strategic Deception Games](/202604/16/2604.12700v1-misid-a-multimodal-multi-turn-dataset-for-complex-intent-recognition-in-strategic-deception-games)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：用于人机交互中复杂意图识别的多模态多轮数据集
+3. [AIM: Intent-Aware Unified world action Modeling with Spatial Value Maps](/202604/16/2604.11135v1-aim-intent-aware-unified-world-action-modeling-with-spatial-value-maps)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：人机交互中的注视跟随框架
-5. [From Multimodal Signals to Adaptive XR Experiences for De-escalation Training](/202604/14/2604.11570v1-from-multimodal-signals-to-adaptive-xr-experiences-for-de-escalation-training)  
+   evidence：针对操作意图的意图感知统一世界动作建模
+4. [From Multimodal Signals to Adaptive XR Experiences for De-escalation Training](/202604/16/2604.11570v1-from-multimodal-signals-to-adaptive-xr-experiences-for-de-escalation-training)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：用于自适应交互和心理状态解码的多模态实时通信分析系统
+   evidence：利用EEG和生理信号进行自适应VR训练的多模态实时通信分析
+5. [GlintMarkers: Spatial Perception on XR Eyewear using Corneal Reflections](/202604/16/2604.12949v1-glintmarkers-spatial-perception-on-xr-eyewear-using-corneal-reflections)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：XR眼镜上基于注视的空间感知与物体识别
+6. [Lazy or Efficient? Towards Accessible Eye-Tracking Event Detection Using LLMs](/202604/16/2604.13243v1-lazy-or-efficient-towards-accessible-eye-tracking-event-detection-using-llms)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：使用大语言模型进行面向人机交互的眼动追踪事件检测
 
 ### 速读区论文标签
-1. [AnyUser: Translating Sketched User Intent into Domestic Robots](/202604/14/2604.04811v1-anyuser-translating-sketched-user-intent-into-domestic-robots)  
-   标签：评分：7.5/10、query:gaze-intent
-   evidence：家用机器人的多模态意图转换
-2. [ActiveGlasses: Learning Manipulation with Active Vision from Ego-centric Human Demonstration](/202604/14/2604.08534v1-activeglasses-learning-manipulation-with-active-vision-from-ego-centric-human-demonstration)  
+1. [Representation, Alignment, and Generation: A Comprehensive Survey of Foundation Models for Non-Invasive Brain Decoding](/202604/16/biorxiv-10-64898-2025-11-30-691403-v2-representation-alignment-and-generation-a-comprehensive-survey-of-foundation-models-for-non-invasive-brain-decoding)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：从用于人机交互的非侵入性脑记录中解码人类意图
+2. [Behavior Latticing: Inferring User Motivations from Unstructured Interactions](/202604/16/2604.07629v1-behavior-latticing-inferring-user-motivations-from-unstructured-interactions)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：从第一视角视觉中捕捉自然协调的感知-操作行为
-3. [Adaptor: Advancing Assistive Teleoperation with Few-Shot Learning and Cross-Operator Generalization](/202604/14/2604.09462v1-adaptor-advancing-assistive-teleoperation-with-few-shot-learning-and-cross-operator-generalization)  
+   evidence：从非结构化交互中推断用户动机和潜在需求
+3. [ActiveGlasses: Learning Manipulation with Active Vision from Ego-centric Human Demonstration](/202604/16/2604.08534v1-activeglasses-learning-manipulation-with-active-vision-from-ego-centric-human-demonstration)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：鲁棒的跨操作员意图识别框架，对意图不确定性进行建模
-4. [Explainable Human Activity Recognition: A Unified Review of Concepts and Mechanisms](/202604/14/2604.09799v1-explainable-human-activity-recognition-a-unified-review-of-concepts-and-mechanisms)  
+   evidence：利用主动视觉和第一视角数据捕捉自然协调的感知-操作行为
+4. [TAIHRI: Task-Aware 3D Human Keypoints Localization for Close-Range Human-Robot Interaction](/202604/16/2604.08921v1-taihri-task-aware-3d-human-keypoints-localization-for-close-range-human-robot-interaction)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：用于人机交互和活动识别的多模态传感
-5. [Investigating Bias and Fairness in Appearance-based Gaze Estimation](/202604/14/2604.10707v1-investigating-bias-and-fairness-in-appearance-based-gaze-estimation)  
+   evidence：用于HRI感知并将机器人注意力引导至任务相关关键点的VLM
+5. [Cognitive control networks in human and macaque](/202604/16/biorxiv-10-64898-2026-02-24-707621-v3-cognitive-control-networks-in-human-and-macaque)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：外观注视估计中的公平性评估
-6. [Representation, Alignment, and Generation: A Comprehensive Survey of Foundation Models for Non-Invasive Brain Decoding](/202604/14/biorxiv-10-64898-2025-11-30-691403-v2-representation-alignment-and-generation-a-comprehensive-survey-of-foundation-models-for-non-invasive-brain-decoding)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：从脑记录中解码人类意图以用于人机交互
-7. [Behavior Latticing: Inferring User Motivations from Unstructured Interactions](/202604/14/2604.07629v1-behavior-latticing-inferring-user-motivations-from-unstructured-interactions)  
-   标签：评分：6.5/10、query:gaze-intent
-   evidence：从非结构化交互中推断用户动机
-8. [Semantic Reality: Interactive Context-Aware Visualization of Inter-Object Relationships in Augmented Reality](/202604/14/2604.05265v1-semantic-reality-interactive-context-aware-visualization-of-inter-object-relationships-in-augmented-reality)  
+   evidence：多步眼动迷宫任务中基于目标的决策激活
+6. [Intent Lenses: Inferring Capture-Time Intent to Transform Opportunistic Photo Captures into Structured Visual Notes](/202604/16/2604.09438v1-intent-lenses-inferring-capture-time-intent-to-transform-opportunistic-photo-captures-into-structured-visual-notes)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：增强现实中的交互式上下文感知可视化与物理动作识别
-9. [Referring-Aware Visuomotor Policy Learning for Closed-Loop Manipulation](/202604/14/2604.05544v1-referring-aware-visuomotor-policy-learning-for-closed-loop-manipulation)  
+   evidence：推断拍摄时的意图用于交互式笔记生成
+7. [Explainable Human Activity Recognition: A Unified Review of Concepts and Mechanisms](/202604/16/2604.09799v1-explainable-human-activity-recognition-a-unified-review-of-concepts-and-mechanisms)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：结合人类参考点进行闭环交互
-10. [Evaluating Scene-based In-Situ Item Labeling for Immersive Conversational Recommendation](/202604/14/2604.09698v1-evaluating-scene-based-in-situ-item-labeling-for-immersive-conversational-recommendation)  
+   evidence：用于人类活动识别和人机交互的多模态传感
+8. [Wearable AI in the Era of Large Sensor Models](/202604/16/2604.10172v1-wearable-ai-in-the-era-of-large-sensor-models)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：沉浸式对话推荐系统中的前瞻性信息需求
-11. [ProGAL-VLA: Grounded Alignment through Prospective Reasoning in Vision-Language-Action Models](/202604/14/2604.09824v1-progal-vla-grounded-alignment-through-prospective-reasoning-in-vision-language-action-models)  
+   evidence：多模态可穿戴传感器用于理解人类生理和行为
+9. [Rethinking Video Human-Object Interaction: Set Prediction over Time for Unified Detection and Anticipation](/202604/16/2604.10397v1-rethinking-video-human-object-interaction-set-prediction-over-time-for-unified-detection-and-anticipation)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：前瞻性推理与接地实体对齐以进行目标验证
+   evidence：预测人机交互的未来演变
+10. [OmniUMI: Towards Physically Grounded Robot Learning via Human-Aligned Multimodal Interaction](/202604/16/2604.10647v1-omniumi-towards-physically-grounded-robot-learning-via-human-aligned-multimodal-interaction)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：用于机器人学习和人类对齐的多模态交互框架
+11. [A hierarchical generative model reveals enhanced latent precision of brain-body interaction dynamics during interoceptive attention](/202604/16/biorxiv-10-64898-2026-04-05-716599-v1-a-hierarchical-generative-model-reveals-enhanced-latent-precision-of-brain-body-interaction-dynamics-during-interoceptive-attention)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：使用生成模型进行多模态关联集成和序列级全局状态建模
 
 
 <div class="dpr-home-promo-card">

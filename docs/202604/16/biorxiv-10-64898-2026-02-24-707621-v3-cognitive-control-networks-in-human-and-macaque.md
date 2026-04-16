@@ -1,0 +1,24 @@
+---
+title: Cognitive control networks in human and macaque
+title_zh: 人类与猕猴的认知控制网络
+authors: "Mione, V., Kristensen, F. H., Assem, M., Schuffelgen, U., Kyllingsbaek, S., Buckley, M., Mitchell, D. J., Duncan, J."
+date: 2026-04-14
+pdf: "https://www.biorxiv.org/content/10.64898/2026.02.24.707621v3.full.pdf"
+tags: ["query:gaze-intent"]
+score: 7.0
+evidence: 多步眼动迷宫任务中基于目标的决策激活
+tldr: 本研究探讨了人类与猕猴在认知控制网络上的异同。人类大脑中存在一个广泛分布的“多需求”（MD）系统，负责处理各种认知挑战。研究者利用功能磁共振成像（fMRI）技术，让受试者完成多步眼动迷宫任务。结果发现，人类的MD网络与背侧注意网络高度重合，而猕猴在额叶、顶叶等区域也表现出类似的激活模式，但在外侧额叶的激活分布较人类更为集中。这一发现揭示了灵长类动物在应对复杂认知任务时具有相似的神经网络基础。
+source: biorxiv
+selection_source: fresh_fetch
+figures_json: "[{\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-001.webp\", \"caption\": \"Figure 2. (a) Human maze. White circle – initial fixation location; blue circles - possible goal\", \"page\": 6, \"index\": 1, \"width\": 888, \"height\": 440}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-002.webp\", \"caption\": \"Figure 5. Contrast of maze minus control: Monkey data. Left – cortical flatmap, with projected t values (thresholded at FDR<0.05). Parcel labels according to 27; some omitted to avoid clutter. Right – partially inflated cortical surface.\", \"page\": 11, \"index\": 2, \"width\": 888, \"height\": 446}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-003.webp\", \"caption\": \"Figure 3. Behavioral data. (a) Human. Bars show 95% confidence intervals over participants.\", \"page\": 7, \"index\": 3, \"width\": 484, \"height\": 929}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-004.webp\", \"caption\": \"Figure 7. Contrast of maze minus control shown on horizontal slices (slice locations shown\", \"page\": 14, \"index\": 4, \"width\": 888, \"height\": 296}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-005.webp\", \"caption\": \"Figure 6. (a) Monkey data: Contrast of maze minus control warped to human cortical surface. (b) Human data for comparison.\", \"page\": 13, \"index\": 5, \"width\": 888, \"height\": 315}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-006.webp\", \"caption\": \"Figure 1. Human multiple-demand (MD) system. (a) 9-patch MD system based on mean\", \"page\": 4, \"index\": 6, \"width\": 888, \"height\": 467}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-02-24-707621-v3/fig-007.webp\", \"caption\": \"Figure 4. Contrast of maze minus control: Human data. (a) t values (thresholded at\", \"page\": 9, \"index\": 7, \"width\": 888, \"height\": 454}]"
+motivation: 旨在通过直接对比人类与猕猴的脑成像数据，验证猕猴是否存在与人类相似的“多需求”认知控制网络。
+method: 使用fMRI技术测量人类和猕猴在执行多步眼动迷宫任务与对照任务时的全脑激活情况。
+result: 人类激活区与经典MD网络高度吻合，猕猴在多个脑区表现出对应激活，但在外侧额叶的激活斑块比人类更少且更集中。
+conclusion: 人类与猕猴都拥有一套广泛且紧密连接的脑网络用于应对认知挑战，体现了认知控制机制在灵长类演化中的保守性。
+---
+
+## 摘要
+人类脑成像研究中一个被多次验证的发现是分布式的“多重需求”（multiple-demand，简称 MD）系统，其活动随多种认知需求的增加而增强，并在认知控制中起核心作用。MD 区域被认为编码了关键任务事件的分布式心理模型，这些事件通过指导动作选择所需的角色和关系结合在一起。尽管此前的研究暗示猕猴中存在相应的网络，但尚未与人类数据进行直接对比。本研究利用功能磁共振成像测量了多步眼动迷宫任务中的全脑激活，并与一项需要类似动作但无需基于目标决策的对照任务进行了比较。人类数据与经典的 MD 网络高度吻合，并扩展到了相邻区域，特别是包含了大部分经典的背侧注意网络。猕猴数据显示，在背内侧额叶、外侧和内侧顶叶、岛叶/眶额皮层以及后颞叶皮层存在对应关系。在外侧额叶皮层中，猕猴仅表现出一个主要位于背侧的激活斑块，而人类则表现出多个不同的激活斑块。与人类相似，结合以往的数据，我们的研究结果表明，猕猴体内也存在一个由认知挑战增加所招募的、广泛且强连接的大脑网络。
+
+## Abstract
+A much-replicated finding in human brain imaging is a distributed 'multiple-demand' or MD system, increasing in activity for many kinds of cognitive demand, and centrally involved in cognitive control. MD regions are proposed to encode a distributed mental model of critical task events, bound together in the roles and relationships needed to direct action selection. Though previous data hint at a corresponding network in the macaque, there has been no direct comparison to human data. Here we used functional magnetic resonance imaging to measure whole brain activation in a multi-step saccadic maze task, compared to a control requiring similar moves but without goal-based decisions. Human data were a close match to the canonical MD network, extended to include adjacent regions and in particular much of the canonical dorsal attention network. Monkey data suggested correspondences in dorsomedial frontal, lateral and medial parietal, insula/orbitofrontal and posterior temporal cortex. In lateral frontal cortex there was just a single, largely dorsal activation patch, in contrast to multiple distinct human patches. In macaque as in human, together with previous data, our findings suggest an extended and strongly interconnected brain network recruited by increased cognitive challenge.
