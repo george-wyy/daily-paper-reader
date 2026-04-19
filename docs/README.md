@@ -6,60 +6,48 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-18
-- 运行时间：2026-04-18 19:23:22 UTC
+- 最新运行日期：2026-04-19
+- 运行时间：2026-04-19 19:50:27 UTC
 - 运行状态：成功
-- 本次总论文数：13
+- 本次总论文数：9
 - 精读区：2
-- 速读区：11
+- 速读区：7
 
 ### 今日简报（AI）
-今日聚焦多模态交互前沿，重点解析了 XR 降级训练与策略博弈中的复杂意图识别技术。
-核心结论
-- 详情：[/202604/18/README](/202604/18/README)
+今日精选 9 篇前沿成果，重点攻克 XR 冲突降级训练与博弈中的多模态意图识别难题。
+研究揭示了自适应 XR 体验在行为干预中的潜力，
+- 详情：[/202604/19/README](/202604/19/README)
 
 ### 精读区论文标签
-1. [From Multimodal Signals to Adaptive XR Experiences for De-escalation Training](/202604/18/2604.11570v1-from-multimodal-signals-to-adaptive-xr-experiences-for-de-escalation-training)  
+1. [From Multimodal Signals to Adaptive XR Experiences for De-escalation Training](/202604/19/2604.11570v1-from-multimodal-signals-to-adaptive-xr-experiences-for-de-escalation-training)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：用于自适应XR的多模态实时通信分析系统，整合多种生理信号
-2. [MISID: A Multimodal Multi-turn Dataset for Complex Intent Recognition in Strategic Deception Games](/202604/18/2604.12700v1-misid-a-multimodal-multi-turn-dataset-for-complex-intent-recognition-in-strategic-deception-games)  
+   evidence：用于自适应XR和心理状态解码的多模态实时通信分析
+2. [MISID: A Multimodal Multi-turn Dataset for Complex Intent Recognition in Strategic Deception Games](/202604/19/2604.12700v1-misid-a-multimodal-multi-turn-dataset-for-complex-intent-recognition-in-strategic-deception-games)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：用于人机交互中复杂意图识别的多模态多轮对话数据集
+   evidence：用于策略性交互中复杂意图识别的多模态数据集
 
 ### 速读区论文标签
-1. [Wearable AI in the Era of Large Sensor Models](/202604/18/2604.10172v1-wearable-ai-in-the-era-of-large-sensor-models)  
+1. [Frequency-dependent modulation of foveal contrast sensitivity by fine-scale exogenously triggered attention](/202604/19/biorxiv-10-1101-2025-08-27-672541-v2-frequency-dependent-modulation-of-foveal-contrast-sensitivity-by-fine-scale-exogenously-triggered-attention)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：用于理解人类生理和行为的多模态可穿戴传感器
-2. [OmniUMI: Towards Physically Grounded Robot Learning via Human-Aligned Multimodal Interaction](/202604/18/2604.10647v1-omniumi-towards-physically-grounded-robot-learning-via-human-aligned-multimodal-interaction)  
+   evidence：使用高精度眼动追踪研究外源性触发的注意力
+2. [Cognitive Vergence and Pupillary Responses as Functional Oculomotor Signatures to Differentiate AT(N) Biological Profiles](/202604/19/biorxiv-10-64898-2026-04-14-718456-v1-cognitive-vergence-and-pupillary-responses-as-functional-oculomotor-signatures-to-differentiate-atn-biological-profiles)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：通过人类对齐信号进行机器人学习的多模态交互框架
-3. [Teaching Robots to Interpret Social Interactions through Lexically-guided Dynamic Graph Learning](/202604/18/2604.10895v1-teaching-robots-to-interpret-social-interactions-through-lexically-guided-dynamic-graph-learning)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：从行为中推断用户内部状态并预测未来行为以实现机器人响应
-4. [Vision-Based Safe Human-Robot Collaboration with Uncertainty Guarantees](/202604/18/2604.15221v1-vision-based-safe-human-robot-collaboration-with-uncertainty-guarantees)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：用于安全人机协作的概率运动预测
-5. [Cross-task, explainable, and real-time decoding of human emotion states by integrating grey and white matter intracranial neural activity](/202604/18/biorxiv-10-1101-2025-11-12-687932-v2-cross-task-explainable-and-real-time-decoding-of-human-emotion-states-by-integrating-grey-and-white-matter-intracranial-neural-activity)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：用于脑机接口的人类情感状态实时解码
-6. [Path Integration and Spatial Updating Recruit Distinct Cognitive-Neural Mechanisms in Humans](/202604/18/biorxiv-10-64898-2026-04-11-717901-v1-path-integration-and-spatial-updating-recruit-distinct-cognitive-neural-mechanisms-in-humans)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：利用眼动追踪实验研究导航过程中的认知机制和注视模式
-7. [TAIHRI: Task-Aware 3D Human Keypoints Localization for Close-Range Human-Robot Interaction](/202604/18/2604.08921v1-taihri-task-aware-3d-human-keypoints-localization-for-close-range-human-robot-interaction)  
+   evidence：视觉任务期间的瞳孔时间动态与眼动特征
+3. [OmniUMI: Towards Physically Grounded Robot Learning via Human-Aligned Multimodal Interaction](/202604/19/2604.10647v1-omniumi-towards-physically-grounded-robot-learning-via-human-aligned-multimodal-interaction)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：针对近距离人机交互的任务感知人类关键点定位
-8. [Explainable Human Activity Recognition: A Unified Review of Concepts and Mechanisms](/202604/18/2604.09799v1-explainable-human-activity-recognition-a-unified-review-of-concepts-and-mechanisms)  
+   evidence：人类对齐的多模态交互，捕获轨迹与物理信号
+4. [OneHOI: Unifying Human-Object Interaction Generation and Editing](/202604/19/2604.14062v1-onehoi-unifying-human-object-interaction-generation-and-editing)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于人类活动识别和人机交互的多模态传感
-9. [ProGAL-VLA: Grounded Alignment through Prospective Reasoning in Vision-Language-Action Models](/202604/18/2604.09824v1-progal-vla-grounded-alignment-through-prospective-reasoning-in-vision-language-action-models)  
+   evidence：通过动作三元组建模人机交互
+5. [Towards Unconstrained Human-Object Interaction](/202604/19/2604.14069v1-towards-unconstrained-human-object-interaction)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：视觉-语言-动作模型中的前瞻性推理和目标对齐
-10. [Contexty: Capturing and Organizing In-situ Thoughts for Context-Aware AI Support](/202604/18/2604.11067v1-contexty-capturing-and-organizing-in-situ-thoughts-for-context-aware-ai-support)  
+   evidence：使用多模态大模型进行无约束人机交互检测
+6. [Vision-Based Safe Human-Robot Collaboration with Uncertainty Guarantees](/202604/19/2604.15221v1-vision-based-safe-human-robot-collaboration-with-uncertainty-guarantees)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：在人机协作中捕捉认知轨迹以实现上下文感知的AI支持
-11. [AIM: Intent-Aware Unified world action Modeling with Spatial Value Maps](/202604/18/2604.11135v1-aim-intent-aware-unified-world-action-modeling-with-spatial-value-maps)  
+   evidence：具有概率不确定性保证的实时人体运动预测
+7. [A personalized eye-tracking system reveals complex state-dependent visual acquisition in lizards](/202604/19/biorxiv-10-64898-2026-01-06-697876-v3-a-personalized-eye-tracking-system-reveals-complex-state-dependent-visual-acquisition-in-lizards)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：用于推理操作意图的意图感知世界动作模型
+   evidence：个性化眼动追踪系统与眼动库分析
 
 
 <div class="dpr-home-promo-card">
