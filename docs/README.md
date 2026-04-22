@@ -6,62 +6,61 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-21
-- 运行时间：2026-04-21 20:11:02 UTC
+- 最新运行日期：2026-04-22
+- 运行时间：2026-04-22 20:32:47 UTC
 - 运行状态：成功
 - 本次总论文数：13
 - 精读区：2
 - 速读区：11
 
 ### 今日简报（AI）
-- 今日共生成 13 篇推荐（精读 2 篇，速读 11 篇）
-- 精读：《From Multimodal Signals to Adaptive XR Experiences for De-escalation Training》（8.0/10）, 《Chatting about Conditional Trajectory Prediction》（8.0/10）
-- 速读：《Human-Inspired Context-Selective Multimodal Memory for Social Robots》（7.5/10）, 《Learning to Look before Learning to Like: Incorporating Human Visual Cognition into Aesthetic Quality Assessment》（7.5/10）, 《Contexty: Capturing and Organizing In-situ Thoughts for Context-Aware AI Support》（7.0/10）
-- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
-- 详情：[/202604/21/README](/202604/21/README)
+今日聚焦 13 篇前沿进展，深度解析策略欺骗游戏中的多模态意图识别与融合人类视觉认知的审美评估。
+重点推荐 MISID 数据集对复杂欺骗行为的捕捉，以及模拟“先看后评”认知过程的 AI 审美评价新模型。
+建议关注 AI 如何在博弈中洞察谎言及理解人类美学，这将是提升人机交互深度与艺术感知力的关键。
+- 详情：[/202604/22/README](/202604/22/README)
 
 ### 精读区论文标签
-1. [From Multimodal Signals to Adaptive XR Experiences for De-escalation Training](/202604/21/2604.11570v1-from-multimodal-signals-to-adaptive-xr-experiences-for-de-escalation-training)  
+1. [MISID: A Multimodal Multi-turn Dataset for Complex Intent Recognition in Strategic Deception Games](/202604/22/2604.12700v1-misid-a-multimodal-multi-turn-dataset-for-complex-intent-recognition-in-strategic-deception-games)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：用于自适应VR交互的多模态实时通信分析
-2. [Chatting about Conditional Trajectory Prediction](/202604/21/2604.18126v1-chatting-about-conditional-trajectory-prediction)  
+   evidence：用于策略性交互中复杂意图识别的多模态数据集
+2. [Learning to Look before Learning to Like: Incorporating Human Visual Cognition into Aesthetic Quality Assessment](/202604/22/2604.15853v1-learning-to-look-before-learning-to-like-incorporating-human-visual-cognition-into-aesthetic-quality-assessment)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：人机交互中的行为意图联合分析
+   evidence：在眼动追踪数据上预训练的视线对齐视觉编码器，用于捕获自上而下的意图
 
 ### 速读区论文标签
-1. [Human-Inspired Context-Selective Multimodal Memory for Social Robots](/202604/21/2604.12081v1-human-inspired-context-selective-multimodal-memory-for-social-robots)  
-   标签：评分：7.5/10、query:gaze-intent
-   evidence：用于上下文感知社交机器人交互和个性化召回的多模态记忆
-2. [Learning to Look before Learning to Like: Incorporating Human Visual Cognition into Aesthetic Quality Assessment](/202604/21/2604.15853v1-learning-to-look-before-learning-to-like-incorporating-human-visual-cognition-into-aesthetic-quality-assessment)  
-   标签：评分：7.5/10、query:gaze-intent
-   evidence：利用眼动追踪数据整合类人视觉认知与自上而下的意图
-3. [Contexty: Capturing and Organizing In-situ Thoughts for Context-Aware AI Support](/202604/21/2604.11067v1-contexty-capturing-and-organizing-in-situ-thoughts-for-context-aware-ai-support)  
+1. [Real-Time Visual Attribution Streaming in Thinking Model](/202604/22/2604.16587v1-real-time-visual-attribution-streaming-in-thinking-model)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：捕获认知轨迹以实现上下文感知的AI支持和人机协作
-4. [MISID: A Multimodal Multi-turn Dataset for Complex Intent Recognition in Strategic Deception Games](/202604/21/2604.12700v1-misid-a-multimodal-multi-turn-dataset-for-complex-intent-recognition-in-strategic-deception-games)  
+   evidence：多模态思考模型中的实时视觉归因流
+2. [Understanding Human Actions through the Lens of Executable Models](/202604/22/2604.18064v1-understanding-human-actions-through-the-lens-of-executable-models)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：用于人机交互中复杂意图识别的多模态多轮对话数据集
-5. [Beyond Chat and Clicks: GUI Agents for In-Situ Assistance via Live Interface Transformation](/202604/21/2604.14668v1-beyond-chat-and-clicks-gui-agents-for-in-situ-assistance-via-live-interface-transformation)  
+   evidence：通过可执行运动程序识别具有意图和结构的人类动作
+3. [Chatting about Conditional Trajectory Prediction](/202604/22/2604.18126v1-chatting-about-conditional-trajectory-prediction)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：通过实时界面转换提供原位辅助，实现前瞻性系统响应
-6. [See Through the Noise: Improving Domain Generalization in Gaze Estimation](/202604/21/2604.16562v1-see-through-the-noise-improving-domain-generalization-in-gaze-estimation)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：提高现实应用中视线估计的泛化能力
-7. [Towards Unconstrained Human-Object Interaction](/202604/21/2604.14069v1-towards-unconstrained-human-object-interaction)  
+   evidence：人机系统中用于轨迹预测的跨时域意图交互方法
+4. [An ancient evolutionary calculus for attention signaling retained in modern music](/202604/22/biorxiv-10-1101-2025-09-28-679029-v4-an-ancient-evolutionary-calculus-for-attention-signaling-retained-in-modern-music)  
    标签：评分：6.5/10、query:gaze-intent
-   evidence：多模态交互识别与人机交互范式
-8. [Real-Time Visual Attribution Streaming in Thinking Model](/202604/21/2604.16587v1-real-time-visual-attribution-streaming-in-thinking-model)  
+   evidence：用于衡量注意力行为的视听注意力微积分
+5. [Human vision sequentially prioritizes expected and unexpected information](/202604/22/biorxiv-10-64898-2026-03-23-713176-v2-human-vision-sequentially-prioritizes-expected-and-unexpected-information)  
+   标签：评分：6.5/10、query:gaze-intent
+   evidence：将感官输入与先验预期进行贝叶斯整合以进行识别
+6. [From Attention Control to Stimulus Selection: Neural Mechanisms Revealed by Multivariate Pattern and Functional Connectivity Analyses](/202604/22/biorxiv-10-64898-2026-04-10-717841-v1-from-attention-control-to-stimulus-selection-neural-mechanisms-revealed-by-multivariate-pattern-and-functional-connectivity-analyses)  
+   标签：评分：6.5/10、query:gaze-intent
+   evidence：空间注意控制与刺激选择的神经机制
+7. [SocialMirror: Reconstructing 3D Human Interaction Behaviors from Monocular Videos with Semantic and Geometric Guidance](/202604/22/2604.13581v1-socialmirror-reconstructing-3d-human-interaction-behaviors-from-monocular-videos-with-semantic-and-geometric-guidance)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：多模态思考模型中基于视觉证据的实时视觉归因流
-9. [Modality-specific predictive templates in pre-stimulus EEG activity](/202604/21/biorxiv-10-1101-2023-09-27-559806-v3-modality-specific-predictive-templates-in-pre-stimulus-eeg-activity)  
+   evidence：重建3D人类交互行为，用于人机任务中的自然协作行为
+8. [VIVA Stimuli: A Web-Based Platform for Eye Tracking Stimuli](/202604/22/2604.19397v1-viva-stimuli-a-web-based-platform-for-eye-tracking-stimuli)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：预刺激活动中用于预测事件的预测模板
-10. [Shared latent representations of speech production for cross-patient speech decoding](/202604/21/biorxiv-10-1101-2025-08-21-671516-v3-shared-latent-representations-of-speech-production-for-cross-patient-speech-decoding)  
+   evidence：眼动追踪刺激和眼动行为研究的标准化平台
+9. [Secure Storage and Privacy-Preserving Scanpath Comparison via Garbled Circuits in Eye Tracking](/202604/22/2604.19422v1-secure-storage-and-privacy-preserving-scanpath-comparison-via-garbled-circuits-in-eye-tracking)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：脑机接口用于跨患者从神经信号中解码意图
-11. [Pupil size reveals the perceptual quality and effortless nature of synesthesia](/202604/21/biorxiv-10-1101-2025-11-24-690102-v2-pupil-size-reveals-the-perceptual-quality-and-effortless-nature-of-synesthesia)  
+   evidence：VR/移动端眼动追踪中的隐私保护扫描路径比较
+10. [Hierarchical Semi-Markov Smooth Models of Latent Neural States](/202604/22/biorxiv-10-64898-2025-12-25-696483-v2-hierarchical-semi-markov-smooth-models-of-latent-neural-states)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：瞳孔测量法作为感知现象学和感知质量的客观生理指标
+   evidence：基于神经生理信号的潜在认知过程概率建模
+11. [Negative emotional visual stimuli alter specific improvised dance biomechanics in professional dancers](/202604/22/biorxiv-10-64898-2026-03-18-711707-v2-negative-emotional-visual-stimuli-alter-specific-improvised-dance-biomechanics-in-professional-dancers)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：眼动追踪验证了人与环境交互过程中对视觉流的注意力
 
 
 <div class="dpr-home-promo-card">
