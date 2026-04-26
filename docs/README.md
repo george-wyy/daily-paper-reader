@@ -6,64 +6,61 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-04-23
-- 运行时间：2026-04-23 20:30:12 UTC
+- 最新运行日期：2026-04-26
+- 运行时间：2026-04-26 20:23:36 UTC
 - 运行状态：成功
-- 本次总论文数：14
-- 精读区：3
+- 本次总论文数：13
+- 精读区：2
 - 速读区：11
 
 ### 今日简报（AI）
-今日深度追踪 14 篇前沿论文，重点攻克文本引导的双重注视预测与驾驶员视线估计难题。
-研究证实结合场景网格注意力与文本语义可显著提升复杂环境下的注视点精度，是理解人类视觉焦点的关键突破。
-建议关注视线追踪在智能驾驶与手术室协作中的落地，探索 AI 如何精准捕捉并理解人类的“眼神意图”。
-- 详情：[/202604/23/README](/202604/23/README)
+今日聚焦视觉注意力与决策机制，深度解析了从文本引导的注视预测到模糊环境下的信念决策。
+重点推荐 9.0 分佳作，其揭示了场景到物体的双重注视规律，以及瞳孔动态如何反映人类在不确定性中的决策逻辑。
+建议优先研读文本引导注视预测的相关模型，探索多模态交互在复杂场景中的前沿应用。
+- 详情：[/202604/26/README](/202604/26/README)
 
 ### 精读区论文标签
-1. [From Scene to Object: Text-Guided Dual-Gaze Prediction](/202604/23/2604.20191v1-from-scene-to-object-text-guided-dual-gaze-prediction)  
-   标签：评分：9.5/10、query:gaze-intent
-   evidence：物体级驾驶员注意力预测与基于文本的认知建模
-2. [SGAP-Gaze: Scene Grid Attention Based Point-of-Gaze Estimation Network for Driver Gaze](/202604/23/2604.19888v1-sgap-gaze-scene-grid-attention-based-point-of-gaze-estimation-network-for-driver-gaze)  
+1. [From Scene to Object: Text-Guided Dual-Gaze Prediction](/202604/26/2604.20191v1-from-scene-to-object-text-guided-dual-gaze-prediction)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：驾驶员视线估计与视线落点估计网络
-3. [Object Referring-Guided Scanpath Prediction with Perception-Enhanced Vision-Language Models](/202604/23/2604.20361v1-object-referring-guided-scanpath-prediction-with-perception-enhanced-vision-language-models)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：利用历史注视点预测视觉搜索过程中的人类注意力扫描路径
+   evidence：物体级驾驶员注视预测与多模态视觉语言建模
+2. [Pupil and Neural Dynamics Reveal Belief-Dependent Decision Making Under Ambiguity](/202604/26/biorxiv-10-64898-2026-04-21-719818-v1-pupil-and-neural-dynamics-reveal-belief-dependent-decision-making-under-ambiguity)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：结合瞳孔测量和EEG数据的多模态方法，揭示决策信念
 
 ### 速读区论文标签
-1. [Where are they looking in the operating room?](/202604/23/2604.20574v1-where-are-they-looking-in-the-operating-room)  
+1. [Visual cortical dynamics supporting predictable attentional capture](/202604/26/biorxiv-10-64898-2026-04-23-720330-v1-visual-cortical-dynamics-supporting-predictable-attentional-capture)  
    标签：评分：7.5/10、query:gaze-intent
-   evidence：用于人机交互和社会场景理解的视线跟随技术
-2. [From Reactive to Proactive: Assessing the Proactivity of Voice Agents via ProVoice-Bench](/202604/23/2604.15037v1-from-reactive-to-proactive-assessing-the-proactivity-of-voice-agents-via-provoice-bench)  
+   evidence：视觉搜索任务中的视觉皮层动力学与注意力目标选择
+2. [Understanding Human Actions through the Lens of Executable Models](/202604/26/2604.18064v1-understanding-human-actions-through-the-lens-of-executable-models)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：语音代理中前瞻性多模态交互与干预的基准测试
-3. [Intelligent Drill-Down: Large Language Model-Driven Drill-Down Technique for Human-AI Collaborative Visual Exploration](/202604/23/2604.17002v1-intelligent-drill-down-large-language-model-driven-drill-down-technique-for-human-ai-collaborative-visual-exploration)  
+   evidence：通过可执行模型理解具有意图性和结构化的人类动作
+3. [Primate Saccade Rhythmicity](/202604/26/biorxiv-10-1101-2023-09-27-559710-v4-primate-saccade-rhythmicity)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用用户交互数据解释用户意图，用于协作视觉探索
-4. [Understanding Human Actions through the Lens of Executable Models](/202604/23/2604.18064v1-understanding-human-actions-through-the-lens-of-executable-models)  
+   evidence：灵长类扫视生成和视觉节奏采样的统计建模
+4. [Intermittent movement control emerges from information-based planning](/202604/26/biorxiv-10-1101-2025-03-05-641580-v2-intermittent-movement-control-emerges-from-information-based-planning)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：通过可执行运动程序识别有意图且结构化的人类动作
-5. [Chatting about Conditional Trajectory Prediction](/202604/23/2604.18126v1-chatting-about-conditional-trajectory-prediction)  
+   evidence：用于运动规划和前瞻性修正的信息预测控制框架
+5. [Spectral envelopes of facial movements predict intention, cortical representations, and neural prosthetic control](/202604/26/biorxiv-10-1101-2025-09-10-675423-v3-spectral-envelopes-of-facial-movements-predict-intention-cortical-representations-and-neural-prosthetic-control)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：针对轨迹预测的时间跨度行为意图联合分析
-6. [Vision-Based Human Awareness Estimation for Enhanced Safety and Efficiency of AMRs in Industrial Warehouses](/202604/23/2604.18627v1-vision-based-human-awareness-estimation-for-enhanced-safety-and-efficiency-of-amrs-in-industrial-warehouses)  
+   evidence：面部运动通过无监督流程预测意图和神经假体控制
+6. [A multimodal dataset of EEG, eye-tracking, and physiological signals during naturalistic smartphone interactions](/202604/26/biorxiv-10-64898-2026-04-21-719334-v1-a-multimodal-dataset-of-eeg-eye-tracking-and-physiological-signals-during-naturalistic-smartphone-interactions)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用视锥和头部朝向实时估计人类感知状态
-7. [Cognitive Alignment At No Cost: Inducing Human Attention Biases For Interpretable Vision Transformers](/202604/23/2604.20027v1-cognitive-alignment-at-no-cost-inducing-human-attention-biases-for-interpretable-vision-transformers)  
+   evidence：包含智能手机交互过程中眼动追踪和脑电的多模态数据集
+7. [AgentLens: Adaptive Visual Modalities for Human-Agent Interaction in Mobile GUI Agents](/202604/26/2604.20279v2-agentlens-adaptive-visual-modalities-for-human-agent-interaction-in-mobile-gui-agents)  
    标签：评分：6.5/10、query:gaze-intent
-   evidence：利用人类显著性注视图对视觉Transformer进行微调以实现认知对齐
-8. [Towards Unconstrained Human-Object Interaction](/202604/23/2604.14069v1-towards-unconstrained-human-object-interaction)  
+   evidence：针对人机交互的即时视觉交互与自适应模态研究
+8. [Foveated Reasoning: Stateful, Action-based Visual Focusing for Vision-Language Models](/202604/26/2604.21079v1-foveated-reasoning-stateful-action-based-visual-focusing-for-vision-language-models)  
+   标签：评分：6.5/10、query:gaze-intent
+   evidence：引导视觉推理中注视位置的计算化中央凹成像模型
+9. [EmbodiedLGR: Integrating Lightweight Graph Representation and Retrieval for Semantic-Spatial Memory in Robotic Agents](/202604/26/2604.18271v1-embodiedlgr-integrating-lightweight-graph-representation-and-retrieval-for-semantic-spatial-memory-in-robotic-agents)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：多模态交互识别与人机交互
-9. [World-Value-Action Model: Implicit Planning for Vision-Language-Action Systems](/202604/23/2604.14732v2-world-value-action-model-implicit-planning-for-vision-language-action-systems)  
+   evidence：利用语义空间记忆实现响应式智能体的人机交互
+10. [EgoSelf: From Memory to Personalized Egocentric Assistant](/202604/26/2604.19564v1-egoself-from-memory-to-personalized-egocentric-assistant)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：视觉-语言-动作系统的隐式规划，用于推理未来轨迹
-10. [From Reactive to Proactive: Assessing the Proactivity of Voice Agents via ProVoice-Bench](/202604/23/2604.15037v2-from-reactive-to-proactive-assessing-the-proactivity-of-voice-agents-via-provoice-bench)  
+   evidence：第一视角助手捕捉用户行为与上下文以实现个性化交互
+11. [EgoSelf: From Memory to Personalized Egocentric Assistant](/202604/26/2604.19564v2-egoself-from-memory-to-personalized-egocentric-assistant)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：前瞻性多模态交互与前瞻性干预基准
-11. [Leveraging VR Robot Games to Facilitate Data Collection for Embodied Intelligence Tasks](/202604/23/2604.16903v1-leveraging-vr-robot-games-to-facilitate-data-collection-for-embodied-intelligence-tasks)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：基于虚拟现实的人形机器人控制与具身交互轨迹记录
+   evidence：第一视角助手预测用户行为和背景以进行个性化交互
 
 
 <div class="dpr-home-promo-card">

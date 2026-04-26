@@ -1,0 +1,1407 @@
+Title: Foveated Reasoning: Stateful, Action-based Visual Focusing for Vision-Language Models
+
+URL Source: https://arxiv.org/pdf/2604.21079v1
+
+Published Time: Fri, 24 Apr 2026 00:11:43 GMT
+
+Number of Pages: 33
+
+Markdown Content:
+# Foveated Reasoning: Stateful, Action-based Visual Focusing for Vision-Language Models 
+
+Juhong Min Lazar Valkov Vitali Petsiuk Hossein Souri Deen Dayal Mohan 
+
+AI Center – Mountain View, Samsung Electronics 
+
+https://juhongm999.github.io/FoveateR/ 
+
+Abstract. Vision–language models benefit from high-resolution images, but the increase in visual-token count incurs high compute overhead. Humans resolve this tension via foveation: a coarse view guides “where to look”, while selectively acquired high-acuity evidence refines “what to think”. We introduce Foveated Reasoner, an autoregressive vision-language framework that unifies foveation and reasoning within a single decoding trajectory. Starting from a low-resolution view, the model trig-gers foveation only when needed, retrieves high-resolution evidence from selected regions, and injects it back into the same decoding trajectory. We train the method with a two-stage pipeline: coldstart supervision to bootstrap foveation behavior, followed by reinforcement learning to jointly improve evidence acquisition and task accuracy while discourag-ing trivial “see-everything” solutions. Experiments show that the method learns effective foveation policies and achieves stronger accuracy under tight visual-token budgets across multiple vision–language benchmarks. 
+
+## 1 Introduction 
+
+Large language models (LLMs) have driven substantial progress in natural lan-guage processing, and this momentum has naturally extended to vision–language models (VLMs). Despite good empirical performance, VLMs still face a fun-damental bottleneck at the visual front-end: accuracy typically improves with high-resolution (high-res) input images, but the compute and memory costs grow rapidly as self-attention scales quadratically with the number of visual tokens. To stay within reasonable resource budgets, recent approaches [1, 21, 26, 27] op-erate on low-resolution (low-res) inputs, sacrificing fine-grained visual details as well as downstream accuracy. This uncomfortable resolution–efficiency trade-off is particularly problematic in practical deployments where budgets are tight, yet fine-grained visual understanding remains crucial. A growing line of work attempts to ease this trade-off through visual focus-ing , a strategy that starts with a global low-res view and selectively “zooms in” to acquire local high-res evidence from task-relevant regions. As shown in Fig. 1, existing visual focusing methods largely fall into two streams: (a) multi-pass methods [4, 38, 44, 53, 67] first run a VLM on a low-res image to decide where to zoom in, then run it again on the high-res crop to answer, often involving mul-tiple zoom-in passes. (b) text-grounded methods [6, 11, 43, 49, 65, 68] represents 
+
+> arXiv:2604.21079v1 [cs.CV] 22 Apr 2026
+
+2 J. Min et al. Original image 𝐈 
+
+> (high -resolution)
+
+(a) Multi -pass methods  (b) Text -grounded methods                          
+
+> [0.14, 0.49, 0.25, 0.38]
+> “How many rabbits are drawn on the
+> wall? Provide the bounding
+> box of region that can
+> help you answer the
+> question better.”
+> “How many rabbits are drawn on the
+> wall? Reason through pro -
+> blem ,while grounding the
+> reasoning steps to spe -
+> cific region [x,y,w,h ]”
+> I visually inspected the wall and
+> identified each distinct rabbit
+> drawing: I found one red rabbit on
+> the left side [0.14, 0.49, 0.25, 0.38] .
+> I also identified
+> yellow rabbit [0.49,
+> 0.32, 0.23, 0.40]
+> and blue rabbit [0.54, 0.53,
+> 0.22, 0.41] in the middle,
+> and green one [0.72,
+> 0.39, 0.21, 0.40] on
+> the right area.
+> There are four rabbit drawings
+> on the wall: red, yellow, blue,
+> and green rabbits
+> Localize the other three
+> rabbit drawings.
+
+## ⋯ ⋯             
+
+> [0.49, 0.32, 0.23, 0.40]
+> Localize the other two
+> rabbit drawings.
+> There are four rabbit drawings.
+> (reasoning continues)
+> Requires multiple full -
+> autoregressive VLM
+> decoding passes
+> Expresses continuous
+> coordinates through
+> discrete text channel
+> Low -res
+> image 𝐈 ′Low -res
+> image 𝐈 ′Downsample Downsample
+> ❑Compute overhead
+> ❑Interrupted reasoning state
+> ❑Token overhead
+> ❑Format brittleness
+
+Fig. 1: Overview of prior visual focusing methods: (a) multi-pass (left) and (b) text-grounded (right). Given original high-res image (middle), both methods take down-sampled image I′ and progressively acquire task-relevant visual evidence from I.
+
+visual focus signals through free-form texts such as coordinate strings, tool calls, or specialized tokens [62], interleaving reasoning with the visual focus in their response. Although empirically effective, both streams pose practical limitations. In multi-pass methods, each zoom-in step triggers a new autoregressive run, in-curring (i) compute overhead from multiple decoding passes, and often causing (ii) an interrupted reasoning state [44, 67] ( i.e ., re-running the VLM on a new crop breaks hidden-state continuity across passes). In text-grounded methods, expressing where-to-look coordinates through discrete text channel introduces (iii) token overhead from repeated coordinate strings and (iv) format brittleness 
+
+(i.e ., minor formatting deviations can make the output unparsable). These lim-itations raise a natural question: What do we miss in current VLM designs to overcome these shortcomings altogether? One promising answer comes from the human visual system— foveation [59], in which low-acuity peripheral vision provides low-cost global context to guide where to look, while successive where-to-look decisions ( i.e ., foveation steps) selectively acquire high-acuity visual evidence. Importantly, this evidence ac-quisition process is stateful and action-based : as foveation unfolds, human vision maintains a persistent working memory of previously acquired evidence, thereby preserving an uninterrupted reasoning state rather than resetting it at each foveation step (as in multi-pass methods). Moreover, foveation is executed via non-linguistic actions —eye movements—rather than through explicitly ver-balized coordinates (as in text-grounded methods). This contrast reveals a key gap: while prior methods emulate the outcome of foveation, they do not instan-tiate its process —a stateful, action-based evidence acquisition mechanism. Foveated Reasoner 3
+
+To bridge this gap, we introduce Foveated Reasoner (FoveateR), an autore-gressive VLM pipeline that integrates non-linguistic, action-based foveation and textual reasoning in a single, stateful decoding trajectory. Starting from a coarse view, FoveateR acquires high-res evidence based on the model’s evolving hid-den state and injects the retrieved evidence into the ongoing generation process. By preserving an uninterrupted reasoning state and representing foveation as a non-linguistic action, FoveateR avoids (i) compute-heavy multiple passes and (ii) hidden state re-initializations, while eliminating both (iii) coordinate-text over-head and (iv) format brittleness, thereby more faithfully capturing key properties of human foveation in VLMs. Our contributions are threefold: 1. We introduce FoveateR, an autoregressive VLM that integrates action-based foveation with textual reasoning within a single, stateful decoding pass. 2. We show that our method learns effective foveation policies without human-annotated foveation trajectories via a two-stage training framework. 3. Experiments show FoveateR outperforms recent visual focusing methods on multiple benchmarks, verifying the efficacy of the proposed approach. 
+
+## 2 Preliminaries and Motivations 
+
+In this section, we begin by formalizing standard autoregressive VLMs and their fundamental limitations. We then discuss two dominant streams of prior visual focusing methods—multi-pass and text-grounded—and their key limitations. 
+
+2.1 Preliminaries: Autoregressive Vision-Language Modeling 
+
+We consider a VLM that generates a text response conditioned on a multimodal prompt consisting of an image and an instruction. Formally, the prompt is de-noted by p := ( I, x), where I ∈ RH×W ×3 is an RGB image and x = ( xt)|x|
+
+> t=1
+
+is the input token sequence with xt ∈ V for a finite vocabulary V. Given p, a VLM parameterized by θ defines an autoregressive conditional distribution over output token sequences. Specifically, πθ (y | p) denotes the joint probability of generating the response token sequence y = ( yt)|y| 
+
+> t=1
+
+conditioned on p:
+
+πθ (y | p) = 
+
+> |y|
+
+Y
+
+> t=1
+
+πθ (yt | p, y <t ), (1) where y<t = ( y1, . . . , y t−1) denotes the tokens generated before step t.
+
+Resolution-efficiency trade-off. Typical transformer-based VLMs [1, 21, 27] encode the image I into a sequence of N visual tokens. Empirically, increasing the input resolution improves model accuracy [4, 15, 38, 44, 53, 67] but it comes at a steep efficiency cost. With ViT-style patchification, the token count scales as N = Θ(HW ). Since self-attention forms an N × N matrix, the time/memory cost per layer scales quadratically in N : Time/Memory = O(N 2) = Θ(( HW )2).This resolution-efficiency trade-off remains a fundamental limitation of standard VLMs, thus motivating visual focusing methods to start with low-res inputs and selectively acquire high-res evidence [4, 6, 11, 38, 43, 44, 46, 49, 53, 57, 62, 65, 67, 68]. 4 J. Min et al. 
+
+2.2 Prior visual focusing methods and their limitations 
+
+Prior visual focusing methods can be broadly categorized into two streams: (i) multi-pass [4, 38, 44, 53, 67], and (ii) text-grounded [6, 11, 43, 49, 62, 65, 68]. 
+
+(i) Multi-pass visual focusing performs multiple autoregressive (AR) de-coding passes to selectively acquire high-res evidence. Given a downsampled image I′ = Downsample (I) ∈ RH′×W ′×3 and a pre-localization prompt xloc 
+
+(e.g ., “ <Question> Provide the bbox of the region helpful for answering the Question. ”), they first run a localization VLM πloc to obtain a bounding box b:
+
+b = [ cx, c y , w, h ] ∼ πloc (· | ploc ), ploc := ( I′, xloc ). (2) They then tokenize the corresponding high-res crop and run an answering VLM πans 
+
+conditioned on the the high-res evidence V and the original question x:
+
+y ∼ πans (· | pans ), pans := ( V, x), V = Tokenize(Crop( I, b )) , (3) Although empirically effective, there remain several limitations. (1) Most methods [4, 38,44,53,67] perform K ≥ 1 localization passes which results in K+1 full autoregressive runs (including the final answering pass) as formulated below: 
+
+b1 ∼ πloc (· | ploc 1 )
+
+| {z }
+
+> pass 1
+
+→ · · · → bK ∼ πloc (· | ploc  
+
+> K
+
+)
+
+| {z } 
+
+> pass K
+
+→ y ∼ πans (· | pans (b1: K )) 
+
+| {z } 
+
+> final K+1 pass
+
+, (4) thus making multi-step focusing expensive. (2) As each pass starts a new decoding trajectory, often resetting the VLM hidden states [44, 67], it breaks the continuity of the model’s internal reasoning state. (3) Several systems separate localization from answering ( πloc ̸ = πans ) [4,53], improving specialization but increasing total parameters and system complexity. While reusing the same model for both ( πloc = πans ) [38, 44] is more parameter-efficient, it couples two competing skills (localization vs. answering) into a single capacity budget, which can hurt either localization or answer quality unless model size is increased. (4) Some methods [4,44,67] use a fixed number of zoom-in steps 
+
+K, rather than dynamically adapting it conditioned on task/question difficulty. 
+
+(ii) Text-grounded visual focusing methods train VLMs to emit spatial references through natural language channel ( e.g ., coordinate strings such as [x, y, w, h ] [6,43,68], tool-call text [11, 49, 65], or augmented localization tokens [62] 1). Importantly, they interleave reasoning with the spatial references ( e.g ., “the man is at (x1, y 1); behind him at (x2, y 2) there is a ball”). While conceptually appealing, casting visual focus as free-form text introduces some practical drawbacks: (1) The approach relies on a 
+
+text-to-geometry contract : coordinates must follow strict conventions ( e.g ., normaliza-tion, coordinate frame, ordering, delimiters, rounding), and deviations can yield non-executable outputs or incorrect region selection. (2) Learning continuous spatial values through a discrete language channel ( i.e ., vocabulary set V) quantizes the action space, which can potentially impair fine-grained control over where to zoom in. (3) Emitting spatial references as output tokens introduces token overhead , since coordinates/tool-call arguments consume sequence budget in addition to reasoning tokens.  
+
+> 1
+
+[62] augments the vocabulary with ∼2K localization tokens. While this reduces format brittleness, it still discretizes inherently continuous foveation actions, intro-ducing quantization constraints and extra token-engineering overhead. Foveated Reasoner 5
+
+Motivation for the proposed approach. Existing visual focusing methods improve the accuracy–efficiency trade-off, but remain limited by either multi-pass design or text-grounded foveation. Human foveation is effective not only because it is coarse-to-fine, but also because it performs stateful evidence acquisition through non-linguistic actions within a single ongoing process. Prior methods, however, emulate the selective zoom-in without instantiating this core process, leading to repeated decoding, broken reasoning state, or token overhead. This motivates a stateful, single-pass and non-linguistic, action-based visual focusing mechanism, which we present in the next section. 
+
+## 3 Proposed Method 
+
+We present FoveateR, a vision-language generation framework that acquires a dynamic amount of high-res visual evidence within a single autoregressive decoding pass. As shown in Fig. 2, we interpret the decoder as an agent that interacts with a partially observable environment (the underlying high-res image). Based on an internal state of the agent, it chooses an action at each time step: either emitting the next text token or requesting additional high-res evidence from a foveated region. We start by formalizing this as a partially observable Markov Decision Process (POMDP). 
+
+3.1 FoveateR as a Partially Observable MDP 
+
+We interpret FoveateR decoding as a sequential decision process under partial observ-ability: the agent must answer a question given only a low-res global view, and may acquire (partially observable) local high-res evidence from the original image. 
+
+Environment (latent state). Each episode starts by providing the agent with low-res image I′ and an instruction/question token sequence x, which requests a structured response ( e.g ., reasoning in <think> and the final answer in <answer> ). The environ-ment also contains the corresponding underlying high-res image I, which remains fixed throughout the episode. The instruction x is fully observed, whereas the fine-grained content of I is only partially observable. An episode terminates when decoding finishes, 
+
+i.e ., when the model outputs <answer> · · · </answer> and then <EOS> .
+
+Observations. At each decoding step t, the environment returns an observation ot.The initial observation is the low-res view and the instruction: o1 = ( I′, x). For t ≥ 2,
+
+ot is either (i) the previously emitted text token yt−1 or (ii) a newly revealed high-res evidence. In case (i), the environment simply echoes the token back to the agent. 2
+
+Agent memory. The agent maintains a memory buffer Mt that stores the entire history of interactions with the environment ( e.g ., the initial observation (I′, x), all previously generated text tokens y<t , and any high-res evidence revealed from the environment). In practice, Mt is implemented by the Transformer’s KV-cache, which stores the key/value of all previously processed tokens. The memory is initialized as an empty sequence M0 = ∅ and updated by concatenating the latest observation: 
+
+Mt = Mt−1 ⊕ ot. (5) As a result, Mt is exactly the input history used to compute the next decoder state.  
+
+> 2
+
+While the “echoing” is a non-standard convention as it adds no new external informa-tion to the agent, we use it for readability; it makes the autoregressive feedback loop explicit by indicating that each action is conditioned on the previous observations. 6 J. Min et al. 𝑓 𝜃 (𝑀 1)      
+
+> 𝐡 1
+> 𝑜 1=(𝐈 ′,𝐱 )
+> 𝜋 𝜃 (𝐡 1)
+> 𝑀 1=(𝐈 ′,𝐱 )
+
+# Environment   
+
+> High -resolution image 𝐈
+> Question/instruction 𝐱
+
+# Agent          
+
+> Time
+> 𝑓 𝜃 (𝑀 2)
+> 𝐡 2
+> 𝜋 𝜃 (𝐡 2)
+> 𝑀 2=𝑀 1⨁𝑦 1
+> 𝜋 𝜙 (𝐡 2)
+> 𝑦 2=<fov >
+> 𝑏 2
+> 𝑜 2=𝑦 1
+> 𝑓 𝜃 (𝑀 3)
+> 𝐡 3
+> 𝜋 𝜃 (𝐡 3)
+> 𝑦 3∈𝒱
+> Tokenize(Crop(( 𝐈 ,𝑏 2))
+
+# ⋯           
+
+> 𝑀 3=𝑀 2⨁
+> <fov >𝐕 2</ fov >
+> 𝑡 =1𝑡 =2𝑡 =3
+
+state estimator 
+
+token policy 
+
+foveation policy                 
+
+> 𝑜 3=𝐕 2
+> 𝑓 𝜃 (𝑀 𝑇 )
+> 𝐡 𝑇
+> 𝜋 𝜃 (𝐡 𝑇 )
+> 𝑀 𝑇 =𝑀 𝑇 −1⨁𝑦 𝑇 −1
+> 𝑦 𝑇 =<EOS>
+> 𝑜 𝑇 =𝑦 𝑇 −1
+> 𝑡 =𝑇
+> 𝑦 1∈𝒱
+> What’s the color of the van?
+> Output reasoning in
+> <think></think> and then
+> provide final answer in
+> <answer></answer>.
+> Echo back Echo back
+> 𝐈 ′=Downsample (𝐈 )
+> acquired visual
+> evidence
+
+# ⋯
+
+Fig. 2: The autoregressive pipeline of the proposed approach ( T = |y|). 
+
+Agent state. Since the agent never directly observes the full high-res image I, it must integrate information over time. We summarize the current memory Mt using the decoder’s hidden state ht = fθ (Mt) ∈ Rd where fθ is the VLM truncated up to layer ℓ. Intuitively, ht is the agent’s “belief summary”: a compact summary of what it believes about the unobserved details of I for the subsequent next action decision. 
+
+Actions. At each step t, the agent selects one of two action modes: emitting the next text token or acquiring additional high-res evidence. We parameterize these modes with (i) a token policy πθ for discrete token generation and (ii) a foveation policy πϕ for continuous region selection, both conditioned on the current agent state ht. Concretely, the token policy samples either normal text in V or special trigger token <fov> :
+
+yt ∼ πθ (· | ht), yt ∈ V ∪ { <fov> }. (6) If yt ∈ V (the emitted token is normal text) under our observation convention, the environment echoes it back as ot+1 = yt. If yt = <fov> , the agent instead requests new high-res evidence by sampling a continuous box using the foveation policy, 
+
+bt ∼ πϕ(· | ht), bt = [ cxt , c yt , w t, h t]. (7) Given bt, the environment deterministically returns the corresponding evidence tokens 
+
+Vt = Tokenize(Crop( I, b t)) ∈ Rmt×d (where mt depends on the crop size wtht), which is injected back into the same autoregressive stream as a delimited block <fov> Vt </fov> 
+
+(equivalently, ot+1 = Vt), enabling subsequent decoding steps to condition on the newly acquired details without restarting the model. This design reflects the role separation in human visual cognition: textual reasoning and spatial evidence acquisition are tightly coupled through a shared internal state, yet they operate in different output spaces (discrete linguistic actions vs. continuous geometric actions). Accordingly, FoveateR uses a shared agent state ht for communica-tion between reasoning and focusing, while delegating continuous box prediction to a dedicated policy net πϕ. Importantly, this head is neither a separate autoregressive lo-calization model πloc as in multi-pass pipelines, nor does it express localization through text tokens as in text-grounded methods; instead, it is a state-conditioned continuous action predictor executed within the same autoregressive decoding trajectory. Foveated Reasoner 7
+
+Reward. The learning signal combines reward terms for (i) task success from the final answer and (ii) structural correctness of well-formed <think> /<answer> outputs, following [10]. During reinforcement learning, these rewards jointly optimize the token policy πθ and the foveation policy πϕ. We refer to Sec. 3.3 for details. 
+
+3.2 Interleaved Token-and-Foveation Policy 
+
+Under the partially observable MDP formulation, FoveateR follows a joint policy over two types of actions: it primarily takes discrete token actions or continuous foveation 
+
+actions (only when needed). Specifically, the backbone token policy πθ generates the next token yt. Whenever yt = <fov> , the foveation policy samples a box bt ∼ πϕ(· | ht)
+
+and retrieves evidence Vt that is injected into the same context for future decoding steps. We define the set of foveation time steps in the generated sequence as T := {t |
+
+yt = <fov> }. FoveateR then defines the following joint distribution over the discrete token action sequence y and the continuous foveation actions {bt}t∈T :
+
+πθ,ϕ (y, {bt}t∈T | p) = 
+
+> |y|
+
+Y
+
+> t=1
+
+h
+
+πθ (yt | p, y <t , {Vτ }τ <t ) · πϕ(bt | ht)I[yt=<fov> ] i
+
+, (8) where p := ( I′, x), I[·] is indicator function which equals 1 if its argument is true and 
+
+0 otherwise, and the injected evidence satisfies Vt = Tokenize(Crop( I, b t)) for t ∈ T .Equation (8) shows that FoveateR acquires high-res evidence only when triggered ( i.e ., 
+
+I [yt = <fov> ] = 1 ) within a single autoregressive trajectory, with an adaptive number of foveation steps |T | .We now relate FoveateR to a standard autoregressive VLM, whose conditional gen-eration distribution is defined in Eq. (1). Intuitively, a standard VLM takes only discrete token actions conditioned on a static visual context , whereas FoveateR additionally per-mits “event-triggered” continuous foveation actions conditioned on an evolving visual context . This relationship can be formalized as Proposition 1, which shows that stan-dard AR VLMs are a special case of FoveateR: it preserves conventional next-token modeling while enabling optional , state-dependent evidence acquisition. This coupling leads to a mixed discrete-continuous learning problem, as both the (discrete) token policy πθ and the (continuous) foveation policy πϕ must be jointly optimized. To this end, we employ a two-stage training pipeline that first bootstraps <fov> usage and then uses reinforcement learning to improve task performance as well as foveation behavior. 
+
+Proposition 1: Standard AR VLMs as a Special Case of FoveateR 
+
+Consider the joint policy of πθ,ϕ in Eq. (8). If the foveation trigger <fov> is never produced, i.e., 
+
+πθ (yt = <fov> | p, y <t , {Vτ }τ <t ) = 0 at every decoding step t,  (9) then FoveateR reduces exactly to the standard autoregressive VLM, 
+
+πθ,ϕ (y, {bt}t∈T | p) = πθ (y | p) = 
+
+> |y|
+
+Y
+
+> t=1
+
+πθ (yt | p, y <t ). (10) 
+
+Proof. Under Eq. (9), T = ∅ for any generated trajectory, so I[yt = <fov> ] = 0 for all t. Hence the foveation factor in Eq. (8) evaluates to 1 at every step, and the joint factorization collapses to the standard autoregressive product in Eq. (1). □8 J. Min et al. 
+
+3.3 Training Foveated Reasoner 
+
+We initialize FoveateR from a pretrained instruction-following VLM ( e.g ., Qwen2.5-VL [2]), which provides the state estimator fθ as well as the token policy πθ . We augment this backbone with a lightweight foveation policy πϕ, implemented as an MLP with nonlinearities which maps the hidden state to continuous box actions. Since the pretrained backbone is not trained to use <fov> tags and the foveation policy is newly initialized, we train FoveateR in two stages: (i) coldstart supervised finetuning (SFT) to introduce <fov> usage and box prediction, and (ii) reinforcement learning (RL) to further improve task performance and learn task-effective foveation trajectories. 
+
+(1) Coldstart SFT. The goal of this stage is to teach a pretrained VLM how to use the foveation mechanism in its decoding stream. However, standard visual reasoning supervision does not specify when <fov> should be triggered, which region should be queried, or how to integrate retrieved evidence. Coldstart dataset construction is therefore required to convert such samples into explicit teacher-forcing targets. 
+
+Dataset construction. Starting from a standard visual reasoning dataset [44], where each sample is a triplet (I, x, a) of an image, a question/instruction, and a target answer, we construct a teacher-forcing target sequence ˜y = (˜ yt)|˜y| 
+
+> t=1
+
+that explicitly interleaves reasoning text with foveation segments. Given (I, x), a pretrained reasoning VLM [2] first generates an intermediate reasoning text ( i.e ., a step-by-step rationale before the final answer), which is then split into S reasoning sentences {l(s)}Ss=1 . For each sentence 
+
+l(s), we obtain a bounding box b(s) = Localize( I, l (s)), which localizes the image region described by that sentence. From each box, we extract its corresponding high-res tokens 
+
+V⋆ 
+
+> (s)
+
+:= Tokenize(Crop( I, b (s))) . Finally, we build the following interleaved teacher-forcing target, where foveation and reasoning are interleaved within <think> tags: 
+
+˜y := x <think> <fov> V⋆ 
+
+> (1)
+
+</fov> l(1) · · · <fov> V⋆ 
+
+> (S)
+
+</fov> l(S)
+
+</think> <answer> a </answer> . (11) By placing foveation V⋆ 
+
+> (s)
+
+before each reasoning sentence l(1) , the model is trained to first acquire task-relevant visual evidence and then produce reasoning based on that evidence. This design is consistent with a broader pattern in human cognition, where newly acquired evidence should be incorporated before subsequent reasoning updates. 
+
+Training objectives. Coldstart SFT jointly supervises (i) next-token generation by 
+
+πθ and (ii) box prediction by πϕ. For next-token prediction, we apply cross-entropy loss only to non-visual tokens in ˜y (i.e ., textual tokens and special tag <fov> ), ex-cluding injected visual tokens V⋆ 
+
+> (∗)
+
+because these are not predicted by the model (but deterministically retrieved from the environment given a <fov> trigger and the cor-responding box). For box prediction, we define a set of foveation trigger positions as 
+
+Tfov (˜ y) := {t | ˜yt = <fov> }. If the <fov> token at position t ∈ T fov (˜ y) corresponds to sentence l(s), we assign the box supervision target b⋆t := b(s). The resulting cold-start objective combines token prediction and box regression: 
+
+Lcold = − X
+
+> t∈M (˜ y)
+
+log πθ (˜ yt | p, ˜y<t , {V⋆τ }τ <t )
+
+| {z }
+
+> LLM
+
++ λbox 
+
+X 
+
+> t∈T fov (˜ y)
+
+∥gϕ(ht) − b⋆t ∥1
+
+| {z }
+
+> Lbox
+
+, (12) where M(˜ y) denotes the set of non-visual-token positions, and gϕ(ht) is box predicted from the same foveation policy as the conditional box policy πϕ(· | ht) (e.g ., by taking its mean gϕ(ht) := E b∼πϕ(·| ht)[ b ]). In short, this objective bootstraps both <fov> 
+
+usage and box prediction by foveation policy, serving as initialization prior to RL. Foveated Reasoner 9
+
+(2) RL finetuning with GRPO. The coldstart stage provides useful initialization for foveation behavior, but its supervision is not necessarily optimal for end-task per-formance. Both the reasoning l(∗) and the foveation labels b⋆ 
+
+> ∗
+
+are “pseudo” labels from a pretrained VLM, which can bias FoveateR toward a teacher-induced foveation/rea-soning behavior. In practice, however, the ideal amount of reasoning and foveation is problem-dependent: some examples can be solved directly from the coarse view with-out any foveation ( e.g ., identifying the color of a salient object), whereas others may demand multiple foveations with no intermediate reasoning ( e.g ., zooming into a few small text regions to read the answer). To train this problem-adaptive behavior, we further optimize the model using RL. 
+
+RL for token policy. We optimize the token policy πθ with a group-relative policy optimization (GRPO) objective, following the work of [10, 45]. Specifically, for each prompt p, we sample a group of G trajectories {y(i)}Gi=1 ∼ πθ,ϕ (old) (· | p) and assign a reward r(i) = r(i)acc + r(i)fmt , where r(i)acc = 1 if the extracted final answer is correct, and r(i)fmt = 1 if the output follows the required structural format ( e.g ., well-formed 
+
+<think> and <answer> tags); otherwise each term is 0. Instead of using an external value function, GRPO computes a relative advantage within each sampled group as follows: A(i) = r(i) − 1/G PGj=1 r(j), centering the reward at the mean, so above-average trajectories obtain positive advantage, while below-average ones are penalized by negative advantage. We then optimize πθ using the GRPO objective (omitting PPO-style clipping for brevity): 
+
+LGRPO -tok = −E
+
+"
+
+1
+
+G
+
+> G
+
+X
+
+> i=1
+
+1
+
+|M (i)|
+
+X
+
+> t∈M (i)
+
+πθ,ϕ (y(i) 
+
+> t
+
+| p)
+
+πθ,ϕ (old) (y(i) 
+
+> t
+
+| p) A(i) −β DKL 
+
+#
+
+, (13) where M(i) = M(y(i)) is the set of non-visual-token positions in trajectory i, DKL is a regularization term [10] that prevents overly large updates of πθ,ϕ by keeping it close to the reference model ( e.g ., coldstart model) and β > 0 controls the regularization. 
+
+RL for foveation policy. We optimize the foveation policy πϕ with a GRPO objective analogous to the token-policy update (Eq. (13)), but using only accuracy advantage 
+
+A(i)acc = r(i)acc − 1/G PGj=1 r(j)acc because format reward rfmt is irrelevant to the foveation prediction. At each foveation step t ∈ T (y(i)), the foveation policy samples a box 
+
+b(i) 
+
+> t
+
+∼ πϕ(· | h(i) 
+
+> t
+
+), and we denote the corresponding action likelihood (probability density) by πϕ(b(i) 
+
+> t
+
+| h(i) 
+
+> t
+
+). We then optimize πϕ using a GRPO objective over the sampled foveation actions as follows: 
+
+LGRPO -fov = −E
+
+"
+
+1
+
+G
+
+> G
+
+X
+
+> i=1
+
+A(i)acc 
+
+X 
+
+> t∈T (y(i))
+
+πϕ(b(i) 
+
+> t
+
+| h(i) 
+
+> t
+
+)
+
+πϕ(old) (b(i) 
+
+> t
+
+| h(i) 
+
+> t
+
+)
+
+#
+
+. (14) As a result, the foveation policy is trained to prefer box selections that improve end-task answer accuracy under the current group-relative comparison. 
+
+Foveated region regularization. Given the two GRPO objectives only (Eqs. (13) & (14)), the model may converge to an undesirable trivial solution: it can increase reward by simply enlarging the foveated box ( e.g ., increasing its width and height), thereby acquiring larger high-res regions. In the extreme, it observes the entire high-res image I, which undermines the intended resolution–efficiency trade-off, constituting a form of reward hacking. To discourage this behavior, we introduce an additional ob-jective that penalizes large foveated regions only when the model prediction is already 10 J. Min et al. correct ( r(i)acc = 1 ); notably, our foveation actions are differentiable, continuous box pa-rameters (rather than linguistic coordinates), which allows us to directly regularize the queried area as follows: 
+
+Lreg = E
+
+"
+
+1
+
+G
+
+> G
+
+X
+
+> i=1
+
+r(i)acc 
+
+X 
+
+> t∈T (y(i))
+
+w(i) 
+
+> t
+
+· h(i)
+
+> t
+
+#
+
+, (15) where the product w(i) 
+
+> t
+
+· h(i) 
+
+> t
+
+is the size of the queried region b(i) 
+
+> t
+
+= [ cx(i) 
+
+> t
+
+, c y(i) 
+
+> t
+
+, w (i) 
+
+> t
+
+, h (i) 
+
+> t
+
+]
+
+(the sampled foveation action at step t in trajectory i). When a prediction is correct (r(i)acc = 1 ), this term penalizes large foveated regions and encourages the model to solve the task with less high-res evidence. When incorrect ( r(i)acc = 0 ), the regularizer is inactive, allowing the model to use larger regions to acquire additional evidence. Over-all, this regularization encourages FoveateR to learn accuracy-preserving yet evidence-efficient foveation, rather than trivially enlarging crops to improve reward. 
+
+Final objective. The RL-stage objective jointly optimizes the token policy (Eq. (13)), the foveation policy (Eq. (14)), and the foveated-region regularization (Eq. (15)): 
+
+LRL = LGRPO -tok + λfov LGRPO -fov + λreg Lreg , (16) where λfov and λreg balance the contributions of LGRPO -fov and Lreg , respectively. We provide additional details of the proposed method in the appendix. 
+
+## 4 Experiments 
+
+4.1 Experimental setup 
+
+Datasets. For training and coldstart dataset generation, we use the training splits of the Visual CoT benchmark [44] (438K), RefCOCO/+/g [17] (321K), and ScienceQA [29] (6K), following the recent baseline [44], which yields a total of 765K (I, x, a) triplet samples. For evaluation, we primarily report results on the validation splits of Visual CoT benchmark, which comprises 12 datasets spanning document/text/chart under-standing (DocVQA [32], TextCaps [47], TextVQA [48], DUDE [20], SROIE [13], Info-graphicsVQA [31]), general VQA (Flickr30k [37], Visual7W [70]), relational reasoning (GQA [14], OpenImages [19], VSR [25]), and fine-grained understanding (CUB [51]), where we evaluate DUDE, SROIE, and Visual7W in a zero-shot setting following prior baselines [44, 67]. For consistency with [44], we adopt the same GPT-based evaluation metric [35]. We additionally evaluate on V* Bench [53], a multiple-choice benchmark designed to probe fine-grained visual perception, including subsets such as direct at-tribute, GPT4V-hard, and OCR, using the same MCQ evaluation protocol in [67]. 
+
+Implementation details. We build FoveateR on top of Qwen2.5-VL [2] (3B and 7B) as the backbone VLM, and compare against both recent visual focusing methods [44, 62, 63, 67] and standard VLMs [24, 27]. We train FoveateR in two stages: coldstart for 3 epochs and RL finetuning for 70k steps, using the same batch size of 16 with learning rates of 3e-5 and 1e-6, respectively. For RL, we use task-specific rewards: (i) LLM-based string matching for VQA tasks [44], which returns a score in [0 , 1] 
+
+based on semantic agreement between the predicted and ground-truth (GT) answers; (ii) IoU-based accuracy for grounding tasks [17], assigning 1.0 if the IoU between the predicted and GT boxes is ≥ 0.5 and 0.0 otherwise; and (iii) multiple-choice accuracy for ScienceQA [29], assigning 1.0 if the predicted option matches the GT and 0.0 otherwise. Additional implementation details are provided in the appendix. Foveated Reasoner 11 
+
+Table 1: Comparison on the Visual CoT benchmark [44]. Method subscripts denote visual focusing type: multi-pass ( ∗multi ), text-grounded ( ∗text ). uses GT box indicates use of human-annotated boxes for “visual focusing supervision”, and visual token cnt reports the number of visual tokens the model uses, directly impacting inference cost. Method uses GT box visual token cnt (↓)                                                                                                                                                                                                                 
+
+> Doc/Text/Chart General Relation Fine
+> DocV TxtC TxtV Dude Sroi Info F30k V7W GQA OI VSR CUB
+> 224 2input image resolution: Sphinx 13B [24] ✗1734 19.8 55.1 53.2 0.00 7.1 35.2 60.7 55.8 58.4 46.7 61.3 50.5 VPT 2B text [62] ✓≥375 12.5 53.7 46.6 10.3 --68.0 -60.6 84.2 65.7 89.2
+> VisCoT 7B multi [44] ✓1,152 35.5 61.0 71.9 27.9 34.1 35.6 67.1 58.0 61.6 83.3 68.2 55.6 FoveateR 3B ✗242.3 ±168 .761.1 70.0 76.8 48.9 65.7 42.6 57.4 52.9 56.7 77.7 69.4 81.7 FoveateR 7B ✗253.8 ±162 .773.9 76.4 83.5 55.1 73.8 51.2 59.1 58.6 64.5 83.7 74.4 87.4
+> 336 2input image resolution: Llava1.5 7B [27] ✗576 24.4 59.7 58.8 29.0 13.6 40.0 58.1 57.5 53.4 41.2 57.2 53.0 Llava1.5 13B [27] ✗576 26.8 61.5 61.7 28.7 16.4 42.6 62.0 58.0 57.1 41.3 59.0 57.3 UV-CoT 7B multi [67] ✗1,152 28.3 -71.1 25.3 22.7 19.8 64.9 45.5 56.8 -55.3 -VisCoT 7B multi [44] ✓1,152 47.6 67.5 77.5 38.6 47.0 32.4 66.8 55.8 63.1 82.2 61.4 55.9 DocThink 3B [63] ✓-46.0 66.3 74.6 21.3 48.6 35.5 66.4 57.2 48.6 48.5 62.5 -DocThink 7B [63] ✓-57.9 68.2 80.2 40.8 49.5 34.7 67.4 58.0 54.6 54.2 65.6 -FoveateR 3B (ours) ✗307.0 ±156 .074.0 74.0 83.0 58.2 75.4 49.0 60.1 56.1 60.5 77.6 68.1 82.7 FoveateR 7B (ours) ✗322.5 ±162 .783.3 78.3 86.2 62.7 83.2 60.0 60.8 61.3 68.2 85.5 73.9 88.6
+
+4.2 Experimental results and analyses 
+
+Table 2: Zero-shot results on V* [53]. Results of [36, 44, 58, 67] are from [67]. Method ( 336 2 input) Attr GPT4 OCR MiniCPM 8B [58] 32.2 11.8 10.0 OmniLMM 12B [36] 32.6 11.8 16.7 VisCoT 7B multi [44] 33.0 11.8 59.3 UV-CoT 7B multi [67] 35.2 17.6 67.7 FoveateR 3B (ours) 56.5 76.5 80.0 
+
+Comparison with previous approaches. 
+
+Table 1 compares FoveateR against recent vi-sual focusing methods [44, 62, 67] and stan-dard VLM baselines [24, 27, 63] under two low-res settings, H′, W ′ ∈ { 224 , 336 }. Across both 3B and 7B backbones, FoveateR out-performs prior methods on most benchmarks while consuming fewer visual tokens. Specifi-cally under the 336 2 setting, our FoveateR 3B
+
+(i) uses only ∼307 visual tokens on average ( vs. 1,152 in [44]) (ii) without using GT-box supervision for foveation policy training, while outperforming GT-trained prior visual focusing methods [44, 62] on every document understanding task. We attribute these gains to our RL objectives: LGRPO -fov learns a goal-driven foveation policy that di-rectly optimizes end-task accuracy—rather than mimicking GT-box targets—thereby selecting regions most useful for the final answer, while the foveated-region regularizer 
+
+Lreg penalizes large foveations to reduce the number of acquired visual tokens. Since FoveateR adaptively varies its visual budget across samples, we report both the mean and standard deviation of the visual token count ( e.g ., 307 .0±156 .0 for 3B at 
+
+336 2). The huge variance is expected: FoveateR uses little or no extra evidence for easy cases, while allocating more foveations to visually demanding cases as shown in Fig. 4. This problem-dependent allocation is learned during the RL stage (Eqs. (13)-(15)): by rewarding end-task success, the policy is encouraged to request additional evidence only when it improves the final answer, and to stop foveating otherwise, achieving a favorable accuracy-efficiency balance in expectation. From Tab. 2, we observe a similar trend on V* Bench [53], which features substan-tially higher-resolution images (average 2246 ×1582 ) than the Visual CoT benchmarks. Even in this visually demanding regime, our 3B model under the 336 2 setting out-performs prior 7-12B methods, highlighting that the proposed evidence acquisition effectively scales to higher-res inputs by foveating only task-relevant regions. 12 J. Min et al. 
+
+Table 3: Resolution-efficiency ablation. Starting from a low-res ( 336 2) baseline (b), we quantify how coldstart (c) and RL stages (d-g) recover accuracy via selective foveation. Model input img res. λreg 
+
+DocV [32] ( 1787 ×2101 ) TxtV [48] ( 941 ×820 ) V7W [70] ( 556 ×455 )
+
+Nfov ρ Tfov acc Nfov ρ Tfov acc Nfov ρ Tfov acc (a) oracle 7B [2] org - - 100% - 90.4 - 100% - 87.8 - 100% - 48.2 (b) baseline 7B [2] 336 2 - - 0% - 55.1 - 0% - 77.2 - 0% - 46.5 (c) ours 7B cold 336 2 - 35.9 3% 2.3 64.2 73.9 7% 1.4 82.2 32.2 8% 1.1 58.3 (d) ours 7B cold+RL 336 2 1.0 62.5 5% 2.2 61.5 48.8 4% 1.5 81.2 44.3 4% 1.3 57.2 (e) ours 7B cold+RL 336 2 0.5 269.3 22% 2.3 81.5 218.9 18% 1.7 85.4 61.8 15% 1.2 61.0 (f) ours 7B cold+RL 336 2 0.2 354.8 25% 2.3 83.3 263.5 21% 1.7 86.2 81.0 17% 1.3 61.3 (g) ours 7B cold+RL 336 2 0.0 377.8 28% 2.4 74.8 319.6 24% 2.0 85.0 92.0 19% 1.6 59.3 0  
+
+> 50
+> 100
+> 150
+> 200
+> 40
+> 50
+> 60
+> 70
+> 5
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> 110
+> 120
+> 130
+> 135
+> 145
+> 155
+> 165
+> 175
+> 185
+> 195
+> 205  0
+> 50
+> 100
+> 75
+> 80
+> 85
+> 5
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> 110
+> 120
+> 130
+> 135
+> 145
+> 155
+> 165
+> 175
+> 185
+> 195
+> 205  0
+> 10
+> 20
+> 30
+> 40
+> 45
+> 50
+> 55
+> 60
+> 5
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> 100
+> 110
+> 120
+> 130
+> 135
+> 145
+> 155
+> 165
+> 175
+> 185
+> 195
+> 205
+> 0
+> 1
+> 2
+> 3
+> 0
+> 5
+> 10
+> 15
+> 0
+> 1
+> 2
+> 3
+> 0
+> 5
+> 10
+> 15
+> 0
+> 1
+> 2
+> 3
+> 0
+> 5
+> 10
+> 15
+> RL coldstart
+> acc 𝑁 fov
+> 𝑇 fov 𝜌 (%)
+
+DocVQA  TextVQA  V7W 
+
+Fig. 3: Training dynamics of FoveateR 3B . The x-axis denotes training steps, and the gray vertical line indicates the stage transition from coldstart to RL. 
+
+Ablation study. Table 3 reports an ablation on our model and baseline [2], measuring accuracy with foveation usage statistics— Nfov (additional visual tokens acquired via foveation), ρ (fraction of the high-res image area revealed to the model), and Tfov 
+
+(number of foveation steps)—on three benchmarks: DocV [32] (high-res documents), TxtV [48] (comparatively low-res text-centric images), and V7W [70] (general VQA). Fig. 3 further visualizes the dynamics of these metrics during training. Comparing (a) with (b), we observe sharp accuracy drops, highlighting aggressive downsampling severely limits fine-grained perception, particularly for text-heavy tasks (e.g ., DocV and TxtV). Comparing the baseline (b) with our coldstart model (c), we observe large gains across all three datasets, even though the model only foveates a small portion of the image ( ρ = 3% –8% ) with a limited number of extra visual tokens (Nfov = 32 –74 , Tfov ≈ 1–2). This suggests that coldstart is sufficient to bootstrap where-to-look behavior: reading just a few task-relevant regions often recovers the accuracy or even outperforms the oracle (58.3 vs. 48.2 on V7W). The trend is consistent with Fig. 3, where accuracy improves rapidly in initial coldstart (from step 5 to 40) while the foveation usage ( Nfov , ρ, Tfov ) remains conservative . Moreover, we study RL stage with different λreg , which penalizes excessive number of visual tokens acquired via foveation (cf. Sec. 3): With a strong regularization ( λreg =1.0, (d)), the model under-utilizes foveation (small ρ and Nfov ) and fails to improve accuracy. Relaxing it ( λreg = 0 .5 and 0.2, (e)–(f)) allows more foveated evidence ( ρ ≈
+
+15% –25% ), leading to large accuracy gains on all the three benchmarks. This is also reflected in Fig. 3: after the coldstart →RL transition, DocV and TxtV show a sharp increase in Nfov and Tfov , with a noticeable jump in accuracy, spending more visual budget when fine-grained reading is necessary. Removing the regularization entirely (λreg = 0 .0, (g)) further increases foveation usage but degrades accuracy, suggesting that unconstrained evidence acquisition can be inefficient, introducing distractions. In our experiments, we set λreg = 0 .2 as a good compromise. Foveated Reasoner 13 
+
+Table 4: Coldstart target ablation under 336 2 setup. We mark fov-only results with 
+
+⇑ (⇓) if they are > 2% p higher (lower) than the interleaved counterpart, ∼ otherwise. Model cold start trg                                                                              
+
+> Doc/Text/Chart General Relation Fine
+> DocV TxtC TxtV Dude Sroi Info F30k V7W GQA OI VSR CUB (a) ours 3B cold ˜y55.4 71.6 81.4 38.4 57.8 46.0 59.3 55.5 61.2 78.9 65.1 79.5 (b) ours 3B cold ˜yfov 53.8 ( ∼)72.8 ( ∼)80.8 ( ∼)40.8 ( ⇑)56.7 ( ∼)43.6 ( ⇓)58.3 ( ∼)57.2 ( ∼)64.1 ( ⇑)81.7 ( ⇑)67.9 ( ⇑)79.5 ( ∼)(c) ours 3B cold+RL ˜y74.0 74.0 83.0 58.2 75.4 49.0 60.1 56.1 60.5 77.6 68.1 82.7 (d) ours 3B cold+RL ˜yfov 77.3 ( ⇑)75.9 ( ∼)85.6 ( ⇑)58.5 ( ∼)74.4 ( ∼)47.9 ( ∼)59.3 ( ∼)56.9 ( ∼)62.5 ( ∼)71.4 ( ⇓)71.7 ( ⇑)84.6 ( ∼)Question : What are the cash and cash equivalents (Notes 1 and 14) for 2007? Question : What kind of bike is that?
+> Input image (336 2): GT answer : $7,770 Input image (336 2):
+> GT answer :
+> Motorbike
+> <fov >𝐕 𝜏 2</ fov >In the table,
+> Cash and cash equivalents
+> for 2007 is $7,770
+> <fov >𝐕 𝜏 1</ fov >The section for
+> Current assets has “Cash and
+> cash equivalents (Notes 1 and 14)”
+
+Foveated reasoning in  <think> </think> 
+
+> <answer>
+
+$7,770 </answer> 
+
+In  <think> </think> 
+
+The bike is a red motor -
+
+cycle, specifically a sport 
+
+bike with a leek body, large 
+
+front fairing. 
+
+> <answer>
+
+Motorbike </answer> 
+
+> Foveation trajectory
+
+𝐕 𝜏 1
+
+𝐕 𝜏 2
+
+> None
+> no fine -grained evidence is
+> required for this sample
+> Foveation trajectory
+
+Fig. 4: Visually demanding cases (left; e.g ., documents; more foveations/ Nvis ) vs. less demanding cases (right; e.g ., centered dominant objects; fewer or no foveations/ Nvis ). 
+
+Coldstart training with ‘foveation-only’ vs. ‘interleaved foveation-reasoning’. 
+
+Table 4 compares two coldstart target constructions: The first is an interleaved target 
+
+˜y that alternates foveated evidences V⋆ 
+
+> (∗)
+
+and rationales l(∗) (Eq. (11)). The second is a foveation-only (fov-only) target ˜yfov that removes the intermediate rationales l(∗)
+
+and supervises only the visual evidence V⋆ 
+
+> (∗)
+
+acquisition behavior as follows: 
+
+˜yfov := x <think><fov> V⋆
+
+> (1)
+
+</fov> · · · <fov> V⋆
+
+> (S)
+
+</fov></think> · · · . (17) Interestingly, the two coldstart variants, (a) and (b), achieve comparable performance across most benchmarks, suggesting that coldstart can learn a effective where-to-look 
+
+policy even without intermediate narration l(∗). Notably, the fov-only target (b) is even slightly stronger on relation datasets (GQA/OI/VSR). We attribute this to the nature of their questions ( e.g ., “who is dressed in blue?” or “what is he wearing on his hand?”), which typically require only one decisive region lookup , making ˜yfov a more direct signal for evidence acquisition than relying on extraneous narration. We further apply RL to both checkpoints, yielding (c) and (d). Even after RL, the fov-only checkpoint (d) performs comparably—and often better—than the interleaved checkpoint (c) on most datasets, implying accurate prediction does not necessarily re-quire explicit rationales l(∗). We hypothesize that, in such low-res input setup, what matters more is acquiring the right visual evidence V⋆ 
+
+> (∗)
+
+through foveation: interme-diate rationales can be redundant, often paraphrasing what is already visible without adding much additional structure, and may even inject noise by encouraging unneces-sary narration. By contrast, learning an effective evidence-acquisition behavior appears more critical under low-res inputs, where success largely depends on capturing decisive high-res visual cues— a picture is worth a thousand words .14 J. Min et al. 
+
+## 5 Related Work 
+
+Effective visual evidence acquisition has been studied for decades, from classic neural vision [34] to modern VLMs [44]. Below, we briefly review some recent relevant work. 
+
+Token reduction. A natural way to reduce visual cost is to start from a dense set of visual tokens and then select , merge , or prune tokens to form a compact representa-tion [3, 8, 18, 22, 28, 40, 42, 55, 61]. One key drawback is that token reduction methods mostly compress an “already-observed” representation: if fine-grained details are miss-ing in the initial (often low-res) encoding, token selection alone cannot recover new information. Feeding a higher-res image can preserve such details, but it makes the initial encoding itself compute-heavy. Moreover, aggressive pruning may discard task-critical evidence, making performance sensitive to the selection policy/threshold. 
+
+Visual reasoning. A large class of VLMs perform visual reasoning, in which the model acquires task-relevant information by composing it through textual reasoning about the visual content . In practice, these models [1, 5, 12, 21, 26, 32, 39, 52, 54, 64, 66, 69] typically operate in a fixed-context manner: the input image is encoded once into a static set of visual tokens, and all subsequent reasoning is conditioned on this unchanged visual context. As a result, performance is ultimately bounded by the level of detail preserved in the initial visual input; increasing its resolution may recover fine-grained details but it quickly brings back the resolution–efficiency trade-off. 
+
+Visual focusing. To overcome the fixed-context bottleneck, visual focusing methods enable the model to adaptively acquire additional evidence during inference, typically via coarse-to-fine procedures that revisit the high-res image. While empirically effective, there remain fundamental bottlenecks: (i) Multi-pass pipelines [4, 38, 44, 53, 67] can increase inference latency due to repeated re-encoding/re-prompting, often breaking hidden-state continuity across different passes. (ii) Text-grounded methods [6, 11, 43, 49, 62, 65, 68] typically introduce extraneous token overhead and format-brittleness. 
+
+Foveation in machine vision. Early work by Mnih et al . [34] explored a human-inspired foveation paradigm, where an agent sequentially selects glimpses and integrates them through an internal state. Although conceptually appealing, it was difficult to demonstrate as a practical solution at the time, due to limited model capacity, un-stable optimization, and the lack of large-scale data [1, 27]. Subsequent machine vi-sion research has adopted idea of foveation more broadly, e.g ., foveated/peripheral representations [16, 30, 41], eccentricity-aware pooling [23, 60], and peripheral-aware attention [33]. In this paper, we also draw inspiration from three key characteristics of foveation: (i) coarse-to-fine evidence acquisition mechanism, (ii) an uninterrupted, stateful inference process, and (iii) continuous action-based control. Based on these principles, we instantiate foveation as a practical vision–language system. 
+
+## 6 Conclusion 
+
+This paper argues that the resolution–efficiency trade-off requires not only “zoom-ing in,” but also stateful, action-driven evidence acquisition. We presented FoveateR, a stateful, single-pass autoregressive framework that triggers non-linguistic, continu-ous foveation actions on demand and integrates the retrieved high-resolution evidence into the on-going decoding stream, preserving hidden-state continuity. Trained with a two-stage pipeline, it learns task-adaptive foveation strategies and delivers strong performance with limited visual tokens on a broad set of vision–language benchmarks. We hope this work inspires future multimodal systems under strict compute budgets. Foveated Reasoner 15 
+
+# Appendix 
+
+We provide additional details on the model architecture (Sec. A.1), training (Sec. A.2), inference (Sec. A.3), and coldstart dataset statistics (Sec. A.4). We further include ab-lation studies on foveation policy (Sec. B.1) and coldstart supervision signals (Sec. B.2), along with additional qualitative results and analyses (Sec. B.3). We conclude by dis-cussing the limitations of our method and potential directions for future work (Sec. C). 
+
+## A Implementation Details 
+
+A.1 Model Architecture 
+
+Our model consists of three trainable components: an agent state estimator fθ , a token policy πθ , and a foveation policy πϕ. The first two components ( fθ and πθ ) are obtained by decomposing a pretrained vision-language backbone ( e.g ., Qwen2.5-VL-Instruct [2]) into two parts, where the first ℓ transformer layers form fθ and the remaining layers form πθ . The third component, πϕ, is a newly initialized MLP that takes the agent state to predict a continuous box action. 
+
+Agent state estimator fθ . In our implementation, we use the first 27 layers (out of 36 total) of the Qwen2.5-VL [2] backbone as the agent state estimator fθ , while the remaining 9 layers are used for the token policy πθ . Empirically, this intermediate depth ( ℓ = 27 ) provided the most effective hidden-state representation ht for both the token policy πθ and the foveation policy πϕ. We hypothesize that, if the state is extracted from earlier layers ( ℓ < 27 ), the model has not yet integrated sufficient visual and textual context for reliable foveation decisions; if it is extracted from later layers ( ℓ > 27 ), the representation becomes over-specialized for immediate text token prediction, making it less suitable for foveation prediction. Based on this observation, we set ℓ = 27 in all experiments. 
+
+Token policy πθ . We use the last 9 transformer layers of the backbone [2] as the token policy πθ , which takes the shared agent state ht and predicts the next token 
+
+yt ∈ V ∪ { <fov> }. Without the foveation mechanism ( i.e ., without πϕ and the trigger 
+
+<fov> ), the combination of fθ and πθ is a standard AR VLM. When foveation is enabled, however, πθ is responsible not only for generating textual tokens, but also for selecting between two action modes: continuing textual reasoning ( yt ∈ V ) or triggering a foveation step ( yt = <fov> ). In this sense, πθ determines not only “what to say next,” but also “whether ht already has sufficient visual evidence” for subsequent reasoning or answer prediction. 
+
+Foveation policy πϕ. When the token policy emits <fov> , the foveation policy πϕ
+
+takes the hidden state ht and predicts a continuous box action 
+
+bt = [ cxt , c yt , w t, h t], (A1) where (cxt , c yt ) denotes the box center and (wt, h t) denote its width and height. Algo-rithm. A1 provides complete (PyTorch-style) pseudocode of the foveation policy used in our implementation. As shown in the forward() function of Alg. A1, the policy πϕ is implemented as a lightweight two-layer MLP; it first projects ht to Rd/ 2 and then pre-dicts the four continuous box parameters ( mean_box ). To keep the output box bounded, we map the center coordinates using tanh() such that cxt , c yt ∈ (−1, 1) , and map the 16 J. Min et al. width and height using a sigmoid followed by clamping such that wt, h t ∈ [α, 1) . In all experiments, we set α = 0 .1.The foveation policy is used differently in the coldstart and RL stages. (i) In the coldstart stage, the policy predicts the box deterministically ( mean_box ): gϕ(ht) := 
+
+E b∼πϕ(·| ht)[ b ] (cf. Sec. 3.3 and lines 12–23 & 36–39 in Alg. A1) which is used to com-pute the box regression loss (Eq. (12)). The same deterministic prediction gϕ(ht) is also used during inference. (ii) In the RL stage, by contrast, the policy must discover which foveation actions bt lead to better end-task outcomes. To enable such explo-ration, it samples box actions bt (box ) from a Gaussian distribution centered at the current prediction with standard deviation σ = 0 .1 (lines 12–35 in Alg. A1). This explo-ration encourages the policy to try nearby alternatives, e.g ., slightly shifted locations or different box sizes, to discover better foveation behaviors than those learned in the coldstart stage. 
+
+Foveation-action log-probability. Recall that RL training with GRPO [45] samples 
+
+G trajectories, each of which may contain both text-token actions and foveation actions. To compute the GRPO objectives (Eqs. (13) and (14)), we require the log-probability of every sampled text-token action, πθ,ϕ (y(i) 
+
+> t
+
+| p)3, as well as every sampled foveation action, πϕ(b(i) 
+
+> t
+
+| h(i) 
+
+> t
+
+). The former, πθ,ϕ (y(i) 
+
+> t
+
+| p), is obtained from the next-token distribution ( i.e ., logits over the vocabulary) produced by the token policy πθ . The latter, πϕ(b(i) 
+
+> t
+
+| h(i) 
+
+> t
+
+), is obtained from the foveation policy πϕ conditioned on the corresponding hidden state h(i) 
+
+> t
+
+as implemented in get_log_prob() function of Alg. A1. Concretely, given h(i) 
+
+> t
+
+(h_t ), the policy first reconstructs the deterministic box gϕ(h(i) 
+
+> t
+
+)
+
+(mean_box ) and computes how likely the current policy would be to produce b(i) 
+
+> t
+
+(box )from state h(i) 
+
+> t
+
+. In line 56 of Alg. A1, log_prob represents πϕ(b(i) 
+
+> t
+
+| h(i) 
+
+> t
+
+): the log-probability of the sampled box action b(i) 
+
+> t
+
+under the current policy. This log-probability is used to compute LGRPO -fov in Eq. (14), which encourages the policy to assign higher probability to box actions that yield higher accuracy rewards racc . 
+
+> 3
+
+Note that we write πθ,ϕ here because the token trajectory may depend on previously acquired foveated evidence, although the token distribution itself is produced by πθ .Foveated Reasoner 17  
+
+> 1
+
+class FoveationPolicy:  
+
+> 2
+
+def __init__(self, hidden_dim, std=0.1, min_size=0.1, max_size=1.0):  
+
+> 3
+
+self.std = std # std of Gaussian policy used for RL exploration  
+
+> 4
+
+self.min_size = min_size # minimum valid box size  
+
+> 5
+
+self.max_size = max_size # maximum valid box size  
+
+> 67
+
+reduced_dim = hidden_dim // 2  
+
+> 8
+
+self.proj = nn.Linear(hidden_dim, reduced_dim) # hidden-state projection  
+
+> 9
+
+self.head = nn.Linear(reduced_dim, 4) # predict 4 box parameters  
+
+> 10 11
+
+def forward(self, h_t, sample=False):  
+
+> 12
+
+# h_t: agent state extracted from the truncated backbone f_theta  
+
+> 13
+
+feat = F.relu(self.proj(h_t))  
+
+> 14
+
+params = self.head(feat)  
+
+> 15 16
+
+# Predict bounded continuous box parameters:  
+
+> 17
+
+# center = (c^x, c^y) in [-1, 1], size = (w, h) in [min_size, max_size]  
+
+> 18
+
+center = torch.tanh(params[:, :2]) # box center (c^x, c^y)  
+
+> 19
+
+size = torch.sigmoid(params[:, 2:4]) # box size (w, h)  
+
+> 20
+
+size = torch.clamp(size, self.min_size, self.max_size)  
+
+> 21 22
+
+# Deterministic box prediction g_phi(h_t), used in coldstart and inference  
+
+> 23
+
+mean_box = torch.cat([center, size], dim=1)  
+
+> 24 25
+
+if sample:  
+
+> 26
+
+# RL stage: sample a box action from a Gaussian centered at mean_box  
+
+> 27
+
+# This enables local exploration around the current prediction  
+
+> 28
+
+dist = torch.distributions.Normal(mean_box, self.std)  
+
+> 29
+
+box = dist.rsample() # reparameterized sample for RL  
+
+> 30
+
+log_prob = dist.log_prob(box).sum(dim=1) # log pi_phi(b_t | h_t)  
+
+> 31 32
+
+# Clamp the sampled box to the valid action range before execution  
+
+> 33
+
+center = torch.clamp(box[:, :2], -1, 1)  
+
+> 34
+
+size = torch.clamp(box[:, 2:4], self.min_size, self.max_size)  
+
+> 35
+
+box = torch.cat([center, size], dim=1) # final valid sampled box action  
+
+> 36
+
+else:  
+
+> 37
+
+# Coldstart / inference: use the deterministic prediction directly  
+
+> 38
+
+box = mean_box  
+
+> 39
+
+log_prob = torch.zeros_like(center[:, 0]) # unused outside RL  
+
+> 40 41
+
+return log_prob, box  
+
+> 42 43
+
+def get_log_prob(self, h_t, box):  
+
+> 44
+
+# Recompute the current policy distribution from h_t  
+
+> 45
+
+# and evaluate how likely the given box action is.  
+
+> 46
+
+# This is used in the GRPO objective for sampled foveation actions.  
+
+> 47
+
+feat = F.relu(self.proj(h_t))  
+
+> 48
+
+params = self.head(feat)  
+
+> 49 50
+
+center = torch.tanh(params[:, :2])  
+
+> 51
+
+size = torch.sigmoid(params[:, 2:4])  
+
+> 52
+
+size = torch.clamp(size, self.min_size, self.max_size)  
+
+> 53 54
+
+mean_box = torch.cat([center, size], dim=1) # g_phi(h_t)  
+
+> 55
+
+dist = torch.distributions.Normal(mean_box, self.std)  
+
+> 56
+
+log_prob = dist.log_prob(box).sum(dim=1) # log pi_phi(b_t | h_t)  
+
+> 57
+
+return log_prob, mean_box 
+
+Algorithm A1: PyTorch-style pseudocode for the foveation policy  πϕ.18 J. Min et al. 
+
+A.2 Training details 
+
+Training datasets. We train FoveateR on the training splits of three datasets: the Visual CoT benchmark [44], RefCOCO/+/g [17], and ScienceQA [29]. These datasets provide complementary supervision: Visual CoT serves as the primary training source, as it is the standard benchmark used by recent baseline methods [44, 62, 63, 67], pro-viding the most direct training distribution for comparison with prior work. RefCO-CO/+/g provides grounding-oriented supervision, which improves the model’s spatial localization ability and yields an approximately 1-2%p gain on the Visual CoT bench-marks in our experiments. ScienceQA is primarily included to expose the model to multiple-choice supervision, which is beneficial for evaluation on another multiple-choice benchmark V* Bench. Overall, the three datasets complement each other by covering general visual reasoning (Visual CoT), spatial grounding (RefCOCO/+/g), and structured logical multiple-choice reasoning (ScienceQA), resulting in a total of 765K training samples. 
+
+Rewards during RL stage. During RL training, the accuracy reward racc is com-puted differently depending on the dataset type of each sample. (1) For VQA-style datasets ( e.g ., Visual CoT benchmark [44]), we use an LLM-based semantic answer matching score using Qwen3-4B [56]; during RL stage, we use open source model [56], rather than an API-based evaluator ( e.g ., GPT), because RL training requires re-ward computation for a large number of samples, making repeated API calls pro-hibitively expensive in practice. For evaluation on the Visual CoT benchmark, how-ever, we use GPT-based answer matching to ensure a fair comparison with prior meth-ods [44, 62, 63, 67]. Given the question, the ground-truth answer, and the model pre-diction, the evaluator is prompted to return a soft score in [0 , 1] based on semantic agreement between the prediction and GT. The prompt template shown below is used for this evaluation, which is adopted from [44] to ensure consistency with the evaluation protocol used in prior work [44, 67]. 
+
+LLM evaluator prompt for VQA-style reward scoring. 
+
+You are responsible for proofreading the answers, you need to give a score to the model’s answer by referring to the standard answer, based on the given question. The full score is 1 point and the minimum score is 0 points. Please output the score in the form “score: <score>”. The evaluation criteria require that the closer the model’s answer is to the standard answer, the higher the score. Question: { } Standard answer: { } Model’s answer: { } (2) For grounding datasets ( e.g ., RefCOCO/+/g [17]), we use IoU-based accuracy as the reward. Given a predicted box ˆb and a GT box b⋆, we assign racc = 1 .0 if 
+
+IoU( ˆb, b ⋆) ≥ 0.5, and racc = 0 .0 otherwise, which directly reflects whether the model has faithfully localized the referred object or region. (3) For multiple-choice datasets ( e.g ., ScienceQA [29]), we use multiple-choice option matching: if the predicted option index matches the ground-truth option index, we assign racc = 1 .0; otherwise, racc = 0 .0.Foveated Reasoner 19 
+
+Table A1: Summary of key hyperparameters and training settings. 
+
+Group Hyperparameter Value 
+
+Architecture Backbone Qwen2.5-VL-Instruct (3B, 7B) Layer split ( fθ / πθ ) 27 /9
+
+Foveation policy πϕ 2-layer MLP with nonlinearities Minimum box size α 0.1 Box sampling std. σ 0.1 Input resolution H′, W ′ 224 2, 336 2
+
+Training Datasets Visual CoT, RefCOCO/+/g, ScienceQA Training samples 765K total Coldstart epochs 3RL steps 70K LR (coldstart) 3 × 10 −5
+
+LR (RL) 1 × 10 −6
+
+Batch size 16 Per-GPU batch size 4Gradient accumulation 2Precision bf16 Hardware GPUs 4 NVIDIA H100 DeepSpeed ZeRO-3 for 7B only Coldstart time (7B) ∼3 days RL time (7B) ∼3–4 days Eval hardware same as training Reward Grounding reward IoU-based accuracy IoU threshold 0.5 VQA reward semantic answer matching VQA reward model (RL) Qwen3-VL-4B Eval protocol GPT-based matching MCQ reward exact option matching 
+
+Lcold λbox 1.0 
+
+LRL 
+
+Group size G 16 KL coefficient β 0.04 
+
+λfov 1.0 
+
+λreg 0.2 Reference model our coldstart model trained for 3 epochs Clipping in LGRPO -tok (ϵ) [45] 0.2 
+
+Prompt and output format. In all experiments, we place the question before the instruction prompt, which asks the model to generate both an intermediate reasoning process and the final answer in a structured format as follows: {Question} First provide the reasoning process within <think></think> and then output the answer in <answer></answer> tags. Note that this prompt does not explicitly instruct the model to emit the <fov> token or perform foveation. Instead, foveation behavior ( i.e ., emitting <fov> ) is learned during the coldstart stage, where the same prompt format is used for supervision. Thus, even without explicit mention of foveation in the prompt, the model is capable of invoking 
+
+<fov> when high-res visual evidence is needed. 
+
+Hardware and training setup. Table A1 summarizes key hyperparameters, main hardware configurations, and training settings used in our experiments. 20 J. Min et al.                        
+
+> 1blocks = []
+> 2for sample in batch:
+> 3# Generate one token from the token policy
+> 4y_t, h_t = pi_theta(sample)
+> 56if y_t != "<fov>":
+> 7# Standard text-token generation
+> 8block = [y_t]
+> 9else:
+> 10 # Retrieve variable-length high-res visual tokens
+> 11 V_t = retrieve_highres_tokens(sample.image, pi_phi(h_t))
+> 12 block = ["<fov>"] + V_t + ["</fov>"]
+> 13 14 blocks.append(block)
+> 15 16 # Match all inserted blocks to the same length in the batch
+> 17 L_max = max(len(block) for block in blocks)
+> 18 for sample, block in zip(batch, blocks):
+> 19 pad_len = L_max - len(block)
+> 20 21 # Left-pad the previous sequence, then append the new block
+> 22 sample.input_ids = [PAD] * pad_len + sample.input_ids + block
+> 23 24 # Left-pad tensors to keep batch shapes aligned
+> 25 sample.attention_mask = [0] * pad_len + sample.attention_mask + [1] * len(block)
+> 26 sample.hidden_states = concat(zero_tensor(pad_len), sample.hidden_states)
+> 27 sample.kv_cache = concat(zero_tensor(pad_len), sample.kv_cache)
+> 28 sample.pos_ids = [PAD_POS] * pad_len + sample.pos_ids + new_pos_ids(block)
+
+Algorithm A2: Pseudocode for FoveateR batched decoding. For shape-compatible batch, we prepend zero-padding to the existing sequence and append the new block. 
+
+A.3 Inference details 
+
+Variable-length token generation. A standard autoregressive VLM generates ex-actly one token at each decoding step. Our model also generates one token at a step if it is a standard text token ( i.e ., yt ∈ V ). However, when the model triggers foveation (i.e ., yt = <fov> ), the VLM output is no longer a single token but a variable number of tokens as follows: 
+
+<fov> , Vt, 1, Vt, 2, . . . , Vt,m t , </fov> , (A2) where Vt ∈ Rmt×d denotes the retrieved high-res visual tokens, whose length is mt.This creates a practical batching issue during inference: Different samples in the same batch may produce different numbers of new tokens at the same decoding step, which can no longer be “batchified” since batched processing requires all samples to have the same shape in the standard PyTorch implementation. To resolve this, after each decoding step, we first identify the maximum number of new tokens among all samples in the batch. We then zero-pad every other sample so that all samples have the same extended length. In this way, all tensors in the batch remain shape-compatible even though the actual number of generated tokens differs across samples. In our implementation, this padding is applied to attention mask, hidden states, key–value cache, position ids [50] inside the transformers decoding loop. This enables batched AR decoding even when the number of newly generated tokens varies across samples in a batch. Algorithm. A2 provides pseudocode for this bached-decoding procedure. Foveated Reasoner 21 
+
+Table A2: Statistics of the coldstart training data. Superscripts hmn and psd denote the human-annotated GT boxes and our VLM-generated pseudo boxes, respectively. 
+
+W and H denote the average image width and height, ρ denotes the average fraction of image area covered by the box, and Tfov denotes the average number of foveation labels. ∆ indicates the difference between pseudo and human supervision. Bench Doc/Text/Chart Gen. Relation Fine Grounding Avg DocV TxtC TxtV Info F30k GQA OI VSR CUB RefC RefC+ RefCg W 1768.5 938.7 939.8 1201.8 459.3 493.9 963.1 577.5 465.6 595.7 595.5 584.1 798.6 H 2129.5 826.5 824.8 2442.4 395.5 409.5 798.7 501.9 386.9 485.0 485.1 479.6 847.1                                                                                 
+
+> ρhmn 5.4 4.3 4.4 8.8 14.4 18.0 21.9 36.8 35.5 20.9 21.1 20.6 17.7
+> ρpsd 2.5 11.3 10.2 6.7 16.3 14.2 15.5 13.5 14.0 15.2 15.7 14.9 12.5
+> ∆ρ −2.9+7 .0+5 .8−2.1+1 .9−3.8−6.4−23 .3−21 .5−5.7−5.4−5.7−5.2
+> Thmn fov 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0 1.0
+> Tpsd fov 2.9 2.0 1.8 3.7 1.5 1.6 1.5 1.0 1.6 1.1 1.1 1.2 1.8
+> ∆T fov +1 .9+1 .0+0 .8+2 .7+0 .5+0 .6+0 .50.0+0 .6+0 .1+0 .1+0 .2+0 .8
+
+Stopping and budget control during generation. At each decoding step, the token policy πθ adaptively determines whether to generate (i) a standard text token in 
+
+V, (ii) <fov> to trigger foveation step, or (iii) <EOS> to terminate generation. Note that the number of foveation steps is not fixed in advance, but is determined dynamically. For practical stability, we enforce two limits during generation: a maximum total generation length Tmax = 2048 , and a maximum number of allowed foveation steps Kmax = 4 .If the total generation length reaches Tmax , generation is terminated immediately by forcing <EOS> . If the number of <fov> tokens reaches Kmax , we prevent any additional foveation by forcing the probability of <fov> to zero by setting its logit to −∞ before softmax. 
+
+A.4 Coldstart data statistics 
+
+Table A2 summarizes statistics of the coldstart training data. Comparing the average image-area ratio ρ covered by the human-annotated GT boxes and our pseudo boxes, we observe that ρpsd is lower than ρhmn on average (12.5 vs. 17.7), while T psd fov is slightly higher than T hmn fov (1.8 vs. 1.0). This suggests that pseudo supervision encourages a more localized evidence-acquisition strategy: instead of revealing a single large (human-annotated) region, it guides the model to perform multiple targeted foveations. Such behavior is analogous to human visual perception, where task-relevant evidence is often acquired progressively through a sequence of fixations rather than revealed all at once in a single glance. As analyzed further in Sec. B.2, we find that training with pseudo labels is more ef-fective than training with human-annotated labels. We hypothesize that this is because human-annotated boxes tend to tightly localize the most relevant region , whereas the VLM may instead benefit from a sequential form of targeted evidence , such as multiple nearby cues or a sequence of smaller glimpses that progressively refine its focus. This suggests that effective foveation supervision should reflect the model’s actual demands (e.g ., sequential foveation to reduce uncertainty, validate intermediate predictions, or revisit key evidence), rather than relying on a single region that appears most relevant to a human annotator. 22 J. Min et al. 
+
+Table A3: Ablation study on test-time foveation count and box-parameter. Starting from the fov-only 3B coldstart model in Table 4 (d), we intervene by restricting the maximum number of generated foveation actions T max fov and by overriding either the box center (cx, c y ) or size (w, h ) during inference time. Accuracy on DocVQA [32], TextVQA [48], and Visual7W [70] is evaluated using Qwen3-4B-based [56] semantic string matching. Model T max fov                                                                                                                                                    
+
+> box action bDocV [32] ( 1787 ×2101 )TxtV [48] ( 941 ×820 )V7W [70] ( 556 ×455 )
+> (cx, c y)(w, h )Nfov ρTfov acc Nfov ρTfov acc Nfov ρTfov acc (a) ours 3B cold 3learned learned 362.9 25.3 1.9 75.7 242.2 20.8 1.4 85.7 72.1 17.2 1.1 56.7 (b) 1learned learned 209.3 20.7 172.5 187.4 19.3 186.4 56.9 16.0 0.9 57.2 (c) 1center learned 227.2 22.4 154.5 199.1 20.5 179.4 59.3 16.5 0.9 56.0 (d) 1random (−1,1) learned 171.0 16.9 152.3 153.1 15.8 176.9 45.0 12.3 0.9 56.7 (e) 1learned fixed (.5, . 5) 62.2 6.1 157.1 58.5 6.0 182.8 19.2 5.3 0.9 56.9 (f) 1learned random (0 ,1) 57.8 5.7 154.9 56.7 5.9 179.2 19.1 5.4 0.9 57.3 (g) 1random (−1,1) random (0 ,1) 50.1 4.9 143.3 48.2 4.9 175.9 13.9 3.9 0.9 56.0 Baseline [2] ------55.1 ---77.2 ---50.5
+
+## B Additional Experimental Analyses 
+
+B.1 Test-time ablation on foveation count and box action 
+
+To investigate the effect of our learned foveations, we perform a set of test-time in-terventions on our model. Specifically, during decoding, we (i) restrict the maximum number of generated foveation actions T max fov , and (ii) override the predicted box center 
+
+(cx, c y ) or size (w, h )4 with random (or fixed) values, allowing us to separately examine the importance of the foveation budget and box location & scale without retraining. Table A3 summarizes the results. 
+
+Effect of limiting the foveation count. Comparing (a) and (b), enforcing at most “one” foveation causes a noticeable drop on DocVQA (75.7 → 72.5), while the change is relatively minor on TextVQA and Visual7W. This suggests that multiple foveations are occasionally helpful for visually demanding document-style inputs ( e.g ., DocVQA), where the answer may require sequential evidence acquisition from multiple distant regions (Fig. A2 (c)). On TextVQA and Visual7W, the original model (a) already uses only a modest T max fov on average (1.1-1.4), thus forcing T max fov down to 1.0 does not drastically alter its behavior. 
+
+Importance of learning where to foveate. Comparing (b) against (c) and (d), replacing the learned box center with either a fixed image center (c) or a random loca-tion (d) substantially harms accuracy on DocVQA and TextVQA, while having little effect on Visual7W. This suggests that, for document and text-centric images, success primarily depends on locating task-relevant evidence that may appear anywhere in the image ( e.g ., in corners or small peripheral regions). In contrast, on Visual7W, forcing the box center to be either centered or random leads to only a minor performance drop. We attribute this to the nature of Visual7W images, where the task-relevant object is often already dominantly visible and frequently located near the image center as illustrated in Fig. A1. 
+
+Importance of learning how much to foveate. Comparing (b) against (e) and (f), overriding the box size with either a fixed (0 .5, 0.5) box or a random size also leads to clear degradation on DocVQA and TextVQA, whereas the impact remains small on  
+
+> 4
+
+The center (cx, c y ) is normalized to [−1, 1] , where (−1, −1) and (1 , 1) correspond to the top-left and bottom-right of the image, respectively. The size (w, h ) is normalized to [0 , 1] ; the box width (or height) of 1 spans 50% of the image width (or height). Foveated Reasoner 23 Visual7W. The results suggest that the scale of the required evidence is highly instance-dependent in text-heavy benchmarks: some questions require a very small local crop, while others benefit from a wider region containing neighboring context. A fixed or random box size therefore may fail to match the size of the truly relevant region. Visual7W images, however, mostly contain a relatively salient object already visible under low resolution (Fig. A1), thus making precise scale adaptation less critical. 
+
+Joint corruption of center and size. Model (g), which randomizes both center and size of the box, yields the worst performance overall, confirming the importance of both components; the model must learn not only “where to look”, but also “how much to look at”. Again, the drop on Visual7W is small since the low-res input already contains enough information for a reasonable prediction, making the model less dependent on fine-grained evidence. 
+
+Random foveation can be worse than no foveation. Comparing the baseline with (g), we observe that on DocVQA and TextVQA, fully random foveation is substantially worse than using no foveation at all. A plausible explanation is that randomly retrieved high-res tokens introduce irrelevant and potentially distracting visual details, which interfere with answer generation rather than helping it. In other words, fine-grained evidence acquisition is beneficial only when it is targeted . On Visual7W, however, (g) still surpasses the baseline (56.0 vs. 50.5), likely because many Visual7W images contain a large, dominant object, so even random foveation can still capture useful parts of it. 
+
+A single foveation is already highly effective. Finally, comparing the baseline with (b) shows that even a single foveation provides a large gain across all three benchmarks: 55.1 → 72.5 on DocVQA, 77.2 → 86.4 on TextVQA, and 50.5 → 57.2 on Visual7W. The results show that the gain comes not simply from observing more visual tokens, but from retrieving the right high-resolution region. For example, although (c) consumes more visual tokens than (b), it performs much worse, indicating that additional visual input is not helpful unless it captures task-relevant evidence. Consistently, when the box is poorly chosen, as in (c)–(g), accuracy drops sharply. This shows that a single foveation can be highly effective only when guided by a learned policy: πϕ.
+
+Takeaway. Overall, these experiments show that the benefit of learned foveation, which does not come from naïvely revealing more high-res pixels, but from acquiring the right evidence with the right scale . This benefit is especially apparent on scenarios where task-relevant cues are sparse and spatially dispersed ( e.g ., DocV [32] and TxtV [48]). Taken together, the results support our central view of foveation as “an active evidence-acquisition mechanism”, rather than a simple token-increase strategy. Such behavior is also consistent with human visual perception, where effective perception depends not on seeing more everywhere, but on selectively attending to the most informative region for the target task. 24 J. Min et al. 
+
+Table A4: Comparison between two types of foveation supervision: human-annotated GT boxes (ours 3B hmn ) and VLM-generated pseudo boxes (ours 3B psd ). Accuracy is evalu-ated using Qwen3-4B-based semantic matching. Tfov denotes the number of foveations. 
+
+Nfov counts all retrieved visual tokens via foveations, including those from overlapping foveation regions , whereas ρ measures only the total unique high-res image area re-vealed to the model, ignoring overlap. ∆ denotes the difference for each metric. Bench Accuracy Tfov ρ Nfov                                                                                                                                                                        
+
+> ours 3B hmn ours 3B psd ∆ours 3B hmn ours 3B psd ∆ours 3B hmn ours 3B psd ∆ours 3B hmn ours 3B psd ∆
+> DocV 44.5 52.6 +8 .11.0 2.2 +1 .23.9 2.8 −1.139.3 35.9 −3.4
+> TxtC 68.0 72.4 +4 .41.0 1.5 +0 .53.2 7.4 +4 .231.7 84.1 +52 .4
+> TxtV 74.6 81.2 +6 .61.0 1.4 +0 .43.5 7.1 +3 .633.5 78.1 +44 .6
+> Dude 34.0 39.1 +5 .11.0 2.1 +1 .14.5 3.6 −0.944.4 45.0 +0 .6
+> Sroi 49.1 56.7 +7 .61.0 2.3 +1 .32.9 2.9 0.019.3 26.3 +7 .0
+> Info 37.0 36.1 −0.91.0 2.6 +1 .63.9 4.4 +0 .526.5 39.9 +13 .4
+> F30k 61.8 62.2 +0 .41.0 1.2 +0 .211.5 11.5 0.026.2 29.7 +3 .5
+> V7W 56.8 56.7 −0.11.0 1.1 +0 .110.9 9.3 −1.635.9 35.5 −0.4
+> GQA 61.2 62.9 +1 .71.0 1.3 +0 .310.4 9.8 −0.626.4 28.7 +2 .3
+> OI 81.5 82.3 +0 .81.0 1.1 +0 .112.6 10.5 −2.1121.6 113.0 −8.6
+> VSR 63.4 65.4 +2 .01.0 0.8 −0.217.8 8.8 −9.064.4 33.5 −30 .9
+> CUB 83.7 80.1 −3.61.0 1.2 +0 .221.6 11.0 −10 .649.0 25.5 −23 .5
+> Avg 59.6 62.3 +2 .71.0 1.6 +0 .68.9 7.4 −1.543.2 47.9 +4 .7
+
+B.2 Pseudo foveation supervision vs. human-annotated GT boxes 
+
+To compare the effect of different supervision signals for the foveation policy πϕ,we train two coldstart 3B models. The first model (ours 3B hmn ) uses human-annotated GT boxes. The second model (ours 3B psd ) uses VLM-generated pseudo box labels (cf. Sec. 3.3). 5 Table A4 summarizes the results. Even without human supervision, ours 3B psd yields higher average accuracy than ours 3B hmn (62.3 vs. 59.6) with a slightly larger number of foveations on average (1.6 
+
+vs. 1.0). Interestingly, ours 3B psd improves accuracy while reducing ρ (7.4 vs. 8.9)— i.e ., the model observes a smaller fraction of the original high-res image yet makes better predictions. We attribute this to the following misalignment: human-annotated boxes tend to tightly localize the region that appears most relevant to a human annotator, whereas the VLM may benefit from a different evidence-acquisition pattern, such as multiple distant glimpses, broader surrounding context, or a sequence of progressively refined crops. We also observe that ours 3B psd sees more visual tokens ( ∆N fov = +4 .7)while revealing a smaller high-res image area ( ∆ρ = −1.5). The results imply that the model requests multiple foveations to “revisit” previously observed regions, resulting in repeated (or slightly shifted) glimpses of the same local region. Such behavior can be beneficial when the model needs to verify the evidence by (i) refining uncertain evidence or (ii) exploring nearby context at different spatial extents. Overall, these results suggest that supervising foveation with a single (human-annotated) box may be suboptimal. What matters is not just seeing one salient region, but learning how to gather the evidence that the model actually needs through test-time refinement and exploration . 
+
+> 5
+
+In this experiment, both models are trained only on datasets with GT boxes ( e.g ., RefCOCO and Visual CoT); ScienceQA is excluded due to the absence of GT boxes. Foveated Reasoner 25 (a) Question : What material is the boat made of as seen in the image?          
+
+> Input image (336 2):
+> GT answer :Wood
+> Foveated reasoning in <think> </think>
+> <answer> The boat is made of wood. </answer>
+> The boat has a wooden appearance. The planks and structure look
+> like wood, with the natural grain and color typical of wooden boats
+> None
+> no fine -grained evidence is
+> required for this sample
+> Foveation trajectory
+> (b) Question : Where is the laptop sitting?
+> Input image (336 2):
+> GT answer :Grass
+> Foveated reasoning in <think> </think>
+> <answer> In the grass </answer>
+> The laptop is on a grassy area. The background is all green grass, so
+> it’s sitting on the grass.
+> None
+> no fine -grained evidence is
+> required for this sample
+> Foveation trajectory
+
+Fig. A1: Cases where FoveateR answers correctly without foveation [37, 70]. 
+
+B.3 Qualitative results and analyses 
+
+Figures A1 and A2 provide qualitative examples of how FoveateR uses foveation in a task-adaptive manner. Figure A1 shows cases where the model predicts correct answer 
+
+without triggering any foveation ; the task-relevant evidence is already sufficiently salient in the low-res input, suggesting that the model has learned not to invoke foveation unnecessarily when it is given sufficient evidence already. In other words, the model uses no foveation by default, but only when additional evidence is needed. In Fig. A2 (a), the question requires checking two small, distant attributes (wing and eye colors) so the model performs two separate foveations, one for each localized cue. In Fig. A2 (b), the question also asks about two attributes (bill shape and forehead color) but both cues are spatially close, so a single foveation suffices. This indicates that the model foveates efficiently in the sense that it increases the number of foveations only when the evidence is distributed across distant regions, while avoiding unnecessary foveations when multiple evidence can be verified with a single foveation. In Fig. A2 (c), the first foveation already reveals the main clue needed for answering the question, namely the map title. However, the model continues to explore additional regions, including the legend and scale bar, before producing the final answer. This indicates that FoveateR does not always stop once a plausible answer becomes available; when the initial evidence is still insufficient (or ambiguous), the model may sacrifice efficiency in favor of confidence, gathering additional evidence before committing to a final prediction. These examples reveals that FoveateR has learned a flexible trade-off between ef-ficiency and reliability. When the answer is already evident from the coarse input, it avoids foveation altogether. When fine-grained evidence is required, it uses as few foveations as possible; yet under uncertainty, it is also willing to perform exploratory foveations to improve prediction reliability. 26 J. Min et al. (a) Question : Does the bird in the picture have orange wing and buff eye? 
+
+Input image (336 2): 
+
+GT answer : No 
+
+Foveated reasoning in  <think> </think> 
+
+<answer> No </answer> 
+
+Foveation trajectory 
+
+𝐕 𝜏 1
+
+𝐕 𝜏 2
+
+<fov > 𝐕 𝜏 1 </ fov > First, check the wings: the 
+
+bird has dark brown or black wings, not 
+
+orange. 
+
+<fov > 𝐕 𝜏 2 </ fov > Then the eye: the eye is 
+
+dark, maybe black or dark brown, not buff 
+
+(which is a light tan color) 
+
+(b) Question : Does the bird in the picture have cone bill and red forehead? 
+
+Input image (336 2): 
+
+GT answer : Yes 
+
+Foveated reasoning in  <think> </think> 
+
+<answer> Yes </answer> 
+
+Foveation trajectory 
+
+The bird is a Northen Cardinal, I think. <fov > 𝐕 𝜏 1 </ fov >
+
+The question is about a cone bill and red forehead. 
+
+First the bill: Northen Cardinals have a short, conical 
+
+bill, which is typical for seed -eating birds. The bill here 
+
+is orange, and it’s conical shape, so that part is yes. 
+
+Then the forehead: the bird’s head is bright red, so the 
+
+forehead is red. 
+
+𝐕 𝜏 1
+
+(c) Question : What is the map all about? 
+
+Input image (336 2): 
+
+GT answer : Re gion del hauran en Siria 
+
+Foveated reasoning in  <think> </think> 
+
+<answer> Region del Hauran en Siria </answer> 
+
+<fov > 𝐕 𝜏 1 </ fov > The title is “Region del Hauran en 
+
+Siria,” which translates to “Hauran Region in Syria.” 
+
+<fov > 𝐕 𝜏 2 </ fov > There’s a legend on the right with 
+
+symbols: star for capital of country, circle for capital 
+
+of government, red dot for town, dashed line for 
+
+international border, blue wave for river, yellow circle 
+
+for archaeological site, blue triangle for tell (ancient 
+
+mound), and a dashed box for Hauran region’s 
+
+boundary. 
+
+Foveation trajectory 
+
+𝐕 𝜏 1
+
+𝐕 𝜏 2
+
+𝐕 𝜏 3
+
+<fov > 𝐕 𝜏 3 </ fov > Also, there’s a scale at the bottom. The map shows various 
+
+locations like Damascus, Hauren , etc. So it’s a detailed map of the Hauran 
+
+region in Syria, highlighting political, geographical and archaeological features. 
+
+Fig. A2: Qualitative examples of task-adaptive foveation in FoveateR. (a,b) Examples from CUB [51]: in (a), the model performs two foveations because the queried at-tributes are small and spatially distant, whereas in (b), a single foveation suffices since the relevant attributes are spatially close. (c) An example from DUDE [20]: although the first foveation already reveals an important clue, the model performs additional exploratory foveations to reduce ambiguity, thereby making a more reliable prediction. Foveated Reasoner 27 
+
+## C Limitations and Future Work 
+
+Despite its effectiveness, our current framework still poses several limitations, suggest-ing important directions for future work. First, each newly acquired high-res evidence is accumulated in the Transformer key–value cache (Eq. (5)). While this design preserves hidden-state continuity across foveation steps, it causes a linear growth in memory & compute with the amount of acquired evidence, which may limit scalability in longer-horizon settings. A natural next step is to replace this cache-growing mechanism with a more compact architecture, such as a state-space model [7, 9], which could scale more gracefully with the number of foveation steps while retaining the stateful integration of newly acquired evidence. Second, our empirical validation is currently focused on single-image benchmarks, whereas the proposed mechanism could be applicable to temporally extended settings: video understanding. Compared with static images, video contains much stronger pixel redundancy across adjacent frames, making dense per-frame processing highly ineffi-cient. In this setting, foveation offers a promising mechanism for efficient video under-standing: rather than processing all frames at a uniform resolution, the model could leverage contextual information from previous low-res frames to decide where to foveate in the current frame for high-res evidence acquisition. This allows the model to use pre-viously observed frames as temporal context, so that foveation in the current frame can focus on newly appeared and task-critical regions, similar to human visual attention. Lastly, the current framework uses a relatively simple foveation policy πϕ and action space bt = [ cxt , c yt , w t, h t]. While this simple design is sufficient to demonstrate the effi-cacy of stateful action-based evidence acquisition, richer policies may further improve efficiency and robustness. For example, future work could allow multiple-region acqui-sition when relevant evidence is spatially distributed, or adaptive-resolution foveation when the model requires different levels of visual detail. In video domains, acquiring visual evidence at every frame would quickly become prohibitively expensive; this may require additional policies that decides which evidence to retain, update, or discard over time. We leave this to future work. Taken together, this work suggests a promising direction for future work: small AI agents operating under strict on-device constraints. In many real-world applications (especially on edge devices) compute, memory, latency, and energy budgets are far more limited than in cloud environments, making it impractical to process all visual inputs uniformly at high resolution. From this perspective, stateful and action-based evidence acquisition becomes particularly attractive, as an agent can selectively spend its limited budget only on information necessary for the current task. Looking ahead, we expect future AI systems to operate in “hybrid edge–cloud settings”, where lightweight on-device agents handle latency-sensitive or privacy-sensitive perception, while larger cloud agents provide heavier reasoning or broader world knowledge only when needed. In such a regime, efficient visual focusing may serve as a key mechanism for the edge-device agents, allowing them to remain responsive and resource-aware, while still effectively interacting with more powerful external agents. 28 J. Min et al. 
+
+## References 
+
+1. Alayrac, J.B., Donahue, J., Luc, P., Miech, A., Barr, I., Hasson, Y., Lenc, K., Mensch, A., Millican, K., Reynolds, M., Ring, R., Rutherford, E., Cabi, S., Han, T., Gong, Z., Samangooei, S., Monteiro, M., Menick, J., Borgeaud, S., Brock, A., Nematzadeh, A., Sharifzadeh, S., Binkowski, M., Barreira, R., Vinyals, O., Zisser-man, A., Simonyan, K.: Flamingo: a visual language model for few-shot learning. arXiv preprint arXiv:2204.14198 (2022) 1, 3, 14 2. Bai, S., Chen, K., Liu, X., Wang, J., Ge, W., Song, S., Dang, K., Wang, P., Wang, S., Tang, J., Zhong, H., Zhu, Y., Yang, M., Li, Z., Wan, J., Wang, P., Ding, W., Fu, Z., Xu, Y., Ye, J., Zhang, X., Xie, T., Cheng, Z., Zhang, H., Yang, Z., Xu, H., Lin, J.: Qwen2.5-vl technical report. arXiv preprint arXiv:2502.13923 (2025) 8, 10, 12, 15, 22 3. Bolya, D., Fu, C.Y., Dai, X., Zhang, P., Feichtenhofer, C., Hoffman, J.: Token merg-ing: Your vit but faster. In: International Conference on Learning Representations (ICLR) (2023) 14 4. Carvalho, M., Dias, H., Martins, B.: Cropvlm: Learning to zoom for fine-grained vision-language perception. arXiv preprint arXiv:2511.19820 (2025) 1, 3, 4, 14 5. Dai, W., Li, J., Li, D., Tiong, A.M.H., Zhao, J., Wang, W., Li, B., Fung, P., Hoi, S.: Instructblip: Towards general-purpose vision-language models with instruction tuning. arXiv preprint arXiv:2305.06500 (2023) 14 6. Fan, Y., He, X., Yang, D., Zheng, K., Kuo, C.C., Zheng, Y., Narayanaraju, S.J., Guan, X., Wang, X.E.: Grit: Teaching mllms to think with images. In: Advances in Neural Information Processing Systems (NeurIPS) (2025) 1, 3, 4, 14 7. Fang, Y., Yu, W., Zhong, S., Ye, Q., Xiong, X., Wei, L.: Artificial hippocampus net-works for efficient long-context modeling. arXiv preprint arXiv:2510.07318 (2025) 27 8. Goyal, S., Choudhury, A.R., Raje, S.M., Chakaravarthy, V.T., Sabharwal, Y., Verma, A.: Power-bert: Accelerating bert inference via progressive word-vector elimination. In: Proc. International Conference on Machine Learning (ICML) (2020) 14 9. Gu, A., Dao, T.: Mamba: Linear-time sequence modeling with selective state spaces. arXiv preprint arXiv:2312.00752 (2024) 27 10. Guo, D., Yang, D., Zhang, H., Song, J., Wang, P., Zhu, Q., Xu, R., Zhang, R., Ma, S., Bi, X., Zhang, X., Yu, X., Wu, Y., Wu, Z.F., Gou, Z., Shao, Z., Li, Z., Gao, Z., Liu, A., Xue, B., Wang, B., Wu, B., Feng, B., Lu, C., Zhao, C., Deng, C., Ruan, C., Dai, D., Chen, D., Ji, D., Li, E., Lin, F., Dai, F., Luo, F., Hao, G., Chen, G., Li, G., Zhang, H., Xu, H., Ding, H., Gao, H., Qu, H., Li, H., Guo, J., Li, J., Chen, J., Yuan, J., Tu, J., Qiu, J., Li, J., Cai, J.L., Ni, J., Liang, J., Chen, J., Dong, K., Hu, K., You, K., Gao, K., Guan, K., Huang, K., Yu, K., Wang, L., Zhang, L., Zhao, L., Wang, L., Zhang, L., Xu, L., Xia, L., Zhang, M., Zhang, M., Tang, M., Zhou, M., Li, M., Wang, M., Li, M., Tian, N., Huang, P., Zhang, P., Wang, Q., Chen, Q., Du, Q., Ge, R., Zhang, R., Pan, R., Wang, R., Chen, R.J., Jin, R.L., Chen, R., Lu, S., Zhou, S., Chen, S., Ye, S., Wang, S., Yu, S., Zhou, S., Pan, S., Li, S.S., Zhou, S., Wu, S., Yun, T., Pei, T., Sun, T., Wang, T., Zeng, W., Liu, W., Liang, W., Gao, W., Yu, W., Zhang, W., Xiao, W.L., An, W., Liu, X., Wang, X., Chen, X., Nie, X., Cheng, X., Liu, X., Xie, X., Liu, X., Yang, X., Li, X., Su, X., Lin, X., Li, X.Q., Jin, X., Shen, X., Chen, X., Sun, X., Wang, X., Song, X., Zhou, X., Wang, X., Shan, X., Li, Y.K., Wang, Y.Q., Wei, Y.X., Zhang, Y., Xu, Y., Li, Y., Zhao, Y., Sun, Y., Wang, Y., Yu, Y., Zhang, Y., Shi, Y., Xiong, Y., He, Y., Piao, Y., Wang, Foveated Reasoner 29 Y., Tan, Y., Ma, Y., Liu, Y., Guo, Y., Ou, Y., Wang, Y., Gong, Y., Zou, Y., He, Y., Xiong, Y., Luo, Y., You, Y., Liu, Y., Zhou, Y., Zhu, Y.X., Huang, Y., Li, Y., Zheng, Y., Zhu, Y., Ma, Y., Tang, Y., Zha, Y., Yan, Y., Ren, Z.Z., Ren, Z., Sha, Z., Fu, Z., Xu, Z., Xie, Z., Zhang, Z., Hao, Z., Ma, Z., Yan, Z., Wu, Z., Gu, Z., Zhu, Z., Liu, Z., Li, Z., Xie, Z., Song, Z., Pan, Z., Huang, Z., Xu, Z., Zhang, Z., Zhang, Z.: Deepseek-r1 incentivizes reasoning in llms through reinforcement learning. Nature 
+
+645 (8081), 633–638 (Sep 2025). https://doi.org/10.1038/s41586-025-09422-z ,
+
+http://dx.doi.org/10.1038/s41586-025-09422-z 7, 9 11. Huang, J., Tan, Z., Gong, S., Zeng, F., Zhou, J.T., Miao, C., Tan, H., Yao, W., Li, J.: Lav-cot: Language-aware visual cot with multi-aspect reward optimization for real-world multilingual vqa. arXiv preprint arXiv:2509.10026 (2025) 1, 3, 4, 14 12. Huang, S., Dong, L., Wang, W., Hao, Y., Singhal, S., Ma, S., Lv, T., Cui, L., Mohammed, O.K., Patra, B., Liu, Q., Aggarwal, K., Chi, Z., Bjorck, J., Chaudhary, V., Som, S., Song, X., Wei, F.: Language is not all you need: Aligning perception with language models. In: Advances in Neural Information Processing Systems (NeurIPS) (2023) 14 13. Huang, Z., Chen, K., He, J., Bai, X., Karatzas, D., Lu, S., Jawahar, C.V.: Ic-dar2019 competition on scanned receipt ocr and information extraction. In: 2019 International Conference on Document Analysis and Recognition (ICDAR). IEEE (2019) 10 14. Hudson, D.A., Manning, C.D.: Gqa: A new dataset for real-world visual reasoning and compositional question answering. In: Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2019) 10 15. Jiang, Y., Gu, J., Xue, T., Cheung, K.C., Molchanov, P., Yin, H., Liu, S.: Token-efficient vlm: High-resolution image understanding via dynamic region proposal. In: Proc. IEEE International Conference on Computer Vision (ICCV). pp. 24147– 24158 (October 2025) 3 16. Jonnalagadda, A., Wang, W.Y., Manjunath, B.S., Eckstein, M.P.: Foveater: Foveated transformer for image classification. arXiv preprint arXiv:2105.14173 (2022) 14 17. Kazemzadeh, S., Ordonez, V., Matten, M., Berg, T.L.: Referit game: Referring to objects in photographs of natural scenes. In: Conference on Empirical Methods in Natural Language Processing (EMNLP) (2014) 10, 18 18. Kong, Z., Dong, P., Ma, X., Meng, X., Sun, M., Niu, W., Shen, X., Yuan, G., Ren, B., Qin, M., Tang, H., Wang, Y.: Spvit: Enabling faster vision transformers via soft token pruning. In: Proc. European Conference on Computer Vision (ECCV) (2022) 14 19. Kuznetsova, A., Rom, H., Alldrin, N., Uijlings, J., Krasin, I., Pont-Tuset, J., Ka-mali, S., Popov, S., Malloci, M., Kolesnikov, A., Duerig, T., Ferrari, V.: The open images dataset v4: Unified image classification, object detection, and visual rela-tionship detection at scale. In: International Journal of Computer Vision (IJCV) (2020) 10 20. Landeghem, J.V., Tito, R., Łukasz Borchmann, Pietruszka, M., Józiak, P., Powal-ski, R., Jurkiewicz, D., Coustaty, M., Ackaert, B., Valveny, E., Blaschko, M., Moens, S., Stanisławek, T.: Document understanding dataset and evaluation (dude). In: Proc. IEEE International Conference on Computer Vision (ICCV) (2023) 10, 26 21. Li, J., Li, D., Savarese, S., Hoi, S.: BLIP-2: bootstrapping language-image pre-training with frozen image encoders and large language models. In: Proc. Interna-tional Conference on Machine Learning (ICML) (2023) 1, 3, 14 30 J. Min et al. 22. Liang, Y., Ge, C., Tong, Z., Song, Y., Wang, J., Xie, P.: Not all patches are what you need: Expediting vision transformers via token reorganizations. In: International Conference on Learning Representations (ICLR) (2022) 14 23. Lin, W., Feng, Y., Zhu, Y.: <scp>metasapiens:</scp> real-time neural render-ing with efficiency-aware pruning and accelerated foveated rendering. In: Pro-ceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 1. p. 669–682. AS-PLOS ’25, ACM (Mar 2025). https://doi.org/10.1145/3669940.3707227 ,
+
+http://dx.doi.org/10.1145/3669940.3707227 14 24. Lin, Z., Liu, C., Zhang, R., Gao, P., Qiu, L., Xiao, H., Qiu, H., Lin, C., Shao, W., Chen, K., Han, J., Huang, S., Zhang, Y., He, X., Li, H., Qiao, Y.: Sphinx: The joint mixing of weights, tasks, and visual embeddings for multi-modal large language models. arXiv preprint arXiv:2311.07575 (2023) 10, 11 25. Liu, F., Emerson, G., Collier, N.: Visual spatial reasoning. In: Proc. Annual Meet-ing of the Association for Computational Linguistics (ACL) (2023) 10 26. Liu, H., Li, C., Li, Y., Lee, Y.J.: Improved baselines with visual instruction tuning. In: Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2024) 1, 14 27. Liu, H., Li, C., Wu, Q., Lee, Y.J.: Visual instruction tuning. In: Advances in Neural Information Processing Systems (NeurIPS) (2023) 1, 3, 10, 11, 14 28. Liu, Y., Gehrig, M., Messikommer, N., Cannici, M., Scaramuzza, D.: Revisiting token pruning for object detection and instance segmentation. In: Proc. Winter Conference on Applications of Computer Vision (WACV) (2024) 14 29. Lu, P., Mishra, S., Xia, T., Qiu, L., Chang, K.W., Zhu, S.C., Tafjord, O., Clark, P., Kalyan, A.: Learn to explain: Multimodal reasoning via thought chains for science question answering. In: Advances in Neural Information Processing Systems (NeurIPS) (2022) 10, 18 30. Lukanov, H., König, P., Pipa, G.: Biologically inspired deep learning model for efficient foveal-peripheral vision. Frontiers in Computational Neuroscience Volume 15 - 2021 (2021). https://doi.org/10.3389/fncom.2021.746204 , https://www. frontiersin.org/journals/computational-neuroscience/articles/10.3389/ fncom.2021.746204 14 31. Mathew, M., Bagal, V., Tito, R.P., Karatzas, D., Valveny, E., Jawahar, C.V.: Infographicvqa. In: Proc. Winter Conference on Applications of Computer Vision (WACV) (2022) 10 32. Mathew, M., Karatzas, D., Jawahar, C.V.: Docvqa: A dataset for vqa on document images. In: Proc. Winter Conference on Applications of Computer Vision (WACV) (2021) 10, 12, 14, 22, 23 33. Min, J., Zhao, Y., Luo, C., Cho, M.: Peripheral vision transformer. In: Advances in Neural Information Processing Systems (NeurIPS) (2022) 14 34. Mnih, V., Heess, N., Graves, A., Kavukcuoglu, K.: Recurrent models of visual at-tention. In: Advances in Neural Information Processing Systems (NeurIPS) (2014) 14 35. OpenAI: Chatgpt (2025), accessed: 2025-04-05 10 36. OpenBMB: MiniCPM-o. https://github.com/OpenBMB/MiniCPM- o (2024), ac-cessed: 2024-03-05 11 37. Plummer, B.A., Wang, L., Cervantes, C.M., Caicedo, J.C., Hockenmaier, J., Lazeb-nik, S.: Flickr30k entities: Collecting region-to-phrase correspondences for richer image-to-sentence models. In: Proc. IEEE International Conference on Computer Vision (ICCV) (2015) 10, 25 Foveated Reasoner 31 38. Qi, J., Ding, M., Wang, W., Bai, Y., Lv, Q., Hong, W., Xu, B., Hou, L., Li, J., Dong, Y., Tang, J.: Cogcom: Train large vision-language models diving into details through chain of manipulations. arXiv preprint arXiv:2402.04236 (2024) 1, 3, 4, 14 39. Qin, Y., Wei, B., Ge, J., Kallidromitis, K., Fu, S., Darrell, T., Wang, X.: Chain-of-visual-thought: Teaching vlms to see and think better with continuous visual tokens. arXiv preprint arXiv:2511.19418 (2025) 14 40. Rao, Y., Zhao, W., Liu, B., Lu, J., Zhou, J., Hsieh, C.J.: Dynamicvit: Efficient vision transformers with dynamic token sparsification. In: Advances in Neural In-formation Processing Systems (NeurIPS) (2021) 14 41. Rosenholtz, R., Huang, J., Raj, A., Balas, B.J., Ilie, L.: A summary statistic repre-sentation in peripheral vision explains visual search. Journal of Vision 12 (4), 14–14 (04 2012). https://doi.org/10.1167/12.4.14 , https://doi.org/10.1167/12. 4.14 14 42. Ryoo, M.S., Piergiovanni, A., Arnab, A., Dehghani, M., Angelova, A.: Token-learner: What can 8 learned tokens do for images and videos? In: Advances in Neural Information Processing Systems (NeurIPS) (2021) 14 43. Sarch, G., Saha, S., Khandelwal, N., Jain, A., Tarr, M.J., Kumar, A., Fragkiadaki, K.: Grounded reinforcement learning for visual reasoning. In: Advances in Neural Information Processing Systems (NeurIPS) (2025) 1, 3, 4, 14 44. Shao, H., Qian, S., Xiao, H., Song, G., Zong, Z., Wang, L., Liu, Y., Li, H.: Visual cot: Unleashing chain-of-thought reasoning in multi-modal language models. In: Advances in Neural Information Processing Systems (NeurIPS) (2024) 1, 2, 3, 4, 8, 10, 11, 14, 18 45. Shao, Z., Wang, P., Zhu, Q., Xu, R., Song, J., Bi, X., Zhang, H., Zhang, M., Li, Y.K., Wu, Y., Guo, D.: Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 (2024) 9, 16, 19 46. Shen, H., Zhao, K., Zhao, T., Xu, R., Zhang, Z., Zhu, M., Yin, J.: Zoomeye: En-hancing multimodal llms with human-like zooming capabilities through tree-based image exploration. In: Conference on Empirical Methods in Natural Language Pro-cessing (EMNLP) (2025) 3 47. Sidorov, O., Hu, R., Rohrbach, M., Singh, A.: Textcaps: a dataset for image cap-tioning with reading comprehension. In: Proc. European Conference on Computer Vision (ECCV) (2020) 10 48. Singh, A., Natarajan, V., Shah, M., Jiang, Y., Chen, X., Batra, D., Parikh, D., Rohrbach, M.: Towards vqa models that can read. In: Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2019) 10, 12, 22, 23 49. Su, A., Wang, H., Ren, W., Lin, F., Chen, W.: Pixel reasoner: Incentivizing pixel-space reasoning with curiosity-driven reinforcement learning. In: Advances in Neu-ral Information Processing Systems (NeurIPS) (2025) 1, 3, 4, 14 50. Su, J., Lu, Y., Pan, S., Wen, B., Liu, Y.: Roformer: Enhanced transformer with rotary position embedding. arXiv preprint arXiv:2104.09864 (2021) 20 51. Wah, C., Branson, S., Welinder, P., Perona, P., Belongie, S.: Caltech-ucsd birds 200. Tech. Rep. CNS-TR-2011-001, California Institute of Technology (2011) 10, 26 52. Wang, W., Lv, Q., Yu, W., Hong, W., Qi, J., Wang, Y., Ji, J., Yang, Z., Zhao, L., Song, X., Xu, J., Xu, B., Li, J., Dong, Y., Ding, M., Tang, J.: Cogvlm: Visual expert for pretrained language models. In: Advances in Neural Information Processing Systems (NeurIPS) (2024) 14 32 J. Min et al. 53. Wu, P., Xie, S.: V*: Guided visual search as a core mechanism in multimodal llms. In: Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2024) 1, 3, 4, 10, 11, 14 54. Xu, G., Jin, P., Wu, Z., Li, H., Song, Y., Sun, L., Yuan, L.: Llava-cot: Let vision language models reason step-by-step. In: Proc. IEEE International Conference on Computer Vision (ICCV) (2025) 14 55. Xu, Y., Zhang, Z., Zhang, M., Sheng, K., Li, K., Dong, W., Zhang, L., Xu, C., Sun, X.: Evo-vit: Slow-fast token evolution for dynamic vision transformer. In: Proc. AAAI Conference on Artificial Intelligence (AAAI) (2022) 14 56. Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B., Yu, B., Gao, C., Huang, C., Lv, C., Zheng, C., Liu, D., Zhou, F., Huang, F., Hu, F., Ge, H., Wei, H., Lin, H., Tang, J., Yang, J., Tu, J., Zhang, J., Yang, J., Yang, J., Zhou, J., Zhou, J., Lin, J., Dang, K., Bao, K., Yang, K., Yu, L., Deng, L., Li, M., Xue, M., Li, M., Zhang, P., Wang, P., Zhu, Q., Men, R., Gao, R., Liu, S., Luo, S., Li, T., Tang, T., Yin, W., Ren, X., Wang, X., Zhang, X., Ren, X., Fan, Y., Su, Y., Zhang, Y., Zhang, Y., Wan, Y., Liu, Y., Wang, Z., Cui, Z., Zhang, Z., Zhou, Z., Qiu, Z.: Qwen3 technical report. arXiv preprint arXiv:2505.09388 (2025) 18, 22 57. Yang, S., Li, J., Lai, X., Yu, B., Zhao, H., Jia, J.: Visionthink: Smart and effi-cient vision language model via reinforcement learning. In: Advances in Neural Information Processing Systems (NeurIPS) (2025) 3 58. Yao, Y., Yu, T., Zhang, A., Wang, C., Cui, J., Zhu, H., Cai, T., Li, H., Zhao, W., He, Z., Chen, Q., Zhou, H., Zou, Z., Zhang, H., Hu, S., Zheng, Z., Zhou, J., Cai, J., Han, X., Zeng, G., Li, D., Liu, Z., Sun, M.: Minicpm-v: A gpt-4v level mllm on your phone. arXiv preprint arXiv:2408.01800 (2024) 11 59. Yarbus, A.L.: Eye movements and vision. Springer (2013) 2 60. Ye, J., Meng, X., Guo, D., Shang, C., Mao, H., Yang, X.: Neural foveated super-resolution for real-time vr rendering. Computer Animation and Virtual Worlds 
+
+35 (4), e2287 (2024). https://doi.org/https://doi.org/10.1002/cav.2287 ,
+
+https://onlinelibrary.wiley.com/doi/abs/10.1002/cav.2287 14 61. Yin, H., Vahdat, A., Alvarez, J., Mallya, A., Kautz, J., Molchanov, P.: Adavit: Adaptive tokens for efficient vision transformer. In: Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2022) 14 62. Yu, R., Ma, X., Wang, X.: Auto-controlled image perception in mllms via visual perception tokens. In: Proc. IEEE International Conference on Computer Vision (ICCV) (2025) 2, 3, 4, 10, 11, 14, 18 63. Yu, W., Yang, Z., Liu, Y., Bai, X.: Docthinker: Explainable multimodal large lan-guage models with rule-based reinforcement learning for document understanding. In: Proc. IEEE International Conference on Computer Vision (ICCV) (2025) 10, 11, 18 64. Zhang, R., Zhang, B., Li, Y., Zhang, H., Sun, Z., Gan, Z., Yang, Y., Pang, R., Yang, Y.: Improve vision language model chain-of-thought reasoning. In: Proc. Annual Meeting of the Association for Computational Linguistics (ACL) (2024) 14 65. Zhang, X., Gao, Z., Zhang, B., Li, P., Zhang, X., Liu, Y., Yuan, T., Wu, Y., Jia, Y., Zhu, S.C., Li, Q.: Adaptive chain-of-focus reasoning via dynamic visual search and zooming for efficient vlms. arXiv preprint arXiv:2505.15436 (2025) 1, 3, 4, 14 66. Zhang, Z., Zhang, A., Li, M., Zhao, H., Karypis, G., Smola, A.: Multimodal chain-of-thought reasoning in language models. arXiv preprint arXiv:2302.00923 (2024) 14 67. Zhao, K., Zhu, B., Sun, Q., Zhang, H.: Unsupervised visual chain-of-thought rea-soning via preference optimization. In: Proc. IEEE International Conference on Computer Vision (ICCV) (2025) 1, 2, 3, 4, 10, 11, 14, 18 Foveated Reasoner 33 68. Zheng, Z., Yang, M., Hong, J., Zhao, C., Xu, G., Yang, L., Shen, C., Yu, X.: Deepeyes: Incentivizing "thinking with images" via reinforcement learning. In: In-ternational Conference on Learning Representations (ICLR) (2025) 1, 3, 4, 14 69. Zhu, D., Chen, J., Shen, X., Li, X., Elhoseiny, M.: Minigpt-4: Enhancing vision-language understanding with advanced large language models. In: International Conference on Learning Representations (ICLR) (2024) 14 70. Zhu, Y., Groth, O., Bernstein, M., Fei-Fei, L.: Visual7w: Grounded question an-swering in images. In: Proc. IEEE Conference on Computer Vision and Pattern Recognition (CVPR) (2016) 10, 12, 22, 25
