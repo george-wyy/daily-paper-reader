@@ -1,0 +1,794 @@
+Title: From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges
+
+URL Source: https://arxiv.org/pdf/2604.21391v1
+
+Published Time: Fri, 24 Apr 2026 00:35:26 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Yiming Zhong * 1 Yaoyu He * 1 Zemin Yang * 1 Pengfei Tian 1 Yifan Huang 1 Qingqiu Huang 2 Xinge Zhu 3
+
+Yuexin Ma † 1
+
+## Abstract 
+
+Bridging high-level semantic understanding with low-level physical control remains a persistent challenge in embodied intelligence, stemming from the fundamental spatiotemporal scale mis-match between cognition and action. Exist-ing generative VLA policies typically adopt a “Generation-from-Noise” paradigm, which dis-regards this disparity, leading to representation inefficiency and weak condition alignment dur-ing optimization. In this work, we propose 
+
+ResVLA , an architecture that shifts the paradigm to “Refinement-from-Intent.” Recognizing that robotic motion naturally decomposes into global intent and local dynamics, ResVLA utilizes spec-tral analysis to decouple control into a determin-istic low-frequency anchor and a stochastic high-frequency residual. By anchoring the generative process on the predicted intent, our model fo-cuses strictly on refining local dynamics via a residual diffusion bridge. Extensive simulation experiments show that ResVLA achieves compet-itive performance, strong robustness to language and robot embodiment perturbations, and faster convergence than standard generative baselines. It also demonstrates strong performance in real-world robot experiments. 
+
+## 1. Introduction 
+
+“We build too many walls and not enough bridges.” 
+
+— Isaac Newton 
+
+The rapid advancement of Vision-Language-Action (VLA) 
+
+* Equal contribution. † Corresponding authors. Project page: https://res-vla.github.io/ResVLA/ 
+
+Code: https://github.com/4DVLab/ResVLA 
+
+> 1
+
+ShanghaiTech University, Shanghai, China 2Morphic Robotics, Shenzhen, China 3The Chinese University of Hong Kong, Hong Kong, China. Correspondence to: Yiming Zhong <zhongym2024@shanghaitech.edu.cn >, Yuexin Ma 
+
+<mayuexin@shanghaitech.edu.cn >.
+
+Preprint. April 24, 2026. (a) Generation -from -Noise    
+
+> VLM Action
+> Expert
+> Obs .
+> Generation Process Loss Collapse
+> Action
+> Noise
+> VLM
+> Action Expert
+> Intent Anchoring
+> (b) Ours (Refinement -from -Intent)
+> Residual Bridge
+> Anchor Action
+> Obs .
+
+Figure 1. Paradigm comparison. (a) Generation-from-Noise ini-tializes from uninformative noise, leading to inefficient transport paths and “Loss Collapse” where trajectories fail to align with semantic instructions. (b) Refinement-from-Intent (Ours) anchors generation on a predicted low-frequency intent. This establishes a short-path “Residual Bridge” that focuses strictly on refining high-frequency dynamics to reach the target action manifold. 
+
+models has endowed generalist robots with remarkable capabilities in comprehending complex semantic instruc-tions (Brohan et al., 2023b;a; Kim et al., 2024; 2025; Black et al., 2026; Pertsch et al., 2025; Bjorck et al., 2025). How-ever, effectively grounding this high-level semantic under-standing into low-level physical manipulation remains a fun-damental challenge in embodied intelligence. We posit that this challenge stems from a spatiotemporal scale mismatch between cognition and action. Specifically, the cognitive in-tent derived from VLMs operates at a macro-temporal scale, prioritizing global trajectory planning and long-horizon ge-ometric consistency (Ahn et al., 2022; Huang et al., 2022). In terms of signal characteristics, this manifests as a low-frequency and deterministic distribution. In contrast, suc-cessful physical interaction necessitates precise modulation at a micro-temporal scale to accommodate contact dynam-1
+
+> arXiv:2604.21391v1 [cs.RO] 23 Apr 2026 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges
+
+ics, friction, and sensor noise (Hogan, 1984; Lee et al., 2019; Levine et al., 2015). These execution details inherently ex-hibit a high-frequency and highly stochastic distribution. This disparity suggests that ideal robotic control should not be a process of generation ex nihilo , but rather one of It-erative Refinement : a process that progressively injects microscopic physical dynamics while strictly adhering to the guidance of the macroscopic semantic structure. To surmount the limitations of early discrete tokenization approaches in action precision and smoothness (Brohan et al., 2023b;a; Team et al., 2024; Kim et al., 2024), robotic policy research has pivoted towards a continuous genera-tive policy paradigm. Representative architectures, such as 
+
+π0 (Black et al., 2026) and π0.5 (Intelligence et al., 2025), adopt continuous generative action models based on Flow Matching (Lipman et al., 2022) and diffusion policies (Chi et al., 2025), significantly enhancing physical fidelity and multimodal modeling capabilities. However, while these methods excel at capturing complex physical dynamics, they predominantly adhere to a “Generation-from-Noise” 
+
+paradigm, forcing the model to reconstruct the entire action distribution starting from an uninformative, isotropic Gaus-sian prior N (0, I). This approach disregards the aforemen-tioned essence of refinement, complicating task execution into a problem of conditional distribution modeling from scratch. The cost is primarily twofold: (1) Representation Inefficiency: the model is compelled to expend the velocity field on rediscovering the explicit global intent, which is computationally wasteful; (2) Loss Collapse: as highlighted by recent theoretical analyses (Pan et al., 2025; Dong et al., 2025), the independence between the initial noise source and the task condition renders the optimization prone to ignoring fine-grained language instructions. Consequently, the generated actions, while statistically plausible in physics, often fail to align with the critical semantic intent. Given the structural flaws of “Generation-from-Noise” ,we advocate for a return to the essence of control by estab-lishing a new paradigm of “Refinement-from-Intent” (Fig-ure 1). Realizing this paradigm requires addressing two core questions: Where to start? and How to refine? Regarding the first question, we identify that spectral analysis offers a natural perspective for decoupling. Since low-frequency components encapsulate the global geometric structure of the trajectory, they naturally constitute the effective anchor for this refinement process, collapsing uncertain intent into a deterministic prior. Regarding the second question, we introduce the Diffusion Bridge (Bortoli et al., 2023) mech-anism to construct the refinement path. Unlike standard diffusion models that perform blind exploration from Gaus-sian noise, diffusion bridge models explicitly establish a directed connection from a known starting point (i.e., our low-frequency intent) to the target distribution (ground-truth actions). Crucially, because the low-frequency intent is geo-metrically proximate to the true action, this bridging process no longer requires reconstructing the entire trajectory but only filling in the missing high-frequency residuals. This not only dramatically shortens the generative path in geom-etry, but also physically aligns with the control intuition of fine-tuning only local dynamics. We instantiate this theoretical framework as ResVLA , a gen-eral architecture that leverages spectral analysis to decouple intent anchoring and residual refinement. We extensively evaluated ResVLA across a diverse suite of benchmarks, including LIBERO (Liu et al., 2023a), LIBERO-Plus (Fei et al., 2025), and SimplerEnv (Li et al., 2024b). This evalu-ation suite covers a broad spectrum of challenges, ranging from long-horizon semantic planning to high-fidelity contact manipulation and cross-embodiment generalization. Exper-imental results demonstrate that ResVLA achieves strong overall performance across this extensive testing spectrum. Specifically, thanks to the semantic locking effect of the low-frequency anchor, our method exhibits significantly superior stability in long-horizon tasks compared to pure generative baselines such as π0. Meanwhile, the short-path charac-teristic of the residual bridge enables the model to more efficiently master complex contact dynamics. Furthermore, substantial improvements in training convergence speed and inference efficiency further validate that introducing struc-tured physical priors into large models is a critical pathway toward efficient and robust generalist robot control. Our contributions are summarized as follows: • We identify source-condition independence as a factor behind training inefficiency and loss collapse in gen-erative VLA policies. To address this, we propose a residual refinement perspective that maximizes the mu-tual information between the source and the condition. • We introduce ResVLA , which fuses deterministic re-gression and generative flow matching via spectral or-thogonality. By anchoring generation on a condition-dependent low-frequency source, we effectively rec-oncile the conflict between global semantic alignment and local dynamic fidelity. • Extensive evaluations demonstrate that our ResVLA 
+
+achieves competitive performance. Notably, it exhibits superior robustness in long-horizon and contact-rich tasks while converging significantly faster than denois-ing baselines, validating the efficiency of our residual bridging paradigm. 
+
+## 2. Related Work 
+
+2.1. Evolution of Vision-Language-Action Models 
+
+The early development of generative robotic control was pri-marily dominated by the discrete autoregressive paradigm. 2From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+With RT-2 (Brohan et al., 2023a) and OpenVLA (Kim et al., 2024) as cornerstones, this lineage leveraged the logical reasoning capabilities of LLMs, while subsequent works augmented this architecture through various mech-anisms (Zhang et al., 2024; Lu et al., 2025a; Zhao et al., 2025; Cen et al., 2025). However, despite their powerful semantic planning capabilities, the quantization error in-herent in discrete tokenization remains an insurmountable barrier for fine-grained physical manipulation. To break through this precision bottleneck, the field has pivoted to-wards the continuous generative paradigm. Represented by Diffusion Policy (Chi et al., 2025), Octo (Team et al., 2024), and π0 (Black et al., 2026), these methods achieved high-fidelity physical control by directly modeling contin-uous distributions. Subsequent works further refined this direction (Pertsch et al., 2025; Intelligence et al., 2025; Qu et al., 2025; Zheng et al., 2024; Shukor et al., 2025; Wang et al., 2025b). Although the continuous paradigm resolved precision issues, most of these models still fol-low the “Generation-from-Noise” paradigm, compelling them to reconstruct intent from uninformative noise, lead-ing to training inefficiency and potential instruction failure. 
+
+ResVLA aims to rectify this structural deficiency: we reject the notion of generation from scratch, instead utilizing the low-frequency intent determined by the VLM as an anchor and employing the model solely to refine high-frequency physical dynamics via our residual diffusion bridge. 
+
+2.2. Diffusion Bridges and Optimization Pathology 
+
+Diffusion Bridges, such as Schr ¨odinger Bridges (De Bor-toli et al., 2021) and I 2SB (Liu et al., 2023b), generalize standard diffusion by enabling probabilistic connections between source and target distributions. This flexibility establishes an ideal framework for refining sub-optimal pri-ors (e.g., coarse trajectories) into optimal posteriors, show-ing promise in image restoration (Wang et al., 2025a) and robotic motion planning (Nguyen et al., 2025). However, in conditional control, source design plays an important role in optimization stability. Recent theoretical analyses (Dong et al., 2025) identify a phenomenon termed “Loss Col-lapse” : when the source distribution is independent of the task condition (e.g., instructions), optimization can suffer from weakened conditioning signals, causing the model to ignore fine-grained conditions. Related to this issue, re-cent work has also explored condition-aware or informative source design. In diffusion policies, Cocos (Dong et al., 2025) introduces condition-dependent sources to mitigate loss collapse; VITA (Gao et al., 2025b) uses visual latents as the source of flow; CAR-Flow (Chen et al., 2025) reparame-terizes source and target distributions in a condition-aware manner; and Prior Does Matter (Ren et al., 2025) and Don’t Start from Scratch (Walke et al., 2023) show the benefits of informative priors beyond pure Gaussian initialization. The core contribution of ResVLA lies not in proposing a new bridge algorithm, but in instantiating condition-dependent source construction for VLA control. By constructing a condition-dependent source, we enable stable application of diffusion bridges to VLA control. 
+
+2.3. Structured Priors in Robotic Control 
+
+To construct such a robust source distribution, incorporat-ing structured priors has been a longstanding strategy in robotic control. Residual learning classically employs an-alytical controllers (e.g., PID) as baselines, learning only residual actions to compensate for dynamic errors (Silver et al., 2018; Johannink et al., 2018). In the generative do-main, approaches like Decision Diffuser (Ajay et al., 2023) have also embraced this intuition, demonstrating how trajec-tory generation can be formulated as an iterative refinement process under constraints. In representation learning, fre-quency and hierarchical structures offer another form of prior: FAST (Pertsch et al., 2025) utilizes DCT for action compression; FreqPolicy (Zhong et al., 2025a) validates the stability of low-frequency prediction; and H 3DP (Lu et al., 2025b) optimizes long-horizon generation via spatiotem-poral hierarchy. ResVLA revisits these concepts within a generative framework. Unlike traditional residual learning that relies on handcrafted baselines and is distinct from the specific architectural designs of FreqPolicy or H 3DP, we leverage the data-driven low-frequency intent as a general structured anchor. This not only provides a semantically grounded starting point for the diffusion bridge but also transforms the generation task into a more optimization-friendly residual refinement problem, achieving dual gains in efficiency and precision. 
+
+## 3. Theoretical Formulation: Control via Iterative Refinement 
+
+3.1. Refinement Dynamics in Control Policies 
+
+The core objective of robot learning is to approximate the ex-pert conditional distribution p1(x|c). Following the insights from Minimal Iterative Policy (MIP) (Pan et al., 2025), we posit that the efficacy of a policy in high-precision tasks stems not merely from distributional matching, but from its capability for Iterative Refinement , the ability to repeat-edly project an initial guess back onto the expert manifold 
+
+M during inference. We analyze existing control paradigms through this lens. 
+
+Deterministic Regression. Regression-based methods (e.g., ACT (Zhao et al., 2023)) model the policy as a deterministic mapping x = fθ (c), minimizing the expected risk: 
+
+min  
+
+> θ
+
+E(c,x∗)∼D ∥x∗ − fθ (c)∥2. (1) Mathematically, this collapses the target distribution into a 3From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Dirac delta p(x|c) = δ(x − fθ (c)) . While computationally efficient, this formulation represents a single-step projection. As noted in MIP, while this paradigm performs adequately in simple tasks, in high-precision manipulation, the lack of subsequent iterative computation deprives the model of the mechanism to correct initial prediction deviations. Con-sequently, predicted trajectories are prone to drifting off the expert manifold due to error accumulation, manifest-ing as the “regression to the mean” phenomenon where high-frequency details are lost. 
+
+Discrete Autoregressive Generation. To incorporate se-quential dependencies, methods like OpenVLA (Kim et al., 2024) discretize the action space into token sequences 
+
+x ≈ (s1, . . . , s L). The generation process factorizes as: 
+
+p(x|c) = Q p(si|s<i , c). While acting as a sequential sub-space refinement, this paradigm suffers from a fundamental precision bottleneck: 
+
+Proposition 3.1 (Irreducible Quantization Noise) . For a uniform quantization Q with resolution ∆, assuming locally uniform ground-truth x∗, the expected reconstruction MSE is strictly lower-bounded: 
+
+Ex∗
+
+∥x∗ − Q −1(Q(x∗)) ∥2 = ∆2
+
+12 . (2) This term ∆2/12 represents a permanent structural dead-band . This irreducible noise prevents asymptotic zero-error convergence, rendering discrete policies theoretically inade-quate for high-precision manipulation. 
+
+Continuous Generative Models. Continuous methods (e.g., diffusion policy, π0) model action generation as a time-reversal stochastic process. The refinement dynamics are governed by the reverse-time SDE: 
+
+dxt = [ f (xt, t )−g2(t)∇xt log pt(xt|c)]d t+g(t)d ¯ wt. (3) Under discrete time steps k, the update rule (e.g., Euler-Maruyama) explicitly showcases the refinement process: 
+
+xk−1 ← xk + η∇x log pk(xk|c) + σz. (4) The gradient term ∇ log p provides the Manifold Adher-ence force that continuously pulls the state back towards the manifold. However, standard implementations typically initialize from an uninformative prior p0 = N (0, I) (t = 0 
+
+as source and t = 1 as target). This implies the model must start from pure chaos and undergo extensive iterations to reach the manifold. 
+
+3.2. Residual Diffusion Bridge Formulation 
+
+To overcome the inefficiency of initializing from uninforma-tive noise while retaining continuous precision, we adopt the Diffusion Bridge framework, which allows establishing probabilistic connections between any given source distri-bution p0 and target data distribution p1. We leverage Con-ditional Flow Matching (CFM) to instantiate this process, aiming to learn the optimal transport path connecting p0 and 
+
+p1. The path follows displacement interpolation: 
+
+xt = (1 − t)x0 + tx1 = x0 + t(x1 − x0). (5) This formulation provides the mathematical foundation for introducing our residual refinement paradigm, the velocity field vt that the model needs to learn is no longer a complex denoising field, but a constant residual vector: 
+
+vt(xt) = dxt
+
+dt = x1 − x0 ≜ ∆xresidual . (6) The mathematical advantage of this perspective lies in the minimization of transport cost. 
+
+Proposition 3.2 (Minimal Transport Cost) . Assuming the source distribution p0 is anchored near the target manifold, i.e., E[∥∆xresidual ∥2] ≪ E[∥x1∥2], the kinetic transport cost required for residual bridging is significantly lower than that of generating from standard noise. 
+
+This implies that the model only needs to learn a low-energy fine-tuning field, geometrically reducing learning difficulty. 
+
+3.3. Optimization Pathology: Loss Collapse 
+
+Although residual bridging guarantees low energy consump-tion geometrically, the optimization process may still fail if source distribution p0 is chosen inappropriately. Specifically, setting p0 as noise independent of condition c (i.e., p0 ⊥ c)exposes us to a critical issue known as “Loss Collapse” .
+
+Theorem 3.3 (Loss Collapse (Dong et al., 2025)) . If the source distribution p0(x) is independent of c, the mutual information I(x0; c) = 0 . Consequently, as t → 0, the true conditional vector field ut(x|c) degenerates into the marginal vector field, causing the conditional gradient at the ground truth to vanish: 
+
+lim  
+
+> t→0
+
+Ept(x|c)
+
+∇c∥vθ (x, t, c) − ut(x|x1)∥2 ≈ 0. (7) This implies that initializing from noise can hinder the model’s ability to attend to fine-grained instructions. It further indicates that a residual path alone is insufficient; the starting point itself should contain semantic information. To circumvent loss collapse, we construct a Condition-Dependent Source p0(x|c). This serves not only to shorten the geometric distance but, more importantly, to inject non-trivial mutual information I(x0; c) > 0 from the onset, thereby allowing gradient flow to capture semantic discrep-ancies. Consequently, establishing a semantic anchor is not merely a heuristic choice, but a theoretical prerequisite for preventing instruction drift in generative control policies. 
+
+## 4. ResVLA 
+
+Building upon the residual diffusion bridge perspective es-tablished in Sec.3, we introduce ResVLA (Figure 2). To 4From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges Vision    
+
+> Language
+> Model
+> Intent
+> Anchoring
+> Module
+> Residual Bridge
+> Inverse DCT
+> Action
+> Expert
+> ퟏ
+> Multimodel Context
+> =Frequency
+> Decomposition
+> ||
+> Semantic Subspace
+> |
+> Action Space Action (Target)
+> Semantic
+> Alignment
+> Anchor (Source)
+> Residual
+> Refinement
+> Observation (Image, Language)
+> State Learnable token
+> Intent Anchor
+
+Figure 2. Overview of the ResVLA framework. The architecture consists of two cascading stages:(1) Intent Anchoring: The Intent Anchoring Module leverages VLM features to regress the low-frequency component xS , constructing a condition-dependent source 
+
+p0(x|c). (2) Residual Bridging: A flow matching expert learns the residual transport path (red arrow) from this anchor to the full action 
+
+xgt , focusing on refining high-frequency dynamics. 
+
+instantiate this framework, we seek physical counterparts for the mathematical “anchor” and “residual”. ResVLA realizes this via spectral analysis: we disentangle action generation into a hierarchical bridging problem, first anchoring the low-frequency semantic intent, then refining high-frequency execution dynamics via flow matching. 
+
+Frequency Decomposition: To physically instantiate the decoupling of anchor and residual, we turn to Frequency Analysis . Physical intuition suggests that a robot’s global intent (e.g., “approaching an object”) manifests as long-horizon, smooth motion trends, whereas specific interaction details (e.g., “contact adjustment”) appear as local, high-frequency jitter. This natural separation of physical char-acteristics aligns precisely with the mathematical structure we sought in Sec. 3. Let F denote the Discrete Cosine Transform (DCT). We partition the action space X into two complementary subspaces: • Semantic Subspace ( S): Spanned by the lowest k
+
+frequency modes, where k is a learnable cutoff. It cap-tures the low-frequency global trajectory structure ,corresponding to the deterministic anchor. • Execution Subspace ( E): As the orthogonal comple-ment of S, it captures high-frequency detailed jitter ,corresponding to the stochastic residual. Consequently, for any ground-truth action xgt , there exists a unique decomposition xgt = xS + xE . We model the semantic component as xS = F−1(PS (F(xgt ))) , where 
+
+PS is the low-pass projection operator that retains only the first k spectral coefficients (Figure 2 bottom left). 
+
+Intent Anchoring and Source Construction: According to Theorem 1 (Loss Collapse), an effective refinement process must originate from a condition-dependent source. Given that xS carries deterministic semantic intent, our goal is to learn a mapping from condition c to the semantic subspace 
+
+S as the starting point for bridging. To this end, we propose the Intent Anchoring Module (Figure 2 middle). This module leverages the VLM backbone to extract semantic features and directly regresses the low-frequency compo-nent μprior (c) ≈ xS via a regression head. Centered on this prediction, we construct the source distribution of the diffusion bridge as: 
+
+p0(x|c) = N (x; μprior (c), σ 2
+
+> min
+
+I). (8) This distribution maximizes the mutual information I(x0; c)
+
+at t = 0 , providing a strongly semantically guided initializa-tion for the subsequent refinement process. 
+
+Residual Flow Matching: Having established the seman-tic anchor, the refinement task transforms into injecting high-frequency details via the diffusion bridge. We employ residual flow matching to learn the transport path from prior 
+
+p0 to posterior p1 (Figure 2 right). Following the residual dynamics in Sec. 3, the target vector field ut is dominated by the high-frequency component. Considering that x0 is sampled from the distribution centered at μprior , we have: 
+
+ut(xt|x0, xgt ) = xgt − x0 ≈ xE
+
+|{z} 
+
+> Refinement
+
+− ϵ|{z} 
+
+> Noise
+
+. (9) This implies that the core task of the flow matching network 
+
+vθ is to fit this high-frequency residual xE .
+
+Unified Optimization and Inference: Our framework adopts an end-to-end bi-level optimization objective, strictly aligned with the spectral hierarchy: 
+
+Ltotal = λsem ∥μprior − xS ∥2
+
+| {z }
+
+> Semantic Alignment
+
++ Et, xt ∥vθ − (xgt − x0)∥2
+
+| {z }
+
+> Residual Refinement
+
+(10) During inference, action generation follows a “Predict-Refine” flow. The model first predicts the semantic anchor 5From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+μprior (c), and then evolves along the residual field via a numerical integrator: 
+
+ˆx = μprior (c)
+
+| {z }
+
+> Intent Anchor
+
++
+
+Z 10
+
+vθ (xt, t, c)d t
+
+| {z }
+
+> Iterative Refinement
+
+. (11) Because the semantic anchor is already close to the target action, the residual transport path is short. Consequently, ResVLA can complete inference with significantly fewer function evaluations (NFE) than standard diffusion policies, substantially improving sampling efficiency. 
+
+## 5. Experiments 
+
+We design our experiments to empirically verify the three core hypotheses driving the ResVLA framework: 
+
+H1: Semantic Anchoring and Robustness. Does anchor-ing the generation process with a deterministic intent prior effectively mitigate semantic drift induced by loss collapse and enhance robustness against visual, linguistic, and layout perturbations in unstructured en-vironments? 
+
+H2: Learning Efficiency and Flow Straightness. Does modeling sparse residual corrections, rather than global vector fields from noise, result in straighter probability flows that yield significantly faster training convergence and higher inference efficiency? 
+
+H3: Cross-Embodiment and Real-World Validation. 
+
+Does separating low-frequency intent from high-frequency execution allow the model to distill embodiment-agnostic manipulation logic, thereby facilitating effective cross-embodiment transfer, and how does it perform in real-world manipulation? 
+
+5.1. Experimental Setup Benchmarks. We evaluate ResVLA on four complemen-tary settings: LIBERO (Liu et al., 2023a), its robustness-focused extension LIBERO-Plus (Fei et al., 2025), the cross-embodiment and realistic real-to-sim benchmark Sim-plerEnv (Li et al., 2024b), and a real-world ALOHA biman-ual manipulation setup. Together, these environments rigor-ously assess the policy’s capabilities across long-horizon se-quencing, spatial reasoning, contact-rich manipulation, and out-of-distribution (OOD) generalization. Detailed specifi-cations for each task are provided in Appendix B. Crucially, our model evaluated across these benchmarks is trained entirely from scratch .
+
+Baselines. We compare ResVLA against a comprehen-sive set of state-of-the-art baselines categorized by their underlying control paradigms. First, we evaluate continuous generative policies, including foundation models such as Diffusion Policy, Octo, SmolVLA and GraspVLA, along-side recent high-performing architectures like GR00T N1, 
+
+π0 and the continuous variant of OpenVLA-OFT. Second, we benchmark against discrete autoregressive policies, com-prising OpenVLA, discrete OpenVLA-OFT, SpatialVLA, ThinkAct, TraceVLA, NORA, UniVLA, UnifiedVLA and 
+
+π0-FAST. Finally, we encompass specialized paradigms in-tegrating RL, Chain-of-Thought, World Models, or other advanced mechanisms, including GRAPE, VLA-RL, CoT-VLA, WorldVLA, VLA-OS, MolmoAct, FlowVLA, 4D-VLA, RIPT-VLA and PD-VLA. 
+
+Metrics. We evaluate: (1) Success Rate (SR) for task completion reliability; (2) Learning Efficiency , measured by performance under identical training steps; and (3) In-ference Efficiency , assessing the trade-off between perfor-mance and the Number of Function Evaluations (NFE) .
+
+5.2. Semantic Anchoring and Robustness (H1) 
+
+Our first hypothesis posits that the semantic prior mitigates semantic drift induced by loss collapse and improves robust-ness against environmental perturbations. 
+
+Generalization vs. Semantic Over-fitting. As summarized in Table 2, ResVLA achieves performance comparable to the state-of-the-art on the standard LIBERO benchmark. However, we argue that success on LIBERO alone does not fully capture a model’s true capability, as this dataset is prone to semantic over-fitting, where policies memorize spe-cific visual-textural correlations or fixed instruction phras-ings. To assess adaptability, we evaluate ResVLA on the LIBERO-Plus benchmark (Table 1). While baselines like 
+
+π0 and OpenVLA-OFT exhibit sharp collapses under OOD visual and layout noise, ResVLA demonstrates exceptional resilience. Crucially, this robustness extends to linguistic variations: ResVLA maintains a dominant 88.5% success rate ( ↑7.5% over the best baseline) on diverse language in-structions, whereas OpenVLA plummets to 23.0%. This confirms that anchoring generation with a deterministic in-tent prior prevents the policy from being misled by noise or synonymous phrasing, effectively mitigating the semantic drift observed in pure noise-to-action models. 
+
+Stability in Unstructured Environments. We further eval-uate the model’s robustness against physical and kinematic variations using the Robot and Layout settings in LIBERO-Plus. These settings simulate highly unstructured environ-ments, introducing significant drift in agent morphology (embodiment) and spatial configuration relative to the train-ing distribution. While diffusion-based baselines often ex-hibit instability in these out-of-distribution (OOD) scenarios, exemplified by π0’s performance collapse to a mere 6.0% success rate in the Robot setting, ResVLA maintains a ro-bust success rate of 59.9%. Simultaneously, in the Layout setting, ResVLA achieves a state-of-the-art success rate 6From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Table 1. Robustness evaluation on the LIBERO-Plus benchmark. We report success rates (%) under various perturbations. The best ,second-best , and third-best results are highlighted. For ResVLA , we report the performance gain ( ↑) or loss ( ↓) compared to the best performing baseline . See Appendix for detailed results per suite. 
+
+Method Original Camera Robot Language Light Background Noise Layout Total 
+
+Reference: Trained on LIBERO-Plus (In-domain Adaptation) 
+
+OpenVLA-OFT (Kim et al., 2025) 97.1 92.8 30.3 85.8 94.9 93.9 89.3 77.6 79.6 
+
+Trained on LIBERO (Generalization) 
+
+OpenVLA(Kim et al., 2024) 76.5 0.8 3.5 23.0 8.1 34.8 15.2 28.5 15.6 OpenVLA-OFT(Kim et al., 2025) 97.1 56.4 31.9 79.5 88.7 93.3 75.8 74.2 69.6 OpenVLA-OFT w(Kim et al., 2025) 95.3 10.4 38.7 70.5 76.8 93.6 49.9 69.9 55.8 NORA(Hung et al., 2025) 87.9 2.2 37.0 65.1 45.7 58.6 12.8 62.1 39.0 WorldVLA(Cen et al., 2025) 79.1 0.1 27.9 41.6 43.7 17.1 10.9 38.0 25.0 UniVLA(Bu et al., 2025) 95.2 1.8 46.2 69.6 69.0 81.0 21.2 31.9 42.9 
+
+π0(Black et al., 2026) 94.2 13.8 6.0 58.8 85.0 81.4 79.0 68.9 53.6 
+
+π0-Fast(Pertsch et al., 2025) 85.5 65.1 21.6 61.0 73.2 73.2 74.4 68.8 61.6 RIPT-VLA(Tan et al., 2025) 97.5 55.2 31.2 77.6 88.4 91.6 73.5 74.2 68.4 OpenVLA-OFT m(Kim et al., 2025) 97.6 55.6 21.7 81.0 92.7 91.0 78.6 68.7 67.9 
+
+ResVLA (Ours) 96.3 49.8 ↓ 15.3 59.9 ↑ 13.7 88.5 ↑ 7.5 90.5 ↓ 2.2 94.9 ↑ 1.3 76.8 ↓ 2.2 79.0 ↑ 4.8 75.3 ↑ 5.7 
+
+Table 2. Comparison on LIBERO Benchmark. The best ,second-best , and third-best results are highlighted. Our model is co-trained on all four task suites from scratch for 30k training steps without any pre-training.                                                                                                                                          
+
+> Method Spatial Object Goal Long Avg.
+> Diffusion Policy †(Chi et al., 2025) 78.3 92.5 68.3 50.5 72.4 TraceVLA (Zheng et al., 2024) 84.6 85.2 75.1 54.1 74.8 Octo (Team et al., 2024) 78.9 85.7 84.6 51.1 75.1 OpenVLA (Kim et al., 2024) 84.7 88.4 79.2 53.7 76.5 SpatialVLA (Qu et al., 2025) 88.2 89.9 78.6 55.5 78.1 GRAPE (Zhang et al., 2024) 87.6 91.2 82.2 55.8 79.2 VLA-RL (Lu et al., 2025a) 90.2 91.8 82.2 59.8 81.0 CoT-VLA (Zhao et al., 2025) 87.5 91.6 87.6 69.0 81.1 WorldVLA (Cen et al., 2025) 87.6 96.2 83.4 60.0 81.8 ThinkAct (Huang et al., 2025) 88.3 91.4 87.1 70.9 84.4
+> π0-FAST (Pertsch et al., 2025) 96.4 96.8 88.6 60.2 85.5 VLA-OS (Gao et al., 2025a) 87.0 96.5 92.7 66.0 85.6 MolmoAct (Lee et al., 2025) 87.0 95.4 87.6 77.2 86.6 NORA (Hung et al., 2025) 92.2 95.4 89.4 74.6 87.9 FlowVLA (Zhong et al., 2025b) 93.2 95.0 91.6 72.6 88.1 4D-VLA (Zhang et al., 2025) 88.9 95.2 90.9 79.1 88.6 SmolVLA (Shukor et al., 2025) 93.0 94.0 91.0 77.0 88.8 GraspVLA (Deng et al., 2025) -94.1 91.2 82.0 89.1 GR00T N1 (Bjorck et al., 2025) 94.4 97.6 93.0 90.6 93.9
+> π0(Black et al., 2026) 96.8 98.8 95.8 85.2 94.2 PD-VLA (Song et al., 2025) 95.5 96.7 94.9 91.7 94.7 UniVLA (Bu et al., 2025) 96.5 96.8 95.6 92.0 95.2 UnifiedVLA (Wang et al., 2025c) 95.4 98.8 93.6 94.0 95.5 OpenVLA-OFT (Kim et al., 2025) 97.6 98.4 97.9 94.5 97.1 VLA-Adapter (Wang et al., 2025b) 97.8 99.2 97.2 95.0 97.3 ResVLA (Ours) 96.8 98.6 97.4 92.4 96.3
+
+of 79.0%. This confirms that frequency-domain model-ing provides reliable global guidance for spatial reasoning, effectively suppressing the trajectory jitter and execution errors common in generative policies under OOD condi-tions, while ensuring precise and contact-rich manipulation. Camera perturbations remain comparatively challenging, indicating that the model still inherits viewpoint sensitivity from the training data, while training on a single dataset alone is insufficient to fully address generalization under camera viewpoint changes. (a) (b) 
+
+Figure 3. Efficiency Evaluation. (a) Training convergence curves comparing success rates under varying dropout rates ( p). (b) In-ference analysis displaying success rates (bars) and inference time (lines) across different numbers of function evaluations (NFE). 
+
+5.3. Learning Efficiency and Flow Straightness (H2) 
+
+We investigate whether residual corrections yield straighter flows for improved efficiency, benchmarking against 
+
+π0 (starVLA Contributors, 2025) on LIBERO. 
+
+Training Convergence. Figure 3(a) demonstrates ResVLA’s superior sample efficiency. Under standard dropout rate ( p = 0 .1), it converges significantly faster than the baseline. Crucially, in high dropout rate ( p = 0 .2), ResVLA maintains robust performance ascent while π0
+
+suffers from optimization saturation. This confirms that spectral decomposition anchors the learning process, ef-fectively alleviating the optimization burden inherent in noise-to-action mapping. 
+
+Inference Efficiency. Figure 3(b) highlights the structural advantage of our approach. While both models reach ∼85% success at NFE=4, ResVLA achieves > 70% with a sin-gle step (NFE=1). This validates our Path Straightening 
+
+hypothesis: initiating transport from a task-aligned anchor minimizes curvature, yielding linear trajectories for rapid manifold traversal. Consequently, the Residual Diffusion 7From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Table 3. Performance Comparison on SimplerEnv (Google Robot). Four tasks: Pick Coke Can ( PC ), Move Near ( MN ), Open Drawer ( OD ), and Open Top Drawer ( OTD ). The best ,second-best , and third-best results are highlighted (excluding base-lines with spatial co-training). Results show that our ResVLA ,learned entirely from scratch, achieves competitive performance.                                                                                      
+
+> Models Pre-Train PC MN OD OTD Avg.
+> Baselines with Spatial Co-training
+> RT-2-X (Brohan et al., 2023a) ✓78.7 77.9 25.0 3.7 46.3 Magma (Yang et al., 2025) ✓83.7 65.4 56.0 6.4 52.9 InternVLA-M1 (Contributors, 2025) ✓95.3 90.0 75.5 62.0 80.7
+> Baselines without Spatial Co-training
+> RT-1 (Brohan et al., 2023b) ✓85.7 44.2 73.0 6.5 52.4 RT-1-X (O’Neill et al., 2024) ✓56.7 31.7 59.7 21.3 42.4 OpenVLA (Kim et al., 2024) ✓18.0 56.3 63.0 0.0 34.3 CogACT (Li et al., 2024a) ✓91.3 85.0 71.8 50.9 74.8 SpatialVLA (Qu et al., 2025) ✓86.0 77.9 57.4 -75.1
+> π0(Black et al., 2026) ✓72.7 65.3 38.3 -58.8
+> π0-FAST (Pertsch et al., 2025) ✓75.3 67.5 42.9 -61.9 GR00T N1.5 (Bjorck et al., 2025) ✓51.7 54.0 27.8 7.4 35.2 InternVLA-M1 (Vanilla) ✓90.0 69.8 52.5 52.2 66.1
+> ResVLA (Ours) ✗91.0 76.7 51.2 54.6 68.4
+
+Table 4. Performance Comparison on SimplerEnv (Wid-owX/Bridge). We evaluate models across four tasks: Spoon on Towel ( ST ), Carrot on Plate ( CP ), Stack Blocks ( SB ), and Egg-plant in Basket ( EB ). The best , second-best , and third-best results are highlighted. Results show our ResVLA achieves competitive performance, particularly in the Eggplant task, despite lacking large-scale pre-training.                                                                                
+
+> Models Pre-Train ST CP SB EB Avg.
+> Baselines with Spatial Co-training
+> Magma (Yang et al., 2025) ✓37.5 31.0 12.7 60.5 35.8 InternVLA-M1 (Contributors, 2025) ✓87.5 67.9 31.3 100.0 71.7
+> Baselines without Spatial Co-training
+> RT-1-X (Brohan et al., 2023b) ✓0.0 4.2 0.0 0.0 1.1 Octo-Base (Team et al., 2024) ✓15.8 12.5 0.0 41.7 17.5 Octo-Small (Team et al., 2024) ✓41.7 8.2 0.0 56.7 26.7 OpenVLA (Kim et al., 2024) ✓4.2 0.0 0.0 12.5 4.2 CogACT (Li et al., 2024a) ✓71.7 50.8 15.0 67.5 51.3 SpatialVLA (Qu et al., 2025) ✓16.7 25.0 29.2 100.0 42.7
+> π0(Black et al., 2026) ✓29.1 0.0 16.6 62.5 27.1
+> π0-FAST (Pertsch et al., 2025) ✓29.1 21.9 10.8 66.6 48.3 GR00T N1.5 (Bjorck et al., 2025) ✓75.3 54.3 57.0 61.3 61.9 ResVLA (Ours) ✗66.7 45.0 26.0 93.8 57.9
+
+Table 5. Real-robot evaluation on ALOHA. Stage-wise success rates over 10 trials. 
+
+Method Pick Cup (%) Handover (%) Placement / Overall (%) 
+
+π0.5 50 40 10 
+
+ResVLA 60 50 20 
+
+Bridge ensures significantly lower latency scaling compared to standard iterative denoising. 
+
+5.4. Cross-Embodiment Generalization and Real-World Validation(H3) 
+
+Our third hypothesis examines whether ResVLA can dis-till embodiment-agnostic manipulation logic that facilitates cross-embodiment transfer, and whether the same refine-ment paradigm remains effective in real-world manipula-tion. 
+
+Results on SimplerEnv. We evaluate cross-embodiment transfer via co-training experiments on the SimplerEnv benchmark. As shown in Table 3 and Table 4, despite be-ing trained entirely from scratch without large-scale robot pre-training or specialized spatial co-training optimizations, ResVLA demonstrates strong cross-embodiment generaliza-tion. On the Google Robot suite, ResVLA achieves an av-erage success rate of 68.4% , outperforming prominent pre-trained baselines including π0 (58.8%), OpenVLA (34.3%), and RT-1-X (42.4%). On the WidowX suite, ResVLA achieves an average success rate of 57.9% , outperform-ing RT-1-X (1.1%), Octo-Base (17.5%), OpenVLA (4.2%), CogACT (51.3%), and SpatialVLA (42.7%), while remain-ing competitive with stronger spatially co-trained baselines. These results suggest that ResVLA captures transferable ma-nipulation structure while preserving embodiment-specific local execution refinement. 
+
+Real-World Evaluation. To further assess whether this re-finement paradigm transfers beyond simulation, we conduct real-robot experiments on an ALOHA bimanual manipula-tion platform. We consider a contact-rich three-stage task consisting of Pick Cup , Handover , and Placement . In each episode, one arm first grasps a cup from the table, then trans-fers it stably to the other arm, and finally the receiving arm places the cup onto a cup stand. This task is challenging be-cause errors accumulate across stages: grasp quality affects handover stability, and handover errors further propagate to final placement accuracy. As shown in Figure 4 and Table 5, ResVLA achieves competitive real-world performance on this task. 
+
+## 6. Conclusion 
+
+In this work, we challenged the “Generation-from-Noise” orthodoxy in VLA modeling. Building on recent analyses of source-condition independence and loss collapse, we pro-posed ResVLA , a framework grounded in the Residual Diffusion Bridge perspective. By decomposing generation into semantic anchoring and residual refinement , we re-duced the complexity of the learning problem and shortened the transport path. Our results confirm that physics-aware structural bias, specifically the separation of intent and exe-cution, yields substantial gains in performance, efficiency, and robustness. 
+
+## 7. Limitations and Future Work 
+
+Despite the efficiency and robustness demonstrated by 
+
+ResVLA , limitations provide avenues for future research. 
+
+The Diversity of Anchor Choices. First, our choice of low-frequency components as intent anchors is motivated by their physical clarity and ease of supervision. How-ever, we emphasize that this is merely one instantiation of 8From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges      
+
+> Figure 4. Visualization of successful executions from two camera viewpoints and two different episodes, illustrating the full task pipeline:
+> Pick Cup →Handover →Placement . The task requires tight dual-arm coordination and is susceptible to stage-to-stage error accumulation.
+
+the “Residual Diffusion Bridge” framework. For specific manipulation tasks, the frequency domain may not be the unique or optimal decoupling space. Future work could explore alternative structured anchors; for instance, it is feasible to leverage coarse-grained discrete action tokens 
+
+derived from large models as the initialization point. 
+
+Verification at Scale. Second, constrained by computa-tional resources, ResVLA has currently been validated on a subset of mainstream benchmarks and has not yet un-dergone full-scale pre-training on massive, open-domain datasets like Open X-Embodiment. Consequently, the Scal-ing Law of this architecture under significant expansion of model parameters and data scale remains to be empiri-cally investigated. Nonetheless, the high sample efficiency demonstrated by ResVLA suggests its promise as an ideal paradigm for efficient fine-tuning of large foundation mod-els. Future efforts will focus on integrating ResVLA into larger-scale pre-training pipelines to verify its scalability in generalist robotic control. 
+
+## Impact Statement 
+
+This work advances the precision and robustness of Vision-Language-Action (VLA) models, potentially accelerating the deployment of generalist robots in unstructured domes-tic and industrial environments. While our “Refinement-from-Intent” paradigm aims to reduce erratic behaviors and improve instruction adherence, the integration of large gen-erative models into physical control systems introduces in-herent safety risks, such as unintended physical interactions arising from VLM hallucinations or distribution shifts. We emphasize the importance of implementing rigorous safety guardrails and hardware-level constraints alongside such learning-based policies. 
+
+## References 
+
+Ahn, M., Brohan, A., Brown, N., Chebotar, Y., Cortes, O., David, B., Finn, C., Fu, C., Gopalakrishnan, K., Hausman, K., Herzog, A., Ho, D., Hsu, J., Ibarz, J., Ichter, B., Irpan, A., Jang, E., Ruano, R. J., Jeffrey, K., Jesmonth, S., Joshi, N. J., Julian, R., Kalashnikov, D., Kuang, Y., Lee, K.-H., Levine, S., Lu, Y., Luu, L., Parada, C., Pastor, P., Quiambao, J., Rao, K., Retting-house, J., Reyes, D., Sermanet, P., Sievers, N., Tan, C., Toshev, A., Vanhoucke, V., Xia, F., Xiao, T., Xu, P., Xu, S., Yan, M., and Zeng, A. Do as i can, not as i say: Grounding language in robotic affordances, 2022. URL 
+
+https://arxiv.org/abs/2204.01691 .Ajay, A., Du, Y., Gupta, A., Tenenbaum, J., Jaakkola, T., and Agrawal, P. Is conditional generative modeling all you need for decision-making?, 2023. URL https: //arxiv.org/abs/2211.15657 .Bjorck, J., Casta ˜neda, F., Cherniadev, N., Da, X., Ding, R., Fan, L., Fang, Y., Fox, D., Hu, F., Huang, S., et al. Gr00t n1: An open foundation model for generalist humanoid robots. arXiv preprint arXiv:2503.14734 , 2025. Black, K., Brown, N., Driess, D., Esmail, A., Equi, M., Finn, C., Fusai, N., Groom, L., Hausman, K., Ichter, B., Jakubczak, S., Jones, T., Ke, L., Levine, S., Li-Bell, A., Mothukuri, M., Nair, S., Pertsch, K., Shi, L. X., Tanner, J., Vuong, Q., Walling, A., Wang, H., and Zhilinsky, U. π0: A vision-language-action flow 9From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+model for general robot control, 2026. URL https: //arxiv.org/abs/2410.24164 .Bortoli, V. D., Thornton, J., Heng, J., and Doucet, A. Diffu-sion schr ¨odinger bridge with applications to score-based generative modeling, 2023. URL https://arxiv. org/abs/2106.01357 .Brohan, A., Brown, N., Carbajal, J., Chebotar, Y., Chen, X., Choromanski, K., Ding, T., Driess, D., Dubey, A., Finn, C., Florence, P., Fu, C., Arenas, M. G., Gopalakr-ishnan, K., Han, K., Hausman, K., Herzog, A., Hsu, J., Ichter, B., Irpan, A., Joshi, N., Julian, R., Kalashnikov, D., Kuang, Y., Leal, I., Lee, L., Lee, T.-W. E., Levine, S., Lu, Y., Michalewski, H., Mordatch, I., Pertsch, K., Rao, K., Reymann, K., Ryoo, M., Salazar, G., Sanketi, P., Sermanet, P., Singh, J., Singh, A., Soricut, R., Tran, H., Vanhoucke, V., Vuong, Q., Wahid, A., Welker, S., Wohlhart, P., Wu, J., Xia, F., Xiao, T., Xu, P., Xu, S., Yu, T., and Zitkovich, B. Rt-2: Vision-language-action models transfer web knowledge to robotic control, 2023a. URL https://arxiv.org/abs/2307.15818 .Brohan, A., Brown, N., Carbajal, J., Chebotar, Y., Dabis, J., Finn, C., Gopalakrishnan, K., Hausman, K., Herzog, A., Hsu, J., Ibarz, J., Ichter, B., Irpan, A., Jackson, T., Jesmonth, S., Joshi, N. J., Julian, R., Kalashnikov, D., Kuang, Y., Leal, I., Lee, K.-H., Levine, S., Lu, Y., Malla, U., Manjunath, D., Mordatch, I., Nachum, O., Parada, C., Peralta, J., Perez, E., Pertsch, K., Quiambao, J., Rao, K., Ryoo, M., Salazar, G., Sanketi, P., Sayed, K., Singh, J., Sontakke, S., Stone, A., Tan, C., Tran, H., Vanhoucke, V., Vega, S., Vuong, Q., Xia, F., Xiao, T., Xu, P., Xu, S., Yu, T., and Zitkovich, B. Rt-1: Robotics transformer for real-world control at scale, 2023b. URL https: //arxiv.org/abs/2212.06817 .Bu, Q., Yang, Y., Cai, J., Gao, S., Ren, G., Yao, M., Luo, P., and Li, H. Univla: Learning to act anywhere with task-centric latent actions. arXiv preprint arXiv:2505.06111 ,2025. Cen, J., Yu, C., Yuan, H., Jiang, Y., Huang, S., Guo, J., Li, X., Song, Y., Luo, H., Wang, F., et al. Worldvla: To-wards autoregressive action world model. arXiv preprint arXiv:2506.21539 , 2025. Chen, C., Guo, P., Song, L., Lu, J., Qian, R., Wang, X., Fu, T.-J., Liu, W., Yang, Y., and Schwing, A. Car-flow: Condition-aware reparameterization aligns source and target for better flow matching. arXiv preprint arXiv:2509.19300 , 2025. Chi, C., Xu, Z., Feng, S., Cousineau, E., Du, Y., Burch-fiel, B., Tedrake, R., and Song, S. Diffusion policy: Visuomotor policy learning via action diffusion. The International Journal of Robotics Research , 44(10-11): 1684–1704, 2025. Contributors, I.-M. Internvla-m1: A spatially guided vision-language-action framework for generalist robot policy. 
+
+arXiv preprint arXiv:2510.13778 , 2025. De Bortoli, V., Thornton, J., Heng, J., and Doucet, A. Diffu-sion schr ¨odinger bridge with applications to score-based generative modeling. Advances in neural information processing systems , 34:17695–17709, 2021. Deng, S., Yan, M., Wei, S., Ma, H., Yang, Y., Chen, J., Zhang, Z., Yang, T., Zhang, X., Zhang, W., et al. Graspvla: a grasping foundation model pre-trained on billion-scale synthetic action data. arXiv preprint arXiv:2505.03233 , 2025. Dong, Z., Liu, Y., Li, Y., Zhao, H., and Hao, J. Conditioning matters: Training diffusion policies is faster than you think. arXiv preprint arXiv:2505.11123 , 2025. Fei, S., Wang, S., Shi, J., Dai, Z., Cai, J., Qian, P., Ji, L., He, X., Zhang, S., Fei, Z., et al. Libero-plus: In-depth robust-ness analysis of vision-language-action models. arXiv preprint arXiv:2510.13626 , 2025. Gao, C., Liu, Z., Chi, Z., Huang, J., Fei, X., Hou, Y., Zhang, Y., Lin, Y., Fang, Z., Jiang, Z., et al. Vla-os: Structuring and dissecting planning representations and paradigms in vision-language-action models. arXiv preprint arXiv:2506.17561 , 2025a. Gao, D., Zhao, B., Lee, A., Chuang, I., Zhou, H., Wang, H., Zhao, Z., Zhang, J., and Soltani, I. Vita: Vision-to-action flow matching policy. arXiv preprint arXiv:2507.13231 ,2025b. Hogan, N. Impedance control: An approach to manipula-tion. In 1984 American Control Conference , pp. 304–313, 1984. doi: 10.23919/ACC.1984.4788393. Huang, C.-P., Wu, Y.-H., Chen, M.-H., Wang, Y.-C. F., and Yang, F.-E. Thinkact: Vision-language-action reason-ing via reinforced visual latent planning. arXiv preprint arXiv:2507.16815 , 2025. Huang, W., Xia, F., Xiao, T., Chan, H., Liang, J., Florence, P., Zeng, A., Tompson, J., Mordatch, I., Chebotar, Y., Sermanet, P., Brown, N., Jackson, T., Luu, L., Levine, S., Hausman, K., and Ichter, B. Inner monologue: Embodied reasoning through planning with language models, 2022. URL https://arxiv.org/abs/2207.05608 .Hung, C.-Y., Sun, Q., Hong, P., Zadeh, A., Li, C., Tan, U., Majumder, N., Poria, S., et al. Nora: A small open-sourced generalist vision language action model for em-bodied tasks. arXiv preprint arXiv:2504.19854 , 2025. 10 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Intelligence, P., Black, K., Brown, N., Darpinian, J., Dha-balia, K., Driess, D., Esmail, A., Equi, M., Finn, C., Fusai, N., Galliker, M. Y., Ghosh, D., Groom, L., Haus-man, K., Ichter, B., Jakubczak, S., Jones, T., Ke, L., LeBlanc, D., Levine, S., Li-Bell, A., Mothukuri, M., Nair, S., Pertsch, K., Ren, A. Z., Shi, L. X., Smith, L., Springenberg, J. T., Stachowicz, K., Tanner, J., Vuong, Q., Walke, H., Walling, A., Wang, H., Yu, L., and Zhilinsky, U. π0.5: a vision-language-action model with open-world generalization, 2025. URL https: //arxiv.org/abs/2504.16054 .Johannink, T., Bahl, S., Nair, A., Luo, J., Kumar, A., Loskyll, M., Ojea, J. A., Solowjow, E., and Levine, S. Residual reinforcement learning for robot control, 2018. URL https://arxiv.org/abs/1812.03201 .Kim, M. J., Pertsch, K., Karamcheti, S., Xiao, T., Balakr-ishna, A., Nair, S., Rafailov, R., Foster, E., Lam, G., San-keti, P., et al. Openvla: An open-source vision-language-action model. arXiv preprint arXiv:2406.09246 , 2024. Kim, M. J., Finn, C., and Liang, P. Fine-tuning vision-language-action models: Optimizing speed and success. 
+
+arXiv preprint arXiv:2502.19645 , 2025. Lee, J., Duan, J., Fang, H., Deng, Y., Liu, S., Li, B., Fang, B., Zhang, J., Wang, Y. R., Lee, S., et al. Molmoact: Action reasoning models that can reason in space. arXiv preprint arXiv:2508.07917 , 2025. Lee, M. A., Zhu, Y., Srinivasan, K., Shah, P., Savarese, S., Fei-Fei, L., Garg, A., and Bohg, J. Making sense of vision and touch: Self-supervised learning of multi-modal representations for contact-rich tasks, 2019. URL 
+
+https://arxiv.org/abs/1810.10191 .Levine, S., Wagener, N., and Abbeel, P. Learning contact-rich manipulation skills with guided policy search. In 
+
+2015 IEEE International Conference on Robotics and Automation (ICRA) , pp. 156–163, 2015. doi: 10.1109/ ICRA.2015.7138994. Li, Q., Liang, Y., Wang, Z., Luo, L., Chen, X., Liao, M., Wei, F., Deng, Y., Xu, S., Zhang, Y., et al. Cogact: A foundational vision-language-action model for synergiz-ing cognition and action in robotic manipulation. arXiv preprint arXiv:2411.19650 , 2024a. Li, X., Hsu, K., Gu, J., Pertsch, K., Mees, O., Walke, H. R., Fu, C., Lunawat, I., Sieh, I., Kirmani, S., Levine, S., Wu, J., Finn, C., Su, H., Vuong, Q., and Xiao, T. Evaluat-ing real-world robot manipulation policies in simulation. 
+
+arXiv preprint arXiv:2405.05941 , 2024b. Lipman, Y., Chen, R. T., Ben-Hamu, H., Nickel, M., and Le, M. Flow matching for generative modeling. arXiv preprint arXiv:2210.02747 , 2022. Liu, B., Zhu, Y., Gao, C., Feng, Y., Liu, Q., Zhu, Y., and Stone, P. Libero: Benchmarking knowledge transfer for lifelong robot learning. Advances in Neural Information Processing Systems , 36:44776–44791, 2023a. Liu, G.-H., Vahdat, A., Huang, D.-A., Theodorou, E. A., Nie, W., and Anandkumar, A. I2SB: Image-to-image Schr ¨odinger Bridge. arXiv preprint arXiv:2302.05872 ,2023b. Lu, G., Guo, W., Zhang, C., Zhou, Y., Jiang, H., Gao, Z., Tang, Y., and Wang, Z. Vla-rl: Towards masterful and general robotic manipulation with scalable reinforcement learning. arXiv preprint arXiv:2505.18719 , 2025a. Lu, Y., Tian, Y., Yuan, Z., Wang, X., Hua, P., Xue, Z., and Xu, H. H3dp: Triply-hierarchical diffusion policy for visuomotor learning, 2025b. Nguyen, K., Le, A. T., Pham, T., Huber, M., Peters, J., and Vu, M. N. Flowmp: Learning motion fields for robot planning with conditional flow matching. arXiv preprint arXiv:2503.06135 , 2025. O’Neill, A., Rehman, A., Maddukuri, A., Gupta, A., Padalkar, A., Lee, A., Pooley, A., Gupta, A., Mandlekar, A., Jain, A., et al. Open x-embodiment: Robotic learning datasets and rt-x models: Open x-embodiment collab-oration 0. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pp. 6892–6903. IEEE, 2024. Pan, C., Anantharaman, G., Huang, N.-C., Jin, C., Pfrom-mer, D., Yuan, C., Permenter, F., Qu, G., Boffi, N., Shi, G., et al. Much ado about noising: Dispelling the myths of generative robotic control. arXiv preprint arXiv:2512.01809 , 2025. Pertsch, K., Stachowicz, K., Ichter, B., Driess, D., Nair, S., Vuong, Q., Mees, O., Finn, C., and Levine, S. Fast: Efficient action tokenization for vision-language-action models. arXiv preprint arXiv:2501.09747 , 2025. Qu, D., Song, H., Chen, Q., Yao, Y., Ye, X., Ding, Y., Wang, Z., Gu, J., Zhao, B., Wang, D., et al. Spatialvla: Exploring spatial representations for visual-language-action model. 
+
+arXiv preprint arXiv:2501.15830 , 2025. Ren, H., Zeng, Y., Bi, Z., Wan, Z., Huang, J., and Cheng, H. Prior does matter: Visual navigation via denoising diffusion bridge models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pp. 12100–12110, 2025. Shukor, M., Aubakirova, D., Capuano, F., Kooijmans, P., Palma, S., Zouitine, A., Aractingi, M., Pascal, C., Russi, M., Marafioti, A., et al. Smolvla: A vision-language-action model for affordable and efficient robotics. arXiv preprint arXiv:2506.01844 , 2025. 11 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Silver, T., Allen, K., Tenenbaum, J., and Kaelbling, L. Resid-ual policy learning. arXiv preprint arXiv:1812.06298 ,2018. Song, W., Chen, J., Ding, P., Zhao, H., Zhao, W., Zhong, Z., Ge, Z., Ma, J., and Li, H. Accelerating vision-language-action model integrated with action chunking via parallel decoding. arXiv preprint arXiv:2503.02310 , 2025. starVLA Contributors. Starvla: A lego-like codebase for vision-language-action model developing. GitHub repository, 1 2025. URL https://github.com/ starVLA/starVLA .Tan, S., Dou, K., Zhao, Y., and Kr ¨ahenb ¨uhl, P. Interactive post-training for vision-language-action models, 2025. URL https://arxiv.org/abs/2505.17016 .Team, O. M., Ghosh, D., Walke, H., Pertsch, K., Black, K., Mees, O., Dasari, S., Hejna, J., Kreiman, T., Xu, C., et al. Octo: An open-source generalist robot policy. arXiv preprint arXiv:2405.12213 , 2024. Walke, H. R., Yang, J. H., Yu, A., Kumar, A., Orbik, J., Singh, A., and Levine, S. Don’t start from scratch: Lever-aging prior data to automate robotic reinforcement learn-ing. In Conference on Robot Learning , pp. 1652–1662. PMLR, 2023. Wang, H., Zhang, J., Chen, H., Guo, H., Wang, D., Ma, J., and Du, B. Residual diffusion bridge model for image restoration. arXiv preprint arXiv:2510.23116 , 2025a. Wang, Y., Ding, P., Li, L., Cui, C., Ge, Z., Tong, X., Song, W., Zhao, H., Zhao, W., Hou, P., Huang, S., Tang, Y., Wang, W., Zhang, R., Liu, J., and Wang, D. Vla-adapter: An effective paradigm for tiny-scale vision-language-action model. arXiv preprint arXiv:2509.09372 , 2025b. Wang, Y., Li, X., Wang, W., Zhang, J., Li, Y., Chen, Y., Wang, X., and Zhang, Z. Unified vision-language-action model. arXiv preprint arXiv:2506.19850 , 2025c. Yang, J., Tan, R., Wu, Q., Zheng, R., Peng, B., Liang, Y., Gu, Y., Cai, M., Ye, S., Jang, J., Deng, Y., Liden, L., and Gao, J. Magma: A foundation model for multimodal ai agents, 2025. URL https://arxiv.org/abs/ 2502.13130 .Zhang, J., Chen, Y., Xu, Y., Huang, Z., Zhou, Y., Yuan, Y.-J., Cai, X., Huang, G., Quan, X., Xu, H., et al. 4d-vla: Spatiotemporal vision-language-action pretraining with cross-scene calibration. arXiv preprint arXiv:2506.22242 ,2025. Zhang, Z., Zheng, K., Chen, Z., Jang, J., Li, Y., Han, S., Wang, C., Ding, M., Fox, D., and Yao, H. Grape: Gen-eralizing robot policy via preference alignment. arXiv preprint arXiv:2411.19309 , 2024. Zhao, Q., Lu, Y., Kim, M. J., Fu, Z., Zhang, Z., Wu, Y., Li, Z., Ma, Q., Han, S., Finn, C., et al. Cot-vla: Visual chain-of-thought reasoning for vision-language-action models. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 1702–1713, 2025. Zhao, T. Z., Kumar, V., Levine, S., and Finn, C. Learn-ing fine-grained bimanual manipulation with low-cost hardware. arXiv preprint arXiv:2304.13705 , 2023. Zheng, R., Liang, Y., Huang, S., Gao, J., Daum ´e III, H., Kolobov, A., Huang, F., and Yang, J. Tracevla: Vi-sual trace prompting enhances spatial-temporal aware-ness for generalist robotic policies. arXiv preprint arXiv:2412.10345 , 2024. Zhong, Y., Liu, Y., Xiao, C., Yang, Z., Wang, Y., Zhu, Y., Shi, Y., Sun, Y., Zhu, X., and Ma, Y. Freqpolicy: Frequency autoregressive visuomotor policy with con-tinuous tokens, 2025a. URL https://arxiv.org/ abs/2506.01583 .Zhong, Z., Yan, H., Li, J., Liu, X., Gong, X., Zhang, T., Song, W., Chen, J., Zheng, X., Wang, H., et al. Flowvla: Visual chain of thought-based motion reason-ing for vision-language-action models. arXiv preprint arXiv:2508.18269 , 2025b. 12 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+## A. Proofs and Derivations 
+
+In this section, we provide detailed derivations for the theoretical propositions and theorems presented in the main text. 
+
+A.1. Proof of Proposition 3.1 (Irreducible Quantization Noise) Proposition 1. For a uniform quantization Q with resolution ∆, assuming locally uniform ground-truth x∗, the expected reconstruction MSE is strictly lower-bounded by ∆2 
+
+> 12
+
+.Proof. Consider a 1-dimensional continuous signal x ∈ R. The uniform quantizer Q maps x to the nearest discrete bin center ck. The quantization error is defined as e = x − Q (x).For a quantization grid with resolution ∆, the error e is bounded within the interval [− ∆2 , ∆2 ]. Under the assumption that the ground-truth signal x∗ is locally uniformly distributed within the bin (a standard high-resolution assumption in signal processing), the error e follows a uniform distribution: 
+
+p(e) = 
+
+( 1∆ if − ∆2 ≤ e ≤ ∆2
+
+0 otherwise (12) The Mean Squared Error (MSE) corresponds to the variance of this uniform distribution. We calculate the expectation: 
+
+E[e2] = 
+
+Z ∞−∞ 
+
+e2p(e) de =
+
+Z ∆2 
+
+> −∆2
+
+e2 · 1∆ de. (13) Solving the integral: 
+
+E[e2] = 1∆
+
+ e3
+
+3
+
+ ∆2 
+
+> −∆2
+
+= 13∆ 
+
+ ∆3
+
+8 −
+
+
+
+− ∆3
+
+8
+
+ 
+
+= 13∆ 
+
+ ∆3
+
+4
+
+
+
+= ∆2
+
+12 .
+
+(14) For a high-dimensional action vector x ∈ RD where each dimension is quantized independently, the total expected squared error matches this variance per dimension (or scales linearly with D if summing). Thus, the irreducible error floor per dimension is ∆2 
+
+> 12
+
+.
+
+A.2. Proof of Proposition 2 (Minimal Transport Cost) Proposition 2. Assuming the source distribution p0 is anchored near the target manifold, i.e., E[∥∆xresidual ∥2] ≪ E[∥x1∥2],the kinetic transport cost required for residual bridging is significantly lower than that of generating from standard noise. Proof. In Optimal Transport (OT) and Flow Matching frameworks, the Kinetic Transport Cost (or energy) of a trajectory is defined as the integral of the squared velocity norm: 
+
+C =
+
+Z 10
+
+∥vt(xt)∥2 dt. (15) Modern Flow Matching objectives encourage straight transport paths (constant velocity). For a linear path connecting a source x0 and a target x1, the velocity is constant: vt = x1 − x0. The cost simplifies to the squared Euclidean distance: 
+
+C = ∥x1 − x0∥2. (16) We compare the expected cost of standard methods versus our residual approach: 13 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+• Case 1: Standard Diffusion/Flow. The source x0 ∼ N (0, I) is isotropic Gaussian noise. The expected cost is proportional to the total signal energy plus the noise variance: 
+
+E[Cstandard ] = E[∥x1 − xnoise ∥2] ≈ E[∥x1∥2] + E[∥xnoise ∥2]. (17) • Case 2: Residual Bridging (Ours). The source x0 = xanchor is the semantic anchor predicted by the VLA. The flow models only the residual vector ∆x = x1 − xanchor . The expected cost is: 
+
+E[Cresidual ] = E[∥x1 − xanchor ∥2] = E[∥∆x∥2]. (18) 
+
+Conclusion. Since the VLA is trained to capture the primary mode of the target distribution, the anchor xanchor lies in the local neighborhood of the ground truth x1. This ensures that the residual magnitude is significantly smaller than the absolute signal magnitude: E[∥∆x∥2] ≪ E[∥x1∥2]. Consequently, we derive the inequality: 
+
+E[Cresidual ] ≪ E[Cstandard ]. (19) This implies the residual vector field has a significantly lower magnitude, resulting in simpler dynamics that are easier to learn and numerically integrate. 
+
+A.3. Derivation of Theorem 3 (Loss Collapse) Theorem 3. As t → 0, if the initial distribution p0(x) is independent of c, the conditional vector field degenerates, causing the supervision gradients to vanish. Proof. We analyze the behavior of the vector field through the lens of the probability path it generates. Consider the conditional vector field ut(x|c) which drives the flow of the probability density pt(x|c). In diffusion and flow matching models, the vector field is intrinsically linked to the score function of the density: ut(x|c) ∝ ∇ x log pt(x|c).At t = 0 , standard initialization samples x0 from a pure Gaussian prior N (0, I), which is statistically independent of the condition c. Mathematically, the conditional density degenerates to the prior: 
+
+p0(x|c) = pprior (x) = N (x; 0, I). (20) Since the density at t = 0 is identical for all conditions c, the geometric structure of the vector field generating this density must also be independent of c. Specifically, the score function becomes unconditional: 
+
+∇x log p0(x|c) = ∇x log pprior (x). (21) Consequently, the optimal vector field u∗
+
+> 0
+
+(x|c) at the initial boundary contains no information about the target task. The gradient of the learning objective LCFM with respect to the condition c vanishes: 
+
+E ∇c∥vθ (x0, 0, c) − u∗
+
+> 0
+
+(x|c)∥2 ≈ 0. (22) This phenomenon, termed ”Loss Collapse,” implies that in the initial phase of generation, the model receives no effective gradient signal to distinguish between different tasks c, as the supervision signal is dominated by the task-agnostic noise structure. 
+
+## B. Benchmark Specifications and Detailed Results 
+
+This section details the experimental setups, task definitions, and comprehensive per-task results referenced in Section 5. Our goal is to provide full transparency into the evaluation protocols that validate the efficacy of our ’Refinement-from-Intent’ framework. 
+
+B.1. LIBERO and LIBERO-Plus Suite (1) Standard Task Suites. We utilize the official LIBERO benchmark (Liu et al., 2023a) as our primary evaluation domain for long-horizon and knowledge transfer capabilities. The benchmark is stratified into four specific suites: 14 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+• LIBERO-Spatial (10 tasks): Tests the agent’s ability to generalize spatial relationships (e.g., “pick up the bowl next to the plate”). The object instances remain constant, but their relative layouts vary. • LIBERO-Object (10 tasks): Evaluates robustness to visual object variations. The layout is fixed, but the target objects change (e.g., picking up a red mug vs. a white mug). • LIBERO-Goal (10 tasks): Focuses on procedural generalization where the scene is fixed, but the goal instruction directs the robot to perform different manipulations (e.g., “open the top drawer” vs. “open the bottom drawer”). • LIBERO-Long (10 tasks): The most challenging suite, requiring the execution of long-horizon sequences (e.g., retrieve an object, navigate, and place it), often involving 50+ simulation steps. A visual overview of representative tasks from these four evaluation domains is provided in Figure 5. LIBERO-Spa +al  Spa +al Task Instruc +on 
+
+1. pick up the black bowl next to the cookie box and place it on the plate 
+
+2. pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate 
+
+3. pick up the black bowl on the ramekin and place it on the plate 
+
+4. pick up the black bowl on the stove and place it on the plate 
+
+5. pick up the black bowl between the plate and the ramekin and place it on the plate 
+
+6. pick up the black bowl on the cookie box and place it on the plate 
+
+7. pick up the black bowl next to the plate and place it on the plate 
+
+8. pick up the black bowl next to the ramekin and place it on the plate 
+
+9. pick up the black bowl from table center and place it on the plate 
+
+10. pick up the black bowl on the wooden cabinet and place it on the plate 
+
+## LIBERO-Object  Object Task Instruc +on 
+
+1. pick up the orange juice and place it in the basket 
+
+2. pick up the ketchup and place it in the basket 
+
+3. pick up the cream cheese and place it in the basket 
+
+4. pick up the bbq sauce and place it in the basket 
+
+5. pick up the alphabet soup and place it in the basket 
+
+6. pick up the milk and place it in the basket 
+
+7. pick up the salad dressing and place it in the basket 
+
+8. pick up the bu Eer and place it in the basket 
+
+9. pick up the tomato sauce and place it in the basket 
+
+10. pick up the chocolate pudding and place it in the basket 
+
+## LIBERO-Goal  Goal Task Instruc +on 
+
+1. put the bowl on the plate 
+
+2. put the bowl on the stove 
+
+3. put the bowl on top of the cabinet 
+
+4. put the wine bo Ele on the rack 
+
+5. put the wine bo Ele on top of the cabinet 
+
+6. turn on the stove 
+
+7. put the cream cheese in the bowl 
+
+8. push the plate to the front of the stove 
+
+9. open the middle drawer of the cabinet 
+
+10. open the top drawer and put the bowl inside 
+
+Long Task Instruc +on 
+
+1. put the white mug on the le F plate and put the yellow and white mug on the right plate 
+
+2. put the white mug on the plate and put the chocolate pudding to the right of the plate 
+
+3. put the yellow and white mug in the microwave and close it 
+
+4. turn on the stove and put the moka pot on it 
+
+5. put both the alphabet soup and the cream cheese box in the basket 
+
+6. put both the alphabet soup and the tomato sauce in the basket 
+
+7. put both moka pots on the stove 
+
+8. put both the cream cheese box and the bu Eer in the basket 
+
+9. put the black bowl in the bo Eom drawer of the cabinet and close it 
+
+10. pick up the book and place it in the back compartment of the caddy 
+
+## LIBERO-Long 
+
+Figure 5. Visualization of the standard LIBERO benchmark suites. We illustrate representative task initializations and instructions from the four evaluation domains: LIBERO-Spatial (spatial layout generalization), LIBERO-Object (visual object generalization), 
+
+LIBERO-Goal (procedural goal generalization), and LIBERO-Long (long-horizon sequential planning). 
+
+15 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges  
+
+> Table 6. Detailed robustness breakdown across different LIBERO-Plus task suites. We report success rates (%) on seven distinct perturbation axes and the overall average.
+
+Task Camera Robot Language Light Background Noise Layout Total LIBERO-Spatial 54.8 66.3 93.8 90.8 98.4 81.5 91.9 81.7 
+
+LIBERO-Object 61.1 47.5 89.8 99.3 100.0 87.0 82.9 79.2 
+
+LIBERO-Goal 52.7 67.0 73.9 95.0 92.2 80.5 62.8 72.9 
+
+LIBERO-Long 30.5 58.8 96.3 77.0 88.9 58.1 78.2 67.5 
+
+Average 49.8 59.9 88.5 90.5 94.9 76.8 79.0 75.3 
+
+(2) LIBERO-Plus Perturbation Protocols. To rigorously assess robustness beyond standard generalization, we evaluate ResVLA on the LIBERO-Plus benchmark (Fei et al., 2025). Following the definitions in the official documentation, we evaluate performance across seven distinct perturbation dimensions, each containing specific sub-dimensions: • Objects Layout: Designed to test robustness against object-level disturbances. This includes: (1) Confounding Objects ,where unseen distractor objects are randomly added to the scene; and (2) Target Object Pose , where the target object’s initial position and orientation are randomized while maintaining essential semantic relations. • Background Textures: Evaluates generalization to environmental appearance changes. Sub-dimensions include: (1) 
+
+Scene Theme , which modifies the texture of the environment walls (e.g., brick, painted); and (2) Surface Appearance ,which alters the texture of the working surface (e.g., tabletop or floor). • Light Conditions: Tests visual understanding under varying illumination defined by four parameters: Diffuse color (reflected light), Direction of the light source, Specular intensity (highlights on surfaces), and the presence of cast 
+
+Shadows .• Camera Viewpoints: Tests view-invariant representation by modifying camera parameters: (1) Camera Distance 
+
+(scaling along the optical axis); (2) Spherical Position (altering azimuth and elevation on a sphere centered at the scene); and (3) Camera Orientation (perturbing yaw, pitch, and roll). • Robot Initial States: Applies random perturbations to the robot arm’s Initial Joint Angles (qpos ), with perturbation magnitudes ranging from 0.1 to 0.5, testing the policy’s ability to recover from varied starting configurations. • Language Instructions: Utilizes LLMs to rewrite instructions into three variants: (1) Distraction (adding conver-sational, task-irrelevant context); (2) Common Sense (replacing object names with functional descriptions); and (3) 
+
+Reasoning Chain (altering reasoning complexity). • Sensor Noise: Simulates real-world sensor imperfections to evaluate robustness under degraded input quality. This includes five noise types: Motion Blur , Gaussian Blur (defocus), Zoom Blur , Fog (atmospheric interference), and Glass Blur (distortion and refraction). We visually illustrate the severity of these seven perturbation dimensions in Figure 6. To quantify our model’s resilience against these severe distribution shifts, we present a fine-grained performance breakdown. Table 6 details the success rates across all four LIBERO task suites for each of the seven perturbation axes defined above. 16 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges [Original]           
+
+> Pick the akita black bowl from table center and place it on the plate
+> [R1: Distrac 2on]
+> Hey there Could you do me a favor and move the black bowl from the
+> tables center onto the plate
+> [R2: Common Sense]
+> Li ;the darkhued mixing vessel from the middle of the dining furniture
+> and deposit it onto the dish
+> [R3: Reasoning Chain]
+> Pick up the black bowl from table center and place it on the plate but
+> dont touch the silverware nearby
+> (1) Scene Theme (1) Confounding Objects
+> (2) Surface Appearance (2) Target Object Pose
+
+Original Task 
+
+Background Texture  Objects Layout 
+
+Light Condi 2ons  Camera Viewpoints  Sensor Noise 
+
+Robot Ini 2al States  Language Instruc 2ons 
+
+> Task name:
+> pick_up_the_black_bowl_from_table
+> _center_and_place_it_on_the_plate
+
+Figure 6. Visualization of the seven perturbation dimensions in the LIBERO-Plus benchmark. We showcase the task “ pick up the black bowl from table center and place it on the plate ” from the LIBERO-Spatial suite. The central image represents the Original Task (standard LIBERO). Surrounding panels illustrate the significant distribution shifts introduced by LIBERO-Plus, including visual variations (e.g., Background Texture split into scene themes/surfaces, Sensor Noise , Light Conditions ), geometric changes ( Objects Layout , Camera Viewpoints , Robot Initial States ), and semantic shifts. The Language Instructions panel highlights adversarial rewrites, with red text denoting distractors, synonym replacements, and reasoning constraints. These visualizations highlight the severity of the domain gaps that our model successfully overcomes (quantitative breakdown provided in Table 6). 
+
+B.2. SimplerEnv Task Descriptions 
+
+For the cross-embodiment experiments reported in Table 3 and 4, we utilize SIMPLER (Li et al., 2024b), a simulated evaluation framework designed to proxy real-world performance for Google Robot and WidowX embodiments. 
+
+(1) Google Robot (Table 3): We utilize the Fractal20220817 dataset. We evaluate on four tasks involving pick-and-place, spatial rearrangement, and articulated object manipulation: • Pick Coke Can ( Pick Coke ): The robot must grasp and lift a Coke can. The can is initialized in three distinct orientations (standing, lying horizontally, lying vertically) across 25 different grid positions on the table (75 trials in total). • Move obj 1 Near obj 2 (Move Near ): This task requires moving a specified source object near a target object in the presence of a distractor. The evaluation rotates through 5 different object triplets (selected from 8 common items: blue plastic bottle, pepsi can, orange, 7up can, apple, sponge, coke can, redbull can) arranged in triangle patterns to test 17 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+semantic understanding and obstacle avoidance (60 trials in total). • (Open / Close) (Top / Middle / Bottom) Drawer ( Open Drawer ): The robot is tasked with opening or closing a specific drawer (top, middle or bottom) of a cabinet. This assesses the ability to manipulate articulated objects. The robot’s base position is varied across 9 locations (54 trials in total). • Open Top Drawer and Place Apple ( Open Top Drawer ): A long-horizon sequential task where the robot must first open the top drawer and then pick up an apple from the cabinet surface to place it inside. The language instruction updates from ”open” to ”place” during the episode (27 trials in total). 
+
+(2) WidowX + Bridge (Table 4) : We utilize the BridgeData V2 dataset. The benchmark consists of four manipulation tasks, each evaluated over 24 trials: • Put the Spoon on the Towel ( Spoon on Towel ): The robot must grasp a spoon and place it on a towel. The objects are initialized at the vertex of a 15 cm square. The spoon’s initial orientation varies between horizontal and vertical, requiring the agent to perform precise gripper re-orientation (24 trials in total). • Put Carrot on Plate ( Carrot on Plate ): This task shares the same 15 cm geometric layout as the above spoon task but substitutes the objects with a carrot and a plate (24 trials in total). • Stack the Green Block on the Yellow Block ( Stack Blocks ): The goal is to stack a 3cm green cube onto a yellow cube(these two cubes are placed at the square vertex). The task includes two different modes based on the initialization distance: a closer setting ( 10 cm) and a farther setting ( 20 cm), with 12 trials for each (24 trials in total). • Put Eggplant into Yellow Basket ( Eggplant in Basket ): This task requires moving an eggplant from the right basin in a sink to a yellow basket in the left basin. The eggplant is initialized with random positions and orientations to test robustness (24 trials in total). 
+
+## C. Implementation Details and Hyperparameters 
+
+C.1. Implementation Details Architecture. We instantiate ResVLA using the Qwen-VL architecture as the vision-language backbone. Specifically, we utilize the 2B parameter variant (Qwen3-2B) to balance semantic understanding with inference latency. The VLM backbone is fine-tuned using LoRA or full fine-tuning depending on the dataset scale, while the frequency-aware action head is trained from scratch. 
+
+Hardware and Infrastructure. To ensure consistent evaluation, all models were trained on a single compute node equipped with 4 NVIDIA H20 GPUs with 96GB VRAM . We utilize the DeepSpeed framework with BFloat16 mixed-precision to maximize training throughput and memory efficiency. 
+
+C.2. Algorithm Overview 
+
+We present the complete algorithmic framework of ResVLA in Algorithm 1. This pseudocode formally outlines the end-to-end execution flow, detailing the integration of the frequency-domain intent prior (Stage 1) with the residual flow matching refinement (Stage 2) for both training optimization and inference generation. 18 From Noise to Intent: Anchoring Generative VLA Policies with Residual Bridges 
+
+Algorithm 1 ResVLA: Anchoring Generative VLA Policies with Residual Bridges 
+
+Require: Image I, Language L, Learnable Queries Q, Horizon T
+
+Ensure: Training Loss L or Action Trajectory x1 
+
+> 1:
+
+// Stage 1: Multimodal Encoding & Intent Prior  
+
+> 2:
+
+C ← VLM enc (I, L) {Extract multimodal context } 
+
+> 3:
+
+Z ← Φenc (Q, C) 
+
+> 4:
+
+xanchor ← Φdecoder (Z) 
+
+> 5:
+
+// Stage 2: Residual Flow Matching (Layers K+1 ∼L) 
+
+> 6:
+
+if Training then  
+
+> 7:
+
+Sample t ∼ U (0 , 1) , ϵ ∼ N (0, σ 2min I) 
+
+> 8:
+
+xsrc ← xanchor + ϵ {Source distribution centered at anchor } 
+
+> 9:
+
+xt ← (1 − t)xsrc + txgt ; ut ← xgt − xsrc {Optimal Transport path } 
+
+> 10:
+
+ˆv ← ΦFM (xt, t, C) {Predict vector field conditioned on C}  
+
+> 11:
+
+return L = || ˆv − ut|| 2 + λ|| xanchor − F −1 
+
+> idct
+
+(PS (Fdct (xgt ))) || 2 
+
+> 12:
+
+else  
+
+> 13:
+
+Sample ϵ ∼ N (0, σ 2min I) 
+
+> 14:
+
+x0 ← xanchor + ϵ {Initialize flow from noisy anchor } 
+
+> 15:
+
+for i = 0 to N − 1 do  
+
+> 16:
+
+xt+∆ t ← xt + Φ FM (xt, t i, C) · ∆t {Euler Integration } 
+
+> 17:
+
+end for  
+
+> 18:
+
+return x1 
+
+> 19:
+
+end if C.3. Hyperparameters 
+
+To facilitate reproducibility, we list the key hyperparameters used for training ResVLA. For model training, we utilize the AdamW optimizer with mixed-precision enabled, configured with β parameters of 0.9, 0.95 and a weight decay of 1 × 10 −8,conducting the training over 40 , 000 global steps which include a 5, 000 -step warmup period; the learning rate follows a cosine decay schedule where the base learning rate is set to 2.5 × 10 −5 while differential learning rates are applied to specific modules, assigning 1.0 × 10 −5 to the Qwen-VL interface and 1.0 × 10 −4 to the action model; furthermore, we implement gradient clipping with a norm threshold of 1.0 and scale the loss weights for the VLA. Unless otherwise noted, all baseline results reported in the main simulation tables are cited from prior work rather than independently reproduced. 19
