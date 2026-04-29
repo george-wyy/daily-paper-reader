@@ -1,0 +1,555 @@
+Title: EgoMotion: Hierarchical Reasoning and Diffusion for Egocentric Vision-Language Motion Generation
+
+URL Source: https://arxiv.org/pdf/2604.19105v1
+
+Published Time: Wed, 22 Apr 2026 00:38:38 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 1
+
+# EgoMotion: Hierarchical Reasoning and Diffusion for Egocentric Vision-Language Motion Generation 
+
+Ruibing Hou, Mingyue Zhou, Yuwei Gui, Mingshuang Luo, Bingpeng Ma, Hong Chang, Shiguang Shan Fellow, IEEE and Xilin Chen Fellow, IEEE 
+
+Abstract —Faithfully modeling human behavior in dynamic environments is a foundational challenge for embodied intelligence. While conditional motion synthesis has achieved significant advances, egocentric motion generation remains largely underexplored due to the inherent complexity of first-person perception. In this work, we investigate Egocentric Vision-Language (Ego-VL) motion generation. This task requires synthesizing 3D human motion conditioned jointly on first-person visual observations and natural language instructions. We identify a critical reasoning-generation entanglement challenge: the simultaneous optimization of semantic reasoning and kinematic modeling introduces gradient conflicts. These conflicts systematically degrade the fidelity of multimodal grounding and motion quality. To address this challenge, we propose a hierarchical generative framework EgoMotion . Inspired by the biological decoupling of cognitive reasoning and motor control, EgoMotion operates in two stages. In the Cognitive Reasoning stage, A vision-language model (VLM) projects multimodal inputs into a structured space of discrete motion primitives. This forces the VLM to acquire goal-consistent representations, effectively bridging the semantic gap between high-level perceptual understanding and low-level action execution. In the Motion Generation stage, these learned representations serve as expressive conditioning signals for a diffusion-based motion generator. By performing iterative denoising within a continuous latent space, the generator synthesizes physically plausible and temporally coherent trajectories. Extensive evaluations demonstrate that EgoMotion achieves state-of-the-art performance, and produces motion sequences that are both semantically grounded and kinematically superior to existing approaches. 
+
+Index Terms —Human Motion Generation, Egocentric Vision, Diffusion Models, Vision-Language Models 
+
+✦
+
+1 INTRODUCTION 
+
+Faithfully modeling human behavior in dynamic en-vironments remains a foundational challenge with broad implications for computer vision [15], [25], [43], [46], [58], computer graphics [16], and robotics [22]. Recent advances in conditional motion generation have largely converged around tasks such as text-to-motion, music-to-dance and scene-conditioned motion synthesis, giving rise to three dominant paradigms: (i) autoregressive models , which formu-late motion synthesis as sequential token prediction [15], [69]; (ii) masked transformers , which enable parallel genera-tion through discrete token reconstruction [9]; (iii) diffusion-based models , which model complex, continuous motion dis-tributions through iterative denoising process [45], [66]. While these approaches have improved motion realism and semantic control, they primarily operate on abstract modalities like text [9], [10] or music [41], [48]. Parallel efforts incorporate environmental context using explicit 3D 
+
+• R. Hou and M Luo are with Key Laboratory of Intelligent Information Processing, Institute of Computing Technology (ICT), Chinese Academy of Sciences (CAS), Beijing, 100190, China. 
+
+• M. Zhou is with Jilin University (JLU), Changchun, 130012, China. 
+
+• Y. Gui is with Beijing University of Posts and Telecommunications (BUPT), Beijing, 100876, China. 
+
+• B. Ma is with University of the Chinese Academy of Sciences, Beijing 100049, China. 
+
+• H. Chang, S. Shan and X. Chen are with Key Laboratory of Intelligent Information Processing, Institute of Computing Technology (ICT), Chinese Academy of Sciences (CAS), Beijing, 100190, China, and University of the Chinese Academy of Sciences, Beijing 100049, China. E-mail: {houruibing, changhong, sgshan }@ict.ac.cn, ming-shuang.luo@vipl.ict.ac.cn 
+
+scene representation [54], [55], [61]. However, such struc-tured inputs are often unavailable in real-world egocentric scenarios. Crucially, both lines of work overlook egocentric visual perception , which provides rich affordances and spatial constraints directly from first-person video. By neglecting this perceptual grounding, current models [25], [43] inher-ently decouple sensing from action. This creates a represen-tational gap that ultimately impedes their deployment in dynamic interactive settings. To bridge this gap, we introduce Egocentric Vision-Language (Ego-VL) Motion Generation. As shown in Fig. 1, this task requires synthesizing motion sequences condi-tioned jointly on egocentric visual observations and natural language instructions. This formulation emulates real-world embodied interaction, where an agent must concurrently parse verbal commands, reason about environmental affor-dances, and execute feasible trajectories. Despite its concep-tual promise, Ego-VL Motion Generation poses two major technical challenges: 
+
+Challenge1: Reasoning-Generation Entanglement . A natural approach to this task is to jointly optimize a vision-language model (VLM) and a motion generator in an end-to-end fashion. This assumes the unified model can si-multaneously acquire multimodal semantic understanding and precise kinematic modeling capabilities. However, such a design imposes fundamentally incompatible optimiza-tion objectives on shared model parameters. Specifically, gradients from the motion generation objective propagate into the VLM backbone, corrupting its semantic represen-  
+
+> arXiv:2604.19105v1 [cs.CV] 21 Apr 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 2C turns left while walking in the kitchen,
+> then he turns right as he opens the
+> countertop drawer with his right hand.
+> Ego Motion
+> C is walking in the office hallway, then
+> stops and twists her body to the right to
+> talk to her peers before turning to her left
+> and walking into the office hallway.
+> EgoMotion
+> egocentric visual observations egocentric visual observations
+
+Fig. 1: We propose a hierarchical framework EgoMotion for Ego-VL Motion Generation, aiming to synthesize motion sequences conditioned jointly on egocentric visual observations and natural language instructions. 
+
+tations and undermining multimodal grounding fidelity. Conversely, the semantic reasoning objective interferes with the kinematic precision required for high-quality synthesis. This gradient interference makes end-to-end optimization a fundamentally suboptimal training paradigm for this task. 
+
+Challenge2: Motion Prediction Instability . Directly re-gressing motion sequences in raw joint space poses a fun-damental obstacle to stable, physically grounded synthesis. This raw joint space is characterized by complex biomechan-ical dependencies across anatomical degrees of freedom, which are notoriously difficult to capture through direct supervised regression. Without structural priors, a gener-ative model must recover the underlying motion distribu-tion across all degrees of freedom. This creates a severely underconstrained problem with no inherent guarantees of kinematic feasibility. Consequently, this unconstrained for-mulation makes the synthesis process highly susceptible to kinematic violations, often resulting in high-frequency joint flickering. To address these challenges, we propose EgoMotion ,a hierarchical framework inspired by the biological de-coupling of high-level cognition and low-level motor con-trol. EgoMotion decomposes the Ego-VL Motion Generation task into two tightly coupled yet independently optimized stages, each dedicated to a distinct objective. 
+
+Stage I: Cognitive Reasoning. A vision-language model acts as the cognitive brain . It performs structured multimodal reasoning to map egocentric visual observations and natu-ral language instructions into compact motion primitives. Specifically, the VLM is trained to predict discrete motion tokens derived from a pretrained Residual Vector Quantized Variational Autoencoder (RVQ-VAE) [21] codebook. This design reformulates motion synthesis as a symbolic se-quence reasoning task, allowing the model to fully leverage the VLM’s autoregressive capabilities. Critically, by isolating this stage with a single supervised objective, EgoMotion circumvents the gradient interference common in joint end-to-end optimization. This ensures that the VLM acquires clean, uncontaminated semantic representations that are highly effective for subsequent motion generation. 
+
+Stage II: Motion Generation. A diffusion-based motion generator acts as the motor cerebellum . It is conditioned on the final-layer hidden states of the frozen VLM backbone, which encapsulate rich semantic context distilled from egocentric observations and language instructions. Rather than oper-ating in raw joint space, the generator performs iterative denoising within the continuous latent space of a pretrained variational autoencoder (VAE). This design provides a well-regularized optimization landscape that substantially miti-gates kinematic violations. Consequently, the generator can progressively refine coarse behavioral intents into tempo-rally coherent and physically plausible motion trajectories. To the best of our knowledge, this work represents one of the early systematic attempts to investigate egocen-tric vision-language conditioned human motion generation within a unified generative framework. Extensive exper-iments demonstrate that EgoMotion consistently outper-forms existing baselines, yielding motion sequences that are semantically grounded and temporally coherent. 
+
+2 RELATED WORK 
+
+2.1 Conditional Motion Generation 
+
+Conditional motion generation aims to synthesize diverse and high-fidelity motion sequences guided by external sig-nals [59], [71], including text [3], [9], [10], action [1], [11], [27], [31], [35], music [41], [48] and 3D scenes [54], [55], [61]. Fueled by the avaliablity of large-scale motion capture datasets and rapid advances in deep generative models, this field has witnessed substantial progress in recent years. Existing approaches can be broadly categorized into three main families: autoregressive models [29], [64], generative masked modeling [9], [36], and diffusion-based methods [18], [37], [40], [45], [57], [66]. 
+
+Autoregressive approaches typically quantize continu-ous motions into discrete tokens, modeling the resulting sequence through step-by-step autoregressive prediction [15], [29], [64], [69]. A representative work, T2M-GPT [64], adopts a Vector Quantized Variational Autoencoder (VQ-VAE) [49] with a GPT-style transformer [50] to perform conditional motion synthesis within a structured codebook space. Building upon this paradigm, HumanTOMATO [29] further incorporates a hierarchical VQ-VAE alongside GPT-based decoding modules, enabling the joint modeling of fine-grained motion dynamics across both body and hand articulations. Despite their promising performance, autore-gressive approaches are subject to inherent architectural limitations. First, the discretization process induced by VQ-VAE [49] inevitably incurs quantization errors, resulting in the loss of high-frequency kinematic details. Second, the causal attention mechanism underlying autoregressive modeling precludes temporal lookahead, restricting each token to a strictly unidirectional context. This sequential dependency renders the generation process susceptible to error accumulation, which can precipitate temporal drift JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 3
+
+and undermine the long-term coherence and fluidity of the synthesized trajectories. 
+
+Generative masked modeling offers a non-autoregressive alternative by reconstructing complete motion sequences from partially masked token representations [7], [9], [36]. For instance, MMM [36] employs a conditioned masked transformer that predicts motion tokens in parallel under the guidance of textual embeddings. MoMask [9] further enhances synthesis fidelity by coupling Residual Vector Quantization [21] with a residual transformer architecture. Extending this paradigm to complex multi-person scenarios, DuetGen [7] introduces a hierarchical masked modeling framework that facilitates synchronized motion synthesis between interacting dancers under musical guidance. In contrast to autoregressive counterparts, masked generative models leverage bidirectional self-attention, enabling each token to attend to both preceding and succeeding contexts during generation. This global receptive field effectively mitigates the temporal drift inherent in sequential prediction. Nevertheless, the performance of these models still remains fundamentally constrained by the discretization fidelity of the underlying codebook. 
+
+Diffusion-based methods synthesize motion sequences by iteratively reversing a learned corruption process, pro-gressively denoising a Gaussian prior into coherent motion trajectories. In contrast to discrete generative paradigms, these approaches operate in continuous spaces, thereby circumventing the precision loss introduced by vector quan-tization. For instance, MDM [45] employs a transformer-based diffusion backbone conditioned on semantic features extracted from a pre-trained CLIP encoder [39]. Motion-Diffuse [66] extends this line by enabling fine-grained, part-level control through detailed textual prompts. More recently, several works [18], [37], [38] have demonstrated strong generalization capability across out-of-domain mo-tion distributions. Despite their capacity for high-fidelity synthesis, existing diffusion-based frameworks [45], [66] predominantly generate motion trajectories directly in raw joint space, which is prone to noticeable jitter and high-frequency artifacts due to the inherent step-wise stochas-ticity of the denoising process. This observation motivates our adoption of latent diffusion, wherein the denoising process is performed within the compressed latent space of a pretrained VAE, yielding smoother and more kinematically consistent motion synthesis. 
+
+2.2 Scene-aware Motion Generation 
+
+Scene-conditioned motion generation aims to synthesize human motions that are both semantically meaningful and physically consistent with the surrounding environments. Existing approaches typically ground the generation process in explicit 3D geometric priors, including point clouds [2], [55], [70], meshes [53], voxel grids [3], [17], and signed distance fields [54], [61], [67]. These works typically leverage such representations to model human-scene [2], [12], [17] and human-object [4], [20], [23], [68] interactions. However, acquiring high-fidelity 3D scene representations typically necessitates specialized capture hardware or computation-ally demanding offline reconstruction pipelines [8], [33], [47], imposing a significant practical bottleneck for real-world deployment. In contrast, egocentric images bypass the need for specialized hardware or offline reconstruc-tion, offering a more ubiquitous and deployable alternative. Nevertheless, motion synthesis grounded in such unstruc-tured visual cues remains remarkably underexplored. In this work, we formally introduce the task of Egocentric Vision-Language Motion Generation, aiming to synthesize context-aware human motions jointly conditioned on a single ego-centric frame and language instruction. 
+
+2.3 Egocentric Motion Reconstruction and Generation 
+
+Egocentric visual inputs provide a first-person perspective that is essential for understanding human-centric interactive motion. A series of works [24], [32], [51], [52], [60] has focused on egocentric pose estimation, aiming to recon-struct full-body postures from the limited field of view of wearable cameras. Early methods often rely on optical flow to estimate the 3D trajectory of the ego-device, or depend exclusively on SLAM-based trajectory without considering broader scene context. Subsequent research integrates scene point clouds with egocentric image features to achieve scene-aware motion reconstruction. More recently, UniEgo-Motion [34] demonstrates that rich scene context can be effectively captured from egocentric images, reducing the reliance on external sensors or pre-scanned maps. Recent research has extended this line from passive estimation to proactive motion reaction and generation. HERO [62] and EgoReAct [65] synthesize plausible human reactions condi-tioned on egocentric videos, enabling visually grounded responses to environmental events. EgoTwin [56] further introduces a “dreaming” paradigm that jointly synthe-sizes human motion and egocentric observations, effectively learning a generative world model that couples first-person perception with motion dynamics. In contrast to existing methods that primarily focus on passive reconstruction or joint video-motion generation, we focus on Ego-VL Motion Generation task and propose a two-stage framework that explicitly decouples cognitive reasoning from continuous motion synthesis. 
+
+3 METHODOLOGY 
+
+Problem Formulation. We define Ego-VL Motion Gener-ation as synthesizing a 3D human motion sequence X =
+
+{Xt}Nt=1 ∈ RN ×D conditioned on an egocentric RGB image 
+
+I0 ∈ RH×W ×3, a natural language instruction L, and an initial pose X0 ∈ RD . Formally, our objective is to model the conditional distribution p (X | I0, L, X 0), where the gener-ated motion is subject to temporal continuity from X0 and semantic alignment with I0 and L.
+
+Framework Overview. An overview of the proposed EgoMotion framework is illustrated in Fig. 2. To address reasoning-generation entanglement and motion instability, EgoMotion adopts a hierarchical two-stage paradigm that mirrors the biological separation between high-level cogni-tive reasoning and low-level motor execution. 
+
+Stage I: Cognitive Reasoning Pre-training. We first em-ploy a Vision-Language Model (VLM) as the cognitive brain JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 4Stage I: Cognitive Reasoning Pre -training 
+
+Gemma -2 Language Model        
+
+> ……
+> 𝒎 𝟏
+> 𝟏 ⋯𝒎 𝑻
+> 𝟏 ∅∅⋯
+> Delay Parallel Modeling
+
+Stage II: Motion Generation                
+
+> VLM Features 𝐇 𝐕𝐋
+> Body State ( 𝑿 𝟎 )
+> “C is standing in the foyer while talking to
+> her peer. C walks towards……
+> Language Instruction ( 𝑳 )
+> Egocentric Image ( 𝑰 𝟎 )
+> SigLIP Vision
+> Encoder
+> Continuous MotionSequence 𝓧
+> Residual Vector Quantized Variational Autoencoder (RVQ -VAE)
+> Encoder
+> ……
+> Level x  𝑳
+> 𝒎 𝟏
+> 𝒎 𝟐
+> 𝒎 𝑳
+> ∅𝒎 𝟏
+> 𝟐 ⋯𝒎 𝑻
+> 𝟐 ∅⋯
+> ∅∅𝒎 𝟏
+> 𝑳 ⋯𝒎 𝑻
+> 𝑳 ∅
+> START ෥𝒎 𝟏
+> 𝟏 :𝑳
+> ෥𝒎 𝟐
+> 𝟏 :𝑳 ෥𝒎 𝟏
+> 𝟏 :𝑳
+> ⋯
+> ⋯
+> ෥𝒎 𝑻 −𝟏
+> 𝟏 :𝑳
+> ෥𝒎 𝑻
+> 𝟏 :𝑳
+> 𝒎 𝟐
+> 𝟏 :𝑳 ⋯
+> ⋯𝒎 𝟐
+> 𝟏 :𝑳
+> MASK
+> 𝒎 𝑻 −𝟏
+> 𝟏 :𝑳
+> 𝒎 𝑻
+> 𝟏 :𝑳
+> 𝒎 𝑻
+> 𝟏 :𝑳
+
+Autoregressive Generation  Parallel Masked Modeling 
+
+> MASK
+> 𝒎 𝟏
+> 𝟏 :𝑳
+> Noised Latent
+> Denoised Latent
+> AE Decoder
+> Latent Space
+> Diffusion
+
+Cross_Attention      
+
+> VLM Features VLM Features VLM Features
+
+Fig. 2: Overview of EgoMotion. The framework employs a hierarchical two-stage paradigm. (Stage I) Cognitive Reasoning Pre-training: A Gemma-2 based VLM aligns multimodal inputs ( I0, L, X 0) with RVQ-VAE motion primitives. (Stage II): Motion Generation : Pre-trained VLM features ( HVL ) condition the synthesis across three optional paradigms (Autoregressive, Masked Modeling, or Diffusion). 
+
+to map egocentric observation I0 and instructions L onto discrete motion primitives. This stage focuses on robust multimodal semantic alignment, enabling the VLM to distill high-level behavioral intent from unstructured egocentric contexts. 
+
+Stage II: Latent Motor Diffusion. The pretrained VLM backbone is then integrated with a diffusion-based genera-tor, functioning as the motor cerebellum . By conditioning on the final-layer hidden states of the VLM, a Latent Diffusion Model performs iterative denoising within a pretrained VAE’s latent space. This process progressively refines noisy latent into smooth, temporally coherent 3D motion trajecto-ries X , while preserving the semantic reasoning priors from Stage I. 
+
+3.1 Cognitive Reasoning Pre-training Stage 
+
+The core objective of the first stage is to equip the VLM back-bone with the capacity to distill high-level behavioral inten-tions from complex egocentric environments. Specifically, we position the VLM as a cognitive brain that establishes a structured, multimodal-to-semantic mapping, bridging the gap between raw perceptual inputs and motion primitives. 
+
+3.1.1 Residual Motion Tokenization 
+
+Conventional discrete motion paradigms typically rely on standard Vector Quantization [49] with a single, limited-capacity codebook. Such approaches inherently constrain representational power, as diverse and complex motion patterns must be compressed into a restricted set of prede-fined tokens. This compression bottleneck inevitably intro-duces significant information loss, thereby undermining the model’s capacity to faithfully represent fine-grained motion nuances and limiting its expressiveness in representing the full diversity of human motion. Following [9], we adopt a Residual Vector Quantized Variational Autoencoder (RVQ-VAE) [21] which consists of a motion encoder E, a motion decoder D, and a set of L
+
+hierarchical codebooks Bl Ll=1 . Formally, given a motion sequence X ∈ RN ×D , the encoder E maps it to a latent feature map Z ∈ RN1×D1 with a temporal downsampling ratio of N/N 1. To capture fine-grained dynamics while maintaining a discrete bottleneck, RVQ recursively quan-tizes the latent feature map Z ∈ RN1×D1 . Taking R1 = Z as the initial residual, the discrete token sequence ml and the subsequent residual Rl+1 at each quantization level l are computed as: 
+
+mln = ml [n] = arg min  
+
+> k
+
+Rl [n, :] − el (k) 22 ,
+
+ˆRl = el 
+
+ml
+
+, Rl+1 = Rl − ˆRl.
+
+(1) Here, el (k) denotes the embedding vector for index k in codebook Bl. The final quantized representation is the sum-mation across all levels: ˆZ = PLl=1 ˆRl. Subsequently, the decoder D reconstructs the motion sequence ˆX = D
+
+ˆZ
+
+
+
+from these aggregated quantized features ˆZ. The model is optimized using a joint objective function: 
+
+Lrvq = X − ˆX 1 + β
+
+> L
+
+X
+
+> l=1
+
+Rl − sg 
+
+h ˆRli 22 , (2) where sg [ ·] denotes the stop-gradient operation, and β is a hyperparameter controlling the commitment loss. 
+
+3.1.2 Alignment via Generative Pre-training 
+
+VLM Architecture. We adopt PaliGemma-2 [42] as the vision-language backbone. It integrates a SigLIP [63] vi-sion encoder with a linear projection layer for cross-modal JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 5
+
+feature alignment, followed by a Gemma-2 [44] language model for unified multimodal reasoning. This architecture provides a scalable and expressive foundation for learning structured motion priors conditioned on egocentric visual perception and natural language instructions. 
+
+Delay Parallel Modeling. Let m1, . . . , mL denote the hierarchical motion token streams produced by residual motion tokenization. To enable efficient multi-stream au-toregressive generation, we adopt a delay parallel modeling formulation following [14], which supports simultaneous prediction across all residual streams. Specifically, each stream ml is temporally shifted to construct a delayed sequence ˜ml of length N1 + L − 1:
+
+˜ml =
+
+∅, . . . , ∅
+
+| {z }
+
+> l−1
+
+, ml, ∅, . . . , ∅
+
+| {z }
+
+> L−l
+
+ , (3) where ∅ represents a special padding token. This structured staggering allows the VLM to employ L parallel prediction heads, generating tokens from all residual streams concur-rently at each decoding step. Conditioned on egocentric visual observations I0 and language instruction L, the VLM backbone leverages causal self-attention to capture the joint conditional distribution at each timestep n:
+
+p
+
+
+
+˜m1: Ln | ˜m1: L<n , I 0, L, X 0
+
+
+
+=
+
+p
+
+
+
+˜m1
+
+> n
+
+, . . . , ˜mLn | ˜m1
+
+> <n
+
+, . . . , ˜mL<n , I 0, L, X 0
+
+
+
+=
+
+p
+
+
+
+m1
+
+> n
+
+, . . . , m Ln−L+1 |m1
+
+> <n
+
+, . . . , m L<n −L+1 , I 0, L, X 0
+
+
+
+.
+
+(4) By transforming hierarchical residual prediction into a tem-porally interleaved autoregressive process, this formulation jointly captures (i) intra-stream temporal dependencies via 
+
+ml<n , and (ii) inter-stream residual dependencies via m<l n ,within a single forward pass. This strategy substantially improves decoding efficiency while preserving fine-grained motion expressiveness. 
+
+Training Objective. During pre-training, we optimize the VLM to maximize the log-likelihood of the delayed motion tokens via an autoregressive cross-entropy loss: 
+
+L =
+
+> N1+L−1
+
+X
+
+> n=1
+
+log p
+
+
+
+˜m1: Ln | ˜m1: L<n , I 0, L, X 0; Θ 
+
+
+
+, (5) where Θ denotes the parameters of the VLM backbone. This multi-stream prediction objective provides structured supervision that encourages the model to internalize motion dynamics, while simultaneously regularizing the VLM’s latent representation space. These learned reasoning pri-ors effectively bridge high-level semantic intent with fine-grained kinematic constraints, and subsequently serve as task-aware conditioning signals for the downstream motion generation stage. 
+
+3.2 Motion Generation Stage 
+
+As shown in Fig. 2, to systematically investigate the most effective interface between cognitive reasoning and motion generation, we instantiate three representative generative paradigms built upon a unified Conditional Transformer architecture. In particular, the motion generator employs cross-attention blocks to attend to the VLM-derived repre-sentation HVL from Stage I: 
+
+HVL = VLM ( I0, L, X 0; Θ) . (6) Within this generator, cross-attention blocks enforce seman-tic alignment with the pre-trained cognitive prior, while self-attention blocks capture the intrinsic temporal dependen-cies of the motion sequence. While sharing this structural foundation, the three paradigms diverge in their respective modeling spaces and optimization objectives. 
+
+Autoregressive Generation. A natural instantiation of the cognitive-to-motor mapping is to extend the sequential modeling paradigm from Stage I to an Autoregressive Gen-eration framework. Given the delayed multi-stream tokens n
+
+˜m1, . . . , ˜mLo
+
+, a Conditional Transformer is trained to maximize the conditional log-likehood: 
+
+LAR = −
+
+> N1+L−1
+
+X
+
+> n=1
+
+log p
+
+
+
+˜m1: Ln | ˜m1: L<n , HVL ; θ
+
+
+
+, (7) where θ denotes the parameter of the motion generator. This paradigm is conceptually appealing due to its alignment with the pre-training stage, enabling seamless transfer of the learned likelihood-based motion distribution. However, its strictly causal dependency structure inherently introduces exposure bias: the model is conditioned exclusively on ground-truth histories during training and thus remains unexposed to its own prediction errors. Consequently, such errors accumulate during long-horizon inference rollouts, frequently leading to temporal drift and progressive degra-dation in kinematic plausibility. 
+
+Parallel Masked Modeling. In contrast to the strictly causal autoregressive formulation, we instantiate the cognitive-motor mapping via a Parallel Masked Modeling paradigm to enable non-autoregressive motion generation. Given the multi-level residual token sequence m1, . . . , mL from Stage 1, the model is trained to predict tokens across all 
+
+L levels in parallel. To enforce robust temporal reasoning, we introduce a structured masking unit : once a temporal index is selected for masking, the tokens across all resid-ual levels at that timestep are jointly masked. This design prevents the model from relying on vertical shortcuts, i.e., inferring masked tokens from co-located residuals at the same timestep, thereby forcing the Transformer to leverage broader temporal context. The Masked Motion Transformer reconstructs these masked tokens conditioned on the visible context and semantic prior HVL :
+
+LPMM = − 1
+
+|M| 
+
+X
+
+> n∈M
+
+log p
+
+
+
+m1: Ln |m1: L
+
+> \M
+
+, HVL ; θ
+
+
+
+, (8) where M denotes the set of masked temporal indices. This temporally aligned masking strategy encourages the learn-ing of coherent dependencies and enables high-efficiency parallel generation, effectively mitigating the exposure bias inherent in autoregressive models. Nevertheless, discrete to-kenization inevitably imposes a representational bottleneck. The fine-grained kinematic details may be lost during quan-tization, potentially compromising reconstruction fidelity and the realism of synthesized egocentric interactions. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 6
+
+Latent Space Diffusion. To overcome the representational bottleneck of discrete tokenization, we introduce a Latent-space Diffusion paradigm, formulating motion generation as a continuous denoising process within a structured latent manifold. To this end, we pre-train a Variational Autoen-coder (VAE) [19] to map raw motion sequence X into a continuous latent space. Specifically, the encoder E parame-ters a posterior distribution qϕ (Z|X ), from which a latent code Z is sampled via the reparameterization trick. The VAE model is optimized by minizing a joint objective: a Kullback-Leibler (KL) divergence loss regularizes the pos-terior against a standard Gaussian prior N (0, I), while a reconstruction loss ensures that the decoder D can faithfully recover the motion sequence ˆX = D (Z) from the latent manifold. This joint optimization yields a smooth, com-pact, and kinematically informed latent space, providing a structured inductive bias for the subsequent flow-matching process. Within this latent space, we employ a Flow Matching paradigm [26] to transport a Gaussian noise towards the tar-get motion distribution, conditioned on the frozen semantic features HVL . Specifically, given a ground-truth latent Z,a timestep τ ∈ [0 , 1] , and sampled noise ϵ ∼ N (0 , I ), the interpolated probability path Zτ is constructed via linear interpolation: 
+
+Zτ = τ Z + (1 − τ ) ϵ. (9) The motion generator fθ is trained to approximate the target velocity field ϵ − Z by minimizing the conditional flow-matching objective: 
+
+LLFM = Eτ, Z,ϵ 
+
+∥fθ (HVL , Zτ , τ ) − (ϵ − Z)∥22
+
+ . (10) By operating within a continuous and compact latent space, this paradigm circumvents the quantization artifacts inher-ent in discrete token-based modeling while preserving fine-grained kinematic details. Furthermore, the KL-regularized latent space provides a significantly smoother optimization landscape compared to raw-space diffusion, yielding en-hanced training stability and superior synthesis fidelity. 
+
+4 EXPERIMENT 
+
+4.1 Experimental Settings 
+
+Motion Representation. To facilitate effective alignment between 3D human motion and egocentric video, we adopt a head-centric motion representation. Conventional root-centric formats [10] typically encode head pose implicitly through nested kinematic chains. This structure makes it inherently difficult for neural networks to model the precise head trajectories essential for egocentric tasks. In contrast, the head-centric representation explicitly parameterizes mo-tion relative to the head’s orientation and position. Specifi-cally, for a motion sequence with J joints, the pose at each timestep is represented by a (3 J + 8) -dimensional feature vector: [ ˙vxz , r∆, plocal ]. Here, ˙vxz ∈ R2 denotes the horizon-tal root velocity on the XZ −plane, transformed into the local coordinate frame of the previous timestep to ensure trans-lation invariance. The term r∆ ∈ R6 captures the frame-to-frame change in global yaw via a 6D rotation representation. Finally, plocal ∈ R3J encodes the 3D positions of all J joints within a head-centric, heading-aligned coordinate space. By using this coordinate space, we explicitly expose the spatial relationship between the body and the observer’s viewpoint, simplifying the learning process for egocentric alignment. 
+
+Datasets. We evaluate our model on Nymeria [30], alarge-scale, multi-modal dataset collected in unconstrained real-world environments. Unlike lab-captured or synthetic benchmarks, Nymeria covers a diverse range of daily activ-ities performed by various subjects across various indoor and outdoor scenes. The dataset provides synchronized triplets of: i) Egocentric Video: Recorded via Project Aria glasses, where the field-of-view is intrinsically aligned with natural head orientation; ii) 3D Motion: full-body kinematics captured through Xsens inertial sensors; iii) Textual Descrip-tions: Fine-grained action descriptions curated by human annotators. For our experiments, we partition the contin-uous recordings into non-overlapping 5-second segments, yielding a total corpus of approximately 140K samples. We employ an 80% /20% split for the training and test sets, respectively. 
+
+Evaluation Metrics. We assess the generated motions across four complementary dimensions to provide a holistic eval-uation of generative quality.  
+
+> •
+
+Motion Fidelity. We employ the Fr´ echet Inception Distance ( FID ) as the primary indicator of overall motion quality. FID measures the distribution dis-crepancy between high-level feature spaces of the generated and ground-truth motions.  
+
+> •
+
+Semantic Alignment. To evaluate how faithfully the generated motions adhere to the multi-modal condi-tioning, we utilize two metrics: Retrieval Precision (R@Top1 ), which quantifies the top-1 accuracy of retrieving the correct conditioning pair for a given generated motion within a batch of 64 samples; and Multi-Modal Distance ( MM-Dist ), which measures the average Euclidean distance between motion and conditioning embeddings in a shared latent space.  
+
+> •
+
+Physical Plausibility. To verify adherence to basic physical constraints, we evaluate foot-ground in-teractions via two metrics: Foot Sliding ( FS ) [13], which quantifies the horizontal displacement of feet during interval where they are excepted to remain stationary, serving as an indicator of the “skating” artifact; and Foot Contact ( FC ), which measures the mean vertical distance (in millimeter) between foot joints and the ground plane, capturing “floating” and “penetration” artifacts.  
+
+> •
+
+Temporal Smoothness. To assess kinematic stability, we analyze higher-order temporal derivatives of joint positions. Acceleration ( Acce ) and Jerk are computed as the Euclidean norm of the second- and third-order temporal derivatives of joint positions, respectively. Lower values indicate reduced jitter and improved temporal consistency, reflecting more natural and fluid motion sequences. To compute these metrics accurately, we develop a ded-icated retrieval-based evaluation network for multi-modal egocentric alignment. The architecture consists of three specialized encoders: (i) a motion encoder comprising six JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 7
+
+TABLE 1: Quantitative results of egocentric vision-language (Ego-VL) motion generation. By default, EgoMotion is equipped with a Latent Diffusion Motion Generaton with two-stage training.                                                            
+
+> Methods Fidelity Semantic Alignment Physical Plausibility Temporal Smoothness FID ↓R@Top1 ↑MM-Dist ↓ → FS ↓FC ↓Acce ↓Jerk ↓
+> Real -67.4 0.897 --0.0015 0.0010 T2M-GPT [64] 0.0655 28.1 1.136 1.30 15.5 0.0029 0.0045 MMM [36] 0.1005 36.1 1.104 1.32 15.6 0.0024 0.0039 MoMask [9] 0.0621 41.2 1.125 1.98 17.2 0.0017 0.0024 MotionDiffuse [66] 0.0609 37.2 1.062 1.18 12.4 0.0016 0.0020
+> EgoMotion (Ours) 0.0018 69.4 0.872 1.05 12.3 0.0015 0.0015
+
+transformer layers [6]; (ii) a visual encoder leveraging a pre-trained CLIP [39] visual backbone to extract egocentric first-frame appearance; and (iii) a BERT-based text encoder [5]. Specifically, the image and text features are concatenated and processed through four additional transformer layers to capture deep inter-modal correlations between the initial scene context and the textual instruction. The resulting joint conditioning embedding is then aligned with the motion representation via contrastive learning. By minimizing the distance between matched motion-conditioning pairs while maximizing separation from negatives in the shared latent space, the network learns a highly discriminative embed-ding suitable for evaluating cross-modal consistency. 
+
+4.2 Implementation Details 
+
+In our experiment, we adopt the 3B-parameter variant of PaliGemma-2 [42] as the VLM backbone, with all input images resized to 224 × 224 pixels. Motion data follows the Xsens skeletal format with J = 23 joints, and each segment is standardized to 150 frames at 30 FPS. By default, our EgoMotion employs a latent diffusion model as the core motion generator. 
+
+Motion Tokenizer and VAE Training. For both the discrete motion tokenizer (RVQ-VAE) and the continuous VAE (em-ployed in the latent diffusion model), we adopt a symmetric autoencoder architecture with 2× temporal downsampling. The RVQ-VAE comprises L = 6 quantization layers, each maintaining a codebook of 512 codes. The continuous VAE compresses the raw pose sequence into a 16-dimensional la-tent representation. Both models are trained using the same optimization strategy. We use the AdamW [28] optimizer with a batch size of 256 for 60K iterations. The learning rate is initialized at 5 × 10 −5 and follows a cosine annealing schedule. For the RVQ-VAE, the commitment loss weight β
+
+in Lrvq (Eq. 2) is set to 0.02 .
+
+EgoMotion Training. We adopt a two-stage training proce-dure to effectively bridge visual-linguistic reasoning with motion generation. In the first stage, we optimize the PaliGemma-2 backbone for 30K iterations using the AdamW [28] optimizer with a constant learning rate of 1 × 10 −4 and a batch size of 256. During this phase, the parameters of the vision encoder remain frozen. This strategy preserves the integrity of the pre-trained visual representations, allowing the language model to focus exclusively on aligning visual features with the target reasoning tasks. In the second stage, we train the motion generator for 140K iterations with a batch size of 256. We maintain a constant learning rate of 1 × 10 −4 using the AdamW [28] optimizer. To provide a stable conditioning signal, the VLM is initialized with the weights from the first stage and re-mains gradient-detached throughout this stage. By freezing the VLM, we ensure that the learned visual-linguistic rep-resentations remain intact, enabling the motion generator to focus solely on mapping the multi-modal latent space to high-fidelity motion sequences. 
+
+4.3 Main Results. 
+
+Baselines. Since egocentric vision-language motion gener-ation remains largely unexplored, direct comparisons with task-specific baselines are limited. Consequently, we eval-uate our method against several state-of-the-art models from the broader text-to-motion domain, including T2M-GPT [64], MMM [36], MoMask [9], MotionDiffuse [66]. To ensure a rigorous and fair comparison, we adapted these approaches to our multi-modal egocentric setting by replac-ing the original text-only conditioning with a joint visual-linguistic representation. Specifically, we concatenate the egocentric image feature (extracted via a frozen SigLIP vi-sion encoder [63]), textual instruction embeddings, and the initial human pose embedding. This fused representation is then fed into the respective generative backbones as the conditioning signal. All adapted baselines are retrained on the Nymeria dataset using their optimal hyperparameter configurations to ensure peak performance. 
+
+Results. Tab. 1 evaluates our method against four state-of-the-art baselines on the Nymeria dataset. EgoMotion consistently outperforms all adapted baselines across all evaluated dimensions. Our method achieves a significant breakthrough in motion quality, with an FID of 0.0018, rep-resenting a nearly 30-fold improvement over the strongest baseline MotionDiffuse (0.0609). Our approach also demon-strates superior temporal stability and physical grounding. EgoMotion attains the lowest acceleration and jerk, effec-tively matching the smoothness of ground-truth recordings. Furthermore, the marked reduction in foot sliding and foot contact errors highlights our model’s ability to synthesize physically plausible sequences. 
+
+4.4 Ablation Studies 
+
+This section presents a comprehensive ablation study to evaluate the key design components of EgoMotion. 
+
+4.4.1 Effectiveness of Two-Stage Training Strategy 
+
+We evaluate the proposed two-stage training strategy by comparing EgoMotion with two representative variants: JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 8
+
+TABLE 2: Ablation study on key design components of EgoMotion framework. MG denotes the motion generator, and ME refers to the motion encoder responsible for mapping motion sequences into continuous and discrete latent spaces. The symbol “-” indicates that the model performs direct prediction in the raw joint coordinate space without latent encoding.                                                                                                        
+
+> Methods MG ME Fidelity Semantic Alignment Physical Plausibility Temporal Smoothness FID ↓R@Top1 ↑MM-Dist ↓FS ↓FC ↓Acce ↓Jerk ↓
+> EgoMotion-StageI None RVQ-VAE 0.041 57.9 0.951 1.32 16.8 0.0022 0.0030 Frozen-VLM Diffusion -0.030 63.0 0.916 2.01 13.0 0.0053 0.0094 Joint-Tuning Diffusion -0.027 71.9 0.881 1.63 13.1 0.0044 0.0076 EgoMotion Diffusion -0.015 69.8 0.867 1.56 12.6 0.0042 0.0073
+> EgoMotion Autoregressive VQ-VAE 0.051 61.7 0.919 1.29 13.2 0.0027 0.0041 Autoregressive RVQ-VAE 0.028 60.1 0.934 1.15 12.9 0.0017 0.0023 Masked VQ-VAE 0.053 62.7 0.915 1.27 14.8 0.0028 0.0043 Masked RVQ-VAE 0.031 69.1 0.878 1.22 17.9 0.0029 0.0041 Diffusion -0.015 69.8 0.867 1.56 12.6 0.0042 0.0073 Latent Diffusion VAE 0.018 69.4 0.872 1.05 12.3 0.0015 0.0015
+
+TABLE 3: Training and Inference Efficiency of Different Model Variants. Training Time (TT) : total wall-clock time to convergence (hours); Inference Time (IT) : mean per-sample latency at batch size 1 (milliseconds).                                       
+
+> Methods MG ME TT (h) IT (ms) Frozen-VLM Diffusion -40.8 295 Joint-Tuning Diffusion -202.6 295 EgoMotion Diffusion -112.4 295 EgoMotion-StageI None RVQ-VAE 62.5 4846 EgoMotion Autoregressive VQ-VAE +79.3 895 Autoregressive RVQ-VAE +81.6 987 Masked VQ-VAE +61.6 295 Masked RVQ-VAE +65.3 301 Diffusion -+49.9 295 Latent Diffusion VAE +40.8 226
+
+Frozen-VLM and Joint-Tuning. Frozen-VLM fixes the pre-trained VLM as a static feature extractor and trains only the motion generator, and Joint-Tuning performs end-to-end optimization of VLM and motion generator jointly. 
+
+(i) Frozen-VLM. As shown in Tab. 2, Frozen-VLM yields the weakest performance across nearly all metrics ( e.g., FID of 0.030 and FS of 2.01). This indicates that frozen VLM features lack the domain-specific knowledge required for precise egocentric motion synthesis. This deficiency mani-fests as both degraded generation fidelity and pronounced physical artifacts such as significant foot sliding. 
+
+(ii) Joint-Tuning. While Joint-Tuning achieves the high-est semantic alignment, it exhibits inferior generation fi-delity (FID of 0.027) and higher physical instability (FS of 1.63) compared to EgoMotion (FID of 0.015, FS of 1.56). This performance gap indicates that simultaneous optimiza-tion may introduce gradient interference between semantic reasoning and kinematic synthesis objectives, leading to a suboptimal trade-off. Furthermore, as shown in Tab. 3, Joint-Tuning incurs significantly higher training costs due to large-scale parameter updates on VLM backbone, yet still underperforms EgoMotion in overall motion realism. In contrast, EgoMotion adopts a two-stage training strat-egy that explicitly decouples VLM adaptation from gen-erative refinement. This approach effectively bridges the modality gap while fully preserving the generative capacity of the diffusion backbone. This principled decoupling yields a more balanced performance profile: i) Superior Quality: achieving a better trade-off across generation fidelity, se-mantic alignment, and physical plausibility; ii) Enhanced Efficiency: Substantially optimizes resource usage, reducing total training time by nearly 45% (as detailed in Tab. 3). 
+
+4.4.2 Effectiveness of Residual Quantization 
+
+We evaluate motion quantization strategies by comparing VQ-VAE and RVQ-VAE across different generative back-bones. 
+
+(i) Autoregressive Models. As shown in Tab. 2, replacing VQ-VAE with RVQ-VAE in the autoregressive generator yields substantial gains in generation fidelity. Specifically, the FID drops from 0.051 to 0.028, while motion stability improves as evidenced by a reduction in jerk from 0.0041 to 0.0023. As reported in Tab. 3, these gains are achieved with minimal computational overhead, incuring only a marginal increase in training time (+81.6h vs. +79.3h) and comparable inference latency. These results suggest that the hierarchi-cal codebooks in RVQ-VAE provide finer-grained motion representations, which are critical for accurate next-token prediction in autoregressive generation. 
+
+(ii) Masked Transformers. A consistent trend is ob-served for masked generative models. Adopting RVQ-VAE substantially improves semantic alignment, with R@Top1 increasing from 62.7% to 69.1%. As shown in Tab. 3, this improvement is highly cost-efficient, introducing negligible inference overhead (301ms vs. 295ms). This indicates that re-duced quantization error enables more precise modeling of the correspondence between egocentric instructions and dis-crete motion tokens, without compromising the efficiency of the masked Transformer architecture. Overall, RVQ-VAE consistently outperforms VQ-VAE across all evaluated generation paradigms with minimal overhead, demonstrating its superiority as a discrete motion representation for egocentric motion synthesis. 
+
+4.4.3 Analysis of Motion Generator 
+
+We evaluate three generative paradigms within the Stage II framework: Autoregressive, Masked Modeling, and Dif-fusion. As shown in Tab. 2, the diffusion-based genera-tor achieves the best generation fidelity (FID of 0.015), significantly outperforming the autoregressive (0.028) and JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 9
+
+TABLE 4: Ablation study on multi-modal conditions of EgoMotion. All variants are equipped with a Latent Diffusion Motion Generator. The symbols Visual ( ✓) and Language ( ✓) indicate the inclusion of egocentric image and textual instructions as control signals, respectively.                                            
+
+> Methods Visual Language Fidelity Semantic Alignment Physical Plausibility Temporal Smoothness FID ↓R@Top1 ↑MM-Dist ↓FS ↓FC ↓Acce ↓Jerk ↓
+> EgoMotion
+> ✓×0.041 30.0 1.122 1.08 12.5 0.0014 0.0014
+> ×✓0.022 67.4 0.874 1.25 13.1 0.0015 0.0015
+> ✓✓0.018 69.4 0.872 1.05 12.3 0.0015 0.0015
+
+masked (0.031) variants. This gap demonstrates that diffu-sion models more accurately capture the continuous and multimodal nature of egocentric motion compared to dis-crete token-based approaches. Regarding semantic align-ment, the diffusion and masked generator achieve compet-itive performance (R@Top1 of 69.8% and 69.1%), while the autoregressive model lags considerably behind (60.1%). This performance gap is primarily attributable to exposure bias and error accumulation in sequential decoding: early-stage prediction errors propagate through the sequence, induc-ing trajectory drift and semantic misalignment. In contrast, diffusion and masked models benefit from global context modeling, enabling more coherent grounding of complex instructions throughout the generated motion. For Inference Efficiency, the autoregressive model incurs the highest inference latency (987 ms) due to its strictly se-quential decoding procedure, as shown in Tab. 3. Diffusion and masked models are substantially faster, both operating at approximately 300ms per sample. Notably, the Latent Diffusion Model achieves the lowest inference latency (226 ms) by performing denoising within a compressed latent space rather than the high-dimensional raw joint space. Overall, the diffusion-based generator offers the most favor-able performance profile across all evaluated dimensions, including fidelity, semantic alignment, physical plausibility, and inference efficiency. These results establish it as the pre-ferred motion generator within the EgoMotion framework, providing a robust foundation for high-fidelity egocentric motion synthesis. 
+
+4.4.4 Impact of Motion Latent Spaces 
+
+We further investigate the impact of the VAE-based latent space on the diffusion generator. As shown in Tab. 2, while the raw-space diffusion variant achieves competitive gen-eration fidelity, it lacks inherent structural priors to ensure motion stability, leading to pronounced jitter and physical artifacts (FS of 1.56). In contrast, the latent diffusion gener-ator markedly enhances physical plausibility by operating within a regularized, low-dimensional latent space. The VAE effectively suppresses high-frequency non-physical os-cillations, achieving superior foot-sliding performance (FS of 1.05) and the most spatiotemporally coherent trajectories among all variants, with acceleration and jerk both mini-mized to 0.0015. These results demonstrate that the learned latent space acts as a strong structural regularizer, which is indispensable for synthesizing physically grounded and perceptually natural egocentric motion. Beyond motion quality, the latent diffusion generator offers substantial computational advantages. By shifting the iterative denoising process from the high-dimensional raw joint space to a compact latent representation, it achieves the lowest inference latency (226ms), a 23% reduction compared to the raw-space baseline, as shown in Tab. 3. This efficiency gain proves that the VAE-based architecture not only refines the motion manifold but also significantly lowers the de-ployment barrier for real-time egocentric applications. 
+
+4.4.5 Influence of Input Conditioning 
+
+We investigate the contribution of each input modality by ablating the conditioning signals provided to EgoMotion. Specifically, we compare the full framework against two variants: (i) Visual-only , which conditions the model solely on the egocentric visual observation I0, removing all lan-guage guidance; (ii) Language-only , which conditions the generator solely on the natural language instruction L while discarding the egocentric visual observation. As shown in Tab. 4, the full model consistently out-performs both single-modality baselines across nearly all metrics, highlighting a powerful synergy between visual grounding and linguistic intent. As observed, the Visual-only variant exhibits the weakest semantic alignment, con-firming that a single egocentric frame provides insufficient cues to infer high-level action intent. However, it maintains a competitive foot-sliding (FS) score of 1.08. This suggests that the visual modality primarily functions as a spatial anchor, providing the environmental constraints necessary to ground motion within the physical world. Without these visual cues, the FS score of Language-only variant degrades to 1.25 , which indicates that linguistic instructions alone cannot ensure precise kinematic alignment with the under-lying 3D scene. The Language-only variant significantly improves se-mantic metrics, yet it suffers from lower generation fidelity (FID of 0.022 vs. 0.018). This performance gap suggests that while language provides the global structure of the action, it lacks the fine-grained geometric cues necessary for high-fidelity synthesis. The full EgoMotion model bridges this gap, achieving the best FID (0.018) and R@Top1 (69.4%). These results demonstrate that VLM-derived representa-tions successfully fuse abstract textual commands with ego-centric visual priors, yielding motion that is both semanti-cally precise and physically consistent. 
+
+4.5 Visualization Analysis 
+
+To qualitatively assess generation performance, we visualize motion sequences produced by the four paradigms under identical linguistic instructions across three representative scenarios in Fig. 3. 
+
+Autoregressive (AR) Generation. The AR paradigm ex-hibits the most pronounced performance degradation, par-ticularly in long-horizon generation tasks. As shown in JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 10 Autoregressive 
+
+> Generation
+> C steps to the right
+> then walks forward
+> as he kicks the ball
+> with his right foot
+> while playing with
+> his peer in the yard
+> C is walking along the
+> backyard, turns to the
+> right and then stops by
+> the trash bin. C then
+> opens the trash bin
+> with his right hand.
+> C walks forward in the
+> living room then turns
+> right as he further
+> walks forward. C leans
+> to his left to pick up a
+> pillow on the chair
+> using his left hand.
+> Parallel Masked
+> Modeling
+> Raw Space
+> Diffusion
+> Latent Space
+> Diffusion (ours)
+> (a)
+> (b)
+> (c)
+
+Fig. 3: Qualitative comparison of motion generation across different paradigms. Generated motion sequences are visualized from a first-person perspective, conditioned on the input egocentric frame and corresponding language instructions. 
+
+Fig. 3 (b), the AR model initially captures the locomotion intent but subsequently collapses into a static or jittery state, failing to execute the ensuing “turning” and “open-ing” sub-actions. This observation provides direct visual evidence of exposure bias: prediction errors incurred at early timesteps accumulate and propagate through the au-toregressive chain, resulting in severe temporal drift and a progressive loss of semantic alignment as the sequence unfolds. 
+
+Parallel Masked Modeling (PMM). Benefiting from non-causal bidirectional attention, the PMM paradigm maintains comparatively superior global trajectory coherence, as evi-denced by the walking path in Fig. 3 (a) (kicking a ball). Nevertheless, close inspection of the bending motion in Fig. 3 (c) reveals conspicuous quantization artifacts : transitions be-tween skeletal poses appear rigid and mechanically discrete rather than smooth and fluid. This behavior exposes the rep-resentational bottleneck inherent in discrete tokenization, which fails to preserve the fine-grained kinematic nuances critical for naturalistic motion synthesis. 
+
+Diffusion-Based Generation. As shown in Fig. 3, both diffusion-based paradigms consistently outperform their discrete counterparts. While Raw Space Diffusion produces plausible global trajectories in Fig. 3 (a), it occasionally exhibits imprecise joint coordination during complex multi-limb interactions. This suggests that direct denoising in the high-dimensional raw joint space introduces optimiza-tion difficulties for capturing fine-grained articulation. In contrast, the Latent Space Diffusion generator synthesizes the most high-fidelity and semantically grounded motion sequences across all cases. As demonstrated by the dynamic “step-and-kick” sequence in Fig. 3 (a) and the complex “turn-and-lean” sequence in Fig. 3 (c), the latent-based approach captures intricate whole-body coordination and skeletal nuances. These qualitative results visually corroborate that perform-ing denoising within a continuous VAE latent space yields a smoother optimization landscape. By effectively circum-venting the quantization loss inherent in discrete modeling, our framework facilitates the generation of highly realistic egocentric motion sequence. 
+
+5 CONCLUSION 
+
+In this work, we present EgoMotion, a hierarchical frame-work for egocentric vision-language conditioned human motion synthesis. To address the challenges of reasoning-generation entanglement, EgoMotion decouples high-level semantic reasoning from low-level kinematic synthesis via a two-stage optimization strategy. Firstly, a vision-language module maps multimodal inputs into structured motion primitives. Second, a latent diffusion generator synthesizes physically plausible trajectories through iterative denoising within a regularized VAE latent space. Extensive evalu-ations and ablation studies demonstrate that EgoMotion achieves state-of-the-art performance and validate the effi-cacy of its components. 
+
+Limitations. While EgoMotion demonstrates strong perfor-mance in egocentric motion generation, the current frame-work is limited to the synthesis of human motion sequences. A promising direction is to bridge the generated motion with physical execution. For instance, the generated trajec-tories could be used to drive humanoid robots or embodied agents in both simulated and real-world environments. We leave the integration of EgoMotion with embodied control pipelines as an important direction for future work. 
+
+ACKNOWLEDGMENTS 
+
+This work is partially supported by National Natural Sci-ence Foundation of China (NSFC): 62376259 and 62306301. 
+
+REFERENCES         
+
+> [1] Kfir Aberman, Yijia Weng, Dani Lischinski, Daniel Cohen-Or, and Baoquan Chen. Unpaired motion style transfer from video to animation. ACM Transactions on Graphics , 39(4):64–1, 2020. [2] Joao Pedro Araujo, Jiaman Li, Karthik Vetrivel, Rishi Agarwal, Jiajun Wu, Deepak Gopinath, Alexander William Clegg, and Karen Liu. Circle: Capture in rich contextual environments. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 21211–21221, 2023. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 11
+
+[3] Zhi Cen, Huaijin Pi, Sida Peng, Zehong Shen, Minghui Yang, Shuai Zhu, Hujun Bao, and Xiaowei Zhou. Generating human motion in 3d scenes from text descriptions. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1855– 1866, 2024. [4] Enric Corona, Albert Pumarola, Guillem Alenya, and Francesc Moreno-Noguer. Context-aware human motion prediction. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 6992–7001, 2020. [5] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep bidirectional transformers for language understanding. In Proceedings of the Annual Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologie , pages 4171–4186, 2019. [6] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa De-hghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et al. An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 , 2020. [7] Anindita Ghosh, Bing Zhou, Rishabh Dabral, Jian Wang, Vladislav Golyanik, Christian Theobalt, Philipp Slusallek, and Chuan Guo. Duetgen: Music driven two-person dance generation via hierarchi-cal masked modeling. In Proceedings of the Special Interest Group on Computer Graphics and Interactive Techniques Conference Conference Papers , pages 1–11, 2025. [8] Qiao Gu, Zhaoyang Lv, Duncan Frost, Simon Green, Julian Straub, and Chris Sweeney. Egolifter: Open-world 3d segmentation for egocentric perception. In Proceedings of the European Conference on Computer Vision , pages 382–400. Springer, 2024. [9] Chuan Guo, Yuxuan Mu, Muhammad Gohar Javed, Sen Wang, and Li Cheng. Momask: Generative masked modeling of 3d human motions. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1900–1910, 2024. [10] Chuan Guo, Shihao Zou, Xinxin Zuo, Sen Wang, Wei Ji, Xingyu Li, and Li Cheng. Generating diverse and natural 3d human motions from text. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 5152–5161, 2022. [11] Chuan Guo, Xinxin Zuo, Sen Wang, Shihao Zou, Qingyao Sun, Annan Deng, Minglun Gong, and Li Cheng. Action2motion: Conditioned generation of 3d human motions. In Proceedings of the ACM International Conference on Multimedia , pages 2021–2029, 2020. [12] Mohamed Hassan, Vasileios Choutas, Dimitrios Tzionas, and Michael J. Black. Resolving 3d human pose ambiguities with 3d scene constraints. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 2282–2292, 2019. [13] Chengan He, Jun Saito, James Zachary, Holly Rushmeier, and Yi Zhou. Nemf: Neural motion fields for kinematic animation. 
+
+Advances in Neural Information Processing Systems , 35:4244–4256, 2022. [14] Ruibing Hou, Mingshuang Luo, Hongyu Pan, Hong Chang, and Shiguang Shan. Motionverse: A unified multimodal framework for motion comprehension, generation and editing. arXiv preprint arXiv:2509.23635 , 2025. [15] Biao Jiang, Xin Chen, Wen Liu, Jingyi Yu, Gang Yu, and Tao Chen. Motiongpt: Human motion as a foreign language. Advances in Neural Information Processing Systems , 36:20067–20079, 2023. [16] Nan Jiang, Zimo He, Zi Wang, Hongjie Li, Yixin Chen, Siyuan Huang, and Yixin Zhu. Autonomous character-scene interaction synthesis from text instruction. In Proceedings of the ACM SIG-GRAPH Conference on Computer Graphics and Interactive Techniques Asia , pages 1–11, 2024. [17] Nan Jiang, Zhiyuan Zhang, Hongjie Li, Xiaoxuan Ma, Zan Wang, Yixin Chen, Tengyu Liu, Yixin Zhu, and Siyuan Huang. Scaling up dynamic human-scene interaction modeling. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 1737–1747, 2024. [18] Roy Kapon, Guy Tevet, Daniel Cohen-Or, and Amit H Bermano. Mas: Multi-view ancestral sampling for 3d motion generation using 2d diffusion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1965–1974, 2024. [19] Diederik P Kingma and Max Welling. Auto-encoding variational bayes. arXiv preprint arXiv:1312.6114 , 2013. [20] Nilesh Kulkarni, Davis Rempe, Kyle Genova, Abhijit Kundu, Justin Johnson, David Fouhey, and Leonidas Guibas. Nifty: Neural object interaction fields for guided human motion synthesis. 2023. arXiv preprint. [21] Doyup Lee, Chiheon Kim, Saehoon Kim, Minsu Cho, and Wook-Shin Han. Autoregressive image generation using residual quanti-zation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 11523–11532, 2022. [22] Jiye Lee and Hanbyul Joo. Locomotion-action-manipulation: Syn-thesizing human-scene interactions in complex 3d environments. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 9663–9674, 2023. [23] Jiaman Li, Alexander Clegg, Roozbeh Mottaghi, Jiajun Wu, Xavier Puig, and C. Karen Liu. Controllable human-object interaction synthesis. In Proceedings of the European Conference on Computer Vision , pages 54–72. Springer, 2024. [24] Jiaman Li, Karen Liu, and Jiajun Wu. Ego-body pose estimation via ego-head pose estimation. In Proceedings of the International Conference on Machine Learning , pages 17142–17151, 2023. [25] Han Liang, Wenqian Zhang, Wenxuan Li, Jingyi Yu, and Lan Xu. Intergen: Diffusion-based multi-human motion generation under complex interactions. International Journal of Computer Vision ,132(9):3463–3483, 2024. [26] Yaron Lipman, Ricky TQ Chen, Heli Ben-Hamu, Maximilian Nickel, and Matt Le. Flow matching for generative modeling. 
+
+arXiv preprint arXiv:2210.02747 , 2022. [27] Zhenguang Liu, Shuang Wu, Shuyuan Jin, Shouling Ji, Qi Liu, Shijian Lu, and Li Cheng. Investigating pose representations and motion contexts modeling for 3d motion prediction. IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(1):681– 697, 2022. [28] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 , 2017. [29] Shunlin Lu, Ling-Hao Chen, Ailing Zeng, Jing Lin, Ruimao Zhang, Lei Zhang, and Heung-Yeung Shum. Humantomato: Text-aligned whole-body motion generation. arXiv preprint arXiv:2310.12978 ,2023. [30] Lingni Ma, Yuting Ye, Fangzhou Hong, Vladimir Guzov, Yifeng Jiang, Rowan Postyeni, Luis Pesqueira, Alexander Gamino, Vijay Baiyya, Hyo Jin Kim, Kevin Bailey, David Soriano Fosas, C. Karen Liu, Ziwei Liu, Jakob Engel, Renzo De Nardi, and Richard New-combe. Nymeria: A massive collection of multimodal egocentric daily motion in the wild. In Proceedings of the European Conference on Computer Vision , 2024. [31] Ian Mason, Sebastian Starke, and Taku Komura. Real-time style modelling of human locomotion via feature-wise transformations and local motion phases. Proceedings of the ACM on Computer Graphics and Interactive Techniques , 5(1):1–18, 2022. [32] Boxiao Pan, Adam W Harley, Francis Engelmann, C Karen Liu, and Leonidas J Guibas. Lookout: Real-world humanoid egocentric navigation. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 24977–24988, 2025. [33] Xiaqing Pan, Nicholas Charron, Yongqian Yang, Scott Peters, Thomas Whelan, Chen Kong, Omkar Parkhi, Richard Newcombe, and Yuheng Carl Ren. Aria digital twin: A new benchmark dataset for egocentric 3d machine perception. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 20133– 20143, 2023. [34] Chaitanya Patel, Hiroki Nakamura, Yuta Kyuragi, Kazuki Kozuka, Juan Carlos Niebles, and Ehsan Adeli. Uniegomotion: A unified model for egocentric motion reconstruction, forecasting, and gen-eration. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 10318–10329, 2025. [35] Mathis Petrovich, Michael J Black, and G ¨ ul Varol. Action-conditioned 3d human motion synthesis with transformer vae. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 10985–10995, 2021. [36] Ekkasit Pinyoanuntapong, Pu Wang, Minwoo Lee, and Chen Chen. Mmm: Generative masked motion model. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 1546–1555, 2024. [37] Sigal Raab, Inbar Gat, Nathan Sala, Guy Tevet, Rotem Shalev-Arkushin, Ohad Fried, Amit Haim Bermano, and Daniel Cohen-Or. Monkey see, monkey do: Harnessing self-attention in motion diffusion for zero-shot motion transfer. In Proceedings of the ACM SIGGRAPH Conference on Computer Graphics and Interactive Techniques , pages 1–13, 2024. [38] Sigal Raab, Inbal Leibovitch, Guy Tevet, Moab Arar, Amit H Bermano, and Daniel Cohen-Or. Single motion diffusion. arXiv preprint arXiv:2302.05905 , 2023. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2015 12 
+
+[39] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervision. In Proceedings of the International Conference on Machine Learning , pages 8748–8763. PmLR, 2021. [40] Yonatan Shafir, Guy Tevet, Roy Kapon, and Amit H Bermano. Human motion diffusion as a generative prior. arXiv preprint arXiv:2303.01418 , 2023. [41] Li Siyao, Weijiang Yu, Tianpei Gu, Chunze Lin, Quan Wang, Chen Qian, Chen Change Loy, and Ziwei Liu. Bailando: 3d dance generation by actor-critic gpt with choreographic memory. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 11050–11059, 2022. [42] Andreas Steiner, Andre Susano Pinto, Michael Tschannen, Daniel Keysers, Xiao Wang, Yonatan Bitton, Alexey Gritsenko, Matthias Minderer, Anthony Sherbondy, Shangbang Long, et al. Paligemma 2: A family of versatile vlms for transfer. arXiv preprint arXiv:2412.03555 , 2024. [43] Mikihiro Tanaka and Kent Fujiwara. Role-aware interaction gen-eration from textual description. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 15999– 16009, 2023. [44] Gemma Team, Morgane Riviere, Shreya Pathak, Pier Giuseppe Sessa, Cassidy Hardin, Surya Bhupatiraju, Leonard Hussenot, Thomas Mesnard, Bobak Shahriari, et al. Gemma 2: Improv-ing open language models at a practical size. arXiv preprint arXiv:2408.00118 , 2024. [45] Guy Tevet, Sigal Raab, Brian Gordon, Yonatan Shafir, Daniel Cohen-Or, and Amit H Bermano. Human motion diffusion model. 
+
+arXiv preprint arXiv:2209.14916 , 2022. [46] Yating Tian, Hongwen Zhang, Yebin Liu, and Limin Wang. Re-covering 3d human mesh from monocular images: A survey. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence ,45(12):15406–15425, 2023. [47] Vadim Tschernezki, Ahmad Darkhalil, Zhifan Zhu, David Fouhey, Iro Laina, Diane Larlus, Dima Damen, and Andrea Vedaldi. Epic fields: Marrying 3d geometry and video understanding. Advances in Neural Information Processing Systems , 36:26485–26500, 2023. [48] Jonathan Tseng, Rodrigo Castellon, and Karen Liu. Edge: Editable dance generation from music. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 448– 458, 2023. [49] Aaron Van Den Oord, Oriol Vinyals, et al. Neural discrete representation learning. Advances in Neural Information Processing Systems , 30, 2017. [50] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in Neural Information Processing Systems , 30, 2017. [51] Jian Wang, Zhe Cao, Diogo Luvizon, Lingjie Liu, Kripasindhu Sarkar, Danhang Tang, Thabo Beeler, and Christian Theobalt. Ego-centric whole-body motion capture with fisheyevit and diffusion-based motion refinement. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 777–787, 2024. [52] Jian Wang, Rishabh Dabral, Diogo Luvizon, Zhe Cao, Lingjie Liu, Thabo Beeler, and Christian Theobalt. Ego4o: Egocentric human motion capture and understanding from multi-modal input. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 22668–22679, 2025. [53] Jiashun Wang, Huazhe Xu, Jingwei Xu, Sifei Liu, and Xiaolong Wang. Synthesizing long-term 3d human motion and interaction in 3d scenes. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 9401–9411, 2021. [54] Zan Wang, Yixin Chen, Baoxiong Jia, Puhao Li, Jinlu Zhang, Jingze Zhang, Tengyu Liu, Yixin Zhu, Wei Liang, and Siyuan Huang. Move as you say, interact as you can: Language-guided human motion generation with scene affordance. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 433–444, 2024. [55] Zan Wang, Yixin Chen, Tengyu Liu, Yixin Zhu, Wei Liang, and Siyuan Huang. Humanise: Language-conditioned human motion generation in 3d scenes. Advances in Neural Information Processing Systems , 35:14959–14971, 2022. [56] Jingqiao Xiu, Fangzhou Hong, Yicong Li, Mengze Li, Wentao Wang, Sirui Han, Liang Pan, and Ziwei Liu. Egotwin: Dreaming body and view in first person. arXiv preprint arXiv:2508.13013 ,2025. [57] Liang Xu, Yizhou Zhou, Yichao Yan, Xin Jin, Wenhan Zhu, Fengyun Rao, Xiaokang Yang, and Wenjun Zeng. Regennet: Towards human action-reaction synthesis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 1759–1769, 2024. [58] Xiangyu Xu, Hao Chen, Francesc Moreno-Noguer, Laszlo A Jeni, and Fernando De la Torre. 3d human pose, shape and texture from low-resolution images and videos. IEEE Transactions on Pattern Analysis and Machine Intelligence , 44(9):4490–4504, 2021. [59] Haiwei Xue, Xiangyang Luo, Zhanghao Hu, Xin Zhang, Xunzhi Xiang, Yuqin Dai, Jianzhuang Liu, Zhensong Zhang, Minglei Li, Jian Yang, et al. Human motion video generation: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. [60] Brent Yi, Vickie Ye, Maya Zheng, Yunqi Li, Lea M ¨ uller, Geor-gios Pavlakos, Yi Ma, Jitendra Malik, and Angjoo Kanazawa. Estimating body and hand motion in an ego-sensed world. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 7072–7084, 2025. [61] Hongwei Yi, Justus Thies, Michael J. Black, Xue Bin Peng, and Davis Rempe. Generating human interaction motions in scenes with text control. In Proceedings of the European Conference on Computer Vision , pages 246–263. Springer, 2024. [62] Chengjun Yu, Wei Zhai, Yuhang Yang, Yang Cao, and Zheng-Jun Zha. Hero: Human reaction generation from videos. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 10262–10274, 2025. [63] Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, and Lucas Beyer. Sigmoid loss for language image pre-training. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 11975–11986, 2023. [64] Jianrong Zhang, Yangsong Zhang, Xiaodong Cun, Yong Zhang, Hongwei Zhao, Hongtao Lu, Xi Shen, and Ying Shan. Generating human motion from textual descriptions with discrete representa-tions. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14730–14740, 2023. [65] Libo Zhang, Zekun Li, Tianyu Li, Zeyu Cao, Rui Xu, Xiaoxiao Long, Wenjia Wang, Jingbo Wang, Yuan Liu, Wenping Wang, et al. Egoreact: Egocentric video-driven 3d human reaction generation. 
+
+arXiv preprint arXiv:2512.22808 , 2025. [66] Mingyuan Zhang, Zhongang Cai, Liang Pan, Fangzhou Hong, Xinying Guo, Lei Yang, and Ziwei Liu. Motiondiffuse: Text-driven human motion generation with diffusion model. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(6):4115–4128, 2024. [67] Siwei Zhang, Yan Zhang, Qianli Ma, Michael J. Black, and Siyu Tang. Place: Proximity learning of articulation and contact in 3d environments. In International Conference on 3D Vision , 2020. [68] Xiaohan Zhang, Bharat Lal Bhatnagar, Sebastian Starke, Vladimir Guzov, and Gerard Pons-Moll. Couch: Towards controllable human-chair interactions. In Proceedings of the European Conference on Computer Vision , pages 518–535. Springer, 2022. [69] Yaqi Zhang, Di Huang, Bin Liu, Shixiang Tang, Yan Lu, Lu Chen, Lei Bai, Qi Chu, Nenghai Yu, and Wanli Ouyang. Motiongpt: Fine-tuned llms are general-purpose motion generators. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 38, pages 7368–7376, 2024. [70] Yang Zheng, Yanchao Yang, Kaichun Mo, Jiaman Li, Tao Yu, Yebin Liu, C. Karen Liu, and Leonidas J. Guibas. Gimo: Gaze-informed human motion prediction in context. In Proceedings of the European Conference on Computer Vision , pages 676–694. Springer, 2022. [71] Wentao Zhu, Xiaoxuan Ma, Dongwoo Ro, Hai Ci, Jinlu Zhang, Jiaxin Shi, Feng Gao, Qi Tian, and Yizhou Wang. Human motion generation: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(4):2430–2449, 2023.
