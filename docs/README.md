@@ -6,67 +6,64 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-02
-- 运行时间：2026-05-02 19:54:38 UTC
+- 最新运行日期：2026-05-03
+- 运行时间：2026-05-03 20:05:33 UTC
 - 运行状态：成功
-- 本次总论文数：15
-- 精读区：4
+- 本次总论文数：14
+- 精读区：3
 - 速读区：11
 
 ### 今日简报（AI）
-今日深度解析 15 篇前沿成果，聚焦人类意图识别在机器人操控与 AI 眼镜通信中的突破性应用。
-重点关注满分论文 GazeVLA 展现的视线引导机器人技术，以及 AI 眼镜在语义感知通信领域的最新进展。
-建议读者留意“意图感知”趋势，它正成为实现人机精准交互与智能硬件协同的核心驱动力。
-- 详情：[/202605/02/README](/202605/02/README)
+今日深度解析 14 篇前沿成果，聚焦 AI 如何通过视频语言模型精准“读懂”人类意图。
+重点推荐 IntentVLM 框架与 AI 眼镜语义通信，实现了开放场景下的高精度意图识别与交互优化。
+建议关注 AI 对人类潜意识行为的语义建模，这将是未来智能穿戴设备实现自然交互的核心。
+- 详情：[/202605/03/README](/202605/03/README)
 
 ### 精读区论文标签
-1. [GazeVLA: Learning Human Intention for Robotic Manipulation](/202605/02/2604.22615v2-gazevla-learning-human-intention-for-robotic-manipulation)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：通过注视建模人类意图，将其作为机器人操作中物理动作的代理。
-2. [Intention-Aware Semantic Agent Communications for AI Glasses](/202605/02/2604.23691v1-intention-aware-semantic-agent-communications-for-ai-glasses)  
+1. [IntentVLM: Open-Vocabulary Intention Recognition through Forward-Inverse Modeling with Video-Language Models](/202605/03/2604.24002v1-intentvlm-open-vocabulary-intention-recognition-through-forward-inverse-modeling-with-video-language-models)  
+   标签：评分：9.5/10、query:gaze-intent
+   evidence：通过正向-逆向建模实现机器人交互中的多模态意图识别
+2. [Intention-Aware Semantic Agent Communications for AI Glasses](/202605/03/2604.23691v1-intention-aware-semantic-agent-communications-for-ai-glasses)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：基于第一人称感知的智能眼镜意图感知语义代理通信
-3. [IntentVLM: Open-Vocabulary Intention Recognition through Forward-Inverse Modeling with Video-Language Models](/202605/02/2604.24002v1-intentvlm-open-vocabulary-intention-recognition-through-forward-inverse-modeling-with-video-language-models)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：利用视频语言模型进行人机交互的多模态意图识别
-4. [Proactive Dialogue Model with Intent Prediction](/202605/02/2604.27379v1-proactive-dialogue-model-with-intent-prediction)  
+   evidence：AI眼镜的意图感知语义代理通信，数据传输由用户意图引导
+3. [MiniCPM-o 4.5: Towards Real-Time Full-Duplex Omni-Modal Interaction](/202605/03/2604.27393v1-minicpm-o-45-towards-real-time-full-duplex-omni-modal-interaction)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：使用贝叶斯网络进行意图预测的前瞻性对话模型
+   evidence：实时全模态交互与前瞻性系统响应
 
 ### 速读区论文标签
-1. [Point & Grasp: Flexible Selection of Out-of-Reach Objects Through Probabilistic Cue Integration](/202605/02/2604.22491v1-point--grasp-flexible-selection-of-out-of-reach-objects-through-probabilistic-cue-integration)  
+1. [Neural priority maps encode behavioral relevance independently across multiple attended locations](/202605/03/biorxiv-10-64898-2026-04-29-721746-v1-neural-priority-maps-encode-behavioral-relevance-independently-across-multiple-attended-locations)  
    标签：评分：7.5/10、query:gaze-intent
-   evidence：混合现实中用于意图推断的概率线索整合框架
-2. [A Probabilistic Framework for Hierarchical Goal Recognition](/202605/02/2604.22256v1-a-probabilistic-framework-for-hierarchical-goal-recognition)  
+   evidence：神经优先级图引导隐性注意力和显性运动计划
+2. [Emotion-Conditioned Short-Horizon Human Pose Forecasting with a Lightweight Predictive World Model](/202605/03/2604.23532v1-emotion-conditioned-short-horizon-human-pose-forecasting-with-a-lightweight-predictive-world-model)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：基于智能体行为观察的层次化目标识别概率框架。
-3. [Contrastive Learning for Multimodal Human Activity Recognition with Limited Labeled Data](/202605/02/2604.23281v1-contrastive-learning-for-multimodal-human-activity-recognition-with-limited-labeled-data)  
+   evidence：用于情感感知人机交互的多模态人体姿态预测
+3. [When feedback backfires: investigating neurofeedback effects in a closed-loop auditory attention decoding paradigm](/202605/03/biorxiv-10-64898-2026-04-28-721343-v1-when-feedback-backfires-investigating-neurofeedback-effects-in-a-closed-loop-auditory-attention-decoding-paradigm)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用协作感知和跨模态编码器进行多模态人类活动识别
-4. [Emotion-Conditioned Short-Horizon Human Pose Forecasting with a Lightweight Predictive World Model](/202605/02/2604.23532v1-emotion-conditioned-short-horizon-human-pose-forecasting-with-a-lightweight-predictive-world-model)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：多模态意图预测与情感感知人机交互
-5. [Learning Human-Intention Priors from Large-Scale Human Demonstrations for Robotic Manipulation](/202605/02/2604.24681v1-learning-human-intention-priors-from-large-scale-human-demonstrations-for-robotic-manipulation)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：从大规模演示中学习人类意图先验
-6. [Walk With Me: Long-Horizon Social Navigation for Human-Centric Outdoor Assistance](/202605/02/2604.26839v1-walk-with-me-long-horizon-social-navigation-for-human-centric-outdoor-assistance)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：将高层自然语言意图转化为符合社会规范的导航行为
-7. [When feedback backfires: investigating neurofeedback effects in a closed-loop auditory attention decoding paradigm](/202605/02/biorxiv-10-64898-2026-04-28-721343-v1-when-feedback-backfires-investigating-neurofeedback-effects-in-a-closed-loop-auditory-attention-decoding-paradigm)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：用于神经控制助听设备的闭环听觉注意力解码
-8. [BridgeACT: Bridging Human Demonstrations to Robot Actions via Unified Tool-Target Affordances](/202605/02/2604.23249v1-bridgeact-bridging-human-demonstrations-to-robot-actions-via-unified-tool-target-affordances)  
+   evidence：用于人机交互的闭环听觉注意力解码
+4. [AutoGUI-v2: A Comprehensive Multi-Modal GUI Functionality Understanding Benchmark](/202605/03/2604.24441v1-autogui-v2-a-comprehensive-multi-modal-gui-functionality-understanding-benchmark)  
+   标签：评分：6.5/10、query:gaze-intent
+   evidence：界面动态的预测性心理模型及交互结果预见
+5. [Learning Human-Intention Priors from Large-Scale Human Demonstrations for Robotic Manipulation](/202605/03/2604.24681v1-learning-human-intention-priors-from-large-scale-human-demonstrations-for-robotic-manipulation)  
+   标签：评分：6.5/10、query:gaze-intent
+   evidence：从演示中学习人类意图先验以用于机器人操纵
+6. [Interactive Episodic Memory with User Feedback](/202605/03/2604.24893v1-interactive-episodic-memory-with-user-feedback)  
+   标签：评分：6.5/10、query:gaze-intent
+   evidence：带有用户反馈的交互式情节记忆用于意图修正
+7. [Modular Sensory Stream for Integrating Physical Feedback in Vision-Language-Action Models](/202605/03/2604.23272v1-modular-sensory-stream-for-integrating-physical-feedback-in-vision-language-action-models)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：通过示能性将人类演示与机器人动作桥接
-9. [Modular Sensory Stream for Integrating Physical Feedback in Vision-Language-Action Models](/202605/02/2604.23272v1-modular-sensory-stream-for-integrating-physical-feedback-in-vision-language-action-models)  
+   evidence：用于动作预测的多模态感官信号
+8. [Contrastive Learning for Multimodal Human Activity Recognition with Limited Labeled Data](/202605/03/2604.23281v1-contrastive-learning-for-multimodal-human-activity-recognition-with-limited-labeled-data)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：整合多模态物理反馈以进行类人交互中的动作预测
-10. [Arousal modulates functional connectivity through structured and hemispherically asymmetric community architecture during wakefulness](/202605/02/biorxiv-10-64898-2026-01-06-697875-v2-arousal-modulates-functional-connectivity-through-structured-and-hemispherically-asymmetric-community-architecture-during-wakefulness)  
+   evidence：基于多源传感器的多模态人类活动识别
+9. [PI-TTA: Physics-Informed Source-Free Test-Time Adaptation for Robust Human Activity Recognition on Mobile Devices](/202605/03/2604.25435v1-pi-tta-physics-informed-source-free-test-time-adaptation-for-robust-human-activity-recognition-on-mobile-devices)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：同步瞳孔测量以量化随时间变化的功能连接和唤醒
-11. [Tuned inhibitory control of neuronal firing thresholds explains predictive sensorimotor behavior](/202605/02/biorxiv-10-64898-2026-04-30-721802-v1-tuned-inhibitory-control-of-neuronal-firing-thresholds-explains-predictive-sensorimotor-behavior)  
+   evidence：移动设备上的实时人类活动识别与测试时自适应
+10. [A Pattern Language for Resilient Visual Agents](/202605/03/2604.28001v1-a-pattern-language-for-resilient-visual-agents)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：感觉运动与预测行为的概率建模
+   evidence：视觉代理的架构模式语言，将确定性反射与概率监督分离
+11. [Where you aim - not how you aim - affects implicit recalibration in visuomotor adaptation](/202605/03/biorxiv-10-64898-2026-02-19-706918-v4-where-you-aim---not-how-you-aim---affects-implicit-recalibration-in-visuomotor-adaptation)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：瞄准位置影响视觉运动适应中的隐式校准
 
 
 <div class="dpr-home-promo-card">

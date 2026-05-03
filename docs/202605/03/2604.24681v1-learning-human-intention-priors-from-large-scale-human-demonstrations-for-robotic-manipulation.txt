@@ -1,0 +1,228 @@
+Title: Learning Human-Intention Priors from Large-Scale Human Demonstrations for Robotic Manipulation
+
+URL Source: https://arxiv.org/pdf/2604.24681v1
+
+Published Time: Tue, 28 Apr 2026 02:15:27 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Learning Human-Intention Priors from Large-Scale Human Demonstrations for Robotic Manipulation 
+
+Yifan Xie 1,2∗ YuAn Wang 2∗ Guangyu Chen 1 Jinkun Liu 1
+
+Yu Sun 2† Wenbo Ding 1‡
+
+> 1
+
+Tsinghua University 2ByteDance 
+
+# Abstract 
+
+Human videos contain rich manipulation priors, but using them for robot learning remains difficult because raw observations entangle scene understanding, human motion, and embodiment-specific action. We introduce MoT-HRA, a hierarchi-cal vision-language-action framework that learns human-intention priors from large-scale human demonstrations. We first curate HA-2.2M, a 2.2M-episode action-language dataset reconstructed from heterogeneous human videos through hand-centric filtering, spatial reconstruction, temporal segmentation, and language alignment. On top of this dataset, MoT-HRA factorizes manipulation into three coupled experts: a vision-language expert predicts an embodiment-agnostic 3D trajectory, an intention expert models MANO-style hand motion as a latent human-motion prior, and a fine expert maps the intention-aware representation to robot action chunks. A shared-attention trunk and read-only key-value transfer allow downstream control to use human priors while limiting interference with upstream representations. Experiments on hand motion generation, simulated manipulation, and real-world robot tasks show that MoT-HRA improves motion plausibility and robust control under distribution shift. 
+
+# 1 Introduction 
+
+Generalist robotic manipulation is increasingly framed as vision-language-action (VLA) modeling, where a single policy conditions on visual observations and language instructions and produces executable actions [ 1, 2, 3 , 4 , 5]. This paradigm has benefited from large pretrained vision-language backbones and growing cross-embodiment robot datasets, but its scaling path is still constrained by the cost and sparsity of robot demonstrations. Robot trajectories are expensive to collect, tied to specific hardware, and often cover only a narrow slice of everyday manipulation. In contrast, human videos record abundant object interactions across homes, kitchens, workshops, viewpoints, and task styles [ 6 , 7 , 8, 9]. If these videos can be converted into supervision for control, they offer a much broader source of manipulation priors than robot-only data. However, human videos are not robot demonstrations. Raw clips entangle scene understanding, hand motion, camera motion, task progress, and embodiment-specific constraints. Many segments contain visible hands without purposeful manipulation, while useful interaction clips rarely provide temporally aligned action labels or robot-executable controls. Recent human-centric robot learning methods have begun to exploit this resource by extracting hand motion, aligning visual observations with physical space, or introducing latent bridges between videos and actions [ 10 , 11 , 12 , 13 , 14 ]. These efforts suggest that human videos contain transferable physical knowledge, but they also expose a core representation problem. To benefit robot learning, a model must separate where an interaction should occur, how human motion expresses task intent, and how a particular robot should execute the task. Collapsing these factors into a single action representation can cause downstream   
+
+> ∗: Equal contribution; †: Project lead; ‡: Corresponding author. Preprint.
+> arXiv:2604.24681v1 [cs.RO] 27 Apr 2026
+
+robot loss to overwrite useful human-motion priors, and can make the learned policy brittle when visual appearance, viewpoint, object instance, or embodiment changes. Our key observation is that human demonstrations are most useful when they are treated not as noisy substitutes for robot actions, but as structured evidence about manipulation intent. A human hand trajectory provides an embodiment-agnostic spatial scaffold, and articulated hand motion captures temporal coordination and contact-oriented motor preference. Robot controls should then be learned as an embodiment-specific realization of this prior. This view suggests a hierarchical representation for human-to-robot transfer: first ground the interaction in 3D space, then model human intention in a structured hand-motion space, and finally adapt the intention-aware representation to robot action chunks. Such a decomposition preserves the reusable parts of human behavior while leaving the final policy free to match the kinematics and action convention of the target robot. To realize this idea, we present MoT-HRA, a hierarchical VLA framework that learns human-intention priors from large-scale human demonstrations and transfers them to robotic manipulation. We first curate HA-2.2M, a 2.2M-episode action-language dataset reconstructed from heterogeneous human videos through hand-centric filtering, spatial reconstruction, temporal segmentation, and language alignment. Building on this dataset, MoT-HRA factorizes action generation into three coupled experts: a vision-language expert that predicts an embodiment-agnostic 3D trajectory, an intention expert that models a MANO-style human hand-motion prior, and a fine expert that maps the intention-aware representation to robot action chunks. A shared-attention trunk supplies common multimodal context, while read-only key-value transfer implements knowledge insulation [ 15 ], allowing downstream robot control to use human priors without overwriting upstream spatial and intention representations. This design turns heterogeneous human videos into an intermediate intention manifold rather than forcing them into robot-specific action labels. Our main contributions can be summarized as follows: • We introduce HA-2.2M, a large-scale human-demonstration dataset built from heterogeneous web and egocentric videos. It provides temporally coherent action-language episodes with reconstructed hand-centric spatial supervision, offering a scalable source of manipulation priors beyond robot-only demonstrations. • We propose MoT-HRA, a hierarchical Mixture-of-Transformer VLA architecture that sep-arates spatial trajectory grounding, latent human-intention modeling, and embodiment-specific robot action generation, with knowledge insulation to reduce destructive interference between human-prior learning and robot policy learning. • We validate the proposed decomposition on hand motion generation, SimplerEnv, and real-world manipulation tasks, showing that human-intention priors improve motion plausibility, spatial grounding, and control robustness under distribution shift. 
+
+# 2 Related Work 
+
+2.1 Vision-Language-Action Models 
+
+Vision-language-action (VLA) models extend pretrained multimodal representations from perception and instruction following to robot control. Representative systems ground visual-language knowledge in robot action datasets and language-conditioned policies [ 1, 2, 3, 4], while recent work improves action generation through flow-based policies, efficient action tokenization, fine-tuning recipes, spatial representations, latent planning, and world-model interfaces [ 5, 16 , 17 , 18 , 19 , 20 , 21 ]. Other studies focus on preserving pretrained knowledge and strengthening multimodal or world model representations for control [ 15 , 13 , 22 , 23 , 24 ]. Our work follows this factorized trend by separating visual-language grounding, human-intention modeling, and robot-specific action prediction. 
+
+2.2 Human Demonstration Learning 
+
+Human demonstration learning studies how passive recordings can supervise robot policies without robot actions. Human and egocentric videos have been used to learn visual representations, rewards, and affordances that expose object-centric goals, contact cues, and task progress [ 25 , 26 , 27 , 28 ]. Recent human-video-to-VLA work frames these signals as representation bridges from unstructured videos to executable actions [ 29 ]. Large corpora such as HowTo100M, Ego4D, EPIC-KITCHENS, 2Figure 1: Overview of the HA-2.2M curation pipeline. Large-scale unlabeled human demonstration videos are converted into 2.2M action-language episodes through coarse filtering, perspective and background reconstruction, and fine filtering. These stages retain manipulation-relevant hand videos, recover image-aligned hand motion and scene context, and extract temporally coherent atomic episodes with aligned action descriptions. The pie chart summarizes the source composition of the final dataset. Something-Something-V2, and Ego-Exo4D provide diverse interactions [ 6, 7 , 8, 9 , 30 ], but usually lack aligned control labels, calibrated 3D state, and proprioception. Existing methods differ in the bridge they recover. Latent-action methods tokenize inter-frame changes [ 31 , 32 , 33 , 34 ], world-model methods transfer future-prediction or generated-video priors to action heads [ 35 , 36 , 37 ], and explicit methods use 2D tracks or affordance prompts [ 38 , 39 ] or reconstruct 3D wrist, hand, object, and MANO-style motion [ 40 , 41 , 42 , 10 , 11 , 14 ]. Our method follows the explicit 3D line but separates reconstructed human hand motion as an intention prior from the final embodiment-specific action expert, reducing interference when transferring human demonstrations to robot control. 
+
+# 3 Methods 
+
+In this section, we describe the full pipeline for learning robot control from large-scale human demonstrations. We first introduce HA-2.2M (Sec. 3.1), a 2.2M-episode dataset with aligned action and language supervision reconstructed from raw human videos. We then present MoT-HRA (Sec. 3.2), a hierarchical Mixture-of-Transformers architecture that converts these demonstrations into a latent intention space connecting multimodal understanding, human motion priors, and embodiment-specific action generation. 
+
+3.1 HA-2.2M Overview HA-2.2M contains 2.2M short human-demonstration episodes from four complementary sources: HowTo100M [ 6 ] (1.4M), Ego4D [ 7] (630K), Epic-Kitchens [ 8] (120K), and Something-Something-V2 [ 9] (50K). Rather than reuse heterogeneous source annotations, we reconstruct action-language episodes from raw videos with the pipeline in Fig. 1. This mixture combines egocentric recordings with diverse third-person videos, broadening coverage over objects, scenes, and manipulation styles. At the same time, it introduces noise from passive hand motion, abrupt viewpoint changes, camera motion unrelated to interaction, and mismatched temporal granularity. The final pipeline applies coarse filtering, spatial reconstruction, and fine filtering so that each retained clip corresponds to a short manipulation primitive. These clips serve as pretraining units for learning latent human action priors instead of merely enlarging the visual dataset. 
+
+Coarse Filter Raw web videos often show hands without purposeful manipulation, such as idle gestures, transitional motion, or camera motion unrelated to interaction. We therefore use a recall-oriented cascade: Gemini [ 43 ] first labels likely hand-centric action segments, and a lightweight V-JEPA-based [ 44 ] classifier is then trained on these labels and applied across the full dataset. The first stage removes obviously irrelevant content while preserving diverse manipulation patterns across viewpoints and environments, and the second suppresses visible-hand false positives introduced by multimodal labeling. This design avoids expensive multimodal calls for every segment while retaining the breadth needed for large-scale pretraining, yielding a cleaner input distribution for the reconstruction stage. 3Figure 2: Overview of MoT-HRA. Given an image, a language instruction, and chunk-sized query tokens, the model predicts robot actions with three hierarchical experts: a vision-language expert that autoregressively predicts an embodiment-agnostic discretized 3D trajectory, an intention expert that generates a MANO-style hand-pose sequence by denoising noise conditioned on the spatial plan, and a fine expert that maps the resulting intention-aware representation to embodiment-specific robot actions. A shared-attention trunk supplies common multimodal context, while read-only key-value transfer across experts enforces knowledge insulation and preserves human motion priors during downstream action learning. 
+
+Perspective and Background Reconstruction The retained videos are converted into image-aligned 3D trajectories by reconstructing hand motion and scene context. For each frame, we localize hands with VitPose [ 45 , 46 ], refine the boxes for robustness under blur and occlusion, and estimate absolute-scale MANO hand pose with HaMeR [ 47 ]. Since HaMeR outputs crop-space predictions, we recover crop-to-image translation and scale, map MANO states back to the original frame, and temporally smooth trajectories to reduce jitter. In parallel, Depth Anything 3 [ 48 ] predicts relative monocular depth for background layout, which we align to the hand’s absolute scale by fitting DA3 values on hand pixels to the MANO reconstruction. This places scene geometry in a hand-consistent 3D frame and gives subsequent segmentation and language alignment access to scaled scene context rather than appearance-only videos. 
+
+Fine Filter After reconstruction, we extract atomic episodes and align them with language supervi-sion. A V-JEPA [ 44 ] temporal segmentation model, trained on 38K manually annotated segments, predicts action boundaries so that clips correspond to manipulation units rather than arbitrary fixed windows. Because the high-recall boundary predictor can over-segment complex activities, Gem-ini [ 43 ] merges adjacent clips with continuous intent and generates concise action descriptions, including hand-specific tags when the two hands play different roles. The detailed merge rules are deferred to the supplementary material. This final stage turns noisy reconstructed trajectories into temporally coherent action-language episodes for HA-2.2M. 
+
+3.2 MoT-HRA Problem Formulation Large-scale human videos provide useful priors for robotic control, but di-rect observation-to-action learning entangles visual grounding, human motion intent, and embodiment-specific actuation [ 10 , 11 , 12 ]. A single representation must absorb both transferable human manipu-lation intention and low-level robot actions. MoT-HRA instead factorizes the chunk policy through an embodiment-agnostic spatial plan and a learned human-intention state. Given an observation image 
+
+o, a language instruction w, and a chunk horizon H, we approximate 
+
+pθ (a1: H | o, w ) ≈
+
+Z
+
+pθa (a1: H | o, w, τ 1: H , h int 1: H ) qθm (hint 1: H | o, w, τ 1: H )pθτ (τ1: H | o, w ) d τ dh. 
+
+(1) 4Here τ1: H is an embodiment-agnostic 3D plan, and hint 1: H is the latent intention representation passed to the robot-action factor. The MANO-style pose sequence m1: H supervises the intention branch but is not treated as a robot command. In implementation, the factors are sampled sequentially: 
+
+τ1: H ∼ pθτ (· | o, w ),
+
+(m1: H , h int 1: H ) = Φ θm (ϵm; o, w, τ 1: H ),a1: H = Φ θa (ϵa; o, w, τ 1: H , h int 1: H ),
+
+(2) where ϵm, ϵ a ∼ N (0 , I ), and Φθm and Φθa denote the conditional flow-matching solution maps of the intention and fine experts. The action flow conditions on hint 1: H rather than treating generated hand poses as robot commands. Thus, the 3D trajectory specifies where the interaction should unfold, the intention branch captures human motion regularities, and the final expert adapts this bridge to the target embodiment. 
+
+Unified Architecture As shown in Fig. 2, MoT-HRA instantiates this factorization with a Mixture-of-Transformers architecture composed of a cross-task shared-attention trunk and three task-specific experts: a vision-language expert, an intention expert, and a fine expert. The full token sequence is 
+
+X = ximg  
+
+> 1: Nv
+
+; xtxt  
+
+> 1: Nl
+
+; z3d 
+
+> 1: H
+
+; zm 
+
+> 1: H
+
+; za
+
+> 1: H
+
+, (3) where ximg and xtxt denote visual and text tokens, and z3d, zm, and za denote trajectory, intention, and action query/noise tokens. The shared trunk builds multimodal context, while each expert updates only its own token span. Later experts read earlier hidden states through read-only key-value caches, yielding knowledge insulation [15 ]: upstream representations remain visible to downstream modules without being overwritten by downstream losses. Concretely, the vision-language/trajectory expert is shielded from MANO and action denoising losses, while the robot-action expert can exploit intention cues without collapsing them into a single entangled latent space. The attention mask in Fig. 3 follows the same hierarchy: image and text tokens attend bidirectionally, 3D tokens use causal attention within their span while attending to image-text context, MANO tokens attend causally within the intention span and read the full prefix, and robot-action tokens attend to all preceding modalities with bidirectional refinement inside the action chunk. Compared with prior MoT and latent-bridge models [ 13 , 49 ], MoT-HRA grounds the intermediate bridge in reconstructed human hand kinematics. 
+
+Vision-Language Expert The vision-language expert is initialized from a pretrained multimodal decoder [ 50 ] and converts visual-linguistic context into coarse spatial waypoints. For a chunk of length 
+
+H, we append H learnable 3D query tokens, each predicting a discretized waypoint τh = ( bxh, b yh, b zh)
+
+with each coordinate quantized into B bins. The generation process is autoregressive: 
+
+pθτ (τ1: H | o, w ) = 
+
+> H
+
+Y
+
+> h=1
+
+Y
+
+> c∈{ x,y,z }
+
+pθτ (bch | o, w, τ <h ). (4) We use bidirectional attention over image-text tokens and causal attention over the 3D span, so each waypoint depends on the scene, instruction, and previous spatial anchors while remaining independent of future trajectory tokens. The training objective is coordinate-wise cross-entropy: 
+
+L3d = −
+
+> H
+
+X
+
+> h=1
+
+X
+
+> c∈{ x,y,z }
+
+log pθτ (bch | o, w, τ <h ). (5) This spatial bottleneck asks the model to localize where the interaction should unfold before predicting hand or robot motion. It improves geometric grounding without tying the representation to a specific embodiment, which is important when transferring priors from human videos to robot control. Compared with regressing embodiment-specific controls directly from pixels, the waypoint representation gives downstream experts a compact spatial scaffold that is easier to supervise from reconstructed human demonstrations. 
+
+Intention Expert The intention expert maps the spatial plan to a human-motion prior. Conditioned on the shared multimodal context and predicted 3D trajectory, it denoises Gaussian noise into a MANO-style hand sequence via conditional flow matching [51]. Each hand state is 
+
+mh = [ wh, j h], wh ∈ R7, jh ∈ R60 , (6) 5where wh stores wrist translation and quaternion orientation, and jh stacks quaternion rotations for 15 finger joints. Quaternion targets are sign-canonicalized, and decoded quaternions are renormalized before kinematic use. Let ϵm ∼ N (0 , I ), t ∼ U (0 , 1) , and xmt = (1 − t)ϵm + tm . The intention expert predicts vθm (xmt , t, c m) with condition cm = ( o, w, τ 1: H ) and is trained with 
+
+Lmano = Et,ϵ m,m 
+
+"
+
+17H
+
+> H
+
+X
+
+> h=1
+
+∥vwh − (wh − ϵwh )∥22 + 160 H
+
+> H
+
+X
+
+> h=1
+
+vjh − (jh − ϵjh) 22
+
+#
+
+(7) We separate wrist and finger losses so the low-dimensional wrist signal is not dominated by the 60-dimensional joint term. MANO tokens use causal attention within their span, preventing valid early states from attending to future or padded suffix tokens, which otherwise destabilizes convergence. By modeling explicit hand kinematics rather than an unconstrained latent code, the expert turns large-scale human videos into an interpretable intention space aligned with physical interaction [14, 52]. 
+
+Figure 3: Attention mask of MoT-HRA. Im-age and text tokens use bidirectional attention to build a shared multimodal context, while 3D trajectory and MANO pose tokens attend to the full prefix but remain causally masked within their own spans. Robot-action tokens attend to all preceding modalities and use bidi-rectional attention within the action chunk, enabling joint refinement of temporally cou-pled controls. 
+
+Fine Expert The fine expert maps the intention-aware representation to the final robot action chunk with another conditional flow-matching head. Let 
+
+a1: H ∈ RH×da denote an action chunk for a robot with action dimension da. Starting from Gaussian noise ϵa ∼ N (0 , I ), we define xat = (1 − t)ϵa + ta 
+
+and train vθa (xat , t, c a) with 
+
+Lact = Et,ϵ a,a 
+
+h
+
+∥vθa (xat , t, c a) − (a − ϵa)∥22
+
+i
+
+. (8) The conditioning variable ca includes image-text fea-tures, 3D trajectory states, and the latent intention states hint 1: H . Thus, the policy uses the latent states produced while denoising the MANO representation rather than imitating decoded hand poses as targets. These states encode temporal coordination, uncer-tainty, and human motor preferences while leaving the final controls embodiment-specific. Following Fig. 3, action tokens attend to all preceding modali-ties and use bidirectional attention within the action chunk, enabling joint refinement of temporally cou-pled controls. This is well suited to chunked robot control, where commands within the horizon should be optimized together after the intention scaffold is established. 
+
+Joint Training Strategy We train the three experts jointly with a partially supervised multi-task objec-tive: 
+
+L = λ3dL3d + λm1mLmano + λa1aLact , (9) where 1m and 1a indicate whether MANO or robot-action supervision is available. Human-demonstration episodes mainly supervise the trajectory and intention experts, while robot-manipulation episodes supervise the trajectory and fine experts. On robot-only samples, the intention expert still provides latent conditioning through the read-only interface but receives no MANO loss, and downstream action gradients are not propagated into the intention cache. This keeps the human-motion prior stable while the fine expert adapts it to robot control. This training regime lets human videos shape the intention manifold while robot data specializes embodiment-specific actuation, enabling downstream robot inference without MANO annotations and direct generation of executable real-robot action. 
+
+# 4 Experiments 
+
+4.1 Implementation Details 
+
+We train MoT-HRA jointly on HA-2.2M and the AgiBot-World dataset [ 53 ] with 64 NVIDIA H20 GPUs under PyTorch FSDP2 [ 54 ]. The HA-2.2M dataset supervises the intention expert through 6Table 1: Hand motion generation results on Ego4D [ 7] and OakInk [ 56 ]. ADE and DTW are reported in meters, while Rot and Joint-Rot are reported in degrees. Lower is better for all metrics.                                  
+
+> Method Ego4D OakInk ADE DTW Rot Joint-Rot ADE DTW Rot Joint-Rot Being-H0 [10] 0.185 0.174 38.27 44.03 0.245 0.233 44.91 49.18 VITRA [11] 0.154 0.146 33.26 41.81 0.211 0.201 42.59 41.72
+> Ours 0.136 0.127 28.95 34.16 0.184 0.176 38.47 40.12
+
+Figure 4: Qualitative comparison on OakInk in first-person (top) and third-person (bottom) views. Our method generates more stable and plausible hand motions. Red boxes highlight typical failure cases of the baselines. MANO-style human-motion targets, the AgiBot-World dataset supervises the fine expert through robot-action targets, and both datasets supervise the vision-language expert through the 3D trajectory prediction objective. Each GPU processes 32 samples, giving a global batch size of 2048, and the model is optimized for 20,000 steps with AdamW and gradient accumulation set to 1. We use a base learning rate of 2.5 × 10 −5, (β1, β 2) = (0 .9, 0.95) , ϵ = 10 −8, weight decay 10 −10 , a 1,000-step warmup, and cosine decay. The chunk horizon is H = 15 . For MANO generation, we apply classifier-free guidance (CFG) [ 55 ] with scale 6.0. Visual inputs are single RGB observations resized to 224 × 224 with padding and standard data augmentation, and language prompts are tokenized to length 256 with instruction dropout 0.1. Unless otherwise stated, we use EMA, activation checkpointing, and 8 data-loading workers per GPU for memory-efficient large-scale optimization. 74.2 Hand Motion Generation 
+
+We compare MoT-HRA with Being-H0 [ 10 ] and VITRA [ 11 ] on held-out Ego4D [ 7] and OakInk [ 56 ]clips. Although HA-2.2M includes Ego4D videos, the Ego4D evaluation split used here is excluded from the training dataset, so it tests held-out egocentric generation rather than memorization of training clips. OakInk further introduces a larger appearance gap and a mixture of first-person and third-person views. For each dataset, we evaluate 200 clips, sample five generations per clip with different random seeds, and report average performance. We measure wrist accuracy with average displacement error (ADE, m) and Dynamic Time Warping distance (DTW, m), and pose fidelity with wrist rotation error (Rot, degrees) and finger joint rotation error (Joint-Rot, degrees). Lower is better for all metrics. As shown in Tab. 1, MoT-HRA performs best across both datasets, improving wrist alignment and articulated pose quality. The advantage on Ego4D indicates that the learned intention prior improves both global motion and local hand configuration, while the gains on OakInk suggest that this prior is not limited to the visual style of the training data. The comparatively smaller improvement on fine-grained joint rotation also indicates that articulated finger motion remains the most difficult case under strong domain transfer. Qualitative comparisons in Fig. 4 show the same trend: baselines often produce wrist jitter, inconsistent trajectories, or implausible finger poses, whereas our method yields smoother and more anatomically plausible motion. These results support the 3D-to-MANO decomposition, which anchors the interaction spatially before refining it with a structured human-motion prior. 
+
+4.3 Robotic Manipulation 
+
+Table 2: Success rates (%) on SimplerEnv-WidowX [ 57 ] tasks. Spoon denotes Put Spoon on Towel , Carrot denotes Put Carrot on Plate , Stack denotes Stack Green Block on Yellow Block , and Eggplant denotes Put Eggplant in Yellow Basket .                                         
+
+> Method Spoon Carrot Stack Eggplant Average RoboVLMs [18] 45.8 20.8 4.2 79.2 37.5 OpenVLA-OFT [17] 34.2 30.0 30.0 72.5 41.7
+> π0[5] 29.1 0.0 16.6 62.5 27.1
+> π0-FAST [16] 29.1 21.9 10.8 66.6 32.1 SpatialVLA [19] 16.7 25.0 29.2 100.0 42.7 ThinkACT [20] 58.3 37.5 8.7 70.8 43.8
+> Ours 78.1 62.5 40.6 83.3 66.1
+
+SimplerEnv Benchmark We evaluate MoT-HRA on Sim-plerEnv [ 57 ] to test visually grounded control under distribu-tion shifts and assess its potential for transfer to real-world manip-ulation. We focus on WidowX tasks, which vary illumination, background texture, and camera viewpoint, requiring the policy to preserve geometric ground-ing under distracting observa-tions. This makes the benchmark a stringent test of whether the learned intention representation improves control rather than only fitting human-motion metrics. We compare with a diverse set of strong baselines, including RoboVLMs [ 18 ], OpenVLA-OFT [ 17 ], π0 [5], π0-FAST [ 16 ], SpatialVLA [ 19 ], and ThinkACT [ 20 ]. As shown in Tab. 2, our method achieves the best overall performance and the most consistent behavior across tasks. The gains are most visible on Spoon and Carrot , which require accurate spatial grounding and stable placement under distracting visual changes. This supports the role of the hierarchical intention representation in preserving fine-grained control under distribution shift. Although SpatialVLA is strongest on Eggplant , MoT-HRA remains competitive there while avoiding over-specialization to a single scenario. 
+
+Real-World Experiments We further evaluate MoT-HRA on real robots with both a parallel gripper and a dexterous hand. Each embodiment is tested on long-horizon Clean and Pouring tasks after post-training with 150 task-specific trajectories, and evaluation includes out-of-distribution changes in object position, category, and color. Each method is evaluated over 20 trials and compared with 
+
+π0 [5 ] and GigaBrain-0 [ 21 ]. As shown in Fig. 5, MoT-HRA achieves more reliable task completion across both embodiments, suggesting that the human-intention priors remain effective under realistic visual and object variation. For additional details, please refer to the supplementary materials. 8Figure 5: Real-world evaluation on long-horizon manipulation tasks. Both gripper and dexterous-hand settings are tested on Clean and Pouring under out-of-distribution changes in object position, category, and appearance. Table 3: Ablation study of key architectural components. ADE, DTW, Rot, and Joint-Rot are evaluated on Ego4D hand motion generation, where lower is better. SimplerEnv Average reports the average success rate (%) on SimplerEnv-WidowX, where higher is better.                            
+
+> 3D Trajectory Intention Expert Knowledge Insulation ADE DTW Rot Joint-Rot SimplerEnv Average 0.205 0.196 40.16 44.90 48.4
+> ✓0.182 0.173 36.64 42.53 52.1
+> ✓✓0.140 0.133 30.45 35.97 62.7
+> ✓✓✓0.136 0.127 28.95 34.16 66.1
+
+4.4 Ablation Study 
+
+As shown in Tab. 3, the first row can be regarded as a π0-style direct VLA architecture, which maps visual-language observations to actions without explicit 3D trajectory grounding, intention experts, or knowledge insulation. Adding the 3D trajectory branch improves both hand-motion metrics and the SimplerEnv average, indicating that spatial grounding provides a useful scaffold for downstream control. Introducing the intention expert brings a larger gain, especially for ADE, DTW, and articulated pose accuracy, showing that explicit human-intention modeling is crucial for coherent wrist trajectories and plausible hand poses. Knowledge insulation further improves the full model, raising the SimplerEnv average while also reducing motion-generation errors. This suggests that separating intention abstraction from policy learning helps avoid negative interference in large-scale heterogeneous training. Overall, the mono-tonic improvement from the π0-style baseline to the full MoT-HRA model supports the claim that the gains come from the proposed hierarchical structure rather than added capacity alone. 
+
+# 5 Conclusion 
+
+We presented HA-2.2M, a 2.2M-episode action-language dataset reconstructed from human videos, and MoT-HRA, a hierarchical VLA framework for learning human-intention priors. MoT-HRA separates spatial grounding, human-motion modeling, and embodiment-specific action generation, enabling human videos to supervise robot policies without robot actions in every clip. Experiments on hand motion generation, SimplerEnv, and real-world manipulation show better motion plausibility and control robustness, with ablations validating each component. These results suggest that structured human-intention representations can help scale robot policies beyond robot-only data. 
+
+Limitations MoT-HRA is still limited by the quality and coverage of automatically curated human demonstrations. Noise, ambiguous hand-object contacts, and imperfect action-language alignment may weaken the learned intention prior. Our evaluations cover representative hand-motion and manipulation tasks, but not highly dynamic interactions, multi-object long-horizon planning, or very different embodiments. Future work should improve data verification, expand embodiment coverage, and add failure detection for more reliable open-world deployment. 9References 
+
+[1] Brianna Zitkovich, Tianhe Yu, Sichun Xu, Peng Xu, Ted Xiao, Fei Xia, Jialin Wu, Paul Wohlhart, Stefan Welker, Ayzaan Wahid, et al. Rt-2: Vision-language-action models transfer web knowledge to robotic control. In Conference on Robot Learning , pages 2165–2183. PMLR, 2023. [2] Abby O’Neill, Abdul Rehman, Abhiram Maddukuri, Abhishek Gupta, Abhishek Padalkar, Abraham Lee, Acorn Pooley, Agrim Gupta, Ajay Mandlekar, Ajinkya Jain, et al. Open x-embodiment: Robotic learning datasets and rt-x models: Open x-embodiment collaboration 0. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 6892–6903. IEEE, 2024. [3] Oier Mees, Dibya Ghosh, Karl Pertsch, Kevin Black, Homer Rich Walke, Sudeep Dasari, Joey Hejna, Tobias Kreiman, Charles Xu, Jianlan Luo, et al. Octo: An open-source generalist robot policy. In First Workshop on Vision-Language Models for Navigation and Manipulation at ICRA 2024 , 2024. [4] Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov, Ethan P Foster, Pannag R Sanketi, Quan Vuong, et al. Openvla: An open-source vision-language-action model. In Conference on Robot Learning , pages 2679–2713. PMLR, 2025. [5] Kevin Black, Noah Brown, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Lachy Groom, Karol Hausman, Brian Ichter, et al. pi _0: A vision-language-action flow model for general robot control. arXiv preprint arXiv:2410.24164 , 2024. [6] Antoine Miech, Dimitri Zhukov, Jean-Baptiste Alayrac, Makarand Tapaswi, Ivan Laptev, and Josef Sivic. Howto100m: Learning a text-video embedding by watching hundred million narrated video clips. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 2630–2640, 2019. [7] Kristen Grauman, Andrew Westbury, Eugene Byrne, Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, et al. Ego4d: Around the world in 3,000 hours of egocentric video. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 18995–19012, 2022. [8] Dima Damen, Hazel Doughty, Giovanni Maria Farinella, Sanja Fidler, Antonino Furnari, Evangelos Kazakos, Davide Moltisanti, Jonathan Munro, Toby Perrett, Will Price, et al. The epic-kitchens dataset: Collection, challenges and baselines. IEEE Transactions on Pattern Analysis and Machine Intelligence , 43(11):4125–4141, 2020. [9] Raghav Goyal, Samira Ebrahimi Kahou, Vincent Michalski, Joanna Materzynska, Susanne Westphal, Heuna Kim, Valentin Haenel, Ingo Fruend, Peter Yianilos, Moritz Mueller-Freitag, et al. The" something something" video database for learning and evaluating visual common sense. In Proceedings of the IEEE International Conference on Computer Vision , pages 5842–5850, 2017. [10] Hao Luo, Yicheng Feng, Wanpeng Zhang, Sipeng Zheng, Ye Wang, Haoqi Yuan, Jiazheng Liu, Chaoyi Xu, Qin Jin, and Zongqing Lu. Being-h0: vision-language-action pretraining from large-scale human videos. arXiv preprint arXiv:2507.15597 , 2025. [11] Qixiu Li, Yu Deng, Yaobo Liang, Lin Luo, Lei Zhou, Chengtang Yao, Lingqi Zeng, Zhiyuan Feng, Huizhi Liang, Sicheng Xu, et al. Scalable vision-language-action model pretraining for robotic manipulation with real-life human activity videos. arXiv preprint arXiv:2510.21571 ,2025. [12] Yicheng Feng, Wanpeng Zhang, Ye Wang, Hao Luo, Haoqi Yuan, Sipeng Zheng, and Zongqing Lu. Spatial-aware vla pretraining through visual-physical alignment from human videos. arXiv preprint arXiv:2512.13080 , 2025. [13] BeingBeyond Team. Being-h0.7: A latent world-action model from egocentric videos. https: //research.beingbeyond.com/being-h07 , 2026. 10 [14] Mingfei Chen, Yifan Wang, Zhengqin Li, Homanga Bharadhwaj, Yujin Chen, Chuan Qin, Ziyi Kou, Yuan Tian, Eric Whitmire, Rajinder Sodhi, et al. Flowing from reasoning to motion: Learning 3d hand trajectory prediction from egocentric human interaction videos. arXiv preprint arXiv:2512.16907 , 2025. [15] Danny Driess, Jost Tobias Springenberg, Brian Ichter, Lili Yu, Adrian Li-Bell, Karl Pertsch, Allen Z Ren, Homer Walke, Quan Vuong, Lucy Xiaoyang Shi, et al. Knowledge insulat-ing vision-language-action models: Train fast, run fast, generalize better. arXiv preprint arXiv:2505.23705 , 2025. [16] Karl Pertsch, Kyle Stachowicz, Brian Ichter, Danny Driess, Suraj Nair, Quan Vuong, Oier Mees, Chelsea Finn, and Sergey Levine. Fast: Efficient action tokenization for vision-language-action models. arXiv preprint arXiv:2501.09747 , 2025. [17] Moo Jin Kim, Chelsea Finn, and Percy Liang. Fine-tuning vision-language-action models: Optimizing speed and success. arXiv preprint arXiv:2502.19645 , 2025. [18] Xinghang Li, Peiyan Li, Long Qian, Minghuan Liu, Dong Wang, Jirong Liu, Bingyi Kang, Xiao Ma, Xinlong Wang, Di Guo, et al. What matters in building vision–language–action models for generalist robots. Nature Machine Intelligence , pages 1–15, 2026. [19] Delin Qu, Haoming Song, Qizhi Chen, Yuanqi Yao, Xinyi Ye, Yan Ding, Zhigang Wang, JiaYuan Gu, Bin Zhao, Dong Wang, et al. Spatialvla: Exploring spatial representations for visual-language-action model. arXiv preprint arXiv:2501.15830 , 2025. [20] Chi-Pin Huang, Yueh-Hua Wu, Min-Hung Chen, Yu-Chiang Frank Wang, and Fu-En Yang. Thinkact: Vision-language-action reasoning via reinforced visual latent planning. arXiv preprint arXiv:2507.16815 , 2025. [21] GigaBrain Team, Angen Ye, Boyuan Wang, Chaojun Ni, Guan Huang, Guosheng Zhao, Haoyun Li, Jie Li, Jiagang Zhu, Lv Feng, et al. Gigabrain-0: A world model-powered vision-language-action model. arXiv preprint arXiv:2510.19430 , 2025. [22] Yifan Xie, Mingyang Li, Shoujie Li, Xingting Li, Guangyu Chen, Fei Ma, Fei Richard Yu, and Wenbo Ding. Universal visuo-tactile video understanding for embodied interaction. arXiv preprint arXiv:2505.22566 , 2025. [23] Lin Li, Qihang Zhang, Yiming Luo, Shuai Yang, Ruilin Wang, Fei Han, Mingrui Yu, Zelin Gao, Nan Xue, Xing Zhu, et al. Causal world modeling for robot control. arXiv preprint arXiv:2601.21998 , 2026. [24] Seonghyeon Ye, Yunhao Ge, Kaiyuan Zheng, Shenyuan Gao, Sihyun Yu, George Kurian, Suneel Indupuru, You Liang Tan, Chuning Zhu, Jiannan Xiang, et al. World action models are zero-shot policies. arXiv preprint arXiv:2602.15922 , 2026. [25] Suraj Nair, Aravind Rajeswaran, Vikash Kumar, Chelsea Finn, and Abhishek Gupta. R3m: A universal visual representation for robot manipulation. In Conference on Robot Learning , 2022. [26] Yecheng Jason Ma, Shagun Sodhani, Dinesh Jayaraman, Osbert Bastani, Vikash Kumar, and Amy Zhang. Vip: Towards universal visual reward and representation via value-implicit pre-training. In International Conference on Learning Representations , 2023. [27] Shikhar Bahl, Russell Mendonca, Lili Chen, Unnat Jain, and Deepak Pathak. Affordances from human videos as a versatile representation for robotics. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023. [28] Oier Mees, Jessica Borja-Diaz, and Wolfram Burgard. Grounding language with visual affor-dances over unstructured data. In IEEE International Conference on Robotics and Automation ,2023. [29] Zhiyuan Feng, Qixiu Li, Huizhi Liang, Rushuai Yang, Yichao Shen, Zhiying Du, Zhaowei Zhang, Yu Deng, Li Zhao, Hao Zhao, et al. From human videos to robot manipulation: A survey on scalable vision-language-action learning with human-centric data. TechRxiv preprint , 2026. 11 [30] Kristen Grauman, Andrew Westbury, Lorenzo Torresani, Kris Kitani, Jitendra Malik, Triantafyl-los Afouras, Kumar Ashutosh, Vijay Baiyya, Siddhant Bansal, Bikram Boote, et al. Ego-exo4d: Understanding skilled human activity from first- and third-person perspectives. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024. [31] Seonghyeon Ye, Joel Jang, et al. Latent action pretraining from videos. In International Conference on Learning Representations , 2025. [32] Xiaoyu Chen, Junliang Guo, et al. Igor: Image-goal representations are the atomic control units for foundation models in embodied ai. arXiv preprint arXiv:2411.00785 , 2024. [33] Yi Chen, Yuying Ge, et al. Moto: Latent motion token as the bridging language for learning robot manipulation from videos. In Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025. [34] Qingwen Bu, Yanting Yang, et al. Univla: Learning to act anywhere with task-centric latent actions. In Robotics: Science and Systems , 2025. [35] Hongtao Wu, Ya Jing, et al. Unleashing large-scale video generative pre-training for visual robot manipulation. In International Conference on Learning Representations , 2024. [36] Chi-Lam Cheang, Guangzeng Chen, et al. Gr-2: A generative video-language-action model with web-scale knowledge for robot manipulation. arXiv preprint arXiv:2410.06158 , 2024. [37] Homanga Bharadhwaj, Debidatta Dwibedi, et al. Gen2act: Human video generation in novel scenarios enables generalizable robot manipulation. In Conference on Robot Learning , 2025. [38] Chuan Wen, Xingyu Lin, et al. Any-point trajectory modeling for policy learning. In Robotics: Science and Systems , 2024. [39] Jianwei Yang, Reuben Tan, et al. Magma: A foundation model for multimodal ai agents. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [40] Yuzhe Qin, Yueh-Hua Wu, et al. Dexmv: Imitation learning for dexterous manipulation from human videos. In European Conference on Computer Vision , 2022. [41] Hanzhi Chen, Boyang Sun, et al. Vidbot: Learning generalizable 3d actions from in-the-wild 2d human videos. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [42] Ruihan Yang, Qinxi Yu, et al. Egovla: Learning vision-language-action models from egocentric human videos. arXiv preprint arXiv:2507.12440 , 2025. [43] Gemini Team, Rohan Anil, Sebastian Borgeaud, Jean-Baptiste Alayrac, Jiahui Yu, Radu Soricut, Johan Schalkwyk, Andrew M Dai, Anja Hauth, Katie Millican, et al. Gemini: a family of highly capable multimodal models. arXiv preprint arXiv:2312.11805 , 2023. [44] Mido Assran, Adrien Bardes, David Fan, Quentin Garrido, Russell Howes, Matthew Muckley, Ammar Rizvi, Claire Roberts, Koustuv Sinha, Artem Zholus, et al. V-jepa 2: Self-supervised video models enable understanding, prediction and planning. arXiv preprint arXiv:2506.09985 ,2025. [45] Yufei Xu, Jing Zhang, Qiming Zhang, and Dacheng Tao. Vitpose: Simple vision transformer baselines for human pose estimation. Advances in Neural Information Processing Systems ,35:38571–38584, 2022. [46] Yufei Xu, Jing Zhang, Qiming Zhang, and Dacheng Tao. Vitpose++: Vision transformer for generic body pose estimation. IEEE Transactions on Pattern Analysis and Machine Intelligence ,46(2):1212–1230, 2023. [47] Georgios Pavlakos, Dandan Shan, Ilija Radosavovic, Angjoo Kanazawa, David Fouhey, and Jitendra Malik. Reconstructing hands in 3D with transformers. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024. 12 [48] Haotong Lin, Sili Chen, Junhao Liew, Donny Y Chen, Zhenyu Li, Guang Shi, Jiashi Feng, and Bingyi Kang. Depth anything 3: Recovering the visual space from any views. arXiv preprint arXiv:2511.10647 , 2025. [49] Hao Luo, Ye Wang, Wanpeng Zhang, Sipeng Zheng, Ziheng Xi, Chaoyi Xu, Haiweng Xu, Haoqi Yuan, Chi Zhang, Yiqing Wang, et al. Being-h0. 5: Scaling human-centric robot learning for cross-embodiment generalization. arXiv preprint arXiv:2601.12993 , 2026. [50] Andreas Steiner, André Susano Pinto, Michael Tschannen, Daniel Keysers, Xiao Wang, Yonatan Bitton, Alexey Gritsenko, Matthias Minderer, Anthony Sherbondy, Shangbang Long, et al. Paligemma 2: A family of versatile vlms for transfer. arXiv preprint arXiv:2412.03555 , 2024. [51] Yaron Lipman, Ricky TQ Chen, Heli Ben-Hamu, Maximilian Nickel, and Matt Le. Flow matching for generative modeling. arXiv preprint arXiv:2210.02747 , 2022. [52] Javier Romero, Dimitrios Tzionas, and Michael J Black. Embodied hands: Modeling and capturing hands and bodies together. arXiv preprint arXiv:2201.02610 , 2022. [53] Qingwen Bu, Jisong Cai, Li Chen, Xiuqi Cui, Yan Ding, Siyuan Feng, Shenyuan Gao, Xindong He, Xuan Hu, Xu Huang, et al. Agibot world colosseo: A large-scale manipulation platform for scalable and intelligent embodied systems. arXiv preprint arXiv:2503.06669 , 2025. [54] Yanli Zhao, Andrew Gu, Rohan Varma, Liang Luo, Chien-Chin Huang, Min Xu, Less Wright, Hamid Shojanazeri, Myle Ott, Sam Shleifer, et al. Pytorch fsdp: experiences on scaling fully sharded data parallel. arXiv preprint arXiv:2304.11277 , 2023. [55] Jonathan Ho and Tim Salimans. Classifier-free diffusion guidance. arXiv preprint arXiv:2207.12598 , 2022. [56] Lixin Yang, Kailin Li, Xinyu Zhan, Fei Wu, Anran Xu, Liu Liu, and Cewu Lu. Oakink: A large-scale knowledge repository for understanding hand-object interaction. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 20953–20962, 2022. [57] Xuanlin Li, Kyle Hsu, Jiayuan Gu, Karl Pertsch, Oier Mees, Homer Rich Walke, Chuyuan Fu, Ishikaa Lunawat, Isabel Sieh, Sean Kirmani, et al. Evaluating real-world robot manipulation policies in simulation. In RSS 2024 Workshop: Data Generation for Robotics .13

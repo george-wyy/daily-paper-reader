@@ -1,0 +1,896 @@
+Title: PI-TTA: Physics-Informed Source-Free Test-Time Adaptation for Robust Human Activity Recognition on Mobile Devices
+
+URL Source: https://arxiv.org/pdf/2604.25435v1
+
+Published Time: Wed, 29 Apr 2026 00:54:52 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+> 1
+
+# PI-TTA: Physics-Informed Source-Free Test-Time Adaptation for Robust Human Activity Recognition on Mobile Devices 
+
+Changyu Li 1 , Lu Wang 5 , Senior Member, IEEE , Ming Lei 1 , Jiashen Liu 2 , Yichen Zhang 4,Kaishun Wu 3 , Fellow, IEEE , and Fei Luo 1
+
+Abstract —Source-free test-time adaptation (TTA) is appealing for mobile and wearable sensing because it enables on-device personalization from unlabeled test streams without centralizing private data. However, sensor-based human activity recognition (HAR) poses challenges that are less pronounced in standard vision benchmarks: behavioral inertial streams are temporally correlated and often exhibit within-session shifts caused by sensor rotation, placement change, and sampling-rate drift. Under this streaming non-i.i.d. setting, widely used vision-style TTA objectives can become unstable, leading to overconfident errors, representation collapse, and catastrophic forgetting. We propose PI-TTA, a lightweight source-free adaptation framework that stabilizes online updates through three physics-consistent constraints: gravity consistency, short-horizon temporal continuity, and spectral stability. PI-TTA updates the same small parameter subset as strong source-free baselines and incurs only modest overhead, making it suitable for on-device deployment. Experiments on USCHAD, PAMAP2, and mHealth under long-sequence stress tests and factorized shift protocols show that PI-TTA mitigates the severe degradation observed in confidence-driven baselines and preserves stable adaptation under sustained streaming conditions. It improves long-sequence accuracy by up to 9.13% and reduces physical-violation rates by 27.5%, 24.1%, and 45.4% on USCHAD, PAMAP2, and mHealth, respectively. These results demonstrate that physics-informed adaptation can improve accuracy, stability, and deployment reliability for real-world mobile sensing systems. 
+
+Index Terms —Source-free test-time adaptation, human activity recognition, mobile inertial sensing, temporally correlated streams, physics-informed adaptation, streaming robustness, sampling-rate drift. 
+
+I. I NTRODUCTION 
+
+# MOBILE and wearable sensing systems have become an important infrastructure for behavioral understanding applications such as human activity recognition (HAR), digital health monitoring, and context-aware human–computer interac-tion [1], [2]. Although recent deep models and cross-domain learning methods have substantially improved HAR accuracy, 
+
+> 1
+
+Changyu Li, Ming Lei, and Fei Luo are with the School of Com-puting and Information Technology, Great Bay University, Dongguan, China (e-mail: Changyuli.021230@gmail.com; leiming61@hrbeu.edu.cn; lu-ofei2018@outlook.com). 
+
+> 2
+
+Jiashen Liu is with the University of Warwick, Coventry, U.K. (e-mail: Jiashen.Liu@warwick.ac.uk). 
+
+> 3
+
+Kaishun Wu is with the Hong Kong University of Science and Technology (Guangzhou), Guangzhou, China (e-mail: wuks@hkust-gz.edu.cn). 
+
+> 4
+
+Yichen Zhang is with The University of Queensland, Brisbane, Australia (e-mail: yczhang0713@126.com). 
+
+> 5
+
+Lu Wang is with the College of Computer Science and Software Engineer-ing, Shenzhen University, Shenzhen, China (e-mail: wanglu@szu.edu.cn). 
+
+reliable deployment on mobile devices remains challenging. In practice, the challenge is not only to recognize activities under distribution shift, but to do so under strict on-device latency, memory, energy, and sustained runtime constraints [3]–[11]. This creates a fundamental tension: the model should adapt to evolving test conditions, yet the adaptation process itself must remain lightweight and stable for continuous mobile execution. This tension is particularly pronounced for behavioral inertial streams. During a single deployment session, sensors may rotate inside pockets, device placement may shift across body locations such as the waist, arm, or chest, and acquisition characteristics may drift over time [3]–[6], [12], [13]. As a result, the deployment stream is temporally correlated and non-i.i.d., rather than a collection of independent test samples. This differs fundamentally from shuffled offline evaluation. In realistic mobile use, the model is repeatedly queried and updated under evolving stream conditions, and any adaptation error can propagate across subsequent windows rather than being averaged out over independent examples. Source-free test-time adaptation (TTA) is therefore an appealing paradigm for mobile HAR. It enables the model to adapt directly on unlabeled deployment streams without storing or centralizing private source data, which is attractive for privacy-sensitive wearable applications. However, this setting imposes requirements that are stricter than those of conventional offline robustness. The adaptation mechanism must remain lightweight, online, and resilient to long correlated segments, because recovery from a poor update is costly under limited compute and energy budgets [7], [9]–[11]. To our knowledge, deployment-constrained source-free adaptation on temporally correlated sensor streams remains underexplored in HAR. A prominent line of source-free TTA in computer vision updates a small subset of parameters, often normalization affine parameters or running statistics, by minimizing prediction entropy [14]–[16]. Another line performs test-time training with self-supervised auxiliary tasks such as rotation prediction to construct an online learning signal [17]. While effective in many vision settings, these objectives can become unstable on correlated behavioral streams. Under prolonged single-regime segments, repeated updates may sharpen confidence on the current regime while gradually weakening the representation of others. This can lead to a low-entropy trap in which confidence increases but the adaptation trajectory drifts away from physically plausible structure, causing collapse and forgetting once the stream transitions [18]–[23]. As illustrated 
+
+> arXiv:2604.25435v1 [cs.AI] 28 Apr 2026 2
+
+in Fig. 1, confidence-driven adaptation on correlated inertial streams can reduce entropy while drifting away from physically plausible signal structure, eventually producing overconfident errors and post-transition collapse. In mobile deployment, such instability is particularly problematic because adaptation opportunities are limited, recovery is expensive, and sustained execution must remain reliable. Our key observation is that behavioral inertial streams are not arbitrary unlabeled sequences. They are constrained by physical structure that remains informative across users, activities, and time. Gravity provides a global reference, human motion exhibits short-horizon continuity, and activity dynamics induce characteristic spectral patterns under moderate acquisition variability. These regularities suggest that online adaptation should not be driven by confidence alone. Instead, it should be regularized by lightweight physically grounded signals that remain meaningful under deployment shift. This view is aligned with the broader perspective of physics-informed learning, in which physical structure serves as an inductive bias for robust optimization under non-stationarity [24], [25]. Motivated by this observation, we propose PI-TTA, a lightweight physics-informed stabilization framework for source-free test-time adaptation on behavioral time series. PI-TTA preserves the standard lightweight adaptation interface used by strong baselines by updating the same small parameter subset, such as normalization affine parameters or running statis-tics [14]–[16]. On top of this interface, it introduces a physics-informed adaptation objective that combines confidence-driven updates with model-coupled stabilization terms derived from three complementary cues: gravity consistency, short-horizon temporal continuity, and spectral stability under sampling-rate drift. The design aims to stabilize the update trajectory on correlated inertial streams while remaining compatible with practical on-device deployment. The main contributions of this work are summarized as follows. 1) We formulate source-free adaptation for mobile HAR as a deployment-constrained online learning problem on temporally correlated behavioral streams, and analyze why widely used vision-style TTA objectives can become unstable in this setting, leading to overconfident collapse and catastrophic forgetting [14], [17], [19], [22], [23]. 2) We introduce PI-TTA, a lightweight physics-informed stabilization framework for source-free test-time adapta-tion on correlated inertial streams. The method preserves the standard lightweight update scope of normalization-based baselines while incorporating model-coupled adap-tation terms with physically grounded stabilization sig-nals. 3) We establish a comprehensive evaluation suite for source-free adaptation on mobile inertial streams, in-cluding long-sequence stress tests, factorized and com-pound physical shifts, and failure diagnostics. Across USCHAD, PAMAP2, and mHealth, PI-TTA improves long-sequence accuracy by 9.13% , 4.24% , and 8.82% ,respectively. It also exposes and mitigates the low-entropy trap: while confidence-driven baselines can produce gravity-proxy magnitudes as extreme as 13.2 g , PI-TTA remains anchored near the 1.0 g feasible band and reduces physical-violation rates by up to 45.4% .4) We provide a deployment-oriented characterization of on-device adaptation under practical runtime con-straints. Through latency–accuracy Pareto analysis, time-constrained streaming evaluation, and 30-minute sus-tained execution profiling, we show that PI-TTA im-proves adaptation stability while remaining compatible with realistic mobile sensing budgets, including operation under a strict 50 Hz/20 ms update deadline with an appropriate sparse update schedule. II. R ELATED WORK 
+
+Our work is most closely related to four directions: sensor-based HAR under deployment shift, source-free test-time adaptation on correlated streams, physics-informed learning for inertial time series, and deployment-constrained on-device adaptation. These directions provide important context, but none directly addresses the setting considered here: source-free within-session adaptation on strongly correlated mobile HAR streams under strict runtime and memory budgets . We briefly review each area and clarify the gap addressed by PI-TTA. 
+
+A. Sensor-Based HAR Under Deployment Shift 
+
+Deep learning has substantially advanced sensor-based human activity recognition (HAR) and enabled a broad range of mobile and wearable applications [1], [2], [26]. However, real-world deployment remains challenging because the test distribution often differs from the training condition in ways that are structured, persistent, and behavior-dependent. In wearable inertial sensing, such shifts commonly arise from sensor rotation, body-location changes, subject heterogeneity, acquisition mismatch, and hardware-dependent sampling char-acteristics [3]–[6], [12], [13]. Among these factors, rotation, placement change, and sampling-rate drift are particularly challenging because they alter temporal dynamics and distort frequency structure even within a single continuous session. Most prior research on HAR under shift has focused on offline robustness, source-dependent domain adaptation, cross-dataset transfer, or shift-invariant representation learning [3], [4], [6], [26]. These directions improve pre-deployment gen-eralization, but they provide limited guidance for source-free online adaptation once a model is already running on-device and must respond to an evolving correlated stream. In this regime, the challenge is not only accuracy under shift, but also whether adaptation remains stable over time, recovers after regime transitions, and fits sustained mobile execution constraints. 
+
+B. Source-Free Test-Time Adaptation on Correlated Streams 
+
+Source-free test-time adaptation (TTA) updates a pretrained model at deployment time using only unlabeled target samples, without access to source data. Representative methods adapt a small subset of parameters, often normalization affine parameters or running statistics, by minimizing prediction entropy [14]–[16], or perform test-time training with auxiliary 3Walking Sitting Running 
+
+> Non-i.i.d. Streaming Data
+
+Behavioral Time Series Sensor Signal Processing Vision-based TTA ( e.g., TENT, TTT)              
+
+> Physics-Informed TTA (Ours)
+> ①Entropy Minimization
+> ②Rotation Prediction
+> Physical Inductive Bias Statistical Proxy
+> ①Gravity Consistency
+> ②Kinematic Continuity
+> ③Spectral Stability
+> Human Tester
+> Adaptation Outcome
+> Physical Consistency Physical Conflict
+> Robust Lifelong
+> Adaptation
+> Stable & Physically
+> Consistent Predictions
+> Predicted: Sitting
+> Catastrophic Collapse
+> & Misclassification
+> Fig. 1. Motivation. Under temporally correlated and non-stationary inertial streams, vision-style source-free TTA objectives, including entropy minimization and rotation-based pretext tasks, can become misaligned with the physical structure of the signals, producing overconfident errors, collapse, and forgetting [14], [17], [19], [23]. A representative symptom is physical infeasibility. In the gravity-feasibility ribbon, entropy minimization can drive ∥ˆg∥far outside the physically plausible band [0 .9 g ,1.1 g] , especially after late-phase transitions, whereas PI-TTA remains stable near 1.0 g by anchoring online updates with physics-informed stabilization signals.
+
+self-supervised objectives such as rotation prediction [17]. While these approaches have shown strong results on standard image benchmarks, they can become much less reliable on correlated streams, where successive updates are repeatedly biased by a narrow local regime. Recent work has made this limitation increasingly explicit. Continual and robust TTA methods have introduced anti-forgetting mechanisms, selective updating, teacher-student smoothing, and entropy-control strategies to mitigate collapse under non-stationary test dynamics [9], [18]–[23]. More recent streaming and non-i.i.d. variants further emphasize that perfor-mance depends on how the target stream evolves over time, not only on the marginal shift itself. Representative examples include feature-alignment-based adaptation under dynamic domains [27], order-aware or temporal-prior strategies that exploit stream ordering [28], stateful prototype or classifier-state adaptation [29], diversity-aware buffering to reduce myopic updates [30], and adaptive reset mechanisms for recovery from harmful drift [31]. Nevertheless, the available evidence remains largely image-centric or assumes weaker physical structure than mobile inertial HAR. Moreover, prior stabilization mechanisms are still primarily statistical, including entropy shaping, temporal smoothing, buffering, reset logic, and feature alignment. By contrast, our setting involves inertial streams whose failure modes are closely tied to physical structure, including grav-ity anchoring, short-horizon motion continuity, and spectral distortion under sampling-rate drift. PI-TTA is therefore complementary to recent streaming TTA methods: instead of relying only on statistical confidence control or stream-state management, it injects lightweight physics-consistent stabilization signals into source-free on-device adaptation for correlated behavioral time series. 
+
+C. Physics-Informed Learning for Inertial Signals 
+
+For inertial time series, adaptation instability is amplified by the mismatch between generic statistical objectives and the physical structure of the signals. Unlike visual inputs, inertial measurements are tied to interpretable regularities, including gravity as a global reference, short-horizon motion continuity, and characteristic spectral patterns that remain informative under moderate acquisition variability. These properties suggest that physical consistency can serve as a lightweight and task-relevant anchor for adaptation without labels, source replay, or manually designed target supervision. More broadly, physics-informed learning has shown that embedding physical structure as an inductive bias can reg-ularize optimization and improve robustness under non-stationarity [24], [25]. However, most prior physics-informed approaches are developed for offline modeling, training-time regularization, or systems with explicit governing equations. They are typically not designed for source-free online adap-tation on mobile deployment streams, where physical cues must be lightweight, label-free, and compatible with real-time parameter updates. Our use of physics is therefore intentionally pragmatic: rather than solving a full inverse problem, PI-TTA uses simple consistency signals derived from inertial structure to stabilize online adaptation under realistic behavioral shifts. 
+
+D. Deployment-Constrained On-Device Adaptation 
+
+Mobile HAR systems operate under tight latency, memory, and energy budgets, making deployability a first-class objective in mobile computing research [7], [8], [10], [11], [32]. This has motivated efficient backbones, compact temporal models, and deployment-oriented evaluation protocols in which practical utility depends not only on recognition accuracy but also on sustained on-device efficiency. However, efficient inference alone does not guarantee practical adaptation once online updates are introduced. Under correlated non-stationary streams, even lightweight TTA can become unsuitable for deployment if it induces unstable update trajectories, growing state overhead, or adaptation opportunities that exceed the stream-time budget. Related paradigms, including privacy-preserving person-alization and federated optimization, also study adaptation 4
+
+under system constraints [33]–[37]. More recent efforts extend efficient adaptation to foundation models through prompt tuning, heterogeneous LoRA allocation, and communication-aware fine-tuning [38]–[42]. These directions are relevant from a systems perspective, but they mainly address cross-device coordination, communication efficiency, or privacy-preserving personalization. Our setting is more local and more constrained: a single mobile device must adapt to its own evolving unlabeled stream in real time, without source replay and without expensive recovery mechanisms. Accordingly, the central bottleneck here is not communication or distributed optimization, but stable source-free online adaptation under sustained deployment constraints .III. W HY VISION -S TYLE TTA O BJECTIVES BECOME 
+
+UNSTABLE ON BEHAVIORAL STREAMS 
+
+Most vision-style source-free TTA methods were developed and validated under settings with weak temporal correlation. Mobile HAR deployment differs substantially. As summarized in Fig. 2, the test stream is often temporally correlated and non-i.i.d. because long single-activity segments are common, while shift factors such as sensor rotation, placement change, and acquisition variability may evolve within a session [3], [4], [12], [13]. Under this streaming regime, adaptation objectives based on generic statistical proxies or vision-style geometric pretext tasks can become unstable. We focus on two representative failure mechanisms that motivate the use of physics-consistent adaptation signals. 
+
+A. Entropy Minimization: The Low-Entropy Trap and Self-Reinforcing Collapse 
+
+A representative entropy-minimization strategy updates a small subset of parameters, often normalization affine parame-ters or running statistics, by reducing predictive entropy [14]– [16]: 
+
+min 
+
+> θA
+
+Lent = Ex∼B t
+
+H(ˆ y(x)) , H(ˆ y) = − X
+
+> c
+
+ˆyc log ˆ yc.
+
+(1) In an i.i.d. setting, entropy reduction can encourage confident predictions. On a correlated behavioral stream, however, each mini-batch Bt may be dominated by a single activity over an extended period. This creates a self-reinforcing failure pattern. First, locally homogeneous batches bias the running normalization statistics toward the current regime. Second, repeated updates sharpen confidence on this local regime while gradually weakening the global class structure. When the stream transitions to a new activity, the model can fall into a low-entropy trap : it produces predictions that are highly confident but incorrect. These overconfident errors then contaminate subsequent updates and further reinforce the drift. Recent continual TTA studies have recognized this instability and proposed statistical anti-forgetting mechanisms [18], [19], [21]–[23]. In mobile HAR, the problem is even more difficult because limited compute budgets and strict latency constraints make recovery from harmful drift more costly [7], [9]. 
+
+B. Rotation Pretext Tasks: Mismatch With the Inertial Refer-ence Frame 
+
+An alternative TTA paradigm, test-time training (TTT), obtains an online learning signal by optimizing a self-supervised auxiliary task, most notably rotation prediction [17]. In com-puter vision, discrete image rotations such as 0 ◦, 90 ◦, and 180 ◦
+
+can serve as effective synthetic classes because they encourage the network to learn robust spatial representations. In inertial sensing, however, sensor rotation is not a synthetic augmentation but a continuous physical coordinate transforma-tion. When a mobile device rotates in a pocket, it redistributes the global gravity vector and local body kinematics across the three sensor axes [3], [12]. Treating continuous inertial rotation as a discrete auxiliary task ignores this underlying physical structure. As a result, the network may improve the pretext objective while drifting away from physically plausible states, thereby degrading downstream HAR adaptation. This highlights an important limitation: geometric self-supervision borrowed from vision does not provide a stable universal anchor under realistic inertial shifts. Physical structure should therefore not remain only a diagnostic tool, but should enter the adaptation objective directly as a lightweight stabilizing prior [24], [25]. 
+
+C. Design Implications for Stable On-Device Adaptation 
+
+These failure mechanisms lead to three design requirements. First, adaptation needs a stable physical anchor to restore a meaningful reference under orientation shift, rather than relying only on artificial pretext tasks ( gravity consistency ). Second, it must suppress self-reinforcing drift under prolonged single-activity segments ( short-horizon temporal continuity ). Third, it must remain robust to acquisition variability that perturbs temporal and spectral structure ( spectral stability ). Together, these components form a physically grounded, model-coupled stabilization framework for on-device adaptation. IV. M ETHOD : P HYSICS -I NFORMED TEST -T IME 
+
+ADAPTATION (PI-TTA) 
+
+A. Overview 
+
+PI-TTA targets source-free adaptation on temporally corre-lated mobile HAR streams, where the main challenge is not adaptation capacity but update stability. Because the target stream is non-i.i.d. and evolves over time, repeated online updates can become dominated by local stream statistics and gradually drive the model toward overconfident but fragile states. Our goal is therefore not to enlarge the adaptation interface, but to stabilize the update trajectory under realistic behavioral shifts. To preserve fairness and deployability, PI-TTA adopts the same lightweight adaptation interface used by strong source-free baselines, namely a small online parameter subset such as normalization affine parameters and, when enabled, running statistics [14]–[16]. As shown in Fig. 3, the method combines a standard statistical adaptation objective with physically grounded stabilization terms and control signals derived from inertial structure. 5(a) Sensor Rotation Shift           
+
+> 𝐀𨐀𝐀𣠀𝐀𝐀 𝐀𨀀𝐀𝐀𝐀𝐀
+> Gravity rotates !
+> Device orientation changes inside pocket
+> Source Target
+> Sou rce
+> domain Target domain Deploy
+> Source(waist) Target(arm)
+> Amplitude& Phase Shift
+> Time Accel.
+> (c) Sampling -Rate Drift
+> Clock drift changes the apparent temporal scale and shifts dominant frequencies
+> (b) Sensor Placement Shift
+> Sensor moves from waist to arm; kinematics diverge
+> || g|| ≈1galways; but projection ontoaxes shifts Body kinematics: awaist ≠aarm due to n onlinear coordinate transform, not just scaling
+> Lspec stabilizes spectral structure under online drift via smoothed target-stream references
+
+Fig. 2. Physical shift taxonomy for mobile HAR. We consider three deployment shifts commonly encountered in wearable inertial sensing: sensor rotation (Srot ), placement change across body locations ( Splace ), and sampling-rate drift ( Sdrift ) [3], [4], [12], [13]. These shifts may arise within a single session, alter gravity projection, local motion patterns, and spectral structure, and jointly produce temporally correlated non-i.i.d. test streams. This setting motivates stable source-free online adaptation with physics-consistent constraints under mobile resource budgets [7], [9], [14], [19], [23]. 
+
+B. Adaptation Interface and Objective 
+
+Let fθ denote a pretrained HAR model. We partition its parameters into a frozen subset θF and an adaptable subset θA,where θA contains the same lightweight parameters updated by normalization-based baselines. Online adaptation updates only θA:
+
+θ = ( θF , θ A), θ(t+1)  
+
+> A
+
+← θ(t) 
+
+> A
+
+− η∇θA LPI-TTA (Bt; θ(t)).
+
+(2) We define 
+
+LPI-TTA = Lstat + λtemp Ltemp + λ(t) 
+
+> grav
+
+Lgrav + λ(t) 
+
+> spec
+
+Lspec , (3) where Lstat is the primary unlabeled adaptation signal, Ltemp 
+
+is a direct feature-level temporal stabilization term, and Lgrav 
+
+and Lspec are gravity- and spectrum-based stabilization terms computed on model-coupled stream representations. Here λtemp 
+
+is a fixed coefficient controlling the strength of temporal continuity, while λ(t) 
+
+> grav
+
+and λ(t) 
+
+> spec
+
+are time-varying coefficients that incorporate reliability gating for the gravity and spectral terms, respectively. In this work, we instantiate Lstat as entropy minimization, following TENT [14]: 
+
+Lstat (Bt; θ) = Ex∼B t
+
+H(ˆ y(x)) , H(ˆ y) = − X
+
+> c
+
+ˆyc log ˆ yc.
+
+(4) Entropy therefore provides the primary update signal, while the remaining terms stabilize the update trajectory. 
+
+C. Parameter Coupling and Optimization Path 
+
+A central requirement is that the physical terms influence the adaptable parameters θA through a clear optimization path. To this end, the gravity and spectral terms are not computed from detached raw-input summaries, but from an adapted low-level stream representation 
+
+˜xt = ψθA (xt), (5) which passes through the same lightweight normalization path governed by θA. As a result, Lgrav and Lspec remain differen-tiably coupled to θA through ψθA (·). In practice, reliability-aware modulation is implemented directly through the time-varying coefficients λ(t) 
+
+> grav
+
+and λ(t) 
+
+> spec
+
+defined in the following subsections; there is no separate third gating mechanism beyond these coefficients and their associated batch-dependent factors. In our implementation, ψθA (·) denotes the low-level nor-malized stream representation immediately after the adaptable normalization path and before deeper feature mixing. This choice preserves local inertial structure and, under the channel-wise normalization instantiation used here, maintains correspon-dence to the original inertial axes while remaining differentiably coupled to θA.
+
+D. Gravity Consistency Signal 
+
+Gravity provides a lightweight physical anchor for inertial adaptation, but batch-level mean acceleration is only a coarse proxy because it can be contaminated by body acceleration. We therefore use a reliability-gated gravity consistency signal rather than assuming exact decomposition. Let ˜xt = ψθA (xt) denote the adapted stream representation. We compute a low-level adapted inertial summary and maintain a running gravity-proxy estimate: 
+
+¯at = Ex∼B t
+
+˜a(x),
+
+ˆgt = αg ˆgt−1 + (1 − αg )¯ at. (6) When ψθA (·) is instantiated by channel-wise normalization layers, this adapted representation remains aligned with the original inertial axes up to affine normalization, making it suitable for lightweight gravity-proxy estimation. We define a feasible magnitude band 
+
+G = {g ∈ R3 : 0 .9 g ≤ ∥ g∥2 ≤ 1.1 g }, (7) and construct 
+
+Lgrav = ˆgt − ΠG (ˆ gt) 22 + λdir 
+
+
+
+1 −
+
+ ˆgt
+
+∥ˆgt∥2 + ϵ , gref 
+
+ 
+
+,
+
+(8) where ΠG denotes Euclidean projection onto the feasible magnitude band. Concretely, for any u ∈ R3,
+
+ΠG (u) = 
+
+
+
+0.9 g u
+
+∥u∥2 + ϵ , ∥u∥2 < 0.9 g ,
+
+u, 0.9 g ≤ ∥ u∥2 ≤ 1.1 g ,
+
+1.1 g u
+
+∥u∥2 + ϵ , ∥u∥2 > 1.1 g .
+
+(9) 6Zoom-In: Physics-Informed Loss Module         
+
+> Gravity Consistency Kinematic Continuity Spectral Stability
+> Change-Point Gate Smooth within same activity
+> ℒtemp ℒgrav ℒspec
+> Static Activity Gate Minimize Inputs
+> IMU Test Stream
+> BN Layer (update d)
+> Conv Block
+> Prediction
+> Conv Block
+> Physics Loss Module
+> skip
+> T steps
+> Test Time Update  stat L
+> ||source batch SE SE 
+
+Fig. 3. PI-TTA overview. Online adaptation updates the same lightweight parameter subset as normalization-based baselines, while gravity- and spectrum-based stabilization terms are computed on model-coupled adapted stream representations. In the zoom-in panel, the three physics-guided components should be labeled Gravity Consistency , Short-Horizon Temporal Continuity , and Spectral Stability .
+
+The second term in Eq. (8) discourages slow directional drift relative to a soft EMA reference gref , updated by 
+
+gref ← αr gref + (1 − αr ) ˆgt
+
+∥ˆgt∥2 + ϵ , (10) with the update optionally suspended or down-weighted when the batch is judged unreliable. To prevent this term from dominating when the proxy is noisy, we use a variance-based gate 
+
+λ(t) 
+
+> grav
+
+= λgrav exp( −vt/τ g ), (11) where vt is the within-batch adapted acceleration variance. This time-varying coefficient is the practical reliability-aware gate for the gravity term. For reporting, ∥ˆgt∥ is mapped back to the input-scale convention used during preprocessing and expressed in gravity-equivalent units for interpretability. This quantity should therefore be interpreted as a proxy scale rather than a calibrated physical accelerometer measurement. Accordingly, the gravity term serves as a practical feasibility and consistency signal rather than an exact physical loss. 
+
+E. Short-Horizon Temporal Continuity 
+
+Behavioral dynamics are locally smooth over short horizons, whereas activity boundaries are genuine discontinuities. Let 
+
+zt = ϕθ (xt) denote the penultimate embedding of window xt.We penalize high-frequency representation variation using 
+
+∆2zt = zt − 2zt−1 + zt−2, Ltemp = Et
+
+wt ∥∆2zt∥22
+
+,
+
+(12) where wt ∈ [0 , 1] is a soft transition-aware gate. Here 
+
+ct = max y ˆyt(y) denotes prediction confidence, Ht = H(ˆ yt)
+
+denotes predictive entropy, and ∆y (t) = I[arg max ˆ yt̸ =arg max ˆ yt−1] indicates a label flip. To avoid over-smoothing across genuine activity boundaries, we define 
+
+wt = σ κc(ct − τc) · σ κh(τh − Ht) ·  1 − ∆y (t). (13) This is the most direct feature-level stabilization term in PI-TTA, since it acts explicitly on learned representations and therefore has a clear gradient path to θA.
+
+F. Spectral Stability Under Sampling-Rate Drift 
+
+Sampling-rate drift distorts temporal frequency structure and can destabilize both statistical adaptation and auxiliary pretext tasks. We therefore regularize spectral statistics computed on the adapted stream representation rather than on frozen raw input. Let ˜xt = ψθA (xt) and let ˜Pt(ω) denote its normalized channel-aggregated power spectrum. In practice, ˜Pt(ω) is obtained by applying a 1-D FFT along the temporal axis of 
+
+ψθA (Bt) channel-wise, followed by channel aggregation and normalization. We maintain an online target-stream reference spectrum 
+
+Pref ← αsPref + (1 − αs) ˜Pt, (14) and define 
+
+Mt = 12
+
+  ˜Pt + Pref 
+
+. (15) The Jensen–Shannon component is 
+
+LJS = 12 KL( ˜Pt∥Mt) + 12 KL( Pref ∥Mt), (16) and the spectral-entropy consistency term is 
+
+LSE =  SE( ˜Pt) − SE( Pref )2, (17) where 
+
+KL( P ∥Q) = X
+
+> ω
+
+P (ω) log P (ω) + ϵQ(ω) + ϵ , (18) and 
+
+SE( P ) = − X
+
+> ω
+
+P (ω) log( P (ω) + ϵ). (19) The resulting spectral stabilization term is 
+
+Lspec = LJS + λSE LSE , (20) and can optionally be reliability-weighted through 
+
+λ(t) 
+
+> spec
+
+= λspec γ(s) 
+
+> t
+
+, (21) with γ(s) 
+
+> t
+
+∈ (0 , 1] . This time-varying coefficient is the practical reliability-aware gate for the spectral term. Thus, the spectral 7
+
+Algorithm 1 Online PI-TTA  
+
+> 1:
+
+Input: pretrained model fθ0 , stream {xt}, adaptable subset 
+
+θA, step size η 
+
+> 2:
+
+Initialize θ ← θ0; ˆg0 ← 0; gref ← 0; Pref ← Uniform  
+
+> 3:
+
+for each batch Bt do  
+
+> 4:
+
+Forward pass: ˆyt, z t ← fθ (Bt) 
+
+> 5:
+
+Compute adapted stream representation ˜xt ← ψθA (Bt) 
+
+> 6:
+
+Update ˆgt, gref , and Pref from ˜xt 
+
+> 7:
+
+Compute LPI-TTA using Eq. (3)  
+
+> 8:
+
+Update θA ← θA − η∇θA LPI-TTA  
+
+> 9:
+
+end for 
+
+term is a model-coupled stabilization term rather than a raw-input drift detector. In implementation, all spectra are computed on discrete frequency bins after channel aggregation and normalization. 
+
+G. Online Update Rule, State Maintenance, and Complexity 
+
+At time step t, the model receives a batch Bt, computes predictions and embeddings, estimates the model-coupled gravity and spectral quantities, and updates only θA using a small number of SGD steps. All running references are updated online from the target stream, so the procedure remains fully source-free [7], [9]. Algorithm 1 summarizes the online procedure. For window length T and batch size B, the dominant additional computation arises from spectral estimation, which costs O(BT log T ) per batch. Exponential moving average reference updates incur only constant-state maintenance, and the extra memory cost is negligible relative to the backbone. PI-TTA requires no replay buffer, no teacher model, and no heavy inner optimization loop, making it compatible with mobile update budgets and sustained on-device execution. V. E XPERIMENTAL SETUP 
+
+A. Datasets, Preprocessing, and Streaming Construction 
+
+We evaluate on three widely used wearable inertial HAR benchmarks with heterogeneous sensing conditions: USC-HAD (USCHAD) [43], PAMAP2 [44], and mHealth [45]. These datasets cover diverse activity sets, sensor placements, and acquisition settings, providing a practical testbed for studying streaming non-stationarity under sensor rotation, placement change, and acquisition drift [3]–[6], [12], [13]. Table I summarizes the sensing modality, the primary deployment shifts emphasized for each dataset, and the evaluation protocols in which each dataset is used. 
+
+Leakage-safe preprocessing. Following prior analyses of source-free TTA evaluation pitfalls, we avoid preprocessing that introduces source-domain global statistics into the target stream [23]. In particular, we do not apply dataset-level normalization using source means or variances. Instead, all normalization and standardization use only instance-level or current-batch information available at test time, consistent with normalization-based source-free adaptation practice [14]–[16]. Unless otherwise stated, acceleration channels are retained in gravity-equivalent units after sensor-specific calibration so that             
+
+> TABLE I DATASETS AND EVALUATION USAGE .
+> Dataset Modality Primary shifts Protocols used
+> USCHAD [43] IMU (acc/gyro) Srot , S place , S drift A, B, C PAMAP2 [44] Multi-sensor IMU Splace , S drift A, B, C mHealth [45] IMU + wearable sensors Splace , S drift A, B, C
+
+physically interpretable magnitudes can still be reported. When spectral quantities such as power spectral density (PSD) are required, they are computed online per batch using only target-stream statistics or model-coupled adapted feature streams, depending on the diagnostic or loss definition. 
+
+Streaming construction. All datasets are segmented into fixed-length overlapping windows to emulate realistic on-device streaming inference. Unless otherwise stated, windows are processed strictly in temporal order without shuffling so that temporal correlation and phase transitions are pre-served throughout evaluation. This is essential to our problem setting, since the goal is to study source-free adaptation under sustained correlated streams rather than randomized test sampling. Detailed window length, stride, batch size, subject split, and dataset-specific preprocessing choices follow the settings established in prior work [9]. 
+
+B. Baselines, Update Scope, and Fairness Protocol 
+
+We focus on source-free online adaptation methods that update only a lightweight parameter subset at test time, which is a deployment-relevant setting for mobile sensing [7], [8]. Our main baselines are S OURCE ONLY (no adaptation), TENT (entropy minimization with normalization-layer updates) [14], and TTT (rotation-based self-supervision) [17]. To strengthen the comparison under temporally correlated streams, we additionally include representative continual and robust TTA methods, including C OTTA [18], NOTE [19], EATA [21], SOTTA [22], MEMO [20], and SAR [46]. For each method, we follow the original update rule as closely as possible under a unified source-free streaming protocol. These baselines span two broad categories. The first includes confidence-driven or self-supervision-driven methods, such as TENT and TTT. The second includes continual or anti-forgetting methods, such as C OTTA, NOTE, EATA, and SAR. This grouping clarifies the role of PI-TTA: the goal is not merely to add another stabilization heuristic, but to test whether physics-informed adaptation remains stable even when stronger generic retention mechanisms are already present. 
+
+Update scope and fairness. Unless a baseline intrinsically requires additional modules, such as the rotation head in TTT, we restrict online updates to normalization affine parameters and, where applicable, running statistics. This choice follows standard source-free TTA practice [14]–[16] and ensures that performance differences are not driven by substantially different adaptation capacity. Our method uses the same lightweight update scope as normalization-based baselines and differs primarily in the stabilization objective. All adaptive baselines are evaluated under the same streaming order and the same batch schedule. Unless a protocol explicitly studies sparse updating, methods are updated at every batch; when an update 8
+
+interval K > 1 is introduced, the same interval is applied across compared methods within that protocol. Methods such as OATTA, CoTTA, NOTE, and SAR are run under their closest reproducible settings while preserving their original auxiliary states or memory mechanisms when these are intrinsic to the method. When architectural differences prevent exactly identical parameterization, we use comparable update scope whenever applicable and keep the stream schedule, runtime setting, and reporting protocol fixed. 
+
+Representative deployment cost. Table II summarizes the update scope, the main stabilization signal, and representative per-step deployment overhead under a shared runtime setting. The table is intended to position the compared methods along an adaptation-capacity versus deployability spectrum, rather than to enumerate all compared baselines or replace the more detailed profiling reported later. 
+
+C. Diagnostic Definitions and Measurement Methodology 
+
+Because several analyses go beyond scalar accuracy, we explicitly define the diagnostics and deployment measurements used throughout the paper. 
+
+Gravity-related diagnostics. The quantity used in the gravity-feasibility ribbon and violation analysis is a model-coupled gravity proxy rather than a raw batch mean of acceleration. Concretely, it is computed along the same lightweight adapted normalization path used during online updating and is reported in gravity-equivalent units for inter-pretability. Accordingly, large deviations should be interpreted as evidence of physically implausible adapted signal states, not as direct sensor-certified measurements of rigid-body gravity. The corresponding violation diagnostic checks whether the proxy magnitude falls outside the feasible band [0 .9 g , 1.1 g] .
+
+Spectral diagnostics. Spectral stability is analyzed using batch-level PSD statistics and spectral entropy. For diagnostics, PSD is computed on the same adapted stream representation used in the spectral term so that the reported quantity remains coupled to the online adaptation path rather than a fixed raw-input summary. This avoids conflating adaptation effects with purely exogenous input statistics. 
+
+Deployment measurements. Latency is measured end-to-end per batch, including forward inference, loss computation, backward update, and parameter write-back when adaptation is enabled. Peak memory is recorded under the same shared runtime setting used in deployment profiling. Energy and temperature are measured on the same device under the same thread, batch-size, and stream-schedule configuration for all methods. Reported values are averaged over repeated runs after warm-up. In our implementation, energy is recorded with the device-side power profiling toolchain, temperature is read from the system thermal interface, warm-up is performed before measurement, and each reported value is averaged over repeated runs with background tasks minimized as much as possible. These measurements are also used in the sustained execution and time-constrained evaluations reported later. Detailed toolchain information, sampling interval, and device configuration are provided in the implementation notes and deployment subsection. 
+
+D. Evaluation Protocols 
+
+We design the evaluation suite to probe three properties that are central to source-free adaptation on mobile inertial streams: stability under long-range temporal correlation, robustness under physically meaningful deployment shifts, and inter-pretability of adaptation failures beyond scalar accuracy [23]. Accordingly, the protocols are designed to answer three questions: whether a method remains stable, under which shift regimes it remains effective, and why it fails when it does not. As indicated in Table I, all three datasets are used across Protocols A–C so that long-sequence stability, factorized and compound shifts, and failure diagnostics can be examined within a consistent evaluation framework. 
+
+1) Long-Sequence Stability Under Temporal Correlation: 
+
+To stress-test catastrophic forgetting under extreme temporal correlation, we replace the conventional shuffled test stream with a class-sorted stream composed of long contiguous phases, each dominated by a single activity mode. Unless otherwise stated, each phase contains 1,000 streaming steps, producing a strongly non-i.i.d. test process that amplifies self-reinforcing adaptation errors. We report two complementary metrics. Online Accuracy 
+
+is measured on each incoming batch to reflect immediate adaptation behavior under local stream statistics. Held-out Accuracy is evaluated every 100 steps on a fixed all-class hold-out set that is never used for adaptation, in order to quan-tify catastrophic forgetting and loss of global discriminative structure. For datasets such as mHealth, some later phases can be comparatively simpler or lower-diversity local regimes. Accordingly, phase-wise online accuracy in a late segment should not be interpreted in isolation as evidence of stable global adaptation. Unless otherwise specified, all quantitative results are averaged over n = 5 independent runs and reported as mean ± standard deviation. 
+
+2) Shift Breakdown and Compound Physical Shifts: To identify which adaptation mechanisms remain effective under different deployment perturbations, we evaluate physically grounded shift factors at two levels. We first consider factorized shifts , where each perturbation is applied in isolation. We then consider compound shifts , where multiple perturbations are introduced sequentially within the same stream to approximate realistic deployment conditions. For the factorized setting, we evaluate three shift factors: 
+
+sensor rotation Srot , implemented by realistic device-frame rotations of 30 ◦, 60 ◦, and 90 ◦; placement change Splace , where the sensor location changes across body positions such as waist → arm or waist → chest; and sampling-rate drift Sdrift ,implemented via time-axis warping to emulate acquisition mismatch such as 100 Hz → 70/80/120/130 Hz. This factorized design aligns each shift type with a cor-responding physical prior in PI-TTA: gravity consistency is most relevant to rotation, short-horizon temporal continuity to correlated transition dynamics, and spectral stability to sampling-rate mismatch. For compound streams, multiple perturbations are accumulated sequentially within a single evaluation run to test whether adaptation remains stable as mismatch factors compound over time. 9                                        
+
+> TABLE II REPRESENTATIVE BASELINES AND UPDATE CHARACTERISTICS .
+> Method Update scope Main stabilization signal Latency (ms) Peak memory (MB) Energy (mJ)
+> Source Only Inference only None 15.2 18.5 8.5 TENT [14] BN affine / stats Entropy minimization 38.5 26.0 24.0
+> TTT [17] Encoder + rotation head Geometric pretext 82.4 58.2 68.2 EATA [21] Lightweight subset Anti-forgetting filter 32.4 28.5 32.4 CoTTA [18] Lightweight subset Teacher consistency 65.5 75.4 68.2 NOTE [19] Lightweight subset Buffering / debiasing 38.5 45.5 38.5 PI-TTA (ours) BN affine / stats Physics-consistent regularization 45.1 30.4 28.2
+
+3) Failure Visualization and Diagnostics: Scalar accuracy alone is insufficient to explain why online adaptation succeeds or fails on behavioral streams. We therefore introduce diagnos-tics that connect statistical confidence to physical plausibility and representation geometry. Representative diagnostic results are presented in the corresponding result figures, where they are used to visualize the low-entropy trap, gravity infeasibility, and progressive feature collapse under unstable adaptation. Specifically, we use three complementary diagnostics. First, the gravity-feasibility ribbon plots the gravity-proxy magnitude over time together with a feasible band [0 .9 g , 1.1 g] . Second, 
+
+t-SNE evolution visualizes feature embeddings at multiple time checkpoints, while the silhouette score quantifies class separability and detects progressive feature collapse. Third, 
+
+entropy–physics trade-off plots jointly track predictive entropy and a physical-violation score, exposing cases in which entropy decreases even as physical inconsistency increases. This mismatch, referred to as the low-entropy trap , indicates that the model is becoming more confident for the wrong reasons [19], [22], [23]. 
+
+E. Reporting Conventions 
+
+To ensure comparability across methods and protocols, we adopt unified conventions for optimization, fairness control, deployment profiling, and reproducibility. 
+
+Optimization. We use low-learning-rate SGD for test-time updates to reduce overshoot risk under non-stationary streams [14], [23]. All methods operate fully online without access to source data. To assess robustness under practical tuning uncertainty, we additionally evaluate a shared learning-rate grid {10 −4, 10 −3, 10 −2} for all adaptive baselines under the same long-sequence streaming protocol. 
+
+Fairness and reporting. All adaptive baselines are evaluated under the same streaming order, the same adaptation trigger frequency, and matched reporting conditions for memory and energy overhead. When architectural differences prevent exactly identical parameterization, we use comparable update scope whenever applicable and control reporting through matched memory, energy, and stream-schedule conditions. We also apply a shared update-interval sweep under the same streaming protocol to reduce the possibility that gains arise from selectively tuned adaptation frequency rather than from the adaptation objective itself. 
+
+Time-constrained evaluation. For streaming scenarios with strict real-time budgets, we additionally use a time-constrained scoring rule. Let Tadapt denote the measured adaptation latency per update and let Tbudget denote the inter-arrival time budget implied by the sensor rate. If Tadapt ≤ Tbudget , the update is applied before the next window and is marked safe . If 
+
+Tbudget < T adapt ≤ 2Tbudget , the update is delayed by one cycle .If Tadapt > 2Tbudget , one or more adaptation opportunities are missed and the update is marked dropped . Effective accuracy is measured under the resulting delayed-update schedule rather than under an idealized synchronous assumption. 
+
+Deployment profiling. For deployment relevance, we report per-step runtime, memory, and energy overhead, together with a 30-minute sustained execution test on Snapdragon 8 Gen 2 under a CPU single-thread setting. In addition to raw runtime, we also report update-interval studies to expose the effective operating region under constrained adaptation opportunities. These measurements complement the accuracy results by quan-tifying sustained deployability under edge-runtime constraints. 
+
+Reproducibility. We keep the streaming order intact without shuffling, report both online and held-out metrics, and specify all protocol settings explicitly. Unless otherwise noted, each ex-periment is repeated over n = 5 independent runs and reported as mean ± standard deviation. Detailed implementation choices, dataset-specific preprocessing, hardware profiling settings, and measurement toolchains are reported in the corresponding implementation and deployment sections. VI. R ESULTS 
+
+A. Long-Sequence Stability Under Temporal Correlation 
+
+We begin with the primary setting of this work, namely long correlated streams with abrupt regime transitions. Following Protocol A, we construct a class-sorted stream in which each activity phase contains 1,000 consecutive online steps before switching to the next class. This protocol stresses update stability under prolonged temporal correlation rather than shuffled evaluation. All adaptive methods are evaluated under the same streaming protocol, matched adaptation frequency, comparable update scope whenever applicable, and matched reporting conditions for memory and energy overhead. As illustrated in Fig. 4, this setting creates extended single-regime segments followed by abrupt transitions, making confidence-driven updates particularly vulnerable to self-reinforcing drift. Table III reports the primary comparison on USCHAD. Each phase contains 1,000 consecutive online steps from a single activity class, and all results are reported as mean ± standard deviation over n = 5 runs. Lower values in peak gravity-proxy magnitude, peak memory, and energy indicate better physical plausibility and lower deployment cost. Source Only 10 Init Walk Upstairs Sit               
+
+> 52
+> 54
+> 56
+> 58
+> 60
+> 62
+> Online Accuracy (%)
+> Avg : +9.13%
+> (a) USCHAD
+> Init Walk Upstairs Sit
+> 10
+> 15
+> 20
+> 25
+> Avg : +4.24%
+> (b) PAMAP2
+> Init Walk Upstairs Sit
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90 Avg : +8.82%
+> (c) mHealth
+> Source Only TTT TENT PI-TTA (Ours)
+> Fig. 4. Long-sequence class-sorted streaming evaluation under Protocol A.
+
+is included as the non-adaptive deployment reference, and OATTA is included as a representative order-aware streaming baseline. Four patterns are clear. First, entropy-driven adaptation is brittle under long correlated streams. TENT improves sharply in Phase 1 but collapses after the phase transition, dropping to 18.5% in Phase 2 and 12.4% in Phase 3. Second, stronger continual and streaming-aware baselines improve retention, but at noticeably higher system cost. CoTTA, NOTE, SAR, and the order-aware OATTA baseline are all more stable than TENT after regime transitions, yet they still incur substantially larger memory or energy overhead than inference-only execution. Third, PI-TTA remains stable across all three phases, achieving the best Phase 2 and Phase 3 accuracies while keeping the peak gravity-proxy magnitude close to the feasible regime with only modest overhead. Finally, the gains of PI-TTA are not explained simply by adding another generic robust TTA heuristic; they persist even against modern continual, selective-update, and order-aware streaming baselines. Phase-wise online accuracy measures local adaptation quality under the current stream regime, but it does not by itself distinguish stable adaptation from forgetting. A method can perform well on the current phase while gradually degrading the global class structure. We therefore also track held-out accuracy on a fixed all-class set that is never used for adaptation. This isolates retention of the global decision boundary from local in-phase fitting. As shown in Table IV, TENT progressively destroys global retention, with held-out accuracy dropping from 58.5% at initialization to 8.2% by the end of the sequence. CoTTA slows this degradation, but still drifts downward. OATTA provides stronger retention than CoTTA, which is consistent with its explicit use of stream ordering, yet it still loses global structure over the full 3,000-step sequence. By contrast, PI-TTA preserves the held-out decision boundary throughout the full stream and even yields a slight gain over initialization, despite using no replay buffer and no source data. Held-out samples are never used for online adaptation, so Table IV measures retention of the global decision boundary rather than local in-phase fit. To examine whether this trend generalizes beyond a single benchmark, Table V summarizes long-sequence stability on three datasets. The reported values are phase-wise online accuracy under the current local stream regime, and “Avg. ∆”denotes the average change relative to the initial checkpoint. Because phase-wise online accuracy can be influenced by local class composition, especially in later phases, we interpret it together with held-out retention rather than in isolation. In particular, for mHealth the final phase is comparatively simple, so Phase 3 online accuracy should be interpreted together with held-out retention rather than as a standalone indicator of global stability. Across USCHAD, PAMAP2, and mHealth, PI-TTA is the only method that consistently preserves positive long-stream gains relative to the initial checkpoint. It improves by +9.13 %on USCHAD, +4.24 % on PAMAP2, and +8.82 % on mHealth, corresponding to an average gain of +7.4 %. Overall, PI-TTA delivers the strongest long-sequence sta-bility by improving both local online adaptation and held-out retention under prolonged temporal correlation. 
+
+B. Shift Breakdown and Compound Shifts: Factorized Mecha-nisms and Practical Regime Boundaries 
+
+We next evaluate robustness under deployment shifts from two complementary perspectives. We first consider factorized physical shifts , where rotation, placement change, and sampling-rate drift are examined in isolation. We then consider compound shift streams , where multiple perturbations accumulate within the same stream to better approximate realistic mobile de-ployment conditions [3], [12], [13], [23]. Fig. 5 reports the factorized comparison. Fig. 5 shows that the advantage of PI-TTA is structured rather than uniform. It is strongest when the perturbation directly disrupts physical consistency in orientation, motion continuity, or temporal frequency structure. 
+
+Rotation ( Srot ). Across 30 ◦, 60 ◦, and 90 ◦ rotations, PI-TTA is best or near-best in most settings, supporting the role of gravity consistency in restoring a valid inertial reference. 
+
+Placement change ( Splace ). PI-TTA performs best in most waist-to-arm and waist-to-chest transfers. Placement change alters not only orientation, but also motion amplitude, inter-axis coupling, and the effective biomechanical trajectory observed 11 
+
+TABLE III PRIMARY LONG -SEQUENCE COMPARISON ON USCHAD UNDER PROTOCOL A. Method Phase 1 (Walk) Phase 2 (Upstairs) Phase 3 (Sit) Peak gravity-proxy magnitude ∥ˆgt∥ Peak Mem (MB) Energy (mJ/batch) Source Only 51.6 ±0.8 52.0 ±1.0 51.5 ±0.9 1.01 g 18.5 8.5 
+
+TENT [14] 61.2 ±1.1 18.5 ±2.3 12.4 ±1.5 13.20 g 26.0 24.0 CoTTA [18] 58.5 ±0.5 48.6 ±1.2 45.3 ±1.5 3.20 g 75.4 68.2 NOTE [19] 60.1 ±0.8 54.2 ±1.4 52.8 ±1.1 2.50 g 42.1 38.5 SAR [46] 60.5 ±0.9 49.8 ±1.5 46.2 ±1.8 3.85 g 48.5 55.4 OATTA [28] 60.8 ±0.6 53.4 ±1.1 48.5 ±1.4 2.65 g 62.4 45.2 PI-TTA (Ours) 60.6 ±0.7 60.3 ±0.9 61.6 ±0.7 1.03 g 30.4 28.2 S_rot                                        
+
+> 30°
+> S_rot
+> 60°
+> S_rot
+> 90°
+> S_place
+> WA
+> S_place
+> WC
+> S_drift
+> 70Hz
+> S_drift
+> 80Hz
+> S_drift
+> 120Hz
+> S_drift
+> 130Hz
+> USCHAD
+> PAMAP2
+> mHealth
+> 13.50 14.20 13.50 53.80 44.10 52.40 52.90 54.80 53.50
+> 27.30 28.90 30.80 24.50 19.50 24.60 23.90 25.30 26.60
+> 32.91 32.49 33.05 33.12 32.91 32.91 32.49 32.77 32.35
+> Expected: Lgrav Expected: Lkin Expected: Lspec
+> 70 80 90 100 110 120 130
+> Sampling Rate (Hz)
+> 20
+> 25
+> 30
+> 35
+> 40
+> 45
+> 50
+> 55
+> Online Accuracy (%)
+> USCHAD solid
+> PAMAP2 dashed
+> S_drift Trends
+> Source Only
+> TENT
+> TTT
+> PI-TTA (Ours)
+> 15
+> 20
+> 25
+> 30
+> 35
+> 40
+> 45
+> 50
+
+Fig. 5. Shift breakdown across rotation, placement change, and sampling-rate drift. TABLE IV HELD -OUT ACCURACY EVOLUTION UNDER THE USCHAD 
+
+LONG -SEQUENCE PROTOCOL .
+
+Phase End Source Only TENT COTTA OATTA PI-TTA 
+
+T0 (Initial) 58.5 58.5 58.5 58.5 58.5 
+
+T1 (End of Walk, Step 1000) 58.5 32.1 56.2 58.1 59.4 
+
+T2 (End of Upstairs, Step 2000) 58.5 15.4 52.1 54.6 58.8 
+
+T3 (End of Sit, Step 3000) 58.5 8.2 48.5 50.2 59.1 
+
+TABLE V LONG -SEQUENCE STABILITY SUMMARY ON THREE DATASETS .
+
+Method Initial Phase 1 Phase 2 Phase 3 Avg. ∆
+
+(Walk) (Upstairs) (Sit) 
+
+USCHAD [43] Source Only 51.60 51.25 52.01 52.00 –TTT [17] 54.13 54.37 54.80 54.69 +2.87 TENT [14] 54.44 56.41 55.80 54.86 +3.94 PI-TTA 53.90 60.62 60.38 61.63 +9.13 PAMAP2 [44] Source Only 21.96 21.43 21.00 20.57 –TTT [17] 25.50 14.62 14.75 19.53 -4.70 TENT [14] 25.55 9.04 8.79 11.98 -11.06 PI-TTA 25.12 26.12 25.39 24.22 +4.24 mHealth [45] Source Only 33.33 37.03 33.33 82.42 –TTT [17] 30.94 32.50 29.25 58.59 -10.81 TENT [14] 30.10 31.41 28.27 59.77 -11.11 PI-TTA 29.82 52.19 46.98 80.08 +8.82 
+
+by the sensor. This makes transfer difficult for objectives that rely only on generic confidence or simple geometric pretext tasks. 
+
+Sampling-rate drift ( Sdrift ). Under mild and moderate drift, 
+
+TABLE VI COMPOUND -SHIFT ROBUSTNESS UNDER PROGRESSIVELY ACCUMULATED PERTURBATIONS .
+
+Method T0 Acc T1 Acc T2 Acc T3 Acc T3 Spectral Entropy Source Only 85.2 42.1 28.5 15.2 0.95 TENT [14] 86.5 45.3 18.2 10.4 0.21 NOTE [19] 86.1 68.4 52.1 38.6 1.85 PI-TTA 86.3 81.5 74.2 71.8 0.98 
+
+including 70–80 Hz and 120 Hz, PI-TTA achieves the strongest accuracy in most settings. Under more extreme drift, TTT can approach PI-TTA in some cases, suggesting that geometric self-supervision and spectral stabilization may provide partially complementary signals near severe temporal distortion [23]. Real deployment rarely presents one perturbation at a time. We therefore evaluate a compound shift stream that progressively accumulates multiple mismatches within the same run. Specifically, the stream follows the sequence 
+
+T0 → T1 → T2 → T3, where T0 is the unshifted baseline condition, T1 introduces a 60 ◦ device rotation, T2 adds a placement transfer from waist to arm, and T3 further introduces sampling-rate drift. Table VI summarizes this setting, and the reported spectral entropy serves as a diagnostic of end-stage spectral stability. Table VI shows that the compound setting is substantially more demanding than any factorized shift in isolation. TENT deteriorates sharply once the stream moves beyond pure rotation and becomes particularly unstable after placement transfer is introduced. NOTE remains more robust than TENT 12 Source           
+
+> Only
+> w/o Lgrav w/o Lkin w/o Lspec Full
+> PI-TTA
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> Online Accuracy (%)
+> 18.5%
+> 31.4%
+> 38.7% 40.2%
+> 53.8%
+> SE: +0.15 SE: +0.28 SE: +1.85 SE: +0.03
+> Online Accuracy (%)
+> Physics Violation (%)
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Physics Violation (%)
+> 85.2%
+> 92.1%
+> 41.5%
+> 35.8%
+> 12.4%
+
+(a) Ablation: per-constraint contribution 0 0.1 0.5 1.0 5 10      
+
+> λvalue
+> 48
+> 50
+> 52
+> 54
+> 56
+> 58
+> 60
+> 62
+> 64
+> Online Accuracy (%) on USCHAD  Optimal (λ=1.0)
+> TENT baseline Feature frozen
+> 51.2%
+> 52.1%
+> (ablated)
+> λg(Gravity)
+> λt(Temporal)
+> λs(Spectral)
+
+(b) Sensitivity to constraint weights λ
+
+Fig. 6. Ablation and sensitivity analysis of PI-TTA. 
+
+in the intermediate stages, but its performance still drops substantially at T3, where sampling-rate drift is added. By contrast, PI-TTA maintains strong accuracy across the entire progression and preserves near-stable spectral behavior at T3.This indicates that the three physical priors act complementarily when perturbations accumulate. Overall, these results show that PI-TTA provides structured robustness under mixed physical shifts rather than only higher average accuracy. 
+
+C. Ablation and Mechanism Validation 
+
+We next test whether PI-TTA behaves according to its intended design and whether the observed gains are consistent with the proposed mechanism rather than a generic regulariza-tion effect. Fig. 6 reports the ablation and sensitivity results. The ablation results confirm the intended division of labor among the three constraints. Gravity consistency contributes most strongly under rotation shifts, short-horizon temporal continuity suppresses instability in long correlated streams, and spectral stability is especially important under sampling-rate drift. This alignment supports the interpretation that each component addresses a distinct degradation mode rather than acting as a generic regularizer. In Fig. 6a, SE denotes the end-stage spectral entropy diagnostic. We further examine the gravity proxy itself, since batch-level mean acceleration may be contaminated by body acceleration during highly dynamic motion. In quasi-static activities, the gravity term remains highly effective. Under highly dynamic activities, its precision decreases because stronger body accel-eration perturbs the proxy. The proposed variance-based gate T0 
+
+> (Init)
+> T1
+> (Walk)
+> T2
+> (Upstairs)
+> T3
+> (Sit)
+
+Adaptation Checkpoint 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Silhouette Score
+> Collapse
+> threshold
+> +0.880
+> −0.040
+> 0.350
+> (Higher = better cluster separation)
+> Source Only
+> TTT
+> TENT
+> PI-TTA (Ours)
+
+(a) Feature-space evolution 0 500 1000 1500 2000 2500 3000   
+
+> Batch Index along Stream
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+> Mean ‖ĝ‖ (g)
+> Phase 1: Walk Phase 2: Upstairs Phase 3: Sit
+> 13.2g
+> 1.55g
+> ≈ 1g
+> Source Only
+> TTT
+> TENT
+> PI-TTA (Ours)
+> Feasible band [0.9g, 1.1g]
+
+(b) Gravity-feasibility ribbon 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Average Prediction Entropy
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Physics Violation Rate (%)
+> Ideal
+> Zone
+> Low-Entropy
+> Trap
+> T0
+> T1 T2
+> T3
+> T1
+> T2
+> T3
+> TENT
+> PI-TTA (Ours)
+> Source Only
+
+(c) Entropy versus physical-violation Fig. 7. Failure visualization under streaming adaptation. 
+
+mitigates this issue by reducing the effective gravity weight in unreliable batches and preserving much of the benefit. 
+
+D. Failure Visualization: The Low-Entropy Trap Versus Physi-cal Feasibility 
+
+We next provide a visual validation of the failure mechanisms discussed earlier. Scalar accuracy alone is insufficient to explain why streaming adaptation succeeds or fails under temporally correlated sensor streams. We therefore examine three comple-mentary diagnostics: a gravity-feasibility ribbon, feature-space evolution with t-SNE checkpoints and silhouette score, and the relation between prediction entropy and physical-violation rate [19], [22], [23]. Fig. 7 summarizes these diagnostics. 
+
+Gravity-feasibility ribbon. As shown in Fig. 7b, entropy reduction under TENT can be achieved by drifting into physically implausible states rather than by recovering a valid 13                                        
+
+> TABLE VII BACKBONE GENERALIZATION UNDER THE LONG -SEQUENCE PROTOCOL .
+> Backbone Params Source Only TENT PI-TTA Peak gravity-proxy magnitude ∥ˆgt∥
+> DeepConvLSTM 1.2M 50.4 ±1.2 10.8 ±1.5 59.8 ±0.9 1.04 g 1D-ResNet18 (default) 3.8M 51.6 ±0.8 12.4 ±1.5 61.6 ±0.7 1.03 g Mobile-Transformer 2.5M 53.2 ±1.0 18.5 ±2.2 60.9 ±0.8 1.06 g
+
+sensor representation. We observe broad deviations, together with extreme outliers in which the gravity-proxy magnitude rises to 13.2 g on USCHAD and 12.39 g on mHealth. By contrast, PI-TTA maintains a tight feasibility ribbon centered around 1.0 g throughout the stream. 
+
+Feature-space evolution. Fig. 7a shows that under TENT, the representation progresses from initially separated clusters to strong inter-class mixing and final collapse, with the silhouette score dropping from 0.835 at T0 to −0.040 at T3 on USCHAD. In contrast, PI-TTA preserves the global class geometry and improves compactness over time, reaching 0.880 at T3.
+
+Entropy versus physical-violation. The trajectories in Fig. 7c reveal a characteristic scissor pattern under TENT: prediction entropy decreases monotonically, yet physical-violation increases sharply. Lower entropy alone is therefore not a reliable indicator of successful adaptation on correlated inertial streams. By contrast, PI-TTA avoids this failure mode by maintaining lower violation with stable accuracy. To quantify physical plausibility, we define the physical-violation rate as 
+
+VR = 1
+
+T
+
+> T
+
+X
+
+> t=1
+
+I[∥ˆgt∥ /∈ [0 .9 g , 1.1 g]] , (22) where ∥ˆgt∥ denotes the gravity-proxy magnitude at time t.Relative to entropy minimization, PI-TTA reduces the violation rate by 27.5% on USCHAD, 24.1% on PAMAP2, and 45.4% 
+
+on mHealth. These results show that the benefit of PI-TTA is not limited to scalar accuracy. It also reduces the tendency to exchange physical plausibility for spurious confidence. 
+
+E. Fairness, Robustness, and Generalization Analysis 
+
+We next test whether the observed gains are tied to a specific backbone or a narrowly tuned operating point. To this end, we replace the default encoder with architecturally distinct alternatives, including DeepConvLSTM and a lightweight trans-former backbone, while keeping the long-sequence streaming protocol, the adaptation interface, and the optimization settings unchanged. Table VII summarizes this backbone comparison. All models are evaluated under the same class-sorted long-sequence setting, and lower peak gravity-proxy magnitude indicates better physical plausibility. Table VII shows a consistent pattern across all three architec-tures. Confidence-driven adaptation remains unstable, whereas PI-TTA consistently preserves strong terminal accuracy and keeps the gravity-proxy magnitude close to the feasible regime. We finally test whether the observed gains could be explained primarily by hyperparameter favoritism rather than by the method itself. Table VIII reports terminal long-stream accuracy under a shared learning-rate grid, with values measured as Phase-3 accuracy under the long-sequence protocol.                                                                   
+
+> TABLE VIII FAIRNESS ANALYSIS UNDER A SHARED LEARNING -RATE GRID .
+> Learning Rate TENT EATA COTTA PI-TTA
+> 1×10 −445.2 48.5 46.2 58.5
+> 1×10 −312.4 28.4 45.3 61.6
+> 1×10 −25.2 15.6 42.1 59.2
+> TABLE IX ON-DEVICE OVERHEAD PROFILING ON SNAPDRAGON 8 G EN 2.
+> Method Latency / step (ms) Peak memory (MB) Updated params (%) T3 Accuracy (%)
+> Source Only 15.2 ±0.4 18.5 ±0.2 051.6 ±0.8 TENT [14] 38.5 ±1.1 26.0 ±0.5 ∼2.512.4 ±1.5 TTT [17] 82.4 ±2.3 58.2 ±1.8 ∼5.417.1 ±2.1 PI-TTA (Ours) 45.1 ±1.2 30.4 ±0.6 ∼2.961.6 ±0.7
+
+Entropy-driven methods are highly sensitive to tuning, with TENT collapsing as the learning rate increases and EATA degrading substantially once updates become more aggressive. COTTA is more stable, but its accuracy remains consistently below that of PI-TTA. By contrast, PI-TTA remains near the 60% regime across the entire grid, indicating stronger out-of-the-box robustness under practical tuning uncertainty. Overall, these results show that the gains of PI-TTA remain robust beyond a single backbone or a narrowly tuned operating point. 
+
+F. Deployment Trade-offs and Sustained On-Device Stability Under Resource Budgets 
+
+We next profile the deployment behavior of PI-TTA un-der constrained update opportunities and limited on-device compute budgets. This setting is practically important because test-time adaptation on mobile devices must compete with foreground workloads, sensing pipelines, thermal limits, and power constraints [7]–[9]. We therefore examine five comple-mentary aspects: single-step profiling, accuracy–latency trade-offs, effective accuracy under strict time budgets, absolute energy–latency behavior under sparse updates, and sustained on-device stability during continuous execution. We begin with single-step profiling. Table IX reports on-device overhead on Snapdragon 8 Gen 2 with batch size 
+
+= 64 and a 1D-ResNet backbone. All values are measured as mean ± standard deviation over 5 independent runs, and the updated-parameter ratio is reported relative to the total backbone parameters. Lower values in latency, memory, and updated-parameter ratio indicate better deployability. Table IX shows that PI-TTA does incur additional cost relative to inference-only execution, as expected for any adaptive method, but the overhead remains moderate relative to stronger self-supervised baselines. In particular, PI-TTA is only slightly heavier than TENT in latency and memory, while remaining far more efficient than TTT. At the same time, it substantially outperforms both adaptive baselines in terminal long-stream accuracy. Fig. 8 summarizes the deployment trade-offs from two complementary perspectives. Fig. 8a reports the accuracy– latency Pareto frontier across adaptation methods, while Fig. 8b 14 0 20 40 60 80 
+
+> Adaptation Latency per Step (ms)
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> T3 Online Accuracy (%)  No-adapt baseline
+> Pareto Frontier
+> Source Only
+> 51.6%
+> TENT
+> 12.4%
+> TTT
+> 17.1%
+> ★ PI-TTA
+> 61.6%
+> Source Only
+> TENT
+> TTT
+> PI-TTA (Ours)
+
+(a) Accuracy–latency Pareto frontier 1 5 10 20 50   
+
+> Update Interval K (batches)
+> 30
+> 35
+> 40
+> 45
+> 50
+> 55
+> 60
+> Online Accuracy (%) on USCHAD
+> 54.5%
+> 32.0%
+> PI-TTA Acc. TENT Acc. Energy Overhead
+> Sweet spot
+> K=10
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Relative Energy Overhead (%)
+> 11.2%
+> 2.8%
+
+(b) Update interval K versus accuracy and energy Fig. 8. Deployment trade-offs under constrained update budgets. 
+
+studies how the update interval K controls the energy–accuracy balance under sparse update schedules. The Pareto frontier in Fig. 8a shows that PI-TTA achieves substantially stronger adaptation quality than confidence-driven baselines while remaining within a practical latency range for on-device execution. The update-interval study in Fig. 8b further clarifies the deployment boundary. As K increases, all adaptive methods reduce energy consumption because backward updates are triggered less frequently. However, the performance of entropy-driven adaptation deteriorates much more sharply, whereas PI-TTA degrades gracefully and preserves strong accuracy even under sparse update schedules. In our setting, K=10 emerges as a practical operating point because it is the smallest update interval that satisfies the strict 20 ms budget while preserving near-peak accuracy. 
+
+a) Time-Constrained Measurement Protocol: Standard TTA evaluation assumes an idealized synchronous pipeline in which adaptation completes before the next batch arrives. In mobile sensing, however, the available adaptation time is bounded by the inter-arrival interval of streaming windows. For example, a 20 Hz stream implies a 50 ms budget, whereas a 50 Hz stream implies a strict 20 ms budget. To capture real deployment viability, we therefore enforce a time-constrained scoring protocol . Let Tadapt denote the measured adaptation latency and let Tbudget denote the inter-arrival budget. If Tadapt ≤
+
+Tbudget , the update is applied before the next window and is marked safe . If Tbudget < T adapt ≤ 2Tbudget , the update is delayed 
+
+TABLE X EFFECTIVE ACCURACY UNDER TIME -CONSTRAINED STREAMING .                        
+
+> Method Idealized Sync Budget: 50 ms Budget: 20 ms Acc (%) (20 Hz Sensor) (50 Hz Sensor)
+> Source Only 51.5 51.5 51.5 TTT [17] 17.1 15.2 (delayed by one cycle) 12.8 (dropped) CoTTA [18] 45.3 42.1 (delayed by one cycle) 38.5 (dropped) PI-TTA ( K= 1 )61.6 61.6 (safe) 58.2 (delayed by one cycle) PI-TTA ( K= 10 )60.5 60.5 (safe) 60.5 (safe)
+
+TABLE XI ABSOLUTE ENERGY AND LATENCY UNDER DIFFERENT UPDATE INTERVALS .                                                           
+
+> Update Absolute Energy Avg. Latency P99 Latency Terminal Acc. Interval K(mJ/batch) (ms) (ms) (T3)
+> 128.2 ±1.0 45.1 ±1.2 55.8 61.6 ±0.7 513.5 ±0.6 21.2 ±0.8 25.4 61.1 ±0.8 10 9.2 ±0.4 18.1 ±0.5 20.2 60.5 ±1.0 20 6.8 ±0.3 16.7 ±0.4 18.5 58.7 ±1.1 50 4.8 ±0.2 15.8 ±0.3 17.2 55.4 ±1.3
+
+by one cycle . If Tadapt > 2Tbudget , one or more adaptation opportunities are missed and the update is marked dropped .Effective accuracy is measured under the resulting delayed-update schedule rather than under an idealized synchronous assumption. Table X reports the resulting effective accuracy under strict time budgets. Heavier methods such as TTT and CoTTA exceed the budget by a large margin and therefore suffer a clear drop from their idealized synchronous accuracy once delay and dropped-update effects are taken into account. Even dense PI-TTA updates with K=1 begin to degrade under the strict 20 ms budget. By contrast, PI-TTA with a sparse schedule ( K=10 )averages 18.1 ms per step, fits within the 50 Hz deadline, and maintains its 60.5% effective accuracy without real-time penalty. This identifies a practically relevant operating point in which robust adaptation coexists with strict mobile sensing deadlines. To complement the relative energy view in Fig. 8b, Table XI reports absolute per-batch energy and latency under different update intervals on Snapdragon 8 Gen 2. Lower values indicate lower energy cost and shorter runtime. At K=10 , PI-TTA reduces the average latency to 18.1 ms, placing it within the 20 ms timing budget commonly associated with 50 Hz real-time mobile sensing, while preserving 60.5% terminal accuracy. By contrast, very sparse updates such as K=50 further reduce energy and latency, but begin to incur a clearer accuracy penalty. Static profiling alone is insufficient for mobile deployment. A method may appear efficient over a short benchmark window yet become unstable during sustained execution because of thermal throttling, memory growth, or tail-latency spikes. We therefore perform a 30-minute on-device sustained execution test on Snapdragon 8 Gen 2 under continuous single-threaded streaming inference and adaptation. Table XII summarizes this sustained-run behavior. Lower values indicate better sustained efficiency and thermal stability. Table XII reveals a clear difference between short-run efficiency and sustained usability. TTT becomes progressively slower as execution continues, with average latency rising from 82.4 ms at 5 minutes to 185.2 ms at 30 minutes, accompanied by a large increase in P99 latency and chip temperature. CoTTA is 15 
+
+TABLE XII SUSTAINED ON -DEVICE STABILITY UNDER 30-MINUTE CONTINUOUS EXECUTION .                                         
+
+> Method Run Time Avg. Latency (ms) P99 Latency (ms) Peak Memory (MB) Chip Temp. (◦C)
+> TTT [17] 5 min 82.4 95.2 58.2 36.5 TTT [17] 15 min 115.6 142.5 58.5 42.1 TTT [17] 30 min 185.2 250.4 59.0 46.8 CoTTA [18] 5 min 65.5 185.2 75.4 35.8 CoTTA [18] 30 min 82.1 350.5 110.5 39.5 PI-TTA 5 min 45.1 52.3 30.4 33.2 PI-TTA 15 min 45.5 54.1 30.4 35.5 PI-TTA 30 min 46.2 55.8 30.5 38.2
+
+more moderate in average latency, but it exhibits much larger tail latency and substantial memory growth over time. By contrast, PI-TTA remains stable across the full 30-minute run. Its average latency changes only marginally, P99 latency stays tightly bounded, peak memory remains essentially constant, and chip temperature increases only moderately. These results show that PI-TTA remains useful not only under standard evaluation, but also under the latency, energy, thermal, and real-time deadline constraints that matter in sustained mobile deployment. 
+
+G. Limitations and Failure Cases 
+
+PI-TTA is not intended as a universally valid adaptation rule. Its effectiveness depends on the continued usefulness of lightweight physical proxies, including gravity consistency, short-horizon temporal continuity, and spectral stability. When sensing conditions strongly violate these assumptions, such as under severe sampling-rate distortion, sensor saturation, pro-longed high-dynamic motion bursts, or acquisition irregularities that distort the inertial structure itself [9], [13], [23], [26], the corresponding constraints become less reliable and adaptation quality can degrade. This boundary is already visible in the factorized shift anal-ysis. Under extreme drift, TTT can approach PI-TTA in some regimes, suggesting that geometric self-supervision and spectral stabilization may provide partially complementary signals near the boundary of severe temporal distortion. Likewise, the gravity proxy is intentionally down-weighted under highly dynamic motion because batch-level mean acceleration is not a precise gravity estimator in that regime. These cases do not invalidate the method; rather, they clarify that PI-TTA is most effective when lightweight physical cues remain informative enough to stabilize online updates. At the same time, PI-TTA focuses on physics-consistent stabilization rather than explicit reset, replay, or buffering strategies; integrating such mechanisms may further improve recovery under extreme non-stationary bursts. In practice, such regimes can be handled by reliability-aware fallback strategies, including constraint down-weighting, temporary adaptation pause, or inference-only fallback until the stream returns to a reliable operating condition. An important direction for future work is therefore reliability-aware adaptation control, in which the method decides not only how to adapt, but also when adaptation should be weakened or suspended. VII. C ONCLUSION 
+
+We presented PI-TTA, a lightweight physics-informed frame-work for source-free test-time adaptation on behavioral inertial streams for mobile human activity recognition. By augmenting standard lightweight adaptation with gravity consistency, short-horizon temporal continuity, and spectral stability, PI-TTA stabilizes online updates under temporally correlated mobile deployment conditions. Experiments on USCHAD, PAMAP2, and mHealth show that PI-TTA improves long-sequence adap-tation stability, preserves physically plausible behavior under realistic streaming shifts, and remains compatible with resource-constrained on-device execution. These results demonstrate that lightweight physical structure can serve as an effective inductive bias for deployable source-free adaptation in mobile sensing systems. More broadly, our findings suggest that deployable adaptation for behavioral streams should be treated as a systems problem that jointly considers adaptation reliability, temporal stability, and runtime efficiency. PI-TTA provides a practical step toward robust source-free on-device adaptation for real-world wearable and mobile HAR. REFERENCES [1] W. Jiang and Z. Yin, “Human activity recognition using wearable sensors by deep convolutional neural networks,” in Proceedings of the 23rd ACM International Conference on Multimedia (MM) , 2015, pp. 1307–1310. [2] Y. Tang, J. Zhang, L. Xiao et al. , “Triple cross-domain attention on human activity recognition using wearable sensors,” IEEE Transactions on Emerging Topics in Computational Intelligence , vol. 6, no. 5, pp. 1167–1176, 2022. [3] Y. Chang, A. Mathur, A. Isopoussu et al. , “A systematic study of unsupervised domain adaptation for robust human-activity recognition,” 
+
+Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies (IMWUT) , vol. 4, no. 1, p. Article 39, 2020. [4] X. Qin, Y. Chen, J. Wang et al. , “Cross-dataset activity recognition via adaptive spatial-temporal transfer learning,” Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies (IMWUT) ,vol. 3, no. 4, p. Article 148, 2019. [5] L. Chen, Y. Zhang, and L. Peng, “METIER: A deep multi-task learning based activity and user recognition model using wearable sensors,” 
+
+Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies (IMWUT) , vol. 4, no. 1, p. Article 5, 2020. [6] L. Bai, L. Yao, X. Wang et al. , “Adversarial multi-view networks for activity recognition,” Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies (IMWUT) , vol. 4, no. 2, p. Article 42, 2020. [7] W. Shi, J. Cao, Q. Zhang et al. , “Edge computing: Vision and challenges,” 
+
+IEEE Internet of Things Journal , vol. 3, no. 5, pp. 637–646, 2016. [8] W. Y. B. Lim, N. C. Luong, D. T. Hoang et al. , “Federated learning in mobile edge networks: A comprehensive survey,” IEEE Communications Surveys & Tutorials , vol. 22, no. 3, pp. 2031–2063, 2020. [9] M. Alfarra, H. Itani, A. Pardo et al. , “Evaluation of test-time adaptation under computational time constraints,” in Proceedings of the 41st International Conference on Machine Learning (ICML) , ser. Proceedings of Machine Learning Research, vol. 235. PMLR, 2024, pp. 976–991. [Online]. Available: https://proceedings.mlr.press/v235/alfarra24a.html [10] F. Luo, A. Li, B. Jiang et al. , “Bi-DeepViT: Binarized transformer for efficient sensor-based human activity recognition,” IEEE Transactions on Mobile Computing , vol. 24, no. 5, pp. 4419–4433, 2025. [Online]. Available: https://ieeexplore.ieee.org/document/10829799 [11] F. Luo, A. Li, B. Jiang et al. , “ActivityMamba: A cnn-mamba hybrid neural network for efficient human activity recognition,” IEEE Transactions on Mobile Computing , vol. 24, no. 8, pp. 6797–6811, 2025. [Online]. Available: https://dblp.org/pid/292/3073 [12] T. Sztyler and H. Stuckenschmidt, “On-body localization of wearable devices: An investigation of position-aware activity recognition,” in 
+
+2016 IEEE International Conference on Pervasive Computing and Communications (PerCom) , 2016, pp. 1–9. 16 
+
+[13] H. Kwon, C. Tong, H. Haresamudram et al. , “IMUTube: Automatic extraction of virtual on-body accelerometry from video for human activity recognition,” Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies (IMWUT) , vol. 4, no. 3, p. Article 87, 2020. [14] D. Wang, E. Shelhamer, S. Liu et al. , “Tent: Fully test-time adaptation by entropy minimization,” in International Conference on Learning Representations (ICLR) , 2021. [Online]. Available: https://arxiv.org/abs/2006.10726 [15] S. Ioffe and C. Szegedy, “Batch normalization: Accelerating deep network training by reducing internal covariate shift,” in Proceedings of the 32nd International Conference on Machine Learning (ICML) , ser. Proceedings of Machine Learning Research, vol. 37. PMLR, 2015, pp. 448–456. [Online]. Available: https://proceedings.mlr.press/v37/ioffe15.html [16] Y. Li, N. Wang, J. Shi et al. , “Revisiting batch normalization for practical domain adaptation,” arXiv preprint arXiv:1603.04779 , 2016. [Online]. Available: https://arxiv.org/abs/1603.04779 [17] Y. Sun, X. Wang, Z. Liu et al. , “Test-time training with self-supervision for generalization under distribution shifts,” in Proceedings of the 37th International Conference on Machine Learning (ICML) , ser. Proceedings of Machine Learning Research, vol. 119. PMLR, 2020, pp. 9229–9248. [Online]. Available: https://proceedings.mlr.press/v119/sun20b.html [18] Q. Wang, O. Fink, L. Van Gool et al. , “Continual test-time domain adaptation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2022, pp. 7201–7211. [Online]. Available: https://openaccess.thecvf.com/content/CVPR2022/html/Wang _Continual_Test-Time_Domain_Adaptation_CVPR_2022_paper.html [19] T. Gong, J. Jeong, T. Kim et al. , “Note: Robust continual test-time adaptation against temporal correlation,” in Advances in Neural Information Processing Systems (NeurIPS) , 2022. [Online]. Available: https://proceedings.neurips.cc/paper_files/paper/2022/hash/ae6c7dbd942 9b3a75c41b5fb47e57c9e-Abstract-Conference.html [20] M. Zhang, S. Levine, and C. Finn, “MEMO: Test time robustness via adaptation and augmentation,” in Advances in Neural Information Processing Systems (NeurIPS) , 2022. [Online]. Available: https: //proceedings.neurips.cc/paper_files/paper/2022/hash/fc28053a08f59fc cb48b11f2e31e81c7-Abstract-Conference.html [21] S. Niu, J. Wu, Y. Zhang et al. , “Efficient test-time model adaptation without forgetting,” in Proceedings of the 39th International Conference on Machine Learning (ICML) , ser. Proceedings of Machine Learning Research, vol. 162. PMLR, 2022, pp. 16 888–16 905. [Online]. Available: https://proceedings.mlr.press/v162/niu22a.html [22] T. Gong, Y. Kim, T. Lee et al. , “SoTTA: Robust test-time adaptation on noisy data streams,” in Advances in Neural Information Processing Systems (NeurIPS) , 2023. [Online]. Available: https: //nmsl.kaist.ac.kr/projects/sotta/ [23] H. Zhao, Y. Liu, A. Alahi et al. , “On pitfalls of test-time adaptation,” in Proceedings of the 40th International Conference on Machine Learning (ICML) , ser. Proceedings of Machine Learning Research, vol. 202. PMLR, 2023, pp. 42 058–42 080. [Online]. Available: https://proceedings.mlr.press/v202/zhao23d.html [24] M. Raissi, P. Perdikaris, and G. E. Karniadakis, “Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,” 
+
+Journal of Computational Physics , vol. 378, pp. 686–707, 2019. [Online]. Available: https://doi.org/10.1016/j.jcp.2018.10.045 [25] S. Greydanus, M. Dzamba, and J. Yosinski, “Hamiltonian neural networks,” in Advances in Neural Information Processing Systems (NeurIPS) , 2019. [Online]. Available: https://arxiv.org/abs/1906.01563 [26] H. Haresamudram, A. Beedu, V. Agrawal et al. , “Masked reconstruction based self-supervision for human activity recognition,” in Proceedings of the ACM International Symposium on Wearable Computers (ISWC) ,2020. [27] C. Ye et al. , “Datta: Domain diversity aware test-time adaptation for dynamic domain shifts,” arXiv preprint arXiv:2408.08056 , 2024. [Online]. Available: https://arxiv.org/abs/2408.08056 [28] Y. K. Kim, O. Schlesinger, Q. Wu et al. , “Order-aware test-time adaptation: Leveraging temporal dynamics for robust streaming inference,” arXiv preprint arXiv:2601.21012 , 2026. [Online]. Available: https://arxiv.org/abs/2601.21012 [29] M. Schirmer, D. Zhang, and E. Nalisnick, “Temporal test-time adaptation with state-space models,” arXiv preprint arXiv:2407.12492 , 2024. [Online]. Available: https://arxiv.org/abs/2407.12492 [30] M. Döbler, M. Marencke, and B. Yang, “Diversity-aware buffer for coping with temporally correlated data streams in online test-time adaptation,” arXiv preprint arXiv:2401.00989 , 2024. [Online]. Available: https://arxiv.org/abs/2401.00989 [31] T. Lim, J.-W. Hwang, and K. Lee, “When and where to reset matters for long-term test-time adaptation,” arXiv preprint arXiv:2603.03796 ,2026. [Online]. Available: https://arxiv.org/abs/2603.03796 [32] T. Li, A. K. Sahu, A. Talwalkar et al. , “Federated learning: Challenges, methods, and future directions,” IEEE Signal Processing Magazine ,vol. 37, no. 3, pp. 50–60, 2020. [33] B. McMahan, E. Moore, D. Ramage et al. , “Communication-efficient learning of deep networks from decentralized data,” in Artificial Intelli-gence and Statistics (AISTATS) . PMLR, 2017, pp. 1273–1282. [34] P. Kairouz, H. B. McMahan et al. , “Advances and open problems in federated learning,” Foundations and Trends in Machine Learning , vol. 14, no. 1–2, pp. 1–210, 2021. [35] K. Bonawitz, V. Ivanov, B. Kreuter et al. , “Practical secure aggregation for privacy-preserving machine learning,” in Proceedings of the 2017 ACM SIGSAC Conference on Computer and Communications Security (CCS) , 2017, pp. 1175–1191. [36] T. Li, A. K. Sahu, M. Zaheer et al. , “Federated optimization in heterogeneous networks,” Proceedings of Machine Learning and Systems ,vol. 2, pp. 429–450, 2020. [37] S. J. Reddi, Z. Charles, M. Zaheer et al. , “Adaptive federated optimization,” in International Conference on Learning Representations (ICLR) , 2021. [Online]. Available: https://openreview.net/forum?id=Lk FG3lB13U5 [38] T. Che, J. Liu, Y. Zhou et al. , “Federated learning of large language models with parameter-efficient prompt tuning and adaptive optimization,” in Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2023, pp. 7871–7888. [Online]. Available: https://aclanthology.org/2023.emnlp-main.488/ [39] R. Ye, W. Wang, J. Chai et al. , “OpenFedLLM: Training large language models on decentralized private data via federated learning,” in Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD) , 2024. [Online]. Available: https://arxiv.org/abs/2402.06954 [40] Z. Wang, Z. Shen, Y. He et al. , “FLoRA: Federated fine-tuning large language models with heterogeneous low-rank adaptations,” in Advances in Neural Information Processing Systems (NeurIPS) , 2024. [Online]. Available: https://neurips.cc/virtual/2024/poster/95025 [41] J. Bai, D. Chen, B. Qian et al. , “Federated fine-tuning of large language models under heterogeneous tasks and client resources,” in Advances in Neural Information Processing Systems (NeurIPS) , 2024. [Online]. Available: https://neurips.cc/virtual/2024/poster/94124 [42] Y. J. Cho, L. Liu, Z. Xu et al. , “Heterogeneous LoRA for federated fine-tuning of on-device foundation models,” in Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP) , 2024, pp. 12 903–12 913. [Online]. Available: https://aclanthology.org/2024.emnlp-main.717/ [43] M. Zhang and A. A. Sawchuk, “USC-HAD: a daily activity dataset for ubiquitous activity recognition using wearable sensors,” in Proceedings of the 2012 ACM Conference on Ubiquitous Computing (UbiComp) , 2012, pp. 1036–1043. [Online]. Available: https://dblp.org/rec/conf/huc/ZhangS12a [44] A. Reiss and D. Stricker, “Introducing a new benchmarked dataset for activity monitoring,” in 2012 16th International Symposium on Wearable Computers (ISWC) , 2012, pp. 108–109. [Online]. Available: https: //www.dfki.de/web/forschung/projekte-publikationen/publikation/6359 [45] O. Banos, R. Garcia, and A. Saez, “MHEALTH [dataset],” UCI Machine Learning Repository, 2014. [Online]. Available: https: //archive.ics.uci.edu/dataset/319/mhealth%2Bdataset%29 [46] S. Niu, J. Wu, Y. Zhang et al. , “Towards stable test-time adaptation in dynamic wild world,” in International Conference on Learning Representations (ICLR) , 2023. [Online]. Available: https://openreview.net/forum?id=g2YraF75Tj

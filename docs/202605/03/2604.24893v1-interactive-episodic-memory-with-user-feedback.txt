@@ -1,0 +1,1127 @@
+Title: Interactive Episodic Memory with User Feedback
+
+URL Source: https://arxiv.org/pdf/2604.24893v1
+
+Published Time: Wed, 29 Apr 2026 00:08:45 GMT
+
+Number of Pages: 26
+
+Markdown Content:
+# Interactive Episodic Memory with User Feedback 
+
+## Nikesh Subedi University of Utah 
+
+nikesh.subedi@utah.edu 
+
+## Loris Bazzani University of Verona 
+
+loris.bazzani@univr.it 
+
+## Ziad Al-Halah University of Utah 
+
+ziad.al-halah@utah.edu 
+
+## Abstract 
+
+In episodic memory with natural language queries (EM-NLQ), a user may ask a question (e.g., “Where did I place the mug?”) that requires searching a long egocentric video, captured from the user’s perspective, to find the moment that answers it. However, queries can be ambiguous or incomplete, leading to incorrect responses. Current meth-ods ignore this key aspect and address EM-NLQ in a one-shot setup, limiting their applicability in real-world sce-narios. In this work, we address this gap and introduce the Episodic Memory with Questions and Feedback task (EM-QnF). Here, the user can provide feedback on the model’s initial prediction or add more information (e.g., “Before this. I’m looking for the big blue mug not the white one”), helping the model refine its predictions inter-actively. To this end, we collect datasets for feedback-based interaction and propose a lightweight training scheme that avoids expensive sequential optimization. We also intro-duce a plug-and-play Feedback ALignment Module (FALM) that enables existing EM-NLQ models to incorporate user feedback effectively. Our approach significantly improves over the state of the art on three challenging benchmarks and is better than or competitive with commercial large vision-language models while remaining efficient. Evalu-ation with human-generated feedback shows that it gen-eralizes well to real-world scenarios. Project: https: //nsubedi11.github.io/refocus .
+
+## 1. Introduction 
+
+Episodic Memory with Natural Language Query (EM-NLQ) retrieves specific moments from a person’s past vi-sual experiences, such as wearable-camera video, using free-form text questions [7]. For example, a user might ask, “What did I put in the frying pan?” (Fig. 1), and the model must identify the exact moment in the video that answers the question. By enabling on-demand “visual recall,” such systems can help users recover forgotten details, review past actions, and support embodied agents or assistive technolo-gies in tasks such as safety checks, finding misplaced items, What did I put in the frying pan?  
+
+> No, I meant before this moment, when I started cooking.
+> Video
+> Incorrect Prediction
+> Focus Unfocus
+> User User
+> Ground Truth
+> Model
+> Model
+> Correct Prediction
+> Video
+> Query Feedback
+
+Figure 1. We introduce the interactive episodic memory with user feedback task (EM-QnF) to address ambiguous queries and model errors. Given an initial query and an incorrect model prediction (top), the user refines the query through natural language feed-back, either by referring to the model’s prediction or by providing additional information (middle). The model then uses the joint context of the query, prediction, and feedback to shift its focus to-ward relevant moments in the video that better align with the user’s intent (bottom) to find the correct answer. 
+
+and retracing work steps. EM-NLQ remains very challenging. Egocentric videos are often long and untrimmed, making short answer seg-ments difficult to find. The first-person viewpoint also in-troduces difficulties such as rapid head movements, mo-tion blur, and occlusions. In addition, models must process long video histories efficiently while remaining lightweight enough for resource-constrained devices. Recent work has focused on improving performance [5, 10, 11, 21, 23, 27], efficiency [23, 27, 32], and generaliza-tion with limited training data [31]. However, a key aspect remains underexplored: user queries are often ambiguous, and real interactions are inherently iterative. In practice, users may refine their questions and provide feedback after seeing an incorrect prediction. For example, as shown in Fig. 1, a user might respond, “No, I meant before this mo-
+
+> arXiv:2604.24893v1 [cs.CV] 27 Apr 2026
+
+ment, when I started cooking.” Current EM-NLQ models cannot leverage such feedback, missing the chance to refine their predictions and better match the user’s intent. Large Vision-Language Models (LVLMs) appear to be natural candidates for addressing the interactive aspect of EM-NLQ, since they build on language models designed for dialogue, instruction following, and user alignment. How-ever, in practice, current LVLMs fall short of this promise. As our results show, fine-tuning these models for video un-derstanding reduces their ability to respond effectively to user feedback. Additionally, their reliance on large vision-language backbones makes them highly resource-intensive and slow, which limits their practicality for fast or on-device episodic memory applications. In this work, we take a first step toward addressing the underexplored problem of interactivity and feedback in EM-NLQ. We introduce the Episodic Memory with Questions and Feedback task (EM-QnF) and construct new datasets for feedback-based episodic memory interaction, together with a training scheme that avoids costly sequential training with feedback. We also propose ReFocus, which integrates our novel plug-and-play Feedback ALignment Module (FALM) with a variety of existing EM-NLQ mod-els, enabling them to process and respond to user feedback efficiently and effectively. Unlike prior approaches that treat queries as fixed, one-shot inputs, ReFocus allows mod-els to refine their predictions based on user corrections or clarifications, bringing EM-NLQ closer to the natural way humans seek information about past experiences. Our approach significantly improves both the perfor-mance and scalability of EM-NLQ models in interactive settings. Through extensive experiments on three challeng-ing benchmarks, our method achieves state-of-the-art per-formance and shows consistent gains across different EM-NLQ models and diverse evaluation settings. Finally, we validate the effectiveness and practicality of our approach through human-based feedback evaluations and compar-isons with commercial multimodal LLMs, showing that our model can effectively incorporate real user feedback to pro-duce more accurate and better aligned responses. 
+
+## 2. Related Works 
+
+Episodic Memory with Natural Language. This task requires localizing a response to a query within a long egocentric video. Early work adapted moment localiza-tion methods to this setting, establishing strong baselines (e.g., 2D-TAN [46], VSLNet [44]). Subsequent meth-ods incorporated multiscale representations to handle the wide variation in response durations [11] or used object-centric features to capture a broader range of objects [5]. To address the scarcity of labeled data, some approaches leveraged more readily available supervision such as narra-tions [31] or adapted video-text contrastive learning to ego-centric videos [21]. Other works [10, 23, 27, 32] focused on improving the efficiency and accuracy of EM-NLQ models. However, all previous EM-NLQ methods localize the query in a one-shot manner and therefore cannot handle query ambiguity or model errors. In contrast, we propose an interactive episodic memory search setting that allows users to provide feedback to help the model refine its pre-diction and identify the correct response. 
+
+Large Vision-Language Models. Large Vision-Language Models (LVLMs) [1, 3, 16, 17, 22, 45] possess broad visual knowledge and excel at visual-linguistic reasoning and spatial understanding. However, these methods often struggle with time-sensitive video tasks such as temporal localization, especially in long videos. Many works [2, 13, 14, 24, 33, 43] have proposed solutions to improve the alignment between video semantics and their corresponding timestamps for such tasks. For example, TimeChat [33] introduces timestamp-aware video repre-sentations for temporal grounding, UniTime [20] proposes a multi-stage inference strategy for moment localization in long videos, and ChatVTG [30] explores training-free temporal grounding with LVLMs. Despite strong performance on some of these tasks, these methods remain computationally expensive and, as we show in our experiments, fail to generalize well or retain their instruction-following ability when adapting to user feedback. Instead, we propose a plug-and-play feedback alignment module that enables EM-NLQ models to effec-tively use user feedback, leading to significant performance improvements while keeping computational cost low. 
+
+Localization with Textual Feedback. Utilizing human or synthetically generated feedback has been shown to ef-fectively improve model capabilities across language rea-soning [25, 42, 47] and visual understanding [18]. Different forms of feedback have been explored, including regions for segmentation [40], clicks for preference learning [47], and timestamps for temporal grounding [4, 20]. Among these, language feedback remains one of the richest and most user-friendly ways to refine predictions at inference time [8, 15, 26, 41] and to finetune models [42]. Closely re-lated work also appears in localization within navigational environments [9, 37], where a locator tries to find an ob-server in an indoor environment, and the observer provides natural language feedback to guide the search. However, to the best of our knowledge, textual feed-back has not yet been shown to be effective for EM-NLQ. In this work, we propose an approach that leverages tex-tual feedback to resolve localization ambiguities caused by large search spaces and imprecise user queries in egocentric videos. We further propose a feedback generation recipe that enables training at scale without expensive manual an-notation, while still generalizing well to human feedback. 3. Episodic Memory with User Feedback 
+
+Our work is the first to explore the interactive aspect of EM-NLQ by enabling models to refine their predictions based on user feedback. We first formally define this new task (Sec. 3.1), then describe an effective procedure for generating feedback data for training models in this set-ting (Sec. 3.2). Finally, we introduce Feedback ALignment Module (FALM), a plug-and-play module that can be seam-lessly integrated into existing EM-NLQ models, allowing them to process and respond to user feedback (Sec. 3.3). 
+
+3.1. Task Definition 
+
+We introduce the Episodic Memory with Questions and Feedback task (EM-QnF). Unlike EM-NLQ, which an-swers a natural language query in a one-shot manner, EM-QnF extends the task by allowing users to provide natural language feedback that guides the model toward a more ac-curate prediction. The goal is to enable EM-NLQ models to iteratively refine their responses based on user feedback and prior outputs. Formally, given an egocentric video V and a natural lan-guage query Q, the objective is to identify the video seg-ment Rq ∈ V that answers Q, where R = [ ts, t e] de-notes the temporal window of the response defined by its start and end times. An EM-NLQ model produces an initial prediction R1, which may be incorrect due to query ambi-guity, missing context, or model error. The user then pro-vides feedback F1, a natural language statement containing additional or contrastive information relative to R1. The model integrates F1 in the context of (V, Q, R1) to gen-erate a refined prediction R2̸ = R1. This interactive pro-cess continues over multiple rounds, producing a sequence of responses {R 1, . . . , Rn} and feedbacks {F 1, . . . , Fn}
+
+until the final response Rn matches the correct answer, 
+
+Rn = Rq . Without loss of generality, we refer to the current model prediction at step i as the reference span 
+
+Rf , which the user provides feedback on, and focus on the single-turn case in the following sections. We provide an extension to the multi-turn scenario in Sec. 3.3. 
+
+3.2. A Recipe for User Feedback Generation 
+
+To the best of our knowledge, no publicly available dataset currently supports the EM-QnF task. Collecting real user feedback is costly and time-consuming, as it requires hu-man annotators to watch long egocentric videos and write meaningful feedback for incorrect model predictions. To address this limitation, we propose a synthetic feed-back generation recipe that produces useful and realistic feedback data from existing EM-NLQ datasets, effectively turning them into EM-QnF datasets. Our recipe, shown in Fig. 2, has four main steps: (1) reference span sampling, (2) caption generation for the sampled clips, (3) explanation generation for response span and (4) feedback construction. x        
+
+> x
+> x\
+> \
+> \
+> Span
+> Ca ptioning
+> Feedbac k
+> Genera tion
+> Cla uses Extraction
+> ReferenceSpan
+> Response Span
+> Explana tion
+> ResponseSpan
+> Where is the electric ket tle? \
+> Span
+> Ca ptioning
+> Reference Span Sampling
+> Not Contains
+> Black rice cooker
+> Temporal
+> After
+> Example Feedback
+> I’m looking for the elec tric kettle which is white and cylindrical ,not
+> the black rice cooker shown her e. I think I used it after this moment .
+> Contains
+> White, cylindrical electric kettle
+> Vide o
+
+Figure 2. Our feedback generation recipe. For a query Q and ground-truth response span Rq , (1) we sample a reference span 
+
+Rf , then (2) collect captions describing each span. Additionally, (3) we collect an explanation of why Rq answers Q. The captions from (2) and (3) are then used to generate a feedback F. Finally, (5) we extract three clauses from F representing different types of information, which we use to generate labels that supervise the learning of our FALM module (see Sec. 3.3). 
+
+This approach enables scalable and controlled generation of feedback examples without costly manual annotation. Furthermore, our results show that models trained on the proposed synthetic feedback data can effectively use real user feedback at inference time. Notably, synthetic feed-back yields improvements comparable to those obtained with real user feedback (see Sec. 4.3), suggesting that our feedback generation recipe produces realistic feedback that aligns well with human feedback styles. Next, we describe the main steps of the proposed recipe, and provide more de-tails in the supplementary material. 
+
+Reference Span Sampling. The goal of this step is to sample a span Rf that simulates an incorrect prediction for a given query Q. An intuitive approach is to use actual model failures from an EM-NLQ model as reference spans. However, relying only on such examples limits the diversity of error types and may lead to overfitting to the behavior of a specific model. Hence, we sample two additional types of spans: (1) Rq -similar spans, which are visually similar to the ground-truth response Rq (based on video feature sim-ilarity) but do not correctly answer the query ( Rf̸ = Rq ); and (2) random spans, which are randomly sampled seg-ments that are temporally disjoint from Rq . We refer to spans sampled from model failures or Rq -similar spans as 
+
+query-relevant spans , since they may contain some infor-mation relevant to the query but are still incorrect. In con-trast, we refer to random spans as query-irrelevant spans ,since they represent completely off-target responses. Where  is my guitar? 02:58  - 03:04 
+
+Video 
+
+> That was when I picked up the guitar to play. I meant after I stopped playing it.
+> Concat
+
+Query 
+
+> Feedback Alignment Module (FALM)
+> EM Adapter
+> EM-NLQ Model
+> Scale Clamp
+> Shift
+> Index
+
+FALM 
+
+Feedback Reference Span 
+
+> Span Decoder Cross-Modal Fusion
+> Query Encoder Video Encoder
+> Threshold
+> Threshold
+> Logical AND
+> Contains Scores Not Contains Scores
+> Temporal Labels
+> Feedback Alignment Labels
+
+Figure 3. Our (a) Feedback ALignment Module (FALM) module and (b) its integration with an EM-NLQ model, ReFocus. FALM is trained to predict an alignment score P that indicates how well each clip aligns with the user feedback F in the context of the input video 
+
+V, the query Q, and the reference span Rf . It is then plugged into an EM-NLQ model using a lightweight adapter (b), enabling the model to leverage user feedback effectively by shifting its focus toward video clips that better match the user intent expressed in the feedback. 
+
+Response Captioning and Explanation Generation. 
+
+For all ground-truth response spans Rq and the sampled ref-erence spans Rf from previous step, we first generate tex-tual captions describing these spans. This step reduces the computational cost of feedback generation by removing the need to process long video clips directly with large vision-language models (LVLMs), and it improves feedback qual-ity by providing concise and relevant summaries that large language models (LLMs) can reason over effectively. For each span Ri, we use a pre-trained LVLM to generate a textual description Di that captures the visual content (e.g., objects and scenes) and actions present in the span, indepen-dent of any query Q. Additionally, for each ground-truth span Rqi , we generate an explanation Ei describing why the span answers its corresponding query Qi. This helps us control the type of information allowed in the feedback, as explained next. 
+
+Feedback Generation. The final step generates natural language feedback F that guides the model from a sampled reference span Rf toward the correct ground-truth span Rq .For each query Qi, we sample pairs (Rqi , Rfj ) and provide their corresponding descriptions Dqi , Dfj , the explanation 
+
+Eqi , and the relative temporal order between Rqi and Rfj
+
+to a reasoning-focused large language model (LLM). The LLM is prompted to generate feedback Fi,j that provides informative cues to help locate Rqi without directly reveal-ing the answer to Qi. To achieve this, we design prompts that encourage the feedback to include any combination of three types of information: (1) additional disambiguating details about the queried object or moment derived from 
+
+Dqi ; (2) contrastive cues highlighting differences between 
+
+Rqi and Rfj based on Dqi and Dfj ; and (3) temporal guid-ance indicating whether to search before or after the current reference span Rfj . We further use the explanation Eqi to instruct the LLM not to produce feedback that trivially an-swers the original query Qi.This leads to diverse types of feedback, ranging from short phrases (e.g., “before this”) that simulate impatient users to more descriptive feedback that may include differ-ent types of information based on the cues above. The feed-back has an average length of 16 words, with a standard deviation of 6.8 (see Supp for the prompts and examples). 
+
+EM-QnF Samples. Following this recipe, the con-structed EM-QnF dataset consists of samples of the form 
+
+(Vi, Qi, Rqi , {(Rfi,j , Fi,j )}), which can be used to train models to handle interactive feedback refinement. 
+
+3.3. FALM: Feedback ALignment Module 
+
+We introduce FALM, a plug-and-play module designed to help EM-NLQ models align with and use user feedback. Given user feedback F, a reference span Rf , a video V,and a natural language query Q, the core idea of FALM is to predict an alignment score for each clip in V, indicating its relevance to F.Modern video encoders typically process long videos by dividing them into short clips and encoding each clip independently before aggregation. Formally, let V =
+
+{C1, . . . , C m} denote a video segmented into m clips, where Ci is the i-th clip. FALM takes (V, Q, Rf , F) as input and outputs an alignment vector P ∈ [0 , 1] m, where each element Pi represents the alignment score between clip Ci and the given user feedback F. These scores are then used to reweight the video features in existing EM-NLQ models, effectively shifting the model’s attention to-ward clips that are most relevant to the user feedback when predicting the next response span. 
+
+FALM Architecture. As shown in Fig. 3.a, FALM en-codes the video V, query Q, and feedback F using pretrained video and text encoders, fV (ViT–1B from EgoVideo [28]) and fT (gte-Qwen2-7B-instruct [19]), re-spectively. This yields feature representations fV (V) = 
+
+ev ∈ Rvt×d, fT (Q) = eq ∈ Rqt×d, and fT (F) = ef ∈
+
+Rft×d, where d is the model dimension and (vt, q t, f t) de-note the number of tokens in each input sequence. We represent the reference span Rf by concatenating its start, end, and mean clip embeddings from the video features, 
+
+er = [ esv , e ev , e μv ] ∈ R3×d, allowing FALM to interpret the feedback F in the visual context of the reference span. Next, we use a two-layer Transformer encoder ( tQ) to model interactions among {eq , e f , e r } and another two-layer Transformer encoder ( tV ) to capture the overall video context from ev . Finally, we pass the features through two Transformer decoder blocks with cross-attention ( tM ) to produce video-feedback aligned embeddings ea.
+
+Alignment Supervision. We generate pseudo-labels to supervise the learning of FALM by indicating clip relevance based on three cues extracted from the feedback: (1) Con-tains: what information the correct response should contain, (2) Not Contains: what should not appear in the response, and (3) Temporal: whether to search before or after the ref-erence span. We prompt an LLM to extract these cues from each feed-back F in form of short language clauses (see Fig. 2(5)). Using the EgoVideo [28] encoders, we compute <clip, clause > similarities to obtain contains scores Sc and not-contains scores Sn. To reduce noise in these similarity mea-sures, we apply Gaussian smoothing, and min-max normal-ization across all clips. Finally, we invert the Sn scores to obtain Sk = 1 − Sn, i.e. the model should avoid clips that include information the user excluded in their feedback. To convert these scores into binary labels, we first calculate the mean and standard deviation of the scores within the correct response Rq [6], denoted by Sμ and Sσ for each score type, 
+
+Sc and Sk. The threshold is then defined as δ = Sμ − 3Sσ .We assign a label of 1 to clips with scores above the thresh-old and 0 otherwise, resulting in binary labels Lc and Lk
+
+based on δc and δk. For temporal labels Lt, we assign 1 to clips before or after Rf according to the extracted tem-poral clause. Finally, we combine the three label types us-ing a logical AND operation to form the final FALM labels: 
+
+L = Lc ∧Lk ∧Lt. Note that not all three clauses are present in every feedback instance, and the labels are generated us-ing only the subset of clauses extracted from each F.
+
+FALM Training Objective. Given encoded features ea,four MLP heads predict contains (P c) not-contains (P k), 
+
+temporal (P t), and overall alignment ( P ) scores: 
+
+L =λLC (L, P ) + λtLC (Lt, P t)+ (1) 
+
+λcL2(Sc, P c) + λnL2(Sk, P k), (2) where LC is a binary cross-entropy loss and L2 is ∥ · ∥ 22
+
+regression loss. 
+
+ReFocus: FALM Integration. After pretraining FALM on feedback data, we can integrate it into an EM-NLQ model by reweighting that model’s video clip features us-ing the predicted alignment scores P as shown in Fig. 3(b). In other words, FALM shifts the focus of the EM-NLQ model by emphasizing or de-emphasizing the importance of certain clips based on user feedback. To enable effec-tive and seamless adaptation across EM-NLQ models, we introduce a lightweight EM Adapter that scales and shifts the alignment scores of FALM using two learned scalars, α
+
+and β, while fine-tuning with the EM-NLQ model: ˆP =
+
+clamp (αP + β, 0, 1) . We denote the final approach with FALM plugged into an EM-NLQ model M with the adapter as ReFocus( M). 
+
+Multi-Turn Feedback Extension. While our work fo-cuses on single-turn feedback, we propose here an extension of ReFocus to the multi-turn feedback setting. Given mul-tiple independent feedback samples {F 1, . . . , Fn} for the same query Q, we first pass each feedback to ReFocus( M)and use late fusion by averaging the output features of the Cross-Modal Encoder obtained from integrating each feed-back separately, before passing the fused features to the Span Decoder, as shown in Fig. 3(b), to localize the an-swer. We find that this simple extension leads to significant gains without added complexity (Sec. 4.3). More advanced multi-turn modeling remains an important direction for fu-ture work, and our extension provides a strong baseline. 
+
+## 4. Experiments 
+
+We demonstrate the effectiveness of our approach on three challenging egocentric video datasets adapted to the EM-QnF task (Sec. 4.1), and compare it against state-of-the-art EM-NLQ and LVLM models (Sec. 4.2). We then pro-vide an analysis of our model (Sec. 4.3), including compar-isons with commercial LVLMs (Gemini-Flash) and human-generated feedback. Finally, we show the performance of our approach in multi-turn feedback scenarios. 
+
+4.1. Evaluation Setup 
+
+Datasets. We experiment with Ego4D-NLQ [7], Ego4D-GoalStep [34], and HD-EPIC [29], which are widely used Ego4D-QnF GoalStep-QnF HD-EPIC-QnF 
+
+IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 
+
+Method R1 R5 R1 R5 R1 R5 R1 R5 R1 R5 R1 R5 LVLM  TimeChat (ZS) 1.6 -0.2 N/A 0.7 -0.2 N/A 2.3 +0.9 N/A 1.1 +0.7 N/A 0.2 +0.0 N/A 0.0 +0.0 N/A UniTime (ZS) 19.9 -5.2 N/A 12.3 -3.3 N/A 10.2 -1.7 N/A 6.0 -0.8 N/A 3.6 -2.0 N/A 1.3 -1.2 N/A UniTime (FT) 21.7 -3.4 N/A 13.3 -2.3 N/A 8.2 -0.3 N/A 5.5 -0.1 N/A 2.5 -1.6 N/A 1.0 -0.8 N/A 
+
+> Task-Expert
+
+OSGNet 29.6 +0.4 56.3 +0.5 20.5 +0.5 43.3 +0.7 30.2 +0.6 60.1 +0.9 24.7 +0.5 52.5 +0.7 14.7 +0.3 37.7 -0.1 9.6 +0.1 25.2 +0.1 
+
+ReFocus(OSGNet) 32.5 +3.3 58.3 +3.7 22.4 +1.9 45.3 +3.3 31.9 +2.0 61.0 +2.3 26.5 +1.8 53.7 +2.4 15.3 +0.8 38.3 +1.3 10.1 +0.5 25.8 +0.9 
+
+GroundNLQ 29.6 +0.6 56.0 +1.0 21.4 +0.2 43.0 +0.6 23.3 +0.2 53.2 +0.3 17.9 +0.5 43.7 +0.4 11.3 +0.0 33.8 +0.9 6.5 -0.1 21.1 +0.5 
+
+ReFocus(GroundNLQ) 33.1 +3.3 59.7 +4.6 23.7 +2.2 46.1 +3.9 26.8 +4.9 56.2 +5.4 20.3 +3.6 46.1 +4.8 15.1 +3.0 39.6 +5.4 9.1 +2.1 25.7 +4.0 
+
+Table 1. Model performance comparison across QnF datasets. Deltas ( ∆) of feedback vs query-only performance are shown as superscripts. For LVLMs, ZS denotes zero-shot evaluation of the method, while FT is after finetuning on QnF data. 
+
+egocentric video benchmarks. While Ego4D-NLQ already provides query and response annotations, GoalStep and HD-EPIC are not designed for the NLQ task. Using NLQ templates from Ego4D-NLQ, we leverage the step descrip-tions from GoalStep and the narrations from HD-EPIC to generate natural language queries. We then apply our feedback generation recipe to all three datasets, result-ing in question-and-feedback datasets that we refer to as Ego4D-QnF, GoalStep-QnF, and HD-EPIC-QnF. See Supp for dataset details and statistics. 
+
+Comparison with the SoTA. We compare ReFocus against several SoTA methods: LVLM-based methods like 
+
+TimeChat [33] and UniTime [20], and the task expert EM-NLQ models like GroundNLQ [11] and OSGNet [5]. We evaluate UniTime and TimeChat in zero-shot setting and ad-ditionally, finetune UniTime on EM-QnF datasets as well. For task experts, we first pretrain on NaQ [31] and Ego4D NLQ [7] datasets using EgoVideo [28] as video features and gte-Qwen2-7B-instruct [19] as text features. We adapt EM-NLQ models to feedback input by concatenating the text features with reference span and feedback features to form a new query representation. Our FALM module is ap-plied to GroundNLQ and OSGNet, which are named Re-Focus(GroundNLQ) and ReFocus(OSGNet). We train all models (with and without our module) on the same QnF data for fair comparisons. 
+
+Implementation Details. Videos are divided into non-overlapping clips of 16 consecutive frames each. The clips are encoded with fV = ViT–1B from EgoVideo [28]. For text features, we use fT = gte-Qwen2-7B-instruct [19]. We pretrain FALM on the combined training splits of the three QnF datasets. For Refocus, we integrate FALM into the EM-NLQ model pretrained on NaQ [31] and fine-tune Refocus( M) on the combined training splits of the three QnF datasets. See Supp for full details. 
+
+Evaluation Metrics. Following the episodic memory benchmark [7], we report Recall (R1 and R5) at multi-ple temporal intersection-over-union (tIoU) thresholds {0.3, 0.5 } between the predicted and ground-truth spans. 
+
+4.2. Main Results 
+
+Table 1 shows the performance of our model and the base-lines when evaluated with feedback. For brevity, we report results in the format X∆ 
+
+> q+f
+
+, where ∆ = Xq+f −Xq , Xq+f is the model performance when given both the query and the feedback, and Xq is its performance when given only the query (i.e., the initial performance before feedback). Thus, 
+
+Xq+f shows the absolute performance after processing the feedback, while ∆ shows whether, and by how much, the model benefits from the feedback. Interestingly, the LVLM-based localization methods (Ta-ble 1, top), which incorporate an LLM in their architecture, fail to adapt to user feedback. In most metrics and across datasets, they perform worse with feedback than without it, resulting in negative ∆ values. Even when fine-tuned on the new QnF data, these models do not show clear improvement in leveraging feedback, despite the stronger reasoning capa-bilities of their underlying LLMs, which might be expected to help them better handle such interactions. As for EM-NLQ experts, simply training OSGNet and GroundNLQ on EM-QnF data leads to only small improve-ments, with ∆ ≤ 1% across all metrics. Although these models are trained with EM-QnF data as well, they still largely ignore the feedback. Across all datasets, our ReFocus consistently out-performs all other methods. Specifically, ReFo-cus(GroundNLQ) achieves notable gains on R1 and R5, with up to +4.9 and +5.4, respectively. We also observe con-sistent improvements when ReFocus is applied to OSGNet. These results demonstrate the effectiveness of our approach in leveraging user feedback to improve localization across EM-NLQ models and benchmarks. Furthermore, our ap-GoalStep-QnF HD-EPIC-QnF 
+
+IoU = 0.3 IoU = 0.3 
+
+Method R1 R5 R1 R5 
+
+OSGNet 14.5 +0.2 36.7 +0.7 5.3 +0.4 16.9 +0.7 
+
+ReFocus(OSGNet) 17.9 +3.6 42.0 +6.8 6.7 +2.2 18.6 +4.5 
+
+GroundNLQ 17.7 +0.5 42.2 +1.6 6.6 +0.2 21.3 +0.3 
+
+ReFocus(GroundNLQ) 20.7 +3.7 45.3 +5.0 8.2 +1.6 25.1 +4.2 
+
+Table 2. Zero-Shot evaluation across feedback datasets when mod-els trained on Ego4D-QnF only. 
+
+Ego4D-QnF GoalStep-QnF 
+
+IoU = 0.3 IoU = 0.3 
+
+Method R1 R5 R1 R5 
+
+Gemini-2.5-Flash 15.7 +1.7 28.7 +0.7 8.7 +2.7 16.0 +1.0 
+
+ReFocus(OSGNet) 24.0 +3.0 46.7 +2.7 21.7 +2.7 53.7 +3.7 
+
+ReFocus(GroundNLQ) 8.7 +8.7 48.0 +48.0 9.7 +9.7 54.7 +54.7 
+
+Table 3. Performance comparison between Gemini-2.5-Flash and ReFocus models on a small 100 NLQ subset where ReFo-cus(GroundNLQ) fails with query-only but improves with feed-back. Deltas ( ∆) of feedback vs query-only performance are shown as superscripts. 
+
+proach does not rely on heavyweight components such as LLMs and preserves the efficiency of the underlying task-expert model (see Supp for details). 
+
+Zero-Shot Cross Evaluation. Table 2 shows the perfor-mance on GoalStep-QnF and HD-Epic-QnF when the mod-els trained only on Ego4D-QnF, i.e. , in the zero-shot set-ting. While competing methods show only marginal im-provements in this setting, our approach generalizes much better and does not overfit to a specific type of feedback. Since GoalStep and HD-EPIC differ from Ego4D-NLQ in video content, they also likely involve different styles of feedback. Even so, our approach achieves larger ∆ values on both GoalStep-QnF and HD-EPIC-QnF. 
+
+Comparison with Commercial LVLMs. We compare our approach with a commercial LVLM, Gemini-2.5-Flash, on a subset of the test sets. We sample 100 NLQs from each of the three QnF datasets where ReFocus(GroundNLQ) fails when given only the query, but where at least one user feedback example in the test set helps the model identify the correct response span. We then sample three feedback samples for each of the 100 queries, favoring query-relevant spans over irrelevant ones, resulting in 900 QnF samples across the three datasets. Table 3 shows that, despite the strong R1 performance of Gemini-2.5-Flash, it is unable to significantly improve its predictions when given feedback and a reference span. This result suggests that even com-mercial LVLMs, despite being trained on large-scale multi-
+
+IoU = 0.3 IoU = 0.5 Method R1 R5 R1 R5 
+
+GroundNLQ 29.56 56.42 21.63 43.71 w. FALM 33.13 59.70 23.58 46.26 w. FALM C 31.08 57.95 22.26 44.52 w. FALM N 30.89 58.03 22.38 45.02 w. FALM T 32.29 59.41 23.23 46.40 
+
+w. FALM w/o Adapter 32.46 58.33 23.11 45.39 Table 4. Ablation of our ReFocus(GroundNLQ). Evaluated on a subset of Ego4D-QnF containing all types of FALM labels. Ego4D-QnF GoalStep-QnF HD-EPIC-QnF 0 1 2 3 4 5     
+
+> Number of Feedback (n)
+> 12
+> 16
+> 20
+> 24
+> 28
+> 32
+> 36
+> Recall@1, IoU=0.3
+> 12.1
+> 21.9
+> 29.8
+> 15.2
+> 26.8
+> 33.0
+> 16.7
+> 29.3
+> 35.1
+> 17.1
+> 30.3
+> 36.4
+> 17.3
+> 31.0
+> 36.7
+> 17.7
+> 31.0
+> 37.0 012345
+> Number of Feedback (n)
+> 34
+> 40
+> 46
+> 52
+> 58
+> 64
+> 70
+> Recall@5, IoU=0.3
+> 34.2
+> 50.8
+> 55.0
+> 39.6
+> 56.3
+> 60.0
+> 42.0
+> 58.9
+> 62.6
+> 42.7
+> 60.3
+> 63.5
+> 43.2
+> 61.0
+> 64.1
+> 43.7
+> 61.8
+> 64.5
+
+Figure 4. Multi-Turn Feedback evaluation of our ReFo-cus(GroundNLQ) across the three datasets. 
+
+modal data, still struggle to reason effectively over feedback in long-form videos to produce better predictions. See Supp for more details. 
+
+4.3. In-depth Model Analysis 
+
+Ablations. We present an in-depth ablation study of our approach in Table 4 to examine the effect of each compo-nent in learning from feedback. We start with GroundNLQ and evaluate different components of FALM. First, we study the contribution of each supervision signal used to train FALM (Sec. 3.3). We train variants of FALM using a single supervision type: contains, not-contains, and tem-poral clauses, denoted as FALM C, FALM N, and FALM T,respectively. We observe that each clause type improves the model, with the temporal clause being the most helpful. Combining all of them leads to further gains, since different feedback may contain different types of information. We also evaluate whether integrating FALM with the proposed EM adapter is beneficial. The results (last row in Table 4) show a drop in performance when the adapter is removed. 
+
+Multi-Turn Feedback. While we have focused so far on the single-turn case, we evaluate here the ability of Re-Focus to handle multi-turn feedback in a zero-shot man-ner, following the proposed extension in Sec. 3.3. In our evaluation, we average performance over five different ran-dom samplings of n feedback per query. Figure 4 shows the performance of ReFocus(GroundNLQ) across the three datasets with multiple feedback. Interestingly, our approach User: In what table did I see the remote?                             
+
+> User:The remote was black and rectangular .
+> This scene has a teal mug instead.
+> 05:32 05:34 05:36
+> Video  0:00 07:50
+> Mode l:07:18 to 07:24
+> Refer ence
+> Span
+> 07:18 07:21
+> Ours
+> 07:24
+> 07:24 07:20 07:22
+> Gr ound
+> Truth
+> User:Where is the ball?
+> Mode l:06:36 to 06:38
+> User:The ball I need is yellow and round.
+> This shows me or ganizing trash.
+> 0:00 08:00
+> Mode l:03:09 to 03:12
+> 06:38 06:38 06:38
+> 03:1 103:14
+> 03:12 03:09 03:10
+> 03:1 1
+> User:Where was the blue container?
+> Mode l:04:05 to 04:06
+> User:The container is not in the fl uorescent-lit
+> store. Check before near the building?
+> 0:00 08:00
+> Mode l:03:09 to 03:12
+> 04:05 04:05 04:06
+> 03:09 03:1 103:12
+> 01:30 01:33 01:35
+
+Refer ence Span ReFocus (Gr oundNLQ) Gr oundNLQ Gr ound Truth  
+
+> Mode l:05:42 to 05:46
+
+Figure 5. Qualitative results for GroundNLQ and our ReFocus(GroundNLQ) when given feedback. Examples (a) and (b) show cases where ReFocus(GroundNLQ) improves with feedback, whereas (c) shows a failure case. 
+
+IoU = 0.3 IoU = 0.5 Feedback Type ∆R1 ∆R5 ∆R1 ∆R5 
+
+Generated 8.6 50.0 5.4 31.0 Human 5.8 34.4 3.4 20.4 Table 5. Comparison of our ReFocus(GroundNLQ) on gener-ated vs human feedback on examples from Ego4d-QnF where the method fails with query-only. The reported metrics are absolute improvement in Recall when using feedback vs without. 
+
+improves as the number of feedback turns increases on all datasets, even though it was not trained in this setting. We observe substantial gains up to the third or fourth feedback turn, after which performance plateaus. 
+
+Comparison with Human Feedback. We collected feed-back from human users to compare it with the quality of our generated feedback. From Ego4D-QnF, we sam-ple unique NLQ and reference span pairs where ReFo-cus(GroundNLQ) fails but improves with LVLM-generated feedback. We ask 11 users to assume the role of the per-son wearing the camera in the egocentric video and provide feedback for the reference spans as if they were trying to recall the correct response span. Users are instructed not to answer the queries directly, but instead to guide the model toward the correct response span they are trying to recall. In total, we collect 500 unique user feedback for 271 NLQ and reference span pairs. Table 5 shows the evaluation of our approach using generated and human feedback. We ob-serve that our approach can leverage human feedback and improve its predictions, which suggests that our proposed feedback generation recipe is effective at producing real-istic and helpful feedback that generalizes to human-style inputs. Additionally, we see there is still a gap in absolute improvement between generated and human feedback, indi-cating room for further improvement. Methods trained with human feedback may be able to recover additional gains. 
+
+Qualitative Results and Failures. Figure 5 shows qual-itative examples from the Ego4D-QnF dataset. Examples (a) and (b) show that ReFocus(GroundNLQ) improves over GroundNLQ when given additional user feedback about ob-ject attributes in contrast to the reference span. Example (c) shows an interesting failure case for our approach. The user feedback suggests that the blue container is not inside the store, but near a building, and also indicates that the model should search before the reference span. While the model correctly shifts its attention to an earlier moment, it is con-fused by the many blue food containers on the shelves and fails to infer that those shelves are inside the same store. 
+
+## 5. Conclusion 
+
+This work addresses an unexplored aspect of episodic mem-ory search with natural language queries: the interactive na-ture of the task. User questions can be incomplete or am-biguous, and model predictions can be incorrect. In such cases, the model should be able to incorporate user feed-back to improve its predictions. We introduce the task of interactive episodic memory with user feedback (EM-QnF), a suitable recipe for user feedback generation without man-ual annotations, and an effective feedback alignment mod-ule (FALM) that can be integrated into different EM-NLQ models, leading to significant improvements across multi-ple challenging benchmarks. 
+
+Acknowledgements We thank Santhosh Ramakrishnan for valuable feedback during the early stages of the project. This work was partially supported by NSF 2421782 and MPS-AI-00010515. References 
+
+[1] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 , 2025. [2] Shimin Chen, Xiaohan Lan, Yitian Yuan, Zequn Jie, and Lin Ma. Timemarker: A versatile video-llm for long and short video understanding with superior temporal localiza-tion ability. arXiv preprint arXiv:2411.18211 , 2024. [3] Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong Zhang, Xizhou Zhu, Lewei Lu, et al. Internvl: Scaling up vision foundation mod-els and aligning for generic visual-linguistic tasks. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 24185–24198, 2024. [4] Jianfeng Dong, Xiaoman Peng, Daizong Liu, Xiaoye Qu, Xun Yang, Cuizhu Bao, and Meng Wang. Temporal sentence grounding with relevance feedback in videos. Advances in Neural Information Processing Systems , 37:43107–43132, 2024. [5] Yisen Feng, Haoyu Zhang, Meng Liu, Weili Guan, and Liqiang Nie. Object-shot enhanced grounding network for egocentric video. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 24190–24200, 2025. [6] Aleksandr Gordeev, Vladimir Dokholyan, Irina Tolstykh, and Maksim Kuprashevich. Saliency-guided detr for mo-ment retrieval and highlight detection. In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision , pages 907–916, 2026. [7] Kristen Grauman, Andrew Westbury, Eugene Byrne, Zachary Chavis, Antonino Furnari, Rohit Girdhar, Jackson Hamburger, Hao Jiang, Miao Liu, Xingyu Liu, et al. Ego4d: Around the world in 3,000 hours of egocentric video. In 
+
+Proceedings of the IEEE/CVF conference on computer vi-sion and pattern recognition , pages 18995–19012, 2022. [8] Xiaoxiao Guo, Hui Wu, Yu Cheng, Steven Rennie, Gerald Tesauro, and Rogerio Feris. Dialog-based interactive image retrieval. Advances in neural information processing sys-tems , 31, 2018. [9] Meera Hahn, Jacob Krantz, Dhruv Batra, Devi Parikh, James Rehg, Stefan Lee, and Peter Anderson. Where are you? lo-calization from embodied dialog. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Pro-cessing (EMNLP) , pages 806–822, 2020. [10] Tanveer Hannan, Md Mohaiminul Islam, Thomas Seidl, and Gedas Bertasius. Rgnet: A unified clip retrieval and ground-ing network for long videos. In European Conference on Computer Vision , pages 352–369. Springer, 2024. [11] Zhijian Hou, Lei Ji, Difei Gao, Wanjun Zhong, Kun Yan, Chao Li, Wing-Kwong Chan, Chong-Wah Ngo, Nan Duan, and Mike Zheng Shou. Groundnlq@ ego4d natural language queries challenge 2023. arXiv preprint arXiv:2306.15255 ,2023. [12] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR ,1(2):3, 2022. [13] Bin Huang, Xin Wang, Hong Chen, Zihan Song, and Wenwu Zhu. Vtimellm: Empower llm to grasp video moments. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 14271–14280, 2024. [14] De-An Huang, Shijia Liao, Subhashree Radhakrishnan, Hongxu Yin, Pavlo Molchanov, Zhiding Yu, and Jan Kautz. Lita: Language instructed temporal-localization assistant. In 
+
+European Conference on Computer Vision , pages 202–218. Springer, 2024. [15] Matan Levy, Rami Ben-Ari, Nir Darshan, and Dani Lischin-ski. Chatting makes perfect: Chat-based image retrieval. 
+
+Advances in Neural Information Processing Systems , 36: 61437–61449, 2023. [16] Junnan Li, Dongxu Li, Caiming Xiong, and Steven Hoi. Blip: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In Interna-tional conference on machine learning , pages 12888–12900. PMLR, 2022. [17] Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In In-ternational conference on machine learning , pages 19730– 19742. PMLR, 2023. [18] Lei Li, Zhihui Xie, Mukai Li, Shunian Chen, Peiyi Wang, Liang Chen, Yazheng Yang, Benyou Wang, Lingpeng Kong, and Qi Liu. VLFeedback: A large-scale AI feedback dataset for large vision-language models alignment. In Proceed-ings of the 2024 Conference on Empirical Methods in Natu-ral Language Processing , pages 6227–6246, Miami, Florida, USA, 2024. Association for Computational Linguistics. [19] Zehan Li, Xin Zhang, Yanzhao Zhang, Dingkun Long, Pengjun Xie, and Meishan Zhang. Towards general text embeddings with multi-stage contrastive learning. arXiv preprint arXiv:2308.03281 , 2023. [20] Zeqian Li, Shangzhe Di, Zhonghua Zhai, Weilin Huang, Yanfeng Wang, and Weidi Xie. Universal video temporal grounding with generative multi-modal large language mod-els. In Advances in Neural Information Processing Systems ,2025. [21] Kevin Qinghong Lin, Jinpeng Wang, Mattia Soldan, Michael Wray, Rui Yan, Eric Z Xu, Difei Gao, Rong-Cheng Tu, Wen-zhe Zhao, Weijie Kong, et al. Egocentric video-language pretraining. Advances in Neural Information Processing Sys-tems , 35:7575–7586, 2022. [22] Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong Jae Lee. Visual instruction tuning. Advances in neural information processing systems , 36:34892–34916, 2023. [23] Zijia Lu, ASM Iftekhar, Gaurav Mittal, Tianjian Meng, Xi-awei Wang, Cheng Zhao, Rohith Kukkala, Ehsan Elhamifar, and Mei Chen. Decafnet: Delegate and conquer for efficient temporal grounding in long videos. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 24066–24076, 2025. [24] Kaijing Ma, Xianghao Zang, Zerun Feng, Han Fang, Chao Ban, Yuhan Wei, Zhongjiang He, Yongxiang Li, and Hao Sun. Llavilo: Boosting video moment retrieval via adapter-based multimodal modeling. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 2798–2803, 2023. [25] Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler Hal-linan, Luyu Gao, Sarah Wiegreffe, Uri Alon, Nouha Dziri, Shrimai Prabhumoye, Yiming Yang, et al. Self-refine: It-erative refinement with self-feedback. Advances in Neural Information Processing Systems , 36:46534–46594, 2023. [26] Sho Maeoki, Kohei Uehara, and Tatsuya Harada. Interactive video retrieval with dialog. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops , pages 952–953, 2020. [27] Fangzhou Mu, Sicheng Mo, and Yin Li. Snag: Scal-able and accurate video grounding. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 18930–18940, 2024. [28] Baoqi Pei, Guo Chen, Jilan Xu, Yuping He, Yicheng Liu, Kanghua Pan, Yifei Huang, Yali Wang, Tong Lu, Limin Wang, et al. Egovideo: Exploring egocentric founda-tion model and downstream adaptation. arXiv preprint arXiv:2406.18070 , 2024. [29] Toby Perrett, Ahmad Darkhalil, Saptarshi Sinha, Omar Emara, Sam Pollard, Kranti Kumar Parida, Kaiting Liu, Pra-jwal Gatti, Siddhant Bansal, Kevin Flanagan, et al. Hd-epic: A highly-detailed egocentric video dataset. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pages 23901–23913, 2025. [30] Mengxue Qu, Xiaodong Chen, Wu Liu, Alicia Li, and Yao Zhao. Chatvtg: Video temporal grounding via chat with video dialogue large language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1847–1856, 2024. [31] Santhosh Kumar Ramakrishnan, Ziad Al-Halah, and Kris-ten Grauman. Naq: Leveraging narrations as queries to su-pervise episodic memory. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 6694–6703, 2023. [32] Santhosh Kumar Ramakrishnan, Ziad Al-Halah, and Kris-ten Grauman. Spotem: Efficient video search for episodic memory. In International Conference on Machine Learning ,pages 28618–28636. PMLR, 2023. [33] Shuhuai Ren, Linli Yao, Shicheng Li, Xu Sun, and Lu Hou. Timechat: A time-sensitive multimodal large lan-guage model for long video understanding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pat-tern Recognition , pages 14313–14323, 2024. [34] Yale Song, Eugene Byrne, Tushar Nagarajan, Huiyu Wang, Miguel Martin, and Lorenzo Torresani. Ego4d goal-step: Toward hierarchical understanding of procedural activities. 
+
+Advances in Neural Information Processing Systems , 36: 38863–38886, 2023. [35] Qwen Team. Qwq-32b: Embracing the power of reinforce-ment learning, 2025. [36] Qwen Team. Qwen3 technical report, 2025. [37] Jesse Thomason, Michael Murray, Maya Cakmak, and Luke Zettlemoyer. Vision-and-dialog navigation. In Conference on Robot Learning , pages 394–406. PMLR, 2020. [38] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al. Llama 2: Open foundation and fine-tuned chat models. arXiv preprint arXiv:2307.09288 , 2023. [39] Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, et al. Qwen2-vl: Enhancing vision-language model’s perception of the world at any resolution. arXiv preprint arXiv:2409.12191 , 2024. [40] Qiaoqiao Wei, Hui Zhang, and Jun-Hai Yong. Focused and collaborative feedback integration for interactive image seg-mentation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 18643– 18652, 2023. [41] Hui Wu, Yupeng Gao, Xiaoxiao Guo, Ziad Al-Halah, Steven Rennie, Kristen Grauman, and Rogerio Feris. Fashion iq: A new dataset towards retrieving images by natural language feedback. In Proceedings of the IEEE/CVF Conference on computer vision and pattern recognition , pages 11307– 11317, 2021. [42] Zeqiu Wu, Yushi Hu, Weijia Shi, Nouha Dziri, Alane Suhr, Prithviraj Ammanabrolu, Noah A Smith, Mari Ostendorf, and Hannaneh Hajishirzi. Fine-grained human feedback gives better rewards for language model training. Advances in Neural Information Processing Systems , 36:59008–59033, 2023. [43] Shoubin Yu, Jaemin Cho, Prateek Yadav, and Mohit Bansal. Self-chained image-language model for video localization and question answering. Advances in Neural Information Processing Systems , 36:76749–76771, 2023. [44] Hao Zhang, Aixin Sun, Wei Jing, and Joey Tianyi Zhou. Span-based localizing network for natural language video lo-calization. In Proceedings of the 58th annual meeting of the association for computational linguistics , pages 6543–6554, 2020. [45] Hang Zhang, Xin Li, and Lidong Bing. Video-llama: An instruction-tuned audio-visual language model for video un-derstanding. In Proceedings of the 2023 conference on empirical methods in natural language processing: system demonstrations , pages 543–553, 2023. [46] Songyang Zhang, Houwen Peng, Jianlong Fu, and Jiebo Luo. Learning 2d temporal adjacent networks for moment local-ization with natural language. In Proceedings of the AAAI conference on artificial intelligence , pages 12870–12877, 2020. [47] Daniel M Ziegler, Nisan Stiennon, Jeffrey Wu, Tom B Brown, Alec Radford, Dario Amodei, Paul Christiano, and Geoffrey Irving. Fine-tuning language models from human preferences. arXiv preprint arXiv:1909.08593 , 2019. [48] Zhuofan Zong, Guanglu Song, and Yu Liu. Detrs with col-laborative hybrid assignments training. In Proceedings of the IEEE/CVF international conference on computer vision ,pages 6748–6758, 2023. 6. Supplementary Material 
+
+In this supplementary material, we provide further informa-tion about dataset generation, model evaluation, and limi-tations of our work. All code and datasets can be found on our project page: https://nsubedi11.github. io/refocus .The supplementary material is sectioned as follows: • Sec 6.1: Supplementary Video with qualitative results. • Sec 6.2: Additional Model Analysis. • Sec 6.3: Commercial LVLM Evaluation. • Sec 6.4: Limitations and Future Work. • Sec 6.5: Human User Feedback Collection. • Sec 6.6: Query generation for GoalStep and HD-EPIC. • Sec 6.7: Feedback generation for QnF Datasets. • Sec 6.8: Additional Evaluation Setup Details. 
+
+6.1. Supplementary Video 
+
+We provide additional qualitative results and comparisons for our approach ReFocus in video format on our project page: https://nsubedi11.github.io/refocus .The page showcases a variety of scenarios, highlights inter-actions with user feedback, and includes comparisons with baseline methods. We also present failure cases where our approach struggles to effectively utilize the information pro-vided through user feedback. 
+
+6.2. Additional Model Analysis 
+
+Performance of User Feedback on Incorrect First Pre-dictions. Here, we report the performance of each method on the subset of the QnF dataset containing only the queries that the method fails to solve when given the query alone, i.e., those for which the method achieves Recall@5 at IoU=0.3 of 0. Since each model is evaluated on its own subset, this analysis measures how effectively it leverages user feedback. Table 6 reports the performance of the GroundNLQ method on these subsets. Our approach Re-Focus leads to significant improvements across all datasets and metrics, demonstrating that it effectively leverages user feedback to correct the model’s initial mistakes when using only the query. 
+
+Feedback on the Model’s Own Failure Spans. We eval-uate whether our reference span sampling strategy gener-alizes to model errors by constructing a targeted setting in which feedback is generated only for queries that the model initially fails and using that wrong prediction as the ref-erence span. Specifically, for ReFocus(GroundNLQ), we identify queries whose top-1 prediction under the query-only setting has IoU < 0.3, and generate user feedback us-ing the recipe described in Sec. 3.2, treating the model’s top-1 prediction as the reference span. Table 7 shows the results. Across all datasets, we observe substantial posi-tive gains in both R1 and R5 at IoU thresholds of 0.3 and Ego4D-QnF GoalStep-QnF HD-EPIC-QnF 0 1 2 3 4 5     
+
+> Number of Feedback (n)
+> 7
+> 10
+> 13
+> 16
+> 19
+> 22
+> 25
+> Recall@1, IoU=0.5
+> 7.0
+> 16.7
+> 21.4
+> 9.2
+> 20.3
+> 23.3
+> 10.0
+> 22.6
+> 24.9
+> 10.1
+> 23.3
+> 25.6
+> 10.4
+> 23.8
+> 25.9
+> 10.7
+> 23.8
+> 26.3 012345
+> Number of Feedback (n)
+> 21
+> 27
+> 33
+> 39
+> 45
+> 51
+> 57
+> Recall@5, IoU=0.5
+> 21.7
+> 41.3
+> 42.3
+> 25.5
+> 46.2
+> 46.2
+> 27.5
+> 48.6
+> 48.6
+> 28.0
+> 49.5
+> 49.8
+> 28.2
+> 50.0
+> 50.5
+> 28.2
+> 50.4
+> 51.7
+
+Figure 6. Multi-Turn Feedback evaluation of our ReFo-cus(GroundNLQ) across the three datasets at IoU=0.5. Correct Incorrect 1 2 3 4 5       
+
+> Number of Feedback (n)
+> 0
+> 4
+> 8
+> 12
+> 16
+> 20
+> 24
+> 28
+> Recall@1, IoU=0.5
+> 0.4
+> 11.3
+> 20.2
+> 22.6 23.7 12345
+> Number of Feedback (n)
+> 0
+> 9
+> 18
+> 27
+> 36
+> 45
+> 54
+> Recall@5, IoU=0.5
+> 0.9
+> 26.2
+> 40.7 44.3 45.8
+
+Figure 7. Noisy Multi-Turn Feedback evaluation of our ReFo-cus(GroundNLQ) on Ego4D-QnF at IoU=0.5. Given an initial wrong feedback (red) followed by correct ones (blue), ReFo-cus(GroundNLQ) is able to recover in multi-turn setting. 
+
+0.5. Notably, incorporating feedback for these spans leads to larger gains (e.g., +12.77 R1@0.3 on Ego4D-NLQ and +13.57 R1@0.3 on GoalStep-Q) than those on the EM-QnF evaluation set reported in Table 1. These results indicate that ReFocus can effectively leverage feedback to correct its own high-confidence errors. 
+
+Multi-Turn Feedback Evaluation. Figure 4 in the main manuscript shows the multi-turn feedback results for IoU =0.3. Here, we also report the results for IoU = 0 .5. We report the average recall after 5 different samplings of n
+
+feedback instances for each NLQ. Figure 6 shows the multi-turn feedback evaluation on the three datasets: Ego4D-QnF, GoalStep-QnF, and HD-EPIC-QnF. We observe the same trend as in Figure 4: the first few rounds of feedback improve recall substantially, and perfor-mance then plateaus after the third or fourth feedback in-stance. These results further demonstrate that our approach can effectively leverage multiple rounds of feedback, even without training on sequential multi-feedback data. 
+
+Effect of Noise in Multi-Turn Feedback. We also study the effect of noisy feedback and evaluate whether our method can recover from it. To do so, we first provide incor-rect temporal feedback, i.e., feedback that points the model Ego4D-QnF GoalStep-QnF HD-EPIC-QnF      
+
+> IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5
+
+Method #F ∆R1 ∆R5 ∆R1 ∆R5 #F ∆R1 ∆R5 ∆R1 ∆R5 #F ∆R1 ∆R5 ∆R1 ∆R5                                                                                      
+
+> GroundNLQ 9898 0.42 6.59 0.18 3.22 6620 0.44 6.15 0.17 3.94 10069 0.22 4.53 0.06 2.11 ReFocus(GroundNLQ) 9863 2.72 16.42 1.40 9.64 6940 3.17 18.87 1.93 13.46 9874 1.51 12.70 0.65 6.52
+> Table 6. Model performance delta relative to its own failure cases with query only. Each method is test with user feedback for NLQs where the method fails (achieves R5, IoU=0.3 = 0) when only the NLQ is given.
+> Dataset #F/QIoU = 0.3 IoU = 0.5
+> ∆R1 ∆R5 ∆R1 ∆R5 Ego4D-NLQ 12620/3196 12.77 43.7 8.11 30.14 GoalStep-Q 9355/2341 13.57 44.55 10.04 34.86 HD-EPIC-Q 10319/2634 7.61 31.99 4.24 19.61 Table 7. Performance delta for ReFocus (GroundNLQ) with feedback generated from its own failure spans, relative to using query only. User feedback is generated using the recipe in 3.2, where feedback is constructed from top-1 predictions for queries where the model fails (R1@IoU=0.3 = 0). # F/Qdenotes number of feedback instances and number of incorrect queries.
+> IoU = 0.3 IoU = 0.5 Method R1 R5 R1 R5
+> Query-Irrelevant Reference Span
+> GroundNLQ 30.70 57.39 22.21 44.22 ReFocus(GroundNLQ) 34.09 61.03 24.42 47.32
+> ∆+3.39 +3.64 +2.21 +3.10
+> Query-Relevant Reference Span
+> GroundNLQ 18.29 40.77 12.44 30.00 ReFocus(GroundNLQ) 22.89 45.32 15.89 33.82
+> ∆+4.60 +4.55 +3.45 +3.82 Table 8. Impact of user feedback on NLQ with different reference span relevance on Ego4D-QnF dataset.
+
+in the wrong direction, and then follow it with correct feed-back. Figure 7 shows the ability of ReFocus(GroundNLQ) to recover from incorrect feedback on Ego4D-QnF. As expected, after the initial incorrect feedback, the model achieves less than 1% Recall. However, with subsequent feedback, the model recovers and reaches 22.6% Recall@1 after the third correct feedback, which is comparable to the non-noisy setting. Notably, although our model is never trained with incorrect feedback, it can still recover from such noise, demonstrating the robustness of our approach in realistic settings where users may some times provide er-roneous feedback. 
+
+Impact of Feedback by Reference Span Type. We an-alyze the impact of user feedback generated from differ-ent types of reference spans. As discussed in Sec. 3.2 and Sec. 6.7, we generate user feedback by sampling different reference span types. Query-relevant reference spans are either visually similar to the target response spans or cor-respond to incorrect top-1 predictions from an EM-NLQ model. Query-irrelevant reference spans are either response spans from other queries in the same video or randomly sampled spans. Table 8 compares the performance of GroundNLQ and our approach, ReFocus(GroundNLQ), on Ego4D-QnF for these two reference span types. Overall, performance is lower on examples with query-relevant reference spans than on those with query-irrelevant spans, since query-relevant spans are sampled from difficult NLQs for which the pre-trained EM-NLQ model fails to localize the correct re-sponse span. Notably, our approach improves performance in both settings, and the absolute gain over the EM-NLQ model without ReFocus is larger on the query-relevant sub-set than on the query-irrelevant subset. This suggests that our approach helps in both settings and is more effective at leveraging feedback from query-relevant reference spans, which may provide more disambiguating information than query-irrelevant ones. 
+
+Impact of Feedback by Query Template. Table 9 re-ports the performance of our method grouped by the query types defined in Ego4D [7]. We observe that user feedback yields the largest improvements for queries about objects rather than object locations. Interestingly, ReFocus keep or slightly degrades performance on queries about people and asking whom the user interacted with. As in earlier evalu-ations, ReFocus leads to substantially larger gains than the baselines on most query types. 
+
+ReFocus Ablation with Ground-Truth FALM Labels. 
+
+Here, we extend the ablation in Table 4 from Sec. 4.3. We consider several settings in which the EM-NLQ model is provided with ground-truth FALM pseudo-labels, used to train FALM, instead of the predicted FALM output P , to estimate the upper-bound performance of FALM. We eval-uate pseudo-labels derived from each of the three clause types extracted from the user feedback. Table 10 shows Object / place queries People queries Method Where is X before/ after Y? Where did I put X? Where is X? What did I put in X? How many X’s? In what location did I see X? What X did I Y? What X is Y? State? Who did I interact with during Y? OSGNet 20.5 -0.3 18.1 +1.0 15.8 -0.0 22.7 +0.7 26.4 +0.2 15.2 +1.0 28.3 +1.1 14.5 +0.6 28.5 -0.8 18.3 +0.9 
+
+ReFocus(OSGNet) 21.2 -0.0 19.5 +1.0 16.7 +2.1 25.4 +3.2 31.8 +3.6 15.8 +1.8 27.7 +3.4 19.1 +1.9 31.6 +1.8 22.6 -0.0 
+
+GroundNLQ 23.9 -0.9 21.9 +0.3 10.7 +0.1 23.8 -0.2 28.6 -0.4 9.6 +0.4 30.7 +1.0 16.3 +0.1 29.6 +1.6 19.8 +0.7 
+
+ReFocus(GroundNLQ) 25.5 +0.6 25.2 +3.3 12.2 +1.1 27.8 +4.7 31.4 +2.4 10.3 +0.9 34.3 +3.4 19.3 +1.5 33.4 +3.6 19.0 -1.0 
+
+Table 9. Evaluation with user feedback on different query types in Ego4D-QnF. Deltas ( ∆) of feedback vs query-only performance are shown as superscripts. 
+
+IoU = 0.3 IoU = 0.5 Method R1 R5 R1 R5 
+
+GroundNLQ 29.56 56.42 21.63 43.71 w. FALM 33.13 59.70 23.58 46.26 w. FALM C 31.08 57.95 22.26 44.52 w. FALM N 30.89 58.03 22.38 45.02 w. FALM T 32.29 59.41 23.23 46.40 w. GT FALM 40.93 68.92 30.55 55.73 
+
+w. GT FALM C 35.88 63.75 26.18 50.52 w. GT FALM N 34.62 63.09 24.99 49.57 w. GT FALM T 32.19 59.12 23.29 46.06 Table 10. Additional ablation on ReFocus(GroundNLQ). GT FALM denotes using ground truth FALM labels instead of pre-dicted ones. Evaluation results are on a subset of Ego4D-QnF containing all types of FALM labels (see Sec 3.3). Method Params(B) ↓ TFLOPs ↓ Inf. Speed ↑
+
+TimeChat [33] 7.97 238 0.45 UniTime [20] 8.29 142 0.07 OSGNet [5] 0.12 0.58 5.36 ReFocus(OSGNet) 0.14 0.61 4.92 GroundNLQ [11] 0.05 1.24 29.12 ReFocus(GroundNLQ) 0.08 1.64 23.52 Table 11. Efficiency comparison between different methods. Inf. Speed represents average inference speed in number of query (with/without user feedback) per seconds. We assume video fea-tures are pre-extracted for TimeChat and UniTime and both video and text features are pre-extracted for EM-NLQ methods. 
+
+these additional ablations for our proposed approach, Re-Focus(GroundNLQ). Compared to the trained FALM, using ground-truth con-tains and not-contains labels, Lc and Lk, yields larger gains than using ground-truth temporal labels. We also observe that trained and ground-truth temporal FALM achieve sim-ilar performance. As in the trained setting, combining sig-nals from all three label types leads to even higher perfor-mance. Comparing FALM with ground-truth FALM indi-cates that there is still room for improvement in modeling the feedback alignment signal, especially for the contains 
+
+and not-contains signals. 
+
+Efficiency Comparison. Table 11 compares the effi-ciency of the baselines and our approach. As expected, LVLM-based methods are inefficient, especially because they require multiple autoregressive forward passes to gen-erate new tokens. Notably, our approach is lightweight, adding only  ∼8% overhead to the inference speed of OS-GNet and  ∼20% to that of GroundNLQ, and the computa-tion cost and inference speed of our method is still much better than LVLM-based methods. 
+
+Additional Qualitative Results and Failure Cases. Fig-ure 8 shows examples in which the baseline GroundNLQ model fails, while our approach, ReFocus(GroundNLQ), correctly identifies the response span. In Figure 8(a), the baseline GroundNLQ fails to reason about temporal order and predicts a span before the reference span, despite feed-back indicating that the target occurs after it. Similarly, in Figure 8(d), GroundNLQ fails to incorporate the feed-back and predicts the same room as the reference span, even though the feedback states that this room is incorrect. These examples demonstrate our method’s ability to effectively use user feedback. Figure 9 shows failure cases of our method. In Fig-ure 9(a), our model uses the feedback to localize the cor-rect moment, but the predicted span is not well aligned with the ground-truth span. Figure 9(b) shows a case where the model overemphasizes feedback about signs and predicts a moment containing the sign but not the fire extinguisher. Figure 9(c) shows a case where the model fails to identify the correct object and seems to confuse a tuna can with bell peppers. User:  What did I put in the motorcycle? 
+
+User: Could you check right after this? I was 
+
+handling a part near the engine.  
+
+> Video  0:00 07:24
+
+Model : 04:16 to 04:24 
+
+> Reference Span
+> Ours
+> Ground Truth
+
+User: Did I move bowl before I picked spoon? 
+
+Model:  01:01 to 01:03 
+
+User: I am using a knife here, but I used the 
+
+bowl before picking up a spoon.  
+
+> 0:00 20:00
+
+Model: 09:02 to 09:05 
+
+User:  Where is trowel before I  fetched  plank? 
+
+Model:  00:58 to 01:01 
+
+User: The trowel wasn't with the plank when I 
+
+first handled it.  
+
+> 0:00 08:00
+
+Model: 00:03 to 00:07 
+
+Reference  Span ReFocus(GroundNLQ) GroundNLQ Ground  Truth 
+
+Model: 03:23 to 03:28 
+
+User:  In what room did I see the guitar? 
+
+User: I don’t think the guitar was in an office 
+
+with laptops  and conversations.  
+
+> Video  0:00 03:40
+
+Model : 02:54 to 02:56 
+
+> Reference Span
+> Ours
+> Ground Truth
+
+User: Where is the drill bit after I dropped it ? 
+
+Model:  06:45 to 06:48 
+
+User: The drill bit I'm looking for is a 
+
+standard size, not part of the circular saw.  
+
+> 0:00 08:00
+
+Model: 06:01 to 06:05 
+
+User:  What oil did I add to the pasta in the pot? 
+
+Model:  07:08 to 07:10 
+
+User: The oil was added while the pot was on 
+
+the stove, not after moving to the bowl.  
+
+> 0:00 07:38
+
+Model: 06:32 to 06:36 
+
+Model: 03:00 to 03:40                         
+
+> 07:08 07:10 07:09
+> 06:36 06:32 06:34
+> 06:31 06:33 06:34
+> 06:48 06:46 06:45
+> 06:05 06:01 06:03
+> 06:02 06:04 06:03
+> 03:10 03:24 03:40
+> 02:54 02:55 02:56
+> 02:55 02:53 02:54
+> 00:58 00:59 01:01
+> 00:03 00:04 00:07
+> 00:03 00:04 00:05
+> 01:03 01:02 01:01
+> 09:05 09:02 09:03
+> 09:02 09:04 09:03
+> 03:23 03:25 03:28
+> 04:16 04:21 04:24
+> 04:24 04:20 04:22
+
+Figure 8. Additional Qualitative Results. These examples show our method improving on the baseline. 
+
+GoalStep-QnF HD-EPIC-QnF 
+
+IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 
+
+Method R1 R5 R1 R5 R1 R5 R1 R5 
+
+OSGNet 14.5 +0.2 36.7 +0.7 10.0 -0.3 27.1 +0.7 5.3 +0.4 16.9 +0.7 2.4 +0.3 7.9 +0.3 
+
+ReFocus(OSGNet) 17.9 +3.6 42.0 +6.8 12.8 +2.5 32.4 +5.9 6.7 +2.2 18.6 +4.5 3.1 +0.9 8.6 +2.0 
+
+GroundNLQ 17.7 +0.5 42.2 +1.6 12.5 +0.4 31.4 +1.5 6.6 +0.2 21.3 +0.3 2.9 +0.2 10.7 +0.5 
+
+ReFocus(GroundNLQ) 20.7 +3.7 45.3 +5.0 14.5 +2.6 34.1 +4.3 8.2 +1.6 25.1 +4.2 3.8 +1.1 13.0 +2.6 
+
+Table 12. Zero-Shot evaluation of models trained on Ego4D-QnF and tested on GoalStep-QnF and HD-EPIC-QnF. Deltas ( ∆) of model performance with feedback vs query-only are shown as superscripts. 
+
+Zero-Shot Evaluation Results. In Table 12, we report additional recall metrics not included in the main zero-shot evaluation (Table 2) for different methods trained only on Ego4D-QnF and evaluated on GoalStep-QnF and HD-EPIC-QnF. We observe that ReFocus with GroundNLQ out-performs all other methods across all metrics and datasets in the zero-shot setting. As in the main results, ReFocus en-ables more effective use of user feedback, leading to larger gains across all recall metrics than the baseline without Re-Focus, even in the zero-shot setting. User: Where did I put the cabbage?               
+
+> User:I was or ganizing the fridge before this.
+> Could you check then?
+> Video  0:00 08:00
+> Mode l:01:30 to 01:33
+> Refer ence
+> Span
+> Ours
+> Gr ound
+> Truth
+> User:Where were the fi re extinguishers?
+> Mode l:17:48 to 17:52
+> User:I am looking for one with simple sign,
+> not bilingual sign. Look in main lab?
+> 0:00 20:00
+> Mode l:02:19 to 02:27
+> User:How many bell pepper did I put in bowl?
+> Mode l:00:13 to 00:23
+> User:Could you check after this? I put
+> the bell peppers in the bowl then.
+> 0:00 08:00
+> Mode l:07:36 to 07:56
+
+Refer ence Span ReFocus (Gr oundNLQ) Gr oundNLQ Gr ound Truth                
+
+> Mode l:03:04 to 03:06
+> 02:19
+> 17:48 17:50 17:52
+> 02:27 02:23
+> 12:23 12:24 12:23
+> 03:23 03:25 03:28
+> 01:30 01:32 01:33
+> 01:36 01:32 01:35
+> 00:13 00:18 00:23
+> 07:36 07:46 07:56
+> 00:52 00:57 01:02
+
+Figure 9. Additional Failure Cases. These examples show few failure cases of our method. 
+
+Ego4D-NLQ GoalStep-Q HD-EPIC-Q 
+
+IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 
+
+Method R1 R5 R1 R5 R1 R5 R1 R5 R1 R5 R1 R5 
+
+TimeChat 1.78 N/A 0.86 N/A 1.40 N/A 0.40 N/A 0.13 N/A 0.00 N/A UniTime 25.04 N/A 15.58 N/A 11.93 N/A 6.80 N/A 5.57 N/A 2.47 N/A OSGNet 29.22 55.89 20.03 42.57 29.62 59.24 24.18 51.84 14.43 37.77 9.51 25.14 ReFocus(OSGNet) 29.26 54.46 20.49 42.00 29.95 58.76 24.70 51.29 14.51 37.06 9.59 24.84 GroundNLQ 29.00 54.92 21.13 42.35 23.07 52.87 17.40 43.30 11.23 32.87 6.60 20.60 ReFocus(GroundNLQ) 29.77 55.03 21.44 42.29 21.90 50.80 16.70 41.30 12.10 34.17 7.03 21.70 Table 13. Performance comparison on NLQ-only datasets Ego4D-NLQ, GoalStep-Q, and HD-EPIC-Q. 
+
+Query Only Performance. In Table 13, we show the query-only performance of our approach compared to other baselines. For both GroundNLQ and OSGNet, we see sim-ilar performance with and without our approach ReFocus. In other words, our module (FALM) does not significantly change the performance of the base model when feedback is not available, which is desirable as we want to maintain the original performance of the base model on query-only cases. For both EM-NLQ models, our approach lead to sig-nificant improvements when feedback is available, as shown in Table 1. 
+
+6.3. Commercial LVLM Evaluation 
+
+We evaluate Gemini-2.5-flash to assess how effectively a state-of-the-art commercial LVLM can incorporate user feedback. In Table 3, we evaluate Gemini on a subset of queries for which GroundNLQ fails completely and report results on two of the three QnF datasets. Here, we provide the full table for the same evaluation in Table 14. We also present an additional evaluation in Table 15 on queries for which Gemini itself fails. Specifically, we first evaluate Gemini on a set of EM-NLQs and then select the examples for which it fails to localize the correct response span within its top-5 predictions using only the query. We then evaluate Gemini on these examples using user feed-back from our datasets. The resulting subset contains 204, 255, and 273 feedback instances for Ego4D-QnF, GoalStep-QnF, and HD-EPIC-QnF, respectively, out of 300 total feed-back instances per dataset. Table 15 shows the performance gains from adding user feedback over the query-only setting for Gemini-2.5-flash and our approach on this subset. While Gemini-2.5-flash shows gains similar to our model in Recall@1 at IoU =0.3 on Ego4D-QnF and HD-EPIC-QnF, our approach per-forms substantially better at Recall@5 and consistently bet-ter across all metrics on GoalStep-QnF. Comparing the gains in Table 3 with those in this new evaluation, we find that Gemini-2.5-flash improves less in Table 3. This suggests that Gemini-2.5-flash can be con-fused by user feedback in cases where it can already local-Ego4D-QnF GoalStep-QnF HD-EPIC-QnF 
+
+IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 
+
+Method R1 R5 R1 R5 R1 R5 R1 R5 R1 R5 R1 R5 
+
+Gemini-2.5-flash 15.7 +1.7 28.7 +0.7 8.7 +2.7 14.7 -1.3 8.7 +2.7 16.0 +1.0 2.7 +0.7 5.7 -1.3 6.7 +4.7 15.7 +6.7 3.3 +3.3 8.0 +4.0 
+
+ReFocus(OSGNet) 24.0 +3.0 46.7 +2.7 13.7 +2.7 29.0 +3.0 21.7 +2.7 53.7 +3.7 13.0 +3.0 35.7 +2.7 9.7 +1.7 39.3 +2.0 6.7 +1.7 21.3 +1.3 
+
+ReFocus(GroundNLQ) 8.7 +8.7 48.0 +48.0 4.7 +4.7 29.3 +29.3 9.7 +9.7 54.7 +54.7 4.0 +4.0 38.7 +38.7 4.3 +4.3 47.0 +47.0 2.0 +2.0 22.3 +22.3 
+
+Table 14. Performance comparison between Gemini-2.5-flash and Refocus(GroundNLQ) on a small 100 NLQ subset where ReFo-cus(GroundNLQ) fails with query-only but improves with feedback. 
+
+Ego4D-QnF GoalStep-QnF HD-EPIC-QnF 
+
+IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 IoU = 0.3 IoU = 0.5 
+
+Method ∆R1 ∆R5 ∆R1 ∆R5 ∆R1 ∆R5 ∆R1 ∆R5 ∆R1 ∆R5 ∆R1 ∆R5 
+
+Gemini-2.5-flash 8.8 18.6 4.9 8.3 3.5 9.0 1.2 3.1 4.4 13.2 2.2 6.6 ReFocus(GroundNLQ) 8.3 47.0 4.9 25.5 9.8 51.8 3.9 34.5 2.9 45.8 2.2 22.0 Table 15. Performance comparison with feedback on subset of NLQs where Gemini-2.5-flash fails with NLQ-only. 
+
+ize the correct response span from the NLQ alone. We also provide the prompts used with Gemini-2.5-flash for both the NLQ-only and NLQ-with-feedback settings in Figure 10. 
+
+6.4. Limitations and Future Work 
+
+Collecting user feedback for the EM-NLQ task is costly. In this work, we propose an effective method for synthesiz-ing feedback and training models for interactive EM-NLQ, yielding improved performance. However, the approach re-lies on LLMs to generate feedback, and some generated examples contain hallucinations that introduce noise into the training data. Reducing these hallucinations through stronger LLMs, better system design, or improved prompts could produce cleaner training data and further improve per-formance. Additionally, we generate feedback based on language descriptions of the reference and target spans. Incorporat-ing visual context from the corresponding video spans could enable more precise and visually grounded feedback, poten-tially improving feedback quality. However, this would sub-stantially increase computational cost because of the larger context required to process video input. Furthermore, although we show that our method can handle multiple rounds of feedback by modeling them in-dependently and combining them to form a strong base-line, we do not extensively study multi-turn user feedback in which later feedback may refine, correct, or depend on earlier feedback. Training a specialized method with order-aware state and belief tracking for multiple rounds of feedback could further improve performance. Future work could explore such approaches to build a more robust con-versational system. 
+
+6.5. Human User Feedback Collection 
+
+We collect human feedback from 11 users, who are asked to assume the role of a user issuing a query in the EM-NLQ task to recall a past activity. Given the query, the full video, and an incorrect reference span, the annotators are instructed to provide feedback that helps identify the cor-rect response span. We instruct annotators not to answer the query directly by referring to the correct response span and to avoid relying only on simple temporal feedback, such as searching before or after the current reference span. Fig-ure 11 shows the interface used to collect human user feed-back. 
+
+6.6. Query Generation for GoalStep and HD-EPIC 
+
+To evaluate our approach across diverse scenarios and ac-tivity types in egocentric video, we extend two popular datasets, Ego4D-GoalStep [34] and HD-EPIC [29], to be compatible with the EM-NLQ task and with our feedback-based setup. While Ego4D-NLQ [7] covers a wide range of daily activities, Ego4D-GoalStep contains structured, multi-step tasks driven by explicit goals, and HD-EPIC fo-cuses on kitchen-centered activities. Ego4D-GoalStep and HD-EPIC provide rich annotations, but they do not in-clude EM-NLQ style natural language queries or feedback. Therefore, first we augment these datasets with queries, then along with Ego4D, with feedback annotations such that we enable controlled evaluation on theses diverse cases for our model and the baselines. Next, we describe the query generation process for Ego4DGoalStep and HD-EPIC. For these datasets we leverage the provided text-based steps or narrations annotations. That is, we have a given set of text annotations {n1, n 2, ..., n m} and their correspond-ing video spans {s1, s 2, ..., s m} sorted by their timestamps Dataset Split #Q #V V Dur.(s) Rq Dur.(s) Ego4D-NLQ Train 13847 1271 529 11.3 Val 4552 415 548 10.75 GoalStep-Q Train 13849 606 1014 31.6 Val 1554 35 960 30.8 Test 3000 35 949 29.9 HD-EPIC-Q Train 13849 17 938 2.0 Val 1554 15 1053 2.2 Test 3000 15 1061 2.2 Table 16. Summary of EM-NLQ datasets characteristics for all splits, reporting the total number of queries Q, number of videos   
+
+> V, average video duration, and average response span Rduration in seconds.
+
+for a egocentric video V. Then, for each narration nx, we collect q textual NLQs Qx = {Qx, 1, Q x, 2, ..., Q x,q } with response span sx by prompting a Large Language Model (LLM), Qwen-3-8B [36], with previous, current, and next narration i.e. Qnx = LLM (nx−1, n x, n x+1 ). Addition-ally, we provide the LLM with the NLQ templates used in Ego4D-NLQ to collect annotations along with 8 in-context examples. Figure 12 shows an example showcasing the prompt used and the generated output. We refer to the query-extended version of these datasets as GoalStep-Q and HD-EPIC-Q, and Table 16 shows the statistics of these datasets along with Ego4D-NLQ across multiple splits. On average, we notice that these datasets have longer video duration compared to Ego4D-NLQ, and also have very different response span durations, allowing us to test the models on diverse scenarios. 
+
+6.7. Feedback Generation for All Datasets 
+
+In this section, we provide more details on the feedback generation process based on the recipe from Sec. 3.2. For an egocentric video V, a query Q, and a ground-truth re-sponse span Rq , we sample a reference span Rf and cap-tion both Rq and Rf to get textual descriptions Dq and Df ,respectively. We then generate an explanation Eq from Q
+
+and Rq . Finally, we generate user feedback F using Dq ,
+
+Df , Eq , and the relative temporal ordering between Rq and 
+
+Rf . Next, we describe each step in more detail. 
+
+Reference Span Sampling. We sample two different types of reference spans: query-relevant and query-irrelevant spans. We describe how we sample each of these type of reference spans below: 
+
+1) Query-Irrelevant Reference Spans : For a query Q
+
+with ground-truth response span Rq , we sample a random span Rf such that the temporal intersection-over-union sat-isfies tIoU (Rq , Rf ) = 0 . Random spans are generated by sampling a center timestamp and a span duration. The center timestamp is sampled uniformly from the egocentric video V, while the span duration is sampled from a beta distribution fitted to the min-max normalized response span durations in the Ego4D-NLQ training set. Additionally, for other queries Q′̸ = Q in the same video 
+
+V, we also consider their response spans R′f as query-irrelevant reference spans for Q when tIoU (Rq , R′f ) = 0 .
+
+2) Query-Relevant Reference Spans : We sample a ref-erence span ˆRf from the outputs of a pretrained EM-NLQ model. Specifically, we select the top-1 prediction ˆRq 
+
+> 1
+
+from the GroundNLQ [11] model pretrained on NaQ+NLQ [31] for queries where Recall@5, IoU=0.3 is 0. Furthermore, we also sample reference spans that are visually similar to the ground-truth span of Q but do not intersect with it. To do this, we create a set of candidate reference spans using a sliding-window proce-dure, where each span R′i contains the same number of d frames as Rq and uses a stride of ⌊d/ 4⌋, result-ing in R = R′1, R′2, . . . , R′m, where m is the total number of spans. We embed each candidate span using EgoVideo’s ViT-1B [28], averaging clip embeddings when 
+
+d exceeds the video encoder’s frame size, to obtain E(R) = 
+
+f1, f 2, . . . , f m, where fi denotes the embedding of R′i. Fi-nally, we select R′i∗ such that tIoU (Rq , R′i∗) = 0 and 
+
+cos( fr , f i ∗) is maximized, where fr is the embedding of the ground-truth response span Rq and cos( ·, ·) denotes co-sine similarity. 
+
+Span Captioning. For all response spans Rqi and Rfj , we use Qwen-2.5-VL-7B-Instruct [1] to generate captions Dqi
+
+and Dfj that describe the spans. We resize the video so that its shorter side is 480 px while preserving the aspect ratio. We then sample frames at 3 frames per second, up to a max-imum of 96 frames. For longer spans, we uniformly sample 96 frames instead. Figure 13 shows the prompt and an ex-ample output for response span captioning. The generated descriptions include detailed information about the video content, including the scene type, relevant objects and their attributes, and the interactions. 
+
+Response Span Explanation. Similar to span captioning, we use Qwen-2.5-VL-7B-Instruct [1] to generate an expla-nation Eqi from Rqi and Qi. These explanations add spe-cific details about why the response span answers the given query and are ultimately used during feedback generation to avoid answering the query directly. We resize the video and sample frames in the same way as for span captioning. Figure 14 shows the prompt and an example explanation for a response span. 
+
+Feedback Generation. Finally, we use the generated Dqi ,
+
+Dfj , and Eqi to generate user feedback. In addition to Dataset Split #F #(Rq , Rf ) #F/Q #Frel                                     
+
+> Ego4D-QnF Train 183490 46433 13.46 17739 Val 22071 14122 5.0 1913 GoalStep-QnF Train 131405 32829 9.51 17988 Val 7335 4691 5.0 594 Test 14083 9038 5.0 1178 HD-EPIC-QnF Train 117016 29801 9.14 16508 Val 7770 4973 5.0 630 Test 21418 9623 5.0 1258 Table 17. Statistics of the feedback datasets. For each split, we report the number of feedback (# F), the number of response span and reference span pairs from which feedbacks were generated as #( Rq,Rf), the average number of feedback per query (# F/Q ), and the number of feedback from query-relevant reference spans (# Frel ).
+
+these captions, we provide the relative temporal ordering between Rqi and Rfj to a reasoning LLM, Qwen-QwQ-32B-AWQ [35], which produces feedback Fi,j . We use a rea-soning LLM because generating effective user feedback re-quires non-trivial reasoning. For feedback generation, we sample five in-context ex-amples, prioritizing examples that share the same query template as the current query. We prompt the model to add more detail about the query subject, contrast the reference span with the target span, use the relative temporal order, or combine these cues to produce feedback. Figure 15 shows a truncated example prompt for feedback generation and its output. 
+
+Simple Temporal Feedback. In addition to the previ-ous feedback, we also generate simple temporal feedback, i.e., feedback that only indicates whether the model should search before or after the current reference span. This type of feedback doesn’t require complex reasoning and can be generated with simple templates based on the relative tem-poral order between the response span and the reference span. We sample this temporal user feedback from a pre-defined set of feedback statements such as ‘I think it was before this’ , ‘After this moment’ , or ‘look before this’ . We also use this type of feedback during training as a form of data augmentation. 
+
+Dataset Generation and Statistics. We sample 6 random reference spans per video Vi in the datasets. We addition-ally sample 5000 and 1000 query-relevant spans for the Ego4D-NLQ training and validation splits 1, respectively. For GoalStep-Q and HD-EPIC-Q, we sample 5000, 333, and 666 query-relevant spans for the training, validation, and test splits, respectively. For each query in Ego4D-NLQ, 
+
+> 1Ego4D-NLQ test set is private.
+
+we sample 3 reference spans to generate feedback, while we sample 2 for GoalStep-Q and HD-EPIC-Q. In all datasets and for each query Qi in the valida-tion and test splits, we sample five feedback instances: two from query-relevant spans when available, two from query-irrelevant spans, and one simple temporal feedback instance. Table 17 reports the statistics of the generated Ego4D-QnF, GoalStep-QnF, and HD-EPIC-QnF datasets. 
+
+Clause Extraction from Feedback. As described in Sec. 3.3, we use an LLM to extract 3 types of information: what the response span should contain, what it should not contain, and whether to search content before or after the current reference span. We use Qwen3-8B with in-context examples to extract the contains , not-contains , and tempo-ral clauses. Given the query Qi and its corresponding feed-back Fi,x , we prompt the LLM to decompose the feedback into these 3 clause types when they are present. Figure 16 shows the prompt and an example output. 
+
+6.8. Evaluation Setup 
+
+In this section, we provide additional details about the meth-ods used in our experiments. 
+
+TimeChat [33]: TimeChat uses video Q-Former along with timestamp aware frame encoders to align visual context with temporal information. TimeChat finetunes LLaMA-2 [38] using LoRA [12] on the TimeIT dataset on multiple tasks that require fine-grained temporal under-standing. We modify the existing temporal video grounding prompt slightly to add the reference span and user feedback information similar to the Gemini-2.5-flash prompt in Fig-ure 10. We evaluate TimeChat without any training on user feedback (zero-shot evaluation). 
+
+UniTime [20]: UniTime leverages dynamic scaling o spatial features, interleaves timestamp information with frames, and hierarchical inference strategy to handle long videos. UniTime finetunes Qwen2-VL [39] using LoRA on several temporal localization datasets notably NaQ [31] and Ego4D-NLQ [7] resulting in the best performance on Ego4D-NLQ among LVLM methods. We evaluate UniTime in both zero-shot and fine-tuned settings. To adapt UniTime to user feedback, we use a prompt that includes the reference span information along with the user feedback similar to the Gemini-2.5-flash prompt in Figure 10. For the finetuned setting, we finetune on all 3 EM-QnF datasets si-multaneously. We do so by sampling equal number of query and query with feedback samples for 1 epoch. 
+
+GroundNLQ [11] GroundNLQ uses multi-scale mod-ules to constructs the text-aware video feature pyramid and lightweight decoders to find and estimate moment bound-aries. In our experiments, we use global attention instead of local attention. To adapt the base model to feedback input, we simply concatenate the text features with prediction span and feedback features to form a new query representation. We use a GroundNLQ model pretrained on NaQ+NLQ [31] dataset and finetune with a learning rate of 10 −6 and a batch size of 16. 
+
+OSGNet [5] OSGNet is a state-of-the-art approach that integrates object features from CoDETR [48] to capture ob-ject information not represented with video features. It also uses shot level contrastive learning to understand the cam-era wearer’s attention from frequent movements inherent to egocentric videos. For our experiments, we use a OSGNet model pretrained on NaQ+NLQ and finetune on EM-QnF datasets. We follow the same concatenation with prediction span and feedback features to form a new query to adapt OSGNet to feedback data. We disable shot-level contrastive loss and finetune with a learning rate of 10 −4 and a batch size of 4. 
+
+Finetuning with User Feedback. We finetune all EM-NLQ models on both NLQ-only and user feedback data si-multaneously. For all experiments, we randomly sample equal number of NLQ-only samples and NLQ with user feedback samples per epoch. So across many optimization steps, each method is trained on equal share of NLQ-only and user feedback data from each of the datasets. We also generate simple temporal user feedback de-scribed in Sec 6.7 during finetuning. Each epoch, we gener-ate 20% of existing feedback data as these simple temporal feedback. User: 
+
+For the given first person video, I will ask you a question to recall my past activity. Can you provide me with a 
+
+moment in the video such that the answer to my question can be deduced from that moment? 
+
+Question: " What oil did I add to the pasta in the pot? ". 
+
+Provide your answer in the JSON list format: [{{"start_time": "MM:SS", "end_time": "MM:SS"}}]. 
+
+Answer top 5 most relevant moments in the video as a list of JSON objects sorted by relevance. (a) User: 
+
+For the given first person video, I will ask you a question to recall my past activity. Can you provide me with a 
+
+moment in the video such that the answer to my question can be deduced from that moment? I previously asked 
+
+the question and you provided a moment which is not the one that I am looking for. So, I will also give you 
+
+feedback based on this previous moment to help find the correct moment. I want you to use that feedback to 
+
+revise your answer. 
+
+Question: " What oil did I add to the pasta in the pot? ". 
+
+Previous predicted moment was start_time: 07:08 to end_time: 07:10. This moment is not what I am looking 
+
+for. 
+
+Feedback: " The oil was added while the pot was on the stove, not after moving to the bowl. ". 
+
+Provide your revised answer in the JSON list format: [{{"start_time": "MM:SS", "end_time": "MM:SS"}}]. 
+
+Answer top 5 most relevant moments in the video as a list of JSON objects sorted by relevance. 
+
+> (b)
+> Figure 10. Example prompts used with Gemini-2.5-flash. (a) shows inference with NLQ only. (b) shows inference with NLQ and user feedback.
+
+Figure 11. Human User Feedback Collection UI. Users were given a short tutorial and advised not to directly answer the question. User: 
+
+Help me generate natural language questions (NLQs) from narrations of daily activities. You will be given a 
+
+narration of an activity for which you will generate questions for, and optionally the previous and next 
+
+narrations for context. The questions should be focused on the activity or the objects involved in the narration, 
+
+and sometimes use the previous and next narrations to help you generate the questions. 
+
+Here are examples of good questions: 
+
+[IN-CONTEXT EXAMPLES] 
+
+Use the following  question templates  as guidance: 
+
+Where is object X before / after event Y? 
+
+Where is object X? 
+
+What did I put in X? 
+
+How many X's? (quantity question) 
+
+What X did I Y? 
+
+In what location did I see object X? 
+
+What X is Y? 
+
+State of an object 
+
+Where is my object X? 
+
+Where did I put X? 
+
+Who did I interact with when I did activity X? 
+
+Who did I talk to in location X? 
+
+When did I interact with person with role X? 
+
+For the given narration and context below, generate 1–3 relevant questions following the question templates and 
+
+the examples above. 
+
+Narration: add oil to pasta in pot 
+
+Previous narration: seive pasta 
+
+Next narration: serve food 
+
+Assistant (LLM): 
+
+What oil did I add to the pasta in the pot? Figure 12. Example prompt used to generate GoalStep-Q and HD-EPIC-Q datasets and output generated by Qwen-3-8B. Text after Assistant is generated output. We provide 8 in-context examples. System: 
+
+You are assisting a user with describing videos. The user will provide the video for you to describe. Your goal is to describe the video in detail such that your description can function as a replacement for the video itself. 
+
+User: 
+
+Describe the above first-person perspective video taken by someone wearing the camera on their head. Describe in detail: the location, every objects large or small in the video and their visual attributes, every interaction that occurs, and finally a summary. Be very specific about each objects or interaction you observe. Use different sections and lists to organize the description. 
+
+Assistant (LVLM): Location: 
+
+The video appears to be set in a small kitchen, likely within a home. The walls are light-colored, and there's a visible electrical outlet and a digital thermostat on the wall. The countertop is cluttered with various cooking utensils, ingredients, and appliances. 
+
+Objects: Cooking Area: A stovetop with multiple burners is present. On the stovetop, there are several pots and pans containing food. One pot has a wooden spoon resting inside it, another contains a yellowish mixture, possibly noodles or rice, and a third pot seems to have a soup or stew with vegetables. 
+
+Countertop Items: The countertop is crowded with items including a cutting board, a knife, a container of green vegetables, a bowl of what looks like chopped meat, a bottle of oil, a bag of flour, a jar of what might be spices, and a few other miscellaneous items. 
+
+Appliances: A coffee maker is visible on the counter, along with a kettle and a blender. 
+
+Electrical Outlet: A standard electrical outlet is mounted on the wall near the stove. 
+
+Digital Thermostat: A digital thermostat is also mounted on the wall next to the electrical outlet. 
+
+Window: There's a window with vertical blinds partially covering it, allowing some natural light into the room. 
+
+Trash Bin: A small trash bin sits on the counter near the stove. 
+
+Interactions: 
+
+The person filming is actively engaged in cooking. They are seen stirring the contents of one of the pots on the stove using a spoon. Their hand movements suggest they are mixing or checking the consistency of the food. 
+
+Summary: 
+
+The video captures a moment in a small, busy kitchen where someone is preparing a meal. The scene is dynamic, with the person cooking actively stirring the food in a pot on the stove. The kitchen is compact but functional, with various cooking tools and ingredients laid out on the counter. The overall atmosphere suggests an everyday cooking scenario, possibly in preparation for a meal. Figure 13. Example Span Captioning prompt and output generated by Qwen-2.5-VL-Instruct during user feedback generation. System: 
+
+You are assisting a user with describing videos. The user will provide the video for you to describe. Your goal is to describe the video in detail such that your description can function as a replacement for the video itself. 
+
+User: 
+
+The above first person perspective video taken by someone wearing the camera on their head. A query is asked by the camera wearer and the given video answers the given query: "What oil did I add to the pasta in the pot?". The video always answers the query. The query is always either about location of some object or action of some person or attribute of some object. First, explain why the video answers the query. After that: If the query is asking about the location of some object, describe the object and its features. If the query is asking about some action, describe the object manipulated by the person and the action. If the query is asking about some attribute of some object, describe the location of the object. If the query asks what object was placed in given location, describe details about the location and its surroundings. Section your answer into "Answer Explanation" and "Relevant Query Subject Details". 
+
+Assistant (LVLM): Answer Explanation: 
+
+The video answers the query because it shows the person adding oil to the pasta in a pot, which directly demonstrates the action of adding oil to the dish. 
+
+Relevant Query Subject Details: 
+
+The subject is the person who is cooking pasta. They are using a pot on the stove and adding oil from a bottle to the pasta inside the pot. The pot is located on one of the burners of the stove, and the person is holding the bottle of oil in their right hand while using a spoon to stir the pasta in the left hand. Figure 14. Example Response Span Explanation prompt and output generated by Qwen-2.5-VL-Instruct during user feedback generation. User: 
+
+We are trying to collect data for episodic memory task. The task is formulated as follows: 
+
+... 
+
+Here are the guidelines for providing feedback for this type of query: 
+
+Guidelines: 
+
+1.  Do not Answer the Query Directly.  The query is primarily asking for action of placing some object inside 
+
+location X. Do not provide any information about the object that was placed in the given location. 
+
+2.  Give Feedback as if You are Asking the Query.  Feedback should be either questions or first person focused 
+
+statements unless the query focuses on someone else. You should give feedback as if you are the person who is 
+
+asking the query and is looking for the correct video clip. 
+
+3.  Attributes of the Given Location.  Since the query is asking for what kind of object was placed in given 
+
+location X, you can provide any information about the given location, from its attribute to its surrounding objects. 
+
+4.  Contrast between the Video Clips.  Use memorable contrastive information about object or action that are 
+
+present/absent in the incorrect video clip but absent/present in correct video clip or the query. 
+
+5.  Relative Time.  You can use the relative time of the video clips to provide time related feedback but do not be 
+
+too specific. 
+
+... 
+
+Now, I will provide some examples of good and bad feedback for given query and the video descriptions. 
+
+[IN-CONTEXT EXAMPLES] 
+
+[RESPONSE SPAN DESCRIPTION] 
+
+[RESPONSE SPAN EXPLANATION] 
+
+[REFERENCE SPAN DESCRIPTION] 
+
+Query: What oil did I add to the pasta in the pot? 
+
+Relative Time between the two video clips: 
+
+Correct video clip occurs 0.85 minutes before incorrect video clip 
+
+Provide a short feedback similar to the previous examples. 
+
+... 
+
+Assistant (LLM): 
+
+<think> 
+
+Okay, let's tackle this problem step by step. 
+
+... 
+
+</think> 
+
+[{ 
+
+"feedback": "The oil was added while the pot was on the stove, not after moving to the bowl. Could you check 
+
+that part?", 
+
+"explanation": "It avoids revealing the oil type (Guideline 1), uses first-person focus (Guideline 2), contrasts 
+
+the location/action (Guideline 4), and implies a time when the pot was actively on the stove (Guideline 5).", 
+
+"guidelines_followed": "1,2,4,5" 
+
+}, 
+
+…
+
+]Figure 15. Example Feedback Generation prompt and output generated by Qwen-QwQ-32B-AWQ during user feedback generation. Prompt and output are truncated for brevity. User: 
+
+You are helping me generate clauses from a sentence given as feedback about a query action/object to be 
+
+searched in a video. 
+
+The query is first searched in a video to answer it. If the answer is wrong, I provide feedback about what is 
+
+wrong in the answer. 
+
+The feedbacks are created after a current incorrect answer/prediction is made find the query and feedback are 
+
+supposed to be used to improve the answer. 
+
+Your task is to extract simple information from the feedback to understand it. You will be given the query and 
+
+the feedback for that query. Your task is to extract clauses that either says what the answer to the query should 
+
+contain, what it should not contain, and temporal information regarding where to search before or after the 
+
+current prediction. 
+
+The feedback usually have 3 different types of information: 
+
+1. Some information related to the query action or object to be searched 
+
+2. Some information that should not be searched for 
+
+3. Temporal information regarding where the query action/object is located in the video  timeline (either before 
+
+or after or null if not specified) 
+
+Your job is to extract these 3 potential types of information from the feedback. Some feedback may not have all 
+
+3 types of information. 
+
+Here are some examples to help you understand the task: 
+
+[IN-CONTEXT EXAMPLES] 
+
+Now, please extract the clauses from the following feedback. If a type of information is not present, use null for 
+
+that field. Respond only with the JSON object containing the fields "contains", "not_contains", and "temporal". 
+
+Query: What oil did I add to the pasta in the pot? 
+
+Feedback: The oil was added while the pot was on the stove, not after moving to the bowl. 
+
+Clauses: 
+
+Assistant (LLM): 
+
+{
+
+"contains": "oil added while the pot was on the stove", 
+
+"not_contains": "moving to the bowl", 
+
+"temporal": null 
+
+}Figure 16. Example Clauses Extraction prompt and output generated by Qwen3-8B.
