@@ -1,0 +1,967 @@
+Title: GMGaze: MoE-Based Context-Aware Gaze Estimation with CLIP and Multiscale Transformer
+
+URL Source: https://arxiv.org/pdf/2605.00799v1
+
+Published Time: Mon, 04 May 2026 01:03:41 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# GMGaze: MoE-Based Context-Aware Gaze Estimation with CLIP and Multiscale Transformer 
+
+## Xinyuan Zhao 𝑎 , Yihang Wu 𝑎 , Ahmad Chaddad 𝑎,𝑏, ∗, Sarah A. Alkhodair 𝑐 , Reem Kateb 𝑑,𝑒 
+
+> a
+
+School of Artificial Intelligence, Guilin University of Electronic Technology, Guilin, China 
+
+> b
+
+The Laboratory for Imagery, Vision and Artificial Intelligence, École de Technologie Supérieure, Montreal, Canada 
+
+> c
+
+Information Technology Department, College of Computer and Information Sciences, King Saud University, Riyadh, Saudi Arabia 
+
+> d
+
+Department of Cybersecurity, College of Computer Science and Engineering, Taibah University, Medina, Saudi Arabia 
+
+> e
+
+Department of Networked Engineering, College of Computer Science and Engineering, Jeddah University, Jeddah, Saudi Arabia 
+
+A R T I C L E I N F O 
+
+Keywords :Gaze estimation Multi-scale fusion MoE transformer Domain adaptation 
+
+A B S T R A C T 
+
+Gaze estimation methods commonly use facial appearances to predict the direction of a person gaze. However, previous studies show three major challenges with convolutional neural network (CNN)-based, transformer-based, and contrastive language-image pre-training (CLIP)-based methods, including late fusion of image features, lack of factor-aware conditioning, and impractical capacity scaling. To address these challenges, we propose Globally-conditioned Multi-scale Gaze estimation (GMGaze), which leverages a multi-scale transformer architecture. Specifically, the model first introduces semantic prototype conditioning, which modulates the CLIP global image embedding using four learned prototype banks (i.e., illumination, background, head pose and appearance) to generate two complementary context-biased global tokens. These tokens, along with the CLIP patch and CNN tokens, are fused at the first layer. This early unified fusion prevents information loss common in late-stage merging. Finally, each token passes through sparse Mixture-of-Experts modules, providing conditional computational capacity without uniformly increasing dense parameters. For cross-domain adaptation, we incorporate an adversarial domain adaptation technique with a feature separation loss that encourages the two global tokens to remain de-correlated. Experiments using four public benchmarks (MPIIFaceGaze, EYEDIAP, Gaze360, and ETH-XGaze) show that GMGaze achieves mean angular errors of 2.49 ◦, 3.22 ◦, 10.16 ◦, and 1.44 ◦, respectively, outperforming previous baselines in all within-domain settings. In cross-domain evaluations, it provides state-of-the-art (SOTA) results on two standard transfer routes. The code is publicly available at https://github.com/AIPMLab/GazeFormer-MoE .
+
+## 1. Introduction 
+
+Appearance-based gaze estimation, which maps a monoc-ular RGB face image to a 3D gaze direction, plays a crucial role in applications such as augmented reality, accessibility, and behavioral analysis [ 1, 2, 3]. Despite many studies in controlled environments, deploying gaze estimation systems in real-world settings remains challenging due to the presence of nuisance factors, including illumination variations, head pose changes, and background clutter. These factors obscure subtle peri-ocular cues that are important for accurate gaze prediction, leading to degraded generalization performance across domains. To address these complexities, bio-inspired models like the Lobula Giant Movement Detector have been proposed to mimic human-like central fixation bias for robust sensing in open scenes [ 4 ]. Through a comprehensive review of existing literature, we identify three key challenges in current gaze estimation models. First, late fusion limits the interaction between high-level semantic features and fine-grained visual details, as multi-scale representations are typically merged at deeper layers (e.g. deep learning models). Second, the lack of factor-aware conditioning results in global image representations that are highly entangled, making it difficult to separate gaze-relevant information 
+
+> ∗
+
+ahmad8chaddad@gmail.com 
+
+> ORCID
+
+(s): 
+
+> 1
+
+Xinyuan Zhao, Yihang Wu and Ahmad Chaddad contributed equally to this work. 
+
+from environmental variations. Third, uniform capacity scaling leads to inefficient computation, as model capacity is increased indiscriminately rather than being dynamically allocated to more informative or complex visual tokens. However, these challenges are fundamentally caused by the limitations of existing architectural paradigms. For example, convolutional Neural Networks (CNNs) [ 5, 6 ]inherently introduce early information fusion due to their hierarchical structure, resulting in gaze-relevant cues to be entangled with identity and illumination factors. Similarly, transformer-based approaches [ 7] provide global information but lack prior-guided attention, as it allocates the same weight to all image regions, including irrelevant background areas. Recently, Contrastive Language-Image Pre-training (CLIP) based methods have introduced powerful semantic representations [ 8 ]. However, their approach relies on a single global embedding, which fails to distinguish between different contextual factors. Although domain adaptation techniques [ 9 , 10 ] aim to improve generalization, they operate on entangled representations, limiting their potential. Further-more, studies in wearable eye tracking [ 11 ] suggest that gaze estimators remain sensitive to real-world perturbations such as device shifts and calibration drift, highlighting the need for robust feature representations. To address these limitations, this study proposes GMGaze, a Mixture-of-Experts (MoE) based multi-scale transformer framework. Specifically, we introduce a semantic prototype conditioning mechanism that decomposes global 
+
+First Author et al.: Preprint submitted to Elsevier Page 1 of 15  
+
+> arXiv:2605.00799v1 [cs.CV] 1 May 2026 Short Title of the Article
+> Figure 1: Gaze visualization of the proposed GMGaze on unseen frames from public videos.
+
+CLIP embeddings into complementary, context-aware repre-sentations, enabling explicit factor-aware modeling. Further-more, we design an early unified token fusion strategy that integrates global, patch-level, and CNN features at the input stage, allowing cross-scale interactions from the beginning to mitigate the late fusion. In addition, we replace standard feed-forward networks with sparse MoE layers to achieve token-level dynamic capacity allocation, improving computational efficiency. To enhance cross-domain robustness, we incorpo-rate an adversarial domain adaptation strategy with a feature separation loss, encouraging the learned representations to remain disentangled during training. Figure 1 illustrates gaze visualization of the proposed GMGaze on unseen frames from public videos, highlighting the potential for real-world applications. The main contributions of this work are summarized as follows: 1. We propose GMGaze, a unified multi-scale transformer framework that integrates visual and semantic represen-tations for robust gaze estimation. 2. We introduce a semantic prototype conditioning mech-anism to decompose global representations into factor-specific components, improving interpretability and ro-bustness. 3. We design a token-level Mixture-of-Experts architecture for dynamic capacity scaling, enabling efficient and adaptive computation. 4. We develop a feature separation loss combined with adver-sarial adaptation to enhance cross-domain generalization, achieving state-of-the-art performance on multiple public benchmarks. This study further extends the Gazeformer-MoE pre-sented in our previous work [ 12 ] by introducing a feature separation loss to improve cross-domain performance. Fur-thermore, we include additional within-domain benchmarks, cross-domain experiments, qualitative visualizations, and comprehensive ablation studies to confirm the effectiveness of the proposed method. The remainder of this paper is organized as follows. Section 2 summarizes the related work for gaze estimation. Section 3 describes the gaze estimation task and details the proposed approach. Section 4 presents datasets, imple-mentation, and experimental results. Section 5 provides a comprehensive discussion and Section 6 summarizes the study. 
+
+## 2. Related work 
+
+Many studies provide comprehensive overviews of DL based gaze estimation, including single-user and multi-user settings, and have discussed model architectures, datasets, and remaining challenges [ 13 , 14 ]. In addition to pure regression models, in [ 15 ], they propose fusing top-down priors and low-level features to build robust vision models. Furthermore, in [ 16 ], they introduce bio-inspired approaches to estimate gaze positions in complex dynamic scenes such as driving, emphasizing low-cost hardware implementation. In this study, we focus on appearance-based single-user 3D gaze estimation and organize related work according to their primary architectural frameworks. 
+
+CNN based approaches. In [ 17 ], they propose the first deep appearance-based gaze estimation method with a 16-layer VGG deep convolutional neural network (GazeNet). The experimental results show that the proposed model outperforms SOTA baselines with large margins (e.g., 22%). Similarly to GazeNet, in [ 5 ], they use a CNN to extract features based on full-face images and then average the feature maps for gaze estimation. The experimental results show that it yields a lower error rate on both 2D and 3D benchmarks. In [ 6], they explore a CNN to extract both coarse-grained features from the face image and fine-grained features from eye images to predict gaze direction (CA-Net). Experiments show that CA-Net achieves the SOTA metric in MPIIGaze and EyeDiap datasets. In [ 18 ], they design a self-adversarial framework to purify gaze features (e.g., removing gaze-irrelevant factors such as illumination and identity) while using ResNet-18 to extract them (PureGaze). The experimental results show that it improves all unknown target domains, although it was only trained in the source domain. In [ 19 ], they augment the face images with different rotation angles, and use those images to generate sub-labels for unsupervised gaze adaptation tasks. This rotation consistency property helps the model to learn robust feature represen-tations. The experimental results demonstrate consistent improvement over the baseline model on four cross-domain gaze estimation tasks. In addition, in [ 20 ], they propose a plug-and-play gaze adaptation framework (PnP-GA) for generalizable gaze estimation. It introduces a collaborative learning strategy guided by outliers to effectively learn domain-invariant features. Similarly to PnP-GA, in [ 21 ], they propose a Personalized Causal Network (PCNet) for generalizable gaze estimation. It presents a “Disengage AND Integrate” perspective for handling personalized information,   
+
+> First Author et al.: Preprint submitted to Elsevier Page 2 of 15
+
+Short Title of the Article Pre-defined Text Prompts                   
+
+> Illuminations
+> "Afacewithbrightlight"
+> ...
+> "Afacewithshadows"
+> Backgrounds
+> "Afaceonbrightbackground"
+> "Afaceondarkbackground"
+> Head poses
+> "Afrontalface"
+> "Aprofileface"
+
+Face image
+
+CLIP Multi-Modal Feature Extraction 
+
+T patch
+
+> Global
+> Image
+> feature
+
+CNN feature extraction
+
+T cnn
+
+f 1
+
+f 2
+
+T patch
+
+T cnn
+
+> Td
+> Global
+> Image
+> feature
+
++
+
+Context
+
+seleciton
+
+f 2
+
+> ��1
+> ��1
+> ��1
+> ��1
+> ��1
+> ��1
+> Global
+> Image
+> feature
+
+Context
+
+seleciton
+
++
+
+f 1
+
+> Input
+> Text encoder Image encoder
+
+Mixture of Expert      
+
+> Sharedexperts
+> Routedexperts
+> GateExpert
+> …
+> Self-attentionSelf-attentionSelf-attention
+> Multi-headattention
+> Input projection
+> Transformer layer
+> ...
+> dz
+> dy
+> dx
+
+Gaze estimation
+
+> Transformer layer
+
+Left Middle 
+
+Right 
+
+Figure 2: Flowchart of GMGaze. Left : Pre-defined prompt banks (Illuminations, Backgrounds, Head poses, and Descriptions) are encoded by the frozen CLIP text encoder to initialize learnable semantic prototype banks. Middle : A CLIP image encoder outputs a global embedding and patch tokens; a CNN provides high-resolution local tokens. The semantic tokens T𝐼 1, T𝐻 1, T𝐵 1, and 
+
+T𝑑 encode key contextual dimensions: Illumination , Head pose , Background , and Description . Prototype similarity and discrete selection produce two conditioned global tokens 𝑓 1 and 𝑓 2, which are assembled with patch ( 𝑇 patch ) and CNN ( 𝑇 cnn ) tokens. Right :All tokens are projected to a unified dimension, concatenated, and processed by stacked transformer layers whose Feed-Forward Networks (FFN) are replaced by routed-and-shared MoE experts to predict the 3D gaze direction (𝑑 𝑥 , 𝑑 𝑦 , 𝑑 𝑧 ).
+
+leveraging causal intervention to capture subject-invariant features and an episodic prototype-based task to extract subject-specific features. Experiments on both in-domain and cross-domain settings demonstrate the usefulness of PCNet. However, the computation overhead of PCNet is considerable, which limits its deployment in real-world applications. In [ 22 ], they explore the usefulness of ResNet-18 in a test-time gaze adaptation setting. Specifically, the model learns a negligible number of parameters from the prompts. This allows it to adjust the feature extracted from the final layer of the gaze encoder without perturbing the original network. In [23 ], they propose a CNN-based facial profiling system that jointly estimates head pose, gaze, and eye state in a unified framework for facial and gaze comprehension. However, CNNs capture local features, which may not be sufficient to model subtle context-dependent cues necessary for accurate gaze estimation. 
+
+Transformer based approaches. In [ 7], they first introduce transformers (i.e., pure transformers and hybrid transformers) into gaze estimation tasks (GazeTr-Pure). The experimental results show that transformers can provide competitive performance compared to CNN models. In addition, in [ 24 ], they design a transformer-based model for egocentric gaze estimation. It has a novel global-local correlation module to explicitly model the vital connection between the global scene context and local visual information to localize gaze fixation. In [ 25 ], they propose a Dual-View Gaze Estimation Network (DV-Gaze) to address the limitations of single-camera gaze estimation by using a pair of images from dual cameras. Specifically, it employs a Dual-View Transformer that encodes camera poses to leverage the geometric relation-ship between the two gaze directions. However, transformers require more computational resources and training data compared to traditional CNN-based models. 
+
+CLIP based approaches. In [ 8], they propose a novel text-guided gaze estimation framework based on the CLIP model. Furthermore, it introduces a cross attention condenser designed to recalibrate visual and text representations. In 
+
+First Author et al.: Preprint submitted to Elsevier Page 3 of 15 Short Title of the Article 
+
+[ 26 ], they propose a novel differential contrast training strategy to enhance gaze estimation performance using a pre-trained CLIP (CLIP-DFENet). This method establishes a novel connection between languages and gaze differences of image pairs, using a network with a visual appearance-aware branch and a semantic difference-aware branch for robust feature extraction. In [ 27 ], they convert gaze labels into textual descriptions and use a CLIP to align the features between images and texts with gaze cues. Furthermore, they introduce a regression loss function based on image-text similarity to fine-tune the model. However, the global semantic features can not fully represent fine-grained spatial and angular relationships for gaze estimation. Unlike previous studies, this study proposes a novel hybrid framework for gaze estimation consisting of a CNN, a CLIP, and a transformer. In addition, it introduces an MoE module to enable the model to learn the dominant features. Furthermore, we introduce an adversarial adaptation method with a feature separation loss to improve the performance on cross-domain setting. 
+
+## 3. Methodology 
+
+We present GMGaze, a multimodal transformer that combines CLIP-driven semantic context, patch-level tokens, and CNN features to estimate 3D gaze directions. Figure 2 illustrates the general pipeline of the proposed model. The critical path for gaze estimation starts from the input image, which is processed in parallel by three branches: (1) a frozen CLIP vision encoder to extract global semantic features and patch tokens, (2) a semantic prototype bank to decompose global features into context-aware components ( 𝑓 1, 𝑓 2) via similarity-based conditioning, and (3) a ResNet backbone to extract high-resolution local CNN tokens. These multi-scale tokens are projected to a unified dimension, concatenated into a sequence, and then processed by a series of transformer layers. Each transformer layer employs a routed-and-shared Mixture-of-Experts (MoE) block to dynamically allocate computation based on token-level patterns, before a final regression head predicts the 3D gaze vector (𝑑 𝑥 , 𝑑 𝑦 , 𝑑 𝑧 ).
+
+3.1. Problem formulation 
+
+Given a face image 𝐼 ∈ ℝ𝐻 ×𝑊 ×3 , the task is to predict a 3D unit gaze vector 𝐠 ∈ ℝ3. We consider two complementary scenarios: within-domain and cross-domain evaluation. 
+
+Within-domain. Let 𝑖 be a pre-trained CLIP vision encoder and cnn be a trainable CNN (ResNet 50) backbone. From image 𝐼 , three types of features are extracted: 
+
+[ 𝑖 (𝐼 ) → 𝒇 global ∈ ℝ𝐷 𝑖 (𝐼 ) → 𝑻 patch ∈ ℝ𝑁 ×𝐷 𝑝 
+
+cnn (𝐼 ) → 𝑻 cnn ∈ ℝ𝑀 ×𝐶 −
+
+]
+
+⏟⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏟⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏞⏟  
+
+> Multi-scale feature extraction from image 𝐼
+
+(1) where 𝒇 global is the CLIP global embedding with a dimension of 𝐷 (e.g., 𝐷 = 512 for ViT-B/32), 𝑻 patch are 𝑁 CLIP patch tokens of dimension 𝐷 𝑝 (e.g., 𝐷 𝑝 = 768 ), and 𝑻 cnn are 
+
+𝑀 = 𝐻 ′𝑊 ′ tokens obtained by flattening the CNN feature map 𝑭 cnn ∈ ℝ𝐻 ′×𝑊 ′×𝐶 . 𝐻 ′ and 𝑊 ′ are height and width, respectively. 
+
+Cross-domain. We are given a labeled source domain 
+
+𝑠 = {( 𝐼 𝑖 𝑠 , 𝐠 𝑖 𝑠 )} 𝑁 𝑠  
+
+> 𝑖 =1
+
+and an unlabeled target domain 𝑡 ={𝐼 𝑗 𝑡 }𝑁 𝑡 
+
+> 𝑗 =1
+
+, where the data distributions 𝑠 and 𝑡 differ. The goal is to train a model on 𝑠 that performs well on the target domain 𝑡 . Our approach first aligns the domains via adversarial training and then refines the model using a small labeled subset (100 samples) of the target domain, which is obtained by shuffling the target set indices once with a fixed random seed and taking the first 100 as the supervised subset. 
+
+3.2. Context-aware semantic conditioning 
+
+The standard global embedding 𝒇 global from CLIP acts as a monolithic vector that entangles diverse semantic factors such as gaze-relevant cues (e.g., head pose) and nuisance variables (e.g., background clutter, extreme illumination), see Table .1. Using such an entangled representation directly for regression introduces negative correlations, where the model may overfit dominant, high-variance factors (e.g., lighting intensity) while ignoring subtle variations in the morphology of the eye region. This entanglement reduces the ability of the regression model to identify predictive gaze factors from environmental noise. To resolve this issue, we propose a semantic conditioning mechanism based on learnable proto-type banks. Theoretically, this approach aims to project the entangled 𝒇 global into factor-specific subspaces. By explicitly conditioning the global representation on distinct contextual priors (e.g., illumination vs. head pose), we reduce the mutual interference between conflicting semantic attributes. This acts as a soft disentanglement constraint, ensuring that 𝒇 1
+
+and 𝒇 2 provide complementary, low redundancy information to subsequent MoE layers. This allows experts to focus on task-relevant features instead of processing noisy mixed-distribution inputs. Specifically, we consider four distinct learnable banks, denoted as 𝑐 , each corresponding to a key context category 𝑐 : illumination (illum), head pose, background (bg), and description (desc). We designed a fixed vocabulary of descriptive phrases covering common variations in gaze estimation scenarios to formulate these pre-defined text prompts. For instance, the illum bank includes prompts such as “a face with bright light,” while the head pose bank contains “a frontal face” Similarly, the bg and desc 
+
+banks consist of generic context sentences (e.g., “ face on dark background”). Table 1 summarizes the text prompts used in this study. Each bank is represented as a matrix of learnable prototype vectors, which are initialized using the feature embeddings of these pre-defined text prompts, encoded by a frozen CLIP text encoder: 
+
+𝐏 =
+
+[𝐏 illum 𝐏 head  
+
+> 𝐏 bg 𝐏 desc
+
+]
+
+, 𝐏 𝑐 ∈ ℝ𝐷 ×𝐾 𝑐 , (2) where 𝐷 represents the feature dimension of the output of the CLIP visual encoder, and 𝐾 𝑐 is the number of prototypes in the bank 𝑐 . The sizes 𝐾 𝑐 for the four banks are 4, 2, 2 and 8 (i.e., the number of prompt phases defined in   
+
+> First Author et al.: Preprint submitted to Elsevier Page 4 of 15
+
+Short Title of the Article 
+
+Table 1), respectively. Given the normalized global CLIP vector ̂ 𝒇 global ∈ ℝ1× 𝐷 (𝑙 2 normalization), we compute its similarity to all prototypes using a softmax function with a hyperparameter 𝜏 :
+
+𝐒 = sof tmax 
+
+(
+
+𝜏 ⋅̂ 𝒇 global ̂ 𝐏 ⊤)
+
+=
+
+[𝑠 illum 𝑠 head 
+
+𝑠 bg 𝑠 desc 
+
+]
+
+, (3) where 𝑠 𝑐 ∈ ℝ1× 𝐾 𝑐 are the similarity scores for bank 𝑐 and ̂
+
+𝐏 is the column-normalized matrix of all prototypes. 𝜏 is the temperature coefficient. This hyperparameter serves as a scaling factor to modulate the sharpness of the probability distribution over the available prototypes. For each class, we employ a discrete selection mechanism to enforce a semantic bottleneck, preventing the model from averaging conflicting priors. To ensure differentiability across this discrete choice, we use the Straight-Through Estimator (STE) [ 28 ]. Despite the selection mechanism can be achieved using a soft-weighted fusion (i.e., expected value) of all prototypes within each bank, however, we argue that the prototypes in the proposed banks are designed to represent coarse and potentially conflicting contextual priors rather than continuous basis functions. The primary goal is to impose a semantic bottleneck and provide a dominant context cue for downstream MoE routing, rather than to reconstruct a continuous context manifold. Averaging multiple prototypes may combine these distinct semantic meanings and introduce noise variables. In contrast, hard selection preserves one dom-inant prior per bank in the forward pass, while STE ensures this discrete selection remains fully end-to-end trainable. Specifically, let 𝐞 hard  
+
+> 𝑐
+
+be the one-hot vector corresponding to the index of maximum probability in 𝐬 𝑐 . We formulate the selection vector 𝐞 𝑐 used for conditioning as: 
+
+𝐞 𝑐 = 𝐞 hard  
+
+> 𝑐
+
+− 𝐬 𝑐 .detach() + 𝐬 𝑐 (4) In the forward pass, the term (𝐬 𝑐 − 𝐬 𝑐 .detach()) evaluates to zero, so the output is effectively the hard selection 𝐞 hard  
+
+> 𝑐
+
+. In the backward pass, gradients propagate through the soft probabili-ties 𝐬 𝑐 since the hard term is detached. This mechanism allows the model to simultaneously update the prototype values (via the additive path) and refine the routing logic (via the simi-larity metric in Eq. 3) to select more task-relevant prototypes over time. The operator detach( ⋅) returns the same value in the forward pass but treats the variable as a constant during back-propagation. Consequently, the second term −𝐬 𝑐 .detach()+ 𝐬 𝑐 
+
+is numerically zero in the forward pass, ensuring the output 
+
+𝐞 𝑐 represents the hard one-hot selection 𝐞 hard  
+
+> 𝑐
+
+. During back-propagation, gradients flow exclusively through the last 𝐬 𝑐 
+
+alone without the detached branch. Specifically, the prompt vocabulary (i.e., actual textual words) and the CLIP text encoder are frozen. Furthermore, the CLIP prompts are used exclusively to extract the initial feature embeddings for the prototype banks 𝐏 without token-level prompt learning or text-encoder fine-tuning. During the subsequent training of the gaze estimation network, only the numerical prototype vectors in 𝐏 are learnable parameters. These vectors are updated via backpropagation to align with the specific gaze 
+
+Table 1 
+
+The predefined text prompt vocabulary used for prototype initialization. 
+
+Category Text Prompt Phrases 
+
+Illumination "a face with bright light", "a face with low light", "a face with shadows" 
+
+Head Pose "a frontal face", "a profile face" 
+
+Background "a face on bright background", "a face on dark background" 
+
+Description "A photo of a face looking left", "A photo of a face looking upper left", "A photo of a face looking up", "A photo of a face looking upper right", "A photo of a face looking right", "A photo of a face looking lower right", "A photo of a face looking down", "A photo of a face looking lower left" Gaze estimation     
+
+> Multi -head attention
+> …
+> Self -attention Self -attention Self -attention
+> Norm
+> …
+> Self -attention Self -attention Self -attention
+> Norm
+> Feed forward network (FFN)
+> Multi head attention
+> Multi head attention
+> Input token embeddings
+
+# +
+
+# +  
+
+> Norm
+> Input token embeddings
+> Multi -head attention
+> …
+> Self -attention Self -attention Self -attention
+> Norm
+> Multi head attention
+
+# +
+
+> Norm
+> Gating
+> Expert
+> (FFN 1)
+> Expert
+> (FFN n)
+
+... 
+
+# +     
+
+> Gaze estimation
+> dxdydzdxdydz
+> Feed forward network (FFN)
+
+Figure 3: (Left) : Example of dense transformer layer, which consists of multi head attention (MHA) followed by a FFN. 
+
+(Right) : MoE transformer layer in which a FFN block is replaced by a set of experts, which operate in parallel. The final prediction head ultimately yields the 3D gaze direction predictions ( 𝑑 𝑥 , 𝑑 𝑦 ,
+
+𝑑 𝑧 ). 
+
+dataset distributions, without changing the original textual semantics or the parameters within the CLIP backbone. 
+
+𝒇 1 = LayerNorm 
+
+(
+
+𝒇 global + [ 𝐏 illum ; 𝐏 bg ] [ 𝐞 illum ; 𝐞 bg ]
+
+)
+
+,
+
+𝒇 2 = LayerNorm 
+
+(
+
+𝒇 global + [ 𝐏 desc ; 𝐏 head ] [ 𝐞 desc ; 𝐞 head ]
+
+)
+
+.
+
+(5) For cross-domain setting, this separation is further en-forced during training by a feature separation loss (Sec-tion 3.6.1), which encourages 𝒇 1 and 𝒇 2 to be orthogonal, thereby maximizing their informational complementarity 
+
+First Author et al.: Preprint submitted to Elsevier Page 5 of 15 Short Title of the Article 
+
+3.3. Unified multi-scale token fusion 
+
+Since these features are extracted from different networks, they have different dimensions. Specifically, the global features are vectors, while the CNN and patch features are sequences with differing channel depths as follows. 
+
+⎡⎢⎢⎣
+
+𝒇 1, 𝒇 2 ∈ ℝ𝐵 ×𝐷 (𝐵, 512) 
+
+𝑻 cnn ∈ ℝ𝐵 ×𝑀 ×𝐶 (𝐵, 49 , 2048) 
+
+𝑻 patch ∈ ℝ𝐵 ×𝑁 ×𝐷 𝑝 (𝐵, 49 , 768) 
+
+⎤⎥⎥⎦
+
+(6) where 𝐵 is the batch size. To fit the input of the Transformer (i.e., the same feature dimension), we project these features into a unified dimension, 𝑑 model (e.g., 768 ), using separate linear layers: 
+
+𝒇 ′1, 𝒇 ′2 = Proj sem (𝒇 1), Proj sem (𝒇 2) ∈ ℝ𝐵 ×1× 𝑑 model 
+
+𝑻 ′ 
+
+> patch
+
+= Proj patch (𝑻 patch ) ∈ ℝ𝐵 ×𝑁 ×𝑑 model 
+
+𝑻 ′ 
+
+> cnn
+
+= Proj cnn (𝑻 cnn ) ∈ ℝ𝐵 ×𝑀 ×𝑑 model 
+
+(7) Note that for 𝒇 1 and 𝒇 2, we unsqueeze the explicit sequence dimension to be 1. Finally, we concatenate these features along the token (sequence) dimension to form the input sequence  ∈ ℝ𝐵 ×(2+ 𝑁 +𝑀 )× 𝑑 model for the Transformer: 
+
+ = Concatenate (𝒇 ′1, 𝒇 ′2, 𝑻 ′
+
+> patch
+
+, 𝑻 ′
+
+> cnn
+
+) (8) Specifically, the proposed fusion mechanism involves three distinct spatial granularities: (1) Global-scale tokens 
+
+𝒇 1 and 𝒇 2, derived from the CLIP image-level embeddings, which represent the entire facial context under different semantic conditioning; (2) Intermediate-scale tokens 𝑻 patch ,which retain a coarse spatial grid from CLIP patches and encode region-level semantic structures and (3) Local fine-scale tokens 𝑻 cnn , extracted from high-resolution CNN feature maps to preserve detailed peri-ocular textures and shading cues. 
+
+3.4. Mixture of Experts Transformer 
+
+In unconstrained gaze estimation, the intrinsic hetero-geneity of input samples poses a challenge for a standard dense Transformer, whose position-wise feed-forward net-work (FFN) applies the same computation to all tokens. Specifically, gaze samples may correspond to markedly different visual conditions, such as frontal well-lit faces, low-illumination scenes, or large head-pose variations. In our setting, the input sequence is also multimodal, as it concatenates prototype-conditioned semantic tokens with patch-level and CNN-based local visual tokens. These token groups reside in different statistical manifolds and may benefit from different computational pathways. To address this issue, we replace the dense FFN with a sparse Mixture-of-Experts (MoE) block, which enables token-wise conditional computation and allows different experts to specialize in different token patterns or environmental conditions. Figure 3 shows the differences between dense FFN and MoE. For clarity, we omit the batch dimension in the following derivation and describe the MoE operation for a single sample. Let the input sequence be 
+
+ = [ 𝐱 1, … , 𝐱 𝐿 ]⊤ ∈ ℝ𝐿 ×𝑑 , (9) where 𝐿 is the sequence length and each token 𝐱 𝑗 ∈ ℝ𝑑 
+
+denotes one semantic, patch, or CNN token. Routing is performed independently for each token. For the 𝑗 -th token, the router predicts a distribution over 𝐸 experts: 
+
+𝐫 𝑗 = sof tmax ( Gating(LayerNorm( 𝐱 𝑗 )) ) ∈ ℝ𝐸 . (10) A Top-𝐾 binary mask 𝐦 𝑗 ∈ {0 , 1} 𝐸 is then applied to retain only the selected experts, yielding sparse routing weights ̃
+
+𝐫 𝑗 = 𝐫 𝑗 ⊙ 𝐦 𝑗 . (11) Each expert is implemented as a position-wise FFN: 
+
+Expert 𝑖 (𝐱 𝑗 ) = 𝑊 2,𝑖 𝜎 (𝑊 1,𝑖 𝐱 𝑗 + 𝑏 1,𝑖 ) + 𝑏 2,𝑖 , (12) where 𝑊 1,𝑖 ∈ ℝ𝑑 f f ×𝑑 , 𝑊 2,𝑖 ∈ ℝ𝑑 ×𝑑 f f , and 𝜎 (⋅) denotes the activation function. The routed MoE output for token 𝐱 𝑗 is defined as: 
+
+MoE( 𝐱 𝑗 ) = ∑ 
+
+> 𝑖 ∈TopK( 𝐫 𝑗 )
+
+̃𝑟 𝑗,𝑖 Expert 𝑖 (𝐱 𝑗 ). (13) Applying this token-wise routing to all tokens yields the sequence output: 
+
+MoE( ) = [MoE( 𝐱 1), … , MoE( 𝐱 𝐿 )] ⊤ ∈ ℝ𝐿 ×𝑑 . (14) The MoE block is integrated into each Transformer layer after self-attention. MHA first concatenates information across semantic, patch, and CNN tokens: 
+
+MultiHead( ) = Concat 𝐻 ℎ=1 
+
+(𝐴 (ℎ)𝑊 (ℎ)
+
+> 𝑣
+
+)𝑊 𝑜 ,𝐴 (ℎ) = sof tmax 
+
+( 𝑊 (ℎ) 
+
+> 𝑞
+
+(𝑊 (ℎ) 
+
+> 𝑘
+
+)⊤
+
+√𝑑 ℎ
+
+)
+
+∈ ℝ𝐿 ×𝐿 , (15) where 𝐻 is the number of attention heads, 𝑑 ℎ = 𝑑 ∕𝐻 is the per-head dimension, and 𝑊 (ℎ) 
+
+> 𝑞
+
+, 𝑊 (ℎ) 
+
+> 𝑘
+
+, 𝑊 (ℎ) 
+
+> 𝑣
+
+∈ ℝ𝑑 ×𝑑 ℎ and 
+
+𝑊 𝑜 ∈ ℝ𝑑 ×𝑑 are learnable projections. Because  is orga-nized as modality blocks (𝒇 1, 𝒇 2, 𝑻 patch , 𝑻 cnn ), self-attention naturally enables cross-scale and cross-modal interactions before token-wise expert routing. Each Transformer layer adopts a pre-norm residual form and replaces the standard dense FFN with the MoE block: ̃
+
+ =  + MultiHead ( LayerNorm( )),
+
+ =̃  + MoE ( LayerNorm( ̃ )),
+
+(16) where ̃  indicates the intermediate representation after self-attention. Replacing the dense FFN with MoE increases conditional capacity while preserving residual connectivity and normalization stability. To make modality-aware special-ization explicit, we optionally constrain routing by a learnable modality-to-expert mask 𝐒 mod ∈ {0 , 1} mods× 𝐸 so that tokens   
+
+> First Author et al.: Preprint submitted to Elsevier Page 6 of 15
+
+Short Title of the Article 
+
+from a given modality preferentially activate a subset of experts: ̃
+
+𝐫 𝑗 ←̃ 𝐫 𝑗 ⊙ 𝐒 mod( 𝑗 ), (17) where mod( 𝑗 ) ∈ { 𝒇 1, 𝒇 2, 𝑻 patch , 𝑻 cnn } identifies the modal-ity of token 𝐱 𝑗 . This routed-and-shared design allows certain experts to specialize in modality-specific patterns while others remain shared across modalities. Furthermore, to improve routing and encourage more balanced expert usage, we employ Expert Dropout during training. Specifically, before applying the Top-𝐾 mask 𝐦 𝑗 ,we randomly remove a subset of experts with probability 
+
+𝑝 drop . This regularization helps the router to explore alter-native expert assignments and decreases over-fitting on a small subset of dominant experts. Overall, the self-attention layers provide dense cross-token fusion, while the MoE layers provide sparse token-dependent capacity allocation. Their combination ensures high-capacity and modality-aware processing within the unified multi-scale token sequence. 
+
+3.5. Prediction head and angular loss. 
+
+The Transformer output is pooled and mapped to a 3D vector ̂ 𝐠 . We train with an angular objective that is numerically stable and avoids explicit arccos computation [17]: 
+
+ang (̂𝐠 , 𝐠 ) = 1 − ̂ 𝐠 ⊤𝐠 
+
+‖̂ 𝐠 ‖‖ 𝐠 ‖ , (18) where 𝐠 is the ground truth. 
+
+3.6. Feature adaptation 
+
+3.6.1. Feature separation loss 
+
+To separate 𝒇 1 and 𝒇 2 and encourage complementary information, we introduce a feature separation loss: 
+
+sep = 1
+
+𝐵 
+
+> 𝐵
+
+∑
+
+> 𝑖 =1
+
+|||(̂ 𝒇 𝑖 
+
+> 1
+
+)⊤̂ 𝒇 𝑖 
+
+> 2
+
+||| , (19) where ̂ 𝒇 𝑖  
+
+> 1|2
+
+= 𝒇 𝑖 
+
+> 1|2
+
+∕‖𝒇 𝑖 
+
+> 1|2
+
+‖2 is the normalized feature vector. Minimizing sep penalizes the cosine similarity between the two normalized feature representations, thereby pushing ̂
+
+𝒇 1 and ̂ 𝒇 2 to orthogonal directions in the feature space. Geometrically, this acts as a soft orthogonality constraint, decorrelating the two branches by reducing feature redun-dancy and encouraging each branch to capture a distinct, complementary semantic subspace. This separation enhances the diversity of learned features and prevents both branches from encoding overlapping cues. 
+
+3.6.2. Adversarial domain adaptation 
+
+To align the feature distributions, we introduce a domain discriminator . The discriminator is a multi-layer perceptron (MLP) that takes the concatenated feature vectors 𝑠 |𝑡 =
+
+Concatenate (𝒇 1, 𝒇 2, 𝑻 patch , 𝑻 cnn 
+
+) as input and predicts a do-main label (e.g., 0 for source, 1 for target). The discriminator 
+
+ is trained to minimize the expectation 𝔼 of: Pre-defined Text Prompts     
+
+> Illuminations
+> Backgrounds
+> Head poses
+> Description
+> Source Domain
+> Target Domain
+> CLIP
+> Text Encoder
+> Image Encoder
+> f1
+> f2
+> Tpatch
+> T cnn
+> Domain
+> discriminator Source
+> GazeFormer-MoE
+> Transformer layer
+> Transformer layer
+> ...
+> Gaze estimation
+> Target
+> ？
+> Separate
+
+Figure 4: Overall training paradigm of cross-domain setting. During training, a domain discriminator is jointly optimized with the GMGaze to perform adversarial domain adaptation, reducing the distribution discrepancy between source and target domains. Meanwhile, the absolute cosine similarity between the two global semantic feature vectors ( 𝒇 1 and 𝒇 2) is minimized to separate them into orthogonal directions in the feature space, encouraging the model to learn more gaze-related and domain-invariant representations. Finally, the model yields the 3D gaze direction prediction ( 𝑑 𝑥 , 𝑑 𝑦 , 𝑑 𝑧 ). 
+
+ = − 𝔼 𝐼 𝑠 ∼𝑠 [log (𝑠 )]− 𝔼 𝐼 𝑡 ∼𝑡 [log(1− (𝑡 ))] (20) Simultaneously, the GMGaze  is trained with the fol-lowing objective: 
+
+adv = − 𝔼 𝐼 𝑡 ∼𝑡 [log (𝑡 )] . (21) where 𝔼 denotes the expectation, i.e., the average value computed over samples drawn from the corresponding source or target domain. Following [ 29 ], we implement this using a Gradient Reversal Layer (GRL). Figure 4 shows the procedure of the domain adversarial training and the proposed feature separation loss. 
+
+3.7. Overall training objective 
+
+Within-domain setting. The final training loss uses angular loss only: 
+
+total = ang (22) Algorithm 1 illustrates the within-domain training proce-dure for the GMGaze model. 
+
+Cross-domain setting. The final training loss combines all components: 
+
+total = ang + adv + sep (23) 
+
+First Author et al.: Preprint submitted to Elsevier Page 7 of 15 Short Title of the Article 
+
+Algorithm 1 Process within-domain training of GMGaze.                                                 
+
+> Require: Image 𝐼 , ground-truth gaze 𝐠
+> Ensure: Predicted gaze ̂𝐠
+> Extract CLIP global + patch tokens (𝒇 global ,𝑻 patch ) = 𝑖 (𝐼 )and CNN tokens 𝑻 cnn = Flatten( cnn (𝐼 ))
+> Compute prototype similarities 𝐒 (Eq. 3); select 𝑝 𝑐 = arg max 𝑠 𝑐
+> (hard routing; stop-gradient through selection) Form context-biased vectors 𝒇 1,𝒇 2(Eq. 5) Concatenate sequence using these features (Eq. 7, 8.)
+> for 𝓁 = 1 to 𝐿 do ̃
+> =+MultiHead (LayerNorm( )) (Eq. 15)
+> =̃+ LayerNorm( MoE (̃)) (Eq. 16, 13)
+> end for
+> Compute angular loss ang (Eq. 18); set total =ang (Eq. 22)
+> return ̂𝐠
+
+Algorithm 2 Process of cross-domain training for GMGaze.                                               
+
+> Require: Labeled source 𝑠 , unlabeled target 𝑡 , model , dis-criminator 
+> for each step do
+> Sample (𝐼 𝑠 ,𝐠 𝑠 ) ∼ 𝑠 ,𝐼 𝑡 ∼𝑡
+> Obtain 𝒇 1,𝒇 2,𝑻 patch ,𝑻 cnn for both domains (Eq. 3, 5) Project and build sequences 𝑠 ,𝑡 (Eq. 7, 8) Compute ang using 𝑠 (Eq. 18) Compute separation loss sep (Eq. 19) Compute (Eq. 20) and adv (Eq. 21) Update discriminator minimizing 
+> Update minimizing total =ang +adv +sep (Eq. 23)
+> end for
+
+Algorithm 2 illustrates the cross-domain training proce-dure for the GMGaze model. 
+
+## 4. Experiment 
+
+4.1. Datasets 
+
+We evaluate GMGaze on four widely used benchmarks, including the within-domain evaluation and cross-domain evaluation. 
+
+EYEDIAP (E, 𝐸 ). It derives from the video recordings of 14 subjects under the screen target session, one image was sampled every 15 frames—this process ultimately yielded a total of 50022 facial images [30]. 
+
+ETH-XGaze (Et, 𝐸𝑡 ). In ETH-XGaze, 756,540 images sourced from 80 subjects were used. The dataset itself com-prises over one million high-resolution images, encompassing diverse gaze directions, extreme head poses, and complex illumination conditions [31]. 
+
+Gaze360 (G, 𝐺 ). Gaze360 includes indoor and outdoor environments, which contains 3D gaze information spanning a broad range of head poses and distances—with a total of 238 subjects involved in the data collection process [32]. 
+
+MPIIFaceGaze (M, 𝑀 ). The MPIIFaceGaze dataset was collected in everyday life scenarios. It includes 15 participants, and each participant has 3000 image samples associated with them [33]. These datasets collectively cover a broad spectrum of conditions, including controlled indoor environments and un-constrained real-world scenes, thus facilitating the evaluation of various lighting, background and head position variations. As illustrated in Figure 5, the gaze angle distributions differ notably among datasets: some are centered around near-frontal views, whereas others present a much wider range of yaw and pitch angles. For Gaze360, we use the official training and testing sets. We follow the protocols in [14] for MPIIFaceGaze, EYEDIAP and ETH-XGaze. 
+
+4.2. Implementation details 
+
+The experiments were performed on NVIDIA RTX 4090 with PyTorch 2.4.1+cu124. The model uses a pre-trained CLIP [ 34 ] (with a frozen ViT-B/32 image encoder), a pre-trained ResNet-50 backbone, and a 12-layer MoE Transformer. The Transformer has a unified feature dimension (𝑑 model ) of 768, eight attention heads, and FFNs with a hidden size of 2048. The MoE module consists of four experts, with a Top-2 gating mechanism (two active experts per token). The two experts with the highest gating scores are selected for each token, while the other two can be considered shared, as they are available to all tokens. During training, we apply an Expert Dropout rate of 0.2 to encourage load balancing across the experts. Training uses the AdamW optimizer [ 35 ]with a learning rate scheduled by cosine annealing from 
+
+10 −4 to 10 −6 over 100 epochs. For with-in and cross-domain evaluations, we use a batch size of 128 and 64, respectively. For the proposed discriminator , all sequence-based features are first converted into fixed-length vectors via token-wise mean pooling. The resulting vectors are concatenated and projected by an MLP into a 960-dimensional latent space, followed by a two-layer classification head (linear layers with ReLU activation) to predict source or target domains, with a dropout rate of 0.3. Following the study in [ 14 ], we report the angular error based on a single run with a fixed random seed, which is empirically set to 0. The CLIP vision and text encoder are kept frozen during training, while we optimize the CNN backbone, the Transformer (self-attention, MoE router, and experts), the projection layers, and the learnable semantic prototype banks 𝐏 . Since prototype conditioning is implemented as hard selection in the forward pass (i.e., choosing the most similar prototype via arg max ), we introduce a Straight-Through Estimator (STE) to achieve back-propagation. 
+
+4.3. Experimental results 
+
+For both the with-in and cross-domain setting, since both the benchmark baselines and previous SOTA methods adopt single-run reporting without mean ±standard deviation, we follow the same setting for a consistent comparison. 
+
+Within-domain results. As reported in Table 2, our method achieves SOTA performance across all four within-domain benchmarks. For example, on the M/E datasets, the proposed model yields an angular error of 2.49 ◦/3.22 ◦, which is lower than the previous SOTA error of 3.5 ◦/4.5 ◦. On most challenging dataset G, the proposed model improves the angular error to 10.16 ◦ compared to previous SOTA (10.34 ◦).   
+
+> First Author et al.: Preprint submitted to Elsevier Page 8 of 15
+
+Short Title of the Article ETH-XGaze EYEDIAP MPIIFaceGaze Gaze360 
+
+Figure 5: Example for samples from the four benchmarks (EYEDIAP, Gaze360, ETH-XGaze, MPIIFaceGaze), showing diversity in illumination, head pose, background, and appearance ( First row ). 2D gaze direction distributions (yaw vs. pitch, degrees) for these datasets ( Second row ). Each point corresponds to a labeled gaze sample; the colormap encodes log-scaled sample density (warmer colors = higher frequency). 
+
+Table 2 
+
+Comparison of GE error (in degrees) on multiple datasets. 
+
+Methods Pub. Year Et G E M
+
+Gazenet [17] TPAMI 17 - - 6.79 ◦ 5.76 ◦
+
+FullFace [5] CVPR 17 7.38 ◦ 14.99 ◦ 6.53 ◦ 4.93 ◦
+
+Dilated-Net [36] ACCV 19 - 13.73 ◦ 6.19 ◦ 4.42 ◦
+
+Gaze360 [32] ICCV 19 11.04 ◦ 11.04 ◦ 5.36 ◦ 4.06 ◦
+
+CA-Net [6] AAAI 20 - 11.20 ◦ 5.27 ◦ 4.27 ◦
+
+AFF-Net [37] PR 2020 - - 6.41 ◦ 4.92 ◦
+
+GazeTR-Hybrid [7] ICPR 22 - 11.46 ◦ 5.44 ◦ 4.00 ◦
+
+GazeTr-Pure [7] ICPR 22 - 13.58 ◦ 5.72 ◦ 4.24 ◦
+
+GazeCLIP [8] arXiv 23 - - 4.70 ◦ 3.50 ◦
+
+GTiT -Hybrid [38] EAAI 23 - 11.20 ◦ 5.35 ◦ 4.11 ◦
+
+CLIP-DFENet [39] ICM 25 - 10.54 ◦ 4.97 ◦ 3.71 ◦
+
+SAZE [40] PR 24 - - 4.42 ◦ 3.89 ◦
+
+EG-Net [1] ESWA 24 - - 4.55 ◦ 2.76 ◦
+
+RAGE-net [41] EAAI 24 - - - 4.08 ◦
+
+PaCo [42] CVIU 24 - 10.27 ◦ 3.23 ◦
+
+ADGaze [43] PR 25 - 10.63 ◦ 4.67 ◦ 3.62 ◦
+
+ADGazeS [43] PR 25 - 10.63 ◦ 4.83 ◦ 3.83 ◦
+
+MCA-PGI [44] S. Reports 25 - 10.34 ◦ 4.58 ◦ 3.90 ◦
+
+FSIGaze [45] DISPLAYS 25 3.47 ◦ - 4.94 ◦ 3.47 ◦
+
+SLYKLatent [46] THMS 25 3.77 ◦ 10.70 ◦ - 3.77 ◦
+
+GazeSymCAT [47] JCDE 25 3.28 ◦ - 5.13 ◦ 4.11 ◦
+
+IGTGGaze [48] TIP 25 - 10.92 ◦ 4.56 ◦ 3.60 ◦
+
+OmniGaze [49] NeuIPS 25 9.12 ◦ 4.07 ◦ 2.97 ◦
+
+PCNet [21] TIP 25 4.00 ◦ - 4.50 ◦ 3.99 ◦
+
+Ours - 1.44 ◦ 10.16 ◦ 3.22 ◦ 2.49 ◦
+
+Notably, the largest performance increase appears on Et (from 3.28 ◦ to 1.44 ◦), consistent with our design goal of handling illumination and background diversity: unified multi-scale token fusion with routed and shared MoE markedly mitigates overfitting to studio-like lighting and captures fine periocular shading cues. Figure 6 shows qualitative prediction examples on the four benchmarks (with green representing the ground truth and red indicating predictions). As illustrated, our method exhibits a similar direction compared to the ground truth on E, Et , and M.
+
+Table 3 
+
+Comparison of gaze estimation (GE) error in degrees under cross-domain evaluation. Lower values indicate better performance. The best result is highlighted in bold. DG denotes domain generalization (no target-domain samples used), and FT denotes the number of target-domain samples used for fine-tuning. Part of the results are taken from [14]. 
+
+Methods Pub FT 𝐸𝑡 → 𝑀 𝐸𝑡 → 𝐸 𝐺 → 𝑀 𝐺 → 𝐸 
+
+FullFace [5] CVPR 17 0 11.13 ◦ 14.42 ◦ 12.35 ◦ 30.15 ◦
+
+CA-Net [6] AAAI 20 0 - - 27.13 ◦ 31.41 ◦
+
+PnP-GA [20] ICCV 21 100 6.00 ◦ 6.17 ◦ 5.74 ◦ 7.04 ◦
+
+RAT [19] CVPR 22 0 7.40 ◦ 6.91 ◦ 7.69 ◦ 7.08 ◦
+
+PureGaze [18] AAAI 22 0 9.28 ◦ 9.32 ◦ 7.08 ◦ 7.48 ◦
+
+RUDA [19] CVPR 22 100 5.78 ◦ 5.10 ◦ 6.88 ◦ 6.73 ◦
+
+CRGA-100 [50] CVPR 22 >0 5.68 ◦ 5.72 ◦ 6.09 ◦ 6.68 ◦
+
+Jitter-Gaze [51] Arxiv 22 100 5.35 ◦ 6.62 ◦ 7.18 ◦ 8.61 ◦
+
+CRGA [50] CVPR 22 >0 5.48 ◦ 5.66 ◦ 5.89 ◦ 6.49 ◦
+
+LatentGaze [52] ACCV 22 100 5.21 ◦ 7.81 ◦ -SAZE [40] PR 24 0 5.89 ◦ 10.3 ◦ 6.23 ◦ 7.86 ◦
+
+GHR-2D [53] EAAI 25 0 6.59 ◦ 8.05 ◦ - -PnP-GA+ [54] TPAMI 24 100 5.34 ◦ 5.73 ◦ 6.10 ◦ 7.62 ◦
+
+PCNet [21] TIP 25 0 6.55 ◦ 6.17 ◦ - -IGTGGaze [48] TIP 25 0 6.31 ◦ 7.28 ◦ 6.96 ◦ 7.11 ◦
+
+Ours (DG) - 0 5.23 ◦ 8.71 ◦ 5.97 ◦ 7.38 ◦
+
+Ours (FT) - 100 4.81 ◦ 7.99 ◦ 5.53 ◦ 6.90 ◦
+
+Cross-domain results. Table 3 shows that the proposed model achieves the best results on two cross-domain bench-marks, namely 𝐸𝑡 → 𝑀 (4.81 ◦, 0.53 ◦ lower compared to the previous SOTA) and 𝐺 → 𝑀 (5.53 ◦, 0.12 ◦ lower than PnP-GA). On 𝐺 → 𝐸 , the proposed model achieves a comparable angular error compared to CRGA (6.90 ◦ vs. 6.49 ◦ CRGA). This suggests that the proposed model is sensitive to the controlled but low diversity of the EYEDIAP backgrounds, whereas the CRGA explicitly regularizes using contrastive augmentation. The largest performance gap is on 𝐸𝑡 → 𝐸 (7.99 ◦ vs. 5.10 ◦ with RUDA). We attribute this to (i) prototype banks learned on ETH-XGaze over-emphasizing extreme head poses under complex lighting, causing the model to over-specialize in non-dominant features that degrade performance on EYEDIAP; (ii) limited target 
+
+First Author et al.: Preprint submitted to Elsevier Page 9 of 15 Short Title of the Article Eth-XGaze->EyeDiap  
+
+> Eth-XGaze->MPIIGaze Gaze360->MPIIGaze
+> Gaze360->EyeDiap
+
+Figure 6: Visualization of predictions in within dataset ( 1-2 row ) and cross-domain ( 3-4 row ) evaluation. Green arrows represents the ground truth, red arrows means the predictions. 
+
+Table 4 
+
+Impact of fusion strategies on Et, G, E and M datasets.                 
+
+> Fusion Strategy Angular Error ( ◦)Et GEM
+> Late Fusion 1.47 ◦11.11 ◦4.39 ◦3.33 ◦
+> Intermediate Fusion 1.58 ◦11.10 ◦4.34 ◦3.60 ◦
+> Early Fusion (Ours) 1.44 ◦10.16 ◦3.22 ◦2.49 ◦
+
+Table 5 
+
+Ablation study on different feature combinations. ✓ indicates the feature is used. Best result is highlighted with bold text.                                         
+
+> Feature combination Datasets
+> 𝒇 1𝒇 2𝑻 cnn 𝑻 patch Et GEM
+> ✓×××10.75 ◦28.43 ◦10.25 ◦7.66 ◦
+> ✓✓××10.40 ◦27.70 ◦10.15 ◦7.72 ◦
+> ✓✓✓×1.66 ◦10.92 ◦4.39 ◦3.20 ◦
+> ✓✓✓✓1.44 ◦10.16 ◦3.22 ◦2.49 ◦
+
+diversity makes adversarial alignment less stable. Figure 6 presents a visualization of cross-domain comparisons, and the results show that the proposed model provides a lower error rate on the target domain after the use of feature separation loss and domain alignment. 
+
+4.4. Ablation study 
+
+Fusion strategies. Table 4 reports the test metric on three different fusion strategies of the two prototype-conditioned global with visual tokens. Specifically, early fusion con-catenates {𝒇 ′1, 𝒇 ′2, 𝑻 ′
+
+patch , 𝑻 ′
+
+cnn } before the first Transformer 
+
+Table 6 
+
+Hardware complexity and efficiency analysis of GMGaze.                    
+
+> Metric Type Component / Metric Value Notes
+> Total Parameters 165.20 Frozen + Trainable
+> Frozen (CLIP Image Encoder) 86.00 Zero training memory overhead
+> Trainable (ResNet, MoE, Protos) 79.20 Updated via Backprop
+> Parameters (M)
+> Active for Inference 129.03 Sparse Activation (MoE)
+> Frozen CLIP Vision Encoder 17.50 Fixed feature extraction
+> ResNet-50 Backbone 4.12 Local feature extraction
+> MoE Transformer Core 5.52 Top-2 Routing
+> FLOPs (G)
+> Total Inference FLOPs 27.14 Full Pipeline
+
+layer (Eq. 8). Intermediate fusion performs fusion by cross-attention between semantic tokens and visual tokens in inter-mediate layers. Late fusion merges modality representations at the prediction stage. As reported, early fusion consistently provides the best metrics: G improves from 11.10/11.11 ◦ to 10.16 ◦ (∼0.95 ◦), E from 4.34–4.39 ◦ to 3.22 ◦ (∼1.1 ◦), and M
+
+from 3.33–3.60 ◦ to 2.49 ◦ (0.84–1.11 ◦). While, intermediate fusion (cross-attention) and late fusion are less effective due to the constraints on interaction and limited guidance on local peri-ocular cues during encoding. 
+
+Feature combination. We validate the contribution of each feature (e.g., 𝒇 1) on M, E, G and Et datasets. As reported in Table 5, using 𝒇 1 alone fails to capture dominant gaze features and results in a higher error rate of 7.66 ◦ on the M dataset. Furthermore, introducing 𝑻 cnn considerably improves the performance of the model, resulting in error rates of 3.20 ◦
+
+and 10.92 ◦ on the M and G datasets, respectively. Finally, combining all features yields the lowest error rate on all datasets (e.g., 10.16 ◦ on the G dataset). These results confirm the usefulness of these combined features. 
+
+First Author et al.: Preprint submitted to Elsevier Page 10 of 15 Short Title of the Article                               
+
+> Table 7
+> Comparison of model complexity across different gaze esti-mation methods. "Hybrid" indicates models that combine CNN and MoE transformer and CLIP, while "Trans." refers to Transformer-based models. Parameters are reported in millions (M) and FLOPs in giga (G).
+> Method Params (M) FLOPs (G) Backbone
+> FullFace [5] 196.60 2.99 CNN RT-GENE [55] 82.00 30.81 CNN Dilated-Net [36] 3.90 3.14 CNN Gaze360 [32] 14.60 12.78 RNN CA-Net [6] 34.10 15.60 CNN GazeTR-Pure [7] 227.3 58.32 Trans. Vanilla CapsNet [7] 11.80 2.50 CNN GazeCapsNet [56] 11.70 1.82 CNN
+> Ours 129.03 27.14 Hybrid
+
+Complexity and efficiency analysis. Table 6 summarizes the computation overhead of GMGaze. As reported, although GMGaze has a total of 165.20 M parameters, its improved performance is not the result of increasing the training load. Instead, we froze the CLIP image encoder to leverage its robust global semantic priors. This resulted in a feasible trainable parameter of 79.20 M within the CNN backbone and the sparse transformer layers of the MoE. This ensures that the model remains highly adaptable to gaze-specific features without incurring the overhead of a fully dense architecture. For inference cost, although the frozen CLIP and ResNet branches contribute largely to the inference load (e.g., approximately 79.7% of the total 27.14 GFLOPs), the MoE Transformer introduces a relatively small overhead of 5.52 GFLOPs. Specifically, the Top-2 expert routing mechanism ensures that for any input token, only a sparse subset of the available parameters is activated. This results in a lower inference cost, effectively reducing the impact of trainable experts during inference. 
+
+Comparison of model complexity. We evaluate the model complexity of our GMGaze against various existing methods using different architectures. As summarized in Table 7, while lightweight models like Dilated-Net and GazeCaps show minimal parameters and FLOPs, their performance is constrained by limited representation capacity. Conversely, transformer-based models such as GazeTR-Pure exhibit sig-nificant computational overhead (227.3M Params and 58.32 GFLOPs). Unlike these methods, by leveraging a hybrid architecture with 129.03M parameters and 27.14 GFLOPs, GMGaze achieves a reasonable trade-off. It provides a lower GE error than lightweight baselines while maintaining higher efficiency compared to transformers. 
+
+Semantic prototype conditioning. Table 8 reports the angular error for semantic prototype conditioning. Freez-ing the prototypes after CLIP-prompt initialization consis-tently increases the error on G/E/M (e.g., 10.16 →11.36 ◦,3.22 →4.33 ◦, 2.49 →3.41 ◦), indicating that prompt semantics alone are insufficient to capture dataset-specific gaze patterns and supervision signals. Moreover, making the prototypes                       
+
+> Table 8
+> Ablation on semantic prototype conditioning. Frozen keeps prototype banks fixed after CLIP-prompt initialization; Random init uses learnable prototypes initialized randomly.
+> Setting Prototypes Init Et GEM
+> Ours learnable CLIP prompts 1.44 ◦10.16 ◦3.22 ◦2.49 ◦
+> w/ frozen prototypes frozen CLIP prompts 1.49 ◦11.36 ◦4.33 ◦3.41 ◦
+> w/ random init learnable random 1.52 ◦11.22 ◦4.38 ◦3.37 ◦
+
+learnable but randomly initialized further degrades perfor-mance (e.g., E: 3.22 →4.38 ◦), suggesting that merely introduc-ing additional parameters does not guarantee effective mod-eling. Furthermore, this study does not consider techniques such as fine-tuning the entire CLIP text encoder or applying continuous prompt tuning (e.g., CoOp [ 57 ]), since they can degrade the zero-shot ability of CLIP and introduce large GPU overhead. Thus, the proposed approach, freezing the text backbone and optimizing only the initialized continuous prototypes 𝐏 , optimally balances semantic prior exploitation with robust task-specific adaptation. Overall, learnable CLIP-initialized prototypes provide more informative contextual biases in 𝒇 1, 𝒇 2, which in turn facilitates downstream feature fusion and MoE specialization. 
+
+Robustness under Image Degradations. Table 9 reports the Mean Angular Error (MAE) of GMGaze under various common image degradations, such as Gaussian blur, low resolution, and occlusion (Cutout). Compared to the ResNet-50 baseline and GazeTR, GMGaze consistently yields the lowest MAE across all tested settings. Particularly under occlusion, GMGaze provides an MAE of 4.88 ◦, outperform-ing ResNet-50 (6.27 ◦) and GazeTR (5.64 ◦). This suggests that the robust global semantic priors provided by the pre-trained CLIP vision encoder and the adaptive expert selection mechanism enable the model to efficiently handle corrupted or incomplete input signals in real-world environments. 
+
+Module interaction Table 10 reports the angular error resulting from interaction configurations between SPC and MoE in GMGaze. Adding MoE alone reduces within-domain error on 𝐸 (5.53 ◦ to 4.33 ◦) but decreases the performance on cross-domain ( 𝐸𝑡 → 𝐸 , error 9.96 ◦), indicating MoE overfits to domain-specific features without guidance. Furthermore, the use of SPC improves cross-domain general-ization (9.07 ◦ to 8.61 ◦) but slightly degrades within-domain performance. Finally, combing SPC with MoE achieves the best performance: 3.22 ◦ (within-domain) and 7.99 ◦ (cross-domain), confirming SPC acts as a semantic anchor to prevent MoE overfitting and enable generalized gaze representations. 
+
+MoE module. Table 11 reports the angular error for with and without MoE module. The use of MoE leads to a lower angular error compared to without MoE (e.g., 2.49 ◦ vs. 4.20 ◦). These results highlight the potential of using MoE in transformer model. Figure 7 illustrates the expert utilization across the four datasets. 
+
+Learning rates. Figure 8 shows the error rates with various learning rates. Setting the learning rate to 10 −4 leads to the best performance. Both larger and smaller learning rates reduce the performance.   
+
+> First Author et al.: Preprint submitted to Elsevier Page 11 of 15
+
+Short Title of the Article 
+
+Figure 7: Comparison of MoE expert load across datasets (within-domain setting). Top : selection proportion (percentage of token assignments per expert). Bottom : normalized weight proportion (sum of gating weights per expert, normalized). 
+
+Table 9 
+
+Robustness evaluation under various synthetic image degrada-tions on the MPIIFaceGaze dataset. Results are reported in Mean Angular Error (MAE) ( ◦).                  
+
+> Model Clean Image Gaussian Blur Low Resolution Occlusion (Cutout)
+> ResNet-50 [5] 4.12 ◦4.87 ◦5.62 ◦6.27 ◦
+> GazeTR ◦[7] 4.00 ◦4.60 ◦5.08 ◦5.64 ◦
+> GMGaze (Ours) 2.49 ◦3.19 ◦3.75 ◦4.88 ◦
+
+Table 10 
+
+Analysis of module interactions between Semantic Prototype Conditioning (SPC) and Mixture of Experts (MoE) on both within-domain ( 𝐸 ) and cross-domain ( 𝐸𝑡 → 𝐸 ) setups.                         
+
+> Modules Angular Error ( ◦)SPC MoE Within ( 𝐸 )Cross ( 𝐸𝑡 →𝐸 )
+> ××Baseline 5.53 ◦9.07 ◦
+> ✓×+SPC only 5.78 ◦8.61 ◦
+> ×✓+MoE only 4.33 ◦9.96 ◦
+> ✓✓GMGaze 3.22 ◦7.99 ◦
+
+Feature separation loss. As reported in Table 12, the feature separation loss reduces the average angular errors of the four cross-domain transfer routes. For example, the angular error on 𝐸𝑡 → 𝑀 decreases from 8.42 ◦ to 4.81 ◦, and on 𝐺 →
+
+𝐸 , the angular error decreases from 9.57 ◦ to 6.90 ◦. These results suggest that the feature separation loss effectively re-duces the correlation between 𝒇 1 and 𝒇 2, enabling prototype conditioning to provide more complementary information flow. Consequently, it assigns clearer signals to MoE experts during the domain alignment and routing stages, thereby enhancing cross-domain generalization ability. 
+
+Table 11 
+
+Angular errors of with MoE and without MoE.             
+
+> MoE Datasets Et GEM
+> +1.44 ◦10.16 ◦3.22 ◦2.49 ◦
+> w/o 4.38 ◦10.72 ◦5.78 ◦4.20 ◦
+
+Table 12 
+
+Test angular error under cross-domain setting for with and without feature seperation loss.                        
+
+> Datasets
+> 𝐸𝑡 →𝑀 𝐸𝑡 →𝐸 𝐺 →𝑀 𝐺 →𝐸
+> +4.81 ◦7.99 ◦5.53 ◦6.90 ◦
+> w/o 8.42 ◦9.96 ◦7.03 ◦9.57 ◦10 -3 10 -4 10 -5 10 -6 10 -7
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> 12
+> 14
+> 16
+> 18
+> Mean angular error ( °)
+> Learning rate
+> MPIIFaceGaze
+> Gaze360
+> EyeDiap
+> ETH-XGaze
+
+Figure 8: Ablation study of learning rate’s effect on mean angular error across datasets M, E, G, and Et. 
+
+## 5. Discussion 
+
+Comparing with SOTA. Based on the results as summa-rized in Table 2 and Table 3, we observe that coupling CLIP-aligned prototype conditioning with unified multi-scale token fusion and a MoE module learns more gen-eralizable appearance-based gaze estimation under illumi-nation, pose, and background shift. Notably, it achieves 2.49 ◦, 3.22 ◦, 10.16 ◦, and 1.44 ◦ on datasets M, E, G, and 
+
+Et respectively. Furthermore, ablation studies confirm that the performance gains are not simply relying on parameter scaling, as prototype-conditioned global tokens alone remain weakly constrained (errors above 7 ◦, 10 ◦, 28 ◦, and 10 ◦ on the four datasets), indicating that coarse semantic priors without fine spatial structure fail to capture critical periocular micro-texture and shading cues. Introducing high-resolution CNN tokens reduces this gap (e.g., M, from 7.66 ◦ to 3.20 ◦), and the use of CLIP patch tokens delivers a further refinement ( M,from 3.20 ◦ to 2.49 ◦; E, from 4.39 ◦ to 3.22 ◦), suggesting that low-level texture, mid-level semantic structure, and prototype-guided context are complementary when co-attended within a single sequence space rather than fused late. 
+
+Fusion and prototype ablations. The results as reported in Table 4 and Table 8 further support the proposed de-signs. For example, early fusion (Table 4) provides the best performance across all four datasets, indicating that 
+
+First Author et al.: Preprint submitted to Elsevier Page 12 of 15 Short Title of the Article  
+
+> Figure 9: Example of failure cases from cross-domain setting using the EYEDIAP as target domain.
+
+injecting the two context-biased tokens early is more effective than late fusion via cross-attention or merging only at the prediction stage.This is consistent with the goal of using the global context to guide the generation of local tokens within the Transformer. Furthermore, prototype conditioning benefits from both CLIP-aligned initialization and end-to-end adaptation (Table 8): freezing prototypes or using random initialization degrades performance, especially on diverse datasets (G/E/M), suggesting that prompt semantics provide a useful prior but require to be tuned to dataset-specific patterns under gaze supervision. 
+
+Simple FFN vs. MoE. Removing MoE produces uniform performance degradation (e.g., Et , from 1.44 ◦ to 4.38 ◦), sug-gesting that a single dense FFN underfits rare, illumination-perturbed or high-yaw sub-distributions and overfits domi-nant frontal well-lit modes. Despite the remarkable perfor-mance of the MoE, it introduces practical trade-offs: routing variance and potential tail latency under unbalanced expert loads, and sensitivity to the load-balancing coefficient (if mis-tuned, reduces capacity where extreme yaw or deep shadow samples would benefit). Furthermore, the discrete prototype selection used in our study (argmax with learnable temperature) helps sharpen semantic routing and avoid noisy soft mixtures. However, it imposes a finite granularity that may under-represent continuous illumination gradients or composite mixed-spectrum indoor–outdoor transitions. 
+
+Feature separation loss. Introducing the feature separation loss (Eq. 19) consistently reduces the correlation between the two global vectors and improves cross - domain routing clarity (Table 12), suggesting the loss helps prototypes provide more complementary signals to MoE experts; nevertheless, its hyperparameter sensitivity and the extent to which it mitigates source bias require further sensitivity analysis. 
+
+Cross-domain. Table 3 shows that improvements are selective: the proposed model achieves lowest errors on 
+
+𝐸𝑡 → 𝑀 (4.81 ◦) and 𝐺 → 𝑀 (5.53 ◦), while it yields comparable or worse metrics on 𝐺 → 𝐸 (6.90 ◦ vs. 6.49 ◦
+
+with CRGA) and 𝐸𝑡 → 𝐸 (7.99 ◦ vs. 5.10 ◦ with RUDA). These mixed results indicate that the proposed model are robust when adapting into the more heterogeneous target 
+
+𝑀 , yet adapts less effectively when the target is the more controlled 𝐸 , where a narrower appearance distribution appears to expose over - specialization of prototypes learned on 𝐸𝑡 or 𝐺 . The larger gap on 𝐸𝑡 → 𝐸 suggests that argmax prototype selection with adversarial adaptation is insufficient to narrow the distribution shifts between a wide - pose, illumination - rich source and a low - diversity, lab-style target. 
+
+Analysis of failure cases. As illustrated in Figure 9, rep-resentative failure cases under cross-domain setting (target domain: 𝐸 ) reveal the boundary conditions of our semantic prototype conditioning. Qualitatively, prediction errors are predominantly concentrated in samples characterized by extreme upward pitch angles or insufficient facial illumi-nation where ocular details are heavily obscured. In cases involving extreme pitch, the periocular morphology exhibits geometric distortion that occasionally exceeds the range of representation of the proposed pre-defined pose prototypes. As shown in Figure 5, while benchmarks like ETH-XGaze and Gaze360 cover diverse continuous pose spaces (e.g., yaw angles spanning up to ±80 ◦), the 𝐸 distribution is densely clustered within a narrow, rectangular manifold with limited yaw and predominantly positive pitch. Thus, models trained on the highly generalized manifolds of 𝐸𝑡 or 𝐺 struggle to adapt their predictions for the intensely concentrated, micro-variational data manifold of 𝐸 . This suggests that incorporating adaptive soft-assignment or continuous prompt-tuning could further improve the flexibility of the model when handling transitions into such constrained and degraded domains. 
+
+## 6. Conclusion 
+
+We proposed GMGaze, which leverages two complemen-tary context-biased tokens, early fusion of semantic, CLIP patch and CNN tokens, and MoE layers. Experiments on four benchmarks and ablations show that this design is particularly strong at handling challenging cases, and that the gains come from how capacity is allocated across tokens rather than from a simple increase in dense parameters. At the same time, the method has clear weaknesses. The prototype banks are initialized from hand-crafted CLIP prompts and the routing remains discrete, which restricts the granularity of context modeling and may miss subtle or mixed conditions. While the prompt vocabulary is fixed, the prototype vectors are learnable and are updated during training; however, hard selection updates only the chosen prototypes per iteration and may under-represent continuous context variations (e.g., smooth illumination gradients). In addition, the current model is single - frame and uses a relatively simple adversarial alignment strategy, which helps on some cross - domain routes but does not outperform specialized methods. Despite these limitations, the framework introduced here can be reused by others in the field. The way we turn text prompts into learnable prototype banks, build a unified token sequence fusing semantic, CLIP and CNN tokens, and insert MoE layers can be directly transferred to related problems such as head pose estimation, driver monitoring or attention analysis without redesigning visual backbones. The feature separation loss and adversarial training setup are also   
+
+> First Author et al.: Preprint submitted to Elsevier Page 13 of 15
+
+Short Title of the Article 
+
+generic and can serve as simple regularizers in other domain adaptation frameworks. Future work will focus on three directions: (i) learning data-driven, dynamic prototypes that automatically adapt to new domains and devices; (ii) extending GMGaze to video with temporal attention and sequence-level routing to exploit motion and temporal consistency; and (iii) compressing the multi-expert backbone via expert distillation and pruning to meet the latency and memory constraints of VR/AR headsets and mobile platforms. 
+
+## Acknowledgments 
+
+This research was funded by the Guangxi Science and Technology Base and Talent Project (2022AC18004, 2022AC21040), and the National Natural Science Foundation of China grant number 82260360. 
+
+## References 
+
+[1] Xinmei Wu, Lin Li, Haihong Zhu, Gang Zhou, Linfeng Li, Fei Su, Shen He, Yanggang Wang, and Xue Long. Eg-net: Appearance-based eye gaze estimation using an efficient gaze network with attention mechanism. Expert Systems with Applications , 238:122363, 2024. [2] Yafei Wang, Tianyi Shen, Guoliang Yuan, Jiming Bian, and Xianping Fu. Appearance-based gaze estimation using deep features and random forest regression. Knowledge-Based Systems , 110:293–301, 2016. [3] Guoliang Yuan, Yafei Wang, Huizhu Yan, and Xianping Fu. Self-calibrated driver gaze estimation via gaze pattern learning. Knowledge-Based Systems , 235:107630, 2022. [4] Gary JW Xu, Kun Guo, Seop Hyeong Park, Poly ZH Sun, and Aiguo Song. Bio-inspired vision mimetics toward next-generation collision-avoidance automation. The Innovation , 4(1), 2023. [5] Xucong Zhang, Yusuke Sugano, Mario Fritz, and Andreas Bulling. It’s written all over your face: Full-face appearance-based gaze estimation. In Proceedings of the IEEE conference on computer vision and pattern recognition workshops , pages 51–60, 2017. [6] Yihua Cheng, Shiyao Huang, Fei Wang, Chen Qian, and Feng Lu. A coarse-to-fine adaptive network for appearance-based gaze estimation. In Proceedings of the AAAI conference on artificial intelligence ,volume 34, pages 10623–10630, 2020. [7] Yihua Cheng and Feng Lu. Gaze estimation using transformer. In 
+
+2022 26th International Conference on Pattern Recognition (ICPR) ,pages 3341–3347. IEEE, 2022. [8] Jun Wang, Hao Ruan, Mingjie Wang, Chuanghui Zhang, Huachun Li, and Jun Zhou. Gazeclip: Towards enhancing gaze estimation via text guidance. arXiv preprint arXiv:2401.00260 , 2023. [9] Lifan Xia, Yong Li, Xin Cai, Zhen Cui, Chunyan Xu, and Antoni B Chan. Collaborative contrastive learning for cross-domain gaze estimation. Pattern Recognition , 161:111244, 2025. [10] Guanzhong Zeng, Jingjing Wang, Zefu Xu, Pengwei Yin, Wenqi Ren, Di Xie, and Jiang Zhu. Gaze label alignment: Alleviating domain shift for gaze estimation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 9780–9788, 2025. [11] Tawaana Gustad Homavazir, VS Raghu Parupudi, Surya LSR Pilla, and Pamela Cosman. Slippage-robust linear features for eye tracking. 
+
+Expert Systems with Applications , 264:125799, 2025. [12] Xinyuan Zhao, Xianrui Chen, and Ahmad Chaddad. Gazeformer-moe: Context-aware gaze estimation via clip and moe transformer. arXiv preprint arXiv:2601.12316 , 2026. [13] Primesh Pathirana, Shashimal Senarath, Dulani Meedeniya, and Sampath Jayarathna. Eye gaze estimation: A survey on deep learning-based approaches. Expert Systems with Applications , 199:116894, 2022. [14] Yihua Cheng, Haofei Wang, Yiwei Bao, and Feng Lu. Appearance-based gaze estimation with deep learning: A review and benchmark. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence ,46(12):7509–7528, 2024. [15] Jiawei Xu and Shigang Yue. Mimicking visual searching with integrated top down cues and low-level features. Neurocomputing ,133:1–17, 2014. [16] Jiawei Xu, Seop Hyeong Park, and Xiaoqin Zhang. A bio-inspired motion sensitive model and its application to estimating human gaze positions under classified driving conditions. Neurocomputing , 345:23– 35, 2019. [17] Xucong Zhang, Yusuke Sugano, Mario Fritz, and Andreas Bulling. Mpiigaze: Real-world dataset and deep appearance-based gaze estima-tion. IEEE transactions on pattern analysis and machine intelligence ,41(1):162–175, 2017. [18] Yihua Cheng, Yiwei Bao, and Feng Lu. Puregaze: Purifying gaze feature for generalizable gaze estimation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 36, pages 436–443, 2022. [19] Yiwei Bao, Yunfei Liu, Haofei Wang, and Feng Lu. Generalizing gaze estimation with rotation consistency. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 4207– 4216, 2022. [20] Yunfei Liu, Ruicong Liu, Haofei Wang, and Feng Lu. Generalizing gaze estimation with outlier-guided collaborative adaptation. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , pages 3835–3844, 2021. [21] Yi Tian, Xiyun Wang, Sihui Zhang, Wanru Xu, Yi Jin, and Yaping Huang. ‘disengage and integrate’: Personalized causal network for gaze estimation. IEEE Transactions on Image Processing , 34:3733–3747, 2025. [22] Jingjing Wang and Pengwei Yin. Test time prompt tuning for domain adaptive gaze estimation. In ICASSP 2025-2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) ,pages 1–5. IEEE, 2025. [23] Wasiq Khan, Luke Topham, Hiba Alsmadi, Ala Al Kafri, and Hoshang Kolivand. Deep face profiler (defap): Towards explicit, non-restrained, non-invasive, facial and gaze comprehension. Expert Systems with Applications , 254:124425, 2024. [24] Bolin Lai, Miao Liu, Fiona Ryan, and James M Rehg. In the eye of transformer: Global–local correlation for egocentric gaze estimation and beyond. International Journal of Computer Vision , 132(3):854– 871, 2024. [25] Yihua Cheng and Feng Lu. Dvgaze: Dual-view gaze estimation. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 20632–20641, October 2023. [26] Lin Zhang, Yi Tian, Wanru Xu, Yi Jin, and Yaping Huang. Clip-driven dual feature enhancing network for gaze estimation. arXiv e-prints ,pages arXiv–2502, 2025. [27] Yitong Zhu, Xurong Xie, Naiming Yao, Hui Chen, and Feng Tian. Cr-clip: Image-text contrastive regression for generalized gaze estimation. In ICASSP 2025-2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE, 2025. [28] Yoshua Bengio, Nicholas Léonard, and Aaron Courville. Estimating or propagating gradients through stochastic neurons for conditional computation. arXiv preprint arXiv:1308.3432 , 2013. [29] Yaroslav Ganin, Evgeniya Ustinova, Hana Ajakan, Pascal Germain, Hugo Larochelle, François Laviolette, Mario March, and Victor Lempitsky. Domain-adversarial training of neural networks. Journal of machine learning research , 17(59):1–35, 2016. [30] Kenneth Alberto Funes Mora, Florent Monay, and Jean-Marc Odobez. EYEDIAP: A database for the development and evaluation of gaze estimation algorithms from RGB and RGB-D cameras. In Proceedings of the ACM Symposium on Eye Tracking Research and Applications (ETRA) , pages 255–258. ACM, 2014. [31] Xucong Zhang, Seonwook Park, Thabo Beeler, Derek Bradley, Siyu Tang, and Otmar Hilliges. ETH-XGaze: A large scale dataset for gaze estimation under extreme head pose and gaze variation. In Proceedings 
+
+First Author et al.: Preprint submitted to Elsevier Page 14 of 15 Short Title of the Article 
+
+of the European Conference on Computer Vision (ECCV) , pages 365– 381. Springer, 2020. [32] Petr Kellnhofer, Adria Recasens, Simon Stent, Wojciech Matusik, and Antonio Torralba. Gaze360: Physically unconstrained gaze estimation in the wild. In Proceedings of the IEEE International Conference on Computer Vision (ICCV) , pages 2176–2184. IEEE, 2019. [33] Xucong Zhang, Yusuke Sugano, Mario Fritz, and Andreas Bulling. It’s written all over your face: Full-face appearance-based gaze estimation. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) , pages 2299–2308. IEEE, 2017. [34] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervision. In International conference on machine learning , pages 8748–8763. PmLR, 2021. [35] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regular-ization. arXiv preprint arXiv:1711.05101 , 2017. [36] Zhaokang Chen and Bertram E Shi. Appearance-based gaze estimation using dilated-convolutions. In Asian Conference on Computer Vision ,pages 309–324. Springer, 2018. [37] Yiwei Bao, Yihua Cheng, Yunfei Liu, and Feng Lu. Adaptive feature fusion network for gaze tracking in mobile tablets. In 2020 25th International Conference on Pattern Recognition (ICPR) , pages 9936– 9943. IEEE, 2021. [38] Chenglin Wu, Huanqiang Hu, Kean Lin, Qing Wang, Tianjian Liu, and Guannan Chen. Attention-guided and fine-grained feature extraction from face images for gaze estimation. Engineering Applications of Artificial Intelligence , 126:106994, 2023. [39] Lin Zhang, Yi Tian, Xiyun Wang, Wanru Xu, Yi Jin, and Yaping Huang. Differential contrastive training for gaze estimation. In Proceedings of the 33rd ACM International Conference on Multimedia , pages 3477– 3486, 2025. [40] Suneung Kim, Woo-Jeoung Nam, and Seong-Whan Lee. Appearance debiased gaze estimation via stochastic subject-wise adversarial learning. Pattern Recognition , 152:110441, 2024. [41] Eduard Kuric, Peter Demcak, Jozef Majzel, and Giang Nguyen. Democratizing eye-tracking? appearance-based gaze estimation with improved attention branch. Engineering Applications of Artificial Intelligence , 149:110494, 2025. [42] Haiying Xia, Zhuolin Gong, Yumei Tan, and Shuxiang Song. Joint pyramidal perceptual attention and hierarchical consistency constraint for gaze estimation. Computer Vision and Image Understanding ,248:104105, 2024. [43] Duantengchuan Li, Shutong Wang, Wanli Zhao, Lingyun Kang, Liangshan Dong, Jiazhang Wang, and Xiaoguang Wang. Adgaze: Anisotropic gaussian label distribution learning for fine-grained gaze estimation. Pattern Recognition , 164:111536, 2025. [44] Yujie Li, Yuhang Hong, Ziwen Wang, Jiahui Chen, Rongjie Liu, Shuxue Ding, and Benying Tan. Nonlinear multi-head cross-attention network and programmable gradient information for gaze estimation. 
+
+Scientific Reports , 15(1):27135, 2025. [45] Yuanning Jia, Zhi Liu, Ying Lv, Xiaofeng Lu, Xuefeng Liu, and Jie Chen. Frequency-spatial interaction network for gaze estimation. 
+
+Displays , 86:102878, 2025. [46] Samuel Adebayo, Joost C Dessing, and Seán McLoone. Slyklatent: A learning framework for gaze estimation using deep facial feature learning. IEEE Transactions on Human-Machine Systems , 2025. [47] Yupeng Zhong and Sang Hun Lee. Gazesymcat: A symmetric cross-attention transformer for robust gaze estimation under extreme head poses and gaze variations. Journal of Computational Design and Engineering , 12(3):115–129, 2025. [48] Wei Nie, Zhiyong Wang, Weihong Ren, Hanlin Zhang, and Honghai Liu. Iris geometric transformation guided deep appearance-based gaze estimation. IEEE Transactions on Image Processing , 2025. [49] Hongyu Qu, Jianan Wei, Xiangbo Shu, Yazhou Yao, Wenguan Wang, and Jinhui Tang. Omnigaze: Reward-inspired generalizable gaze estimation in the wild. arXiv preprint arXiv:2510.13660 , 2025. [50] Yaoming Wang, Yangzhou Jiang, Jin Li, Bingbing Ni, Wenrui Dai, Chenglin Li, Hongkai Xiong, and Teng Li. Contrastive regression for domain adaptation on gaze estimation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,pages 19376–19385, 2022. [51] Ruicong Liu, Yiwei Bao, Mingjie Xu, Haofei Wang, Yunfei Liu, and Feng Lu. Jitter does matter: Adapting gaze estimation to new domains. 
+
+arXiv preprint arXiv:2210.02082 , 2022. [52] Isack Lee, Jun-Seok Yun, Hee Hyeon Kim, Youngju Na, and Seok Bong Yoo. Latentgaze: Cross-domain gaze estimation through gaze-aware analytic latent code manipulation. In Proceedings of the asian conference on computer vision , pages 3379–3395, 2022. [53] Daosong Hu, Mingyue Cui, and Kai Huang. Ghr-2d: Gaze and head redirection via disentanglement and diffusion for gaze estimation. 
+
+Engineering Applications of Artificial Intelligence , 160:111901, 2025. [54] Ruicong Liu, Yunfei Liu, Haofei Wang, and Feng Lu. Pnp-ga+: Plug-and-play domain adaptation for gaze estimation using model variants. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence ,46(5):3707–3721, 2024. [55] Tobias Fischer, Hyung Jin Chang, and Yiannis Demiris. Rt-gene: Real-time eye gaze estimation in natural environments. In Proceedings of the European conference on computer vision (ECCV) , pages 334–352, 2018. [56] Shakhnoza Muksimova, Yakhyokhuja Valikhujaev, Sabina Umirza-kova, Jushkin Baltayev, and Young Im Cho. Gazecapsnet: A lightweight gaze estimation framework. Sensors , 25(4):1224, 2025. [57] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. Learning to prompt for vision-language models. International journal of computer vision , 130(9):2337–2348, 2022. 
+
+First Author et al.: Preprint submitted to Elsevier Page 15 of 15
