@@ -1,0 +1,1080 @@
+Title: Temporal Structure Matters for Efficient Test-Time Adaptation in Wearable Human Activity Recognition
+
+URL Source: https://arxiv.org/pdf/2605.04617v1
+
+Published Time: Thu, 07 May 2026 00:38:21 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# Temporal Structure Matters for Efficient Test-Time Adaptation in Wearable Human Activity Recognition 
+
+Zishu Zhou 1, Zaipeng Xie 1* , Xuanyao Jie 1
+
+> 1
+
+College of Computer Science and Software Engineering, Hohai University 
+
+{zhouzishu, zaipengxie, xyjie }@hhu.edu.cn 
+
+Abstract 
+
+Wearable human activity recognition (WHAR) models of-ten suffer from performance degradation under real-world cross-user distribution shifts. Test-time adaptation (TTA) mit-igates this degradation by adapting models online using un-labeled test streams, yet existing methods largely inherit assumptions from vision tasks and underexploit the inher-ent inter-window temporal structure in WHAR streams. In this paper, we revisit such temporal structure as a feature-conditioned inference signal rather than merely an output-space smoothing prior. We derive the insight that temporal continuity and observation-induced feature deviations pro-vide complementary cues for determining when to preserve or release temporal inertia and where to route prediction re-finement during likely transitions. Building upon this insight, we propose SIGHT , a lightweight and backpropagation-free TTA framework for WHAR, enabling real-time edge deploy-ment. SIGHT estimates predictive surprise by comparing the current feature with a prototype-based expected state, and then uses the resulting feature deviation to guide geometry-aware transition routing based on prototype alignment and stream-level marginal habit tracking. Evaluations on real-world datasets confirm that SIGHT outperforms existing TTA baselines while reducing computational and memory costs. 
+
+Code — https://github.com/zszhou21/SIGHT 
+
+## 1 Introduction 
+
+Wearable human activity recognition (WHAR), which in-fers activities from wearable sensor signals, is a fundamen-tal task in ubiquitous computing, with applications in health monitoring, sports tracking, and human-computer interac-tion (Lara and Labrador 2013; Thukral, Haresamudram, and Pl¨ otz 2025). Driven by abundant sensor data, deep learning models have achieved remarkable performance on WHAR tasks (Chen et al. 2021; Xiao et al. 2025). However, these models often degrade in real-world deployment due to se-vere distribution shifts between training and deployment en-vironments (Ghosh et al. 2025). While unsupervised domain adaptation (UDA) mitigates such shifts by exploiting la-beled source and unlabeled target data (Hu et al. 2023), and source-free domain adaptation (SFDA) removes source data dependence to protect privacy (Xue et al. 2025; Kang, Hu, and Zhang 2024), their need for concurrent source data ac-cess or a computationally intensive offline adaptation phase makes them impractical for real-time edge applications. 
+
+> *
+
+Corresponding Author: Zaipeng Xie. Target 
+
+𝑥 ! 𝑥 !"# 𝑥 !"$ 𝑥 !"%   
+
+> Run Run Run Walk
+> Target
+> Source
+
+# …
+
+> Walk
+
+𝑥 !"& 𝑥 !"'
+
+> Stand
+
+…
+
+… 
+
+> Persistence Transition
+
+Figure 1: Scenario Illustration. Sensor streams naturally form temporal structure through sustained activity segments and infrequent transitions between them over time. Test-time adaptation (TTA) has gained attention as a promising approach to address distribution shifts by adapt-ing models during inference using only test data (Wang et al. 2021). Compared to UDA and SFDA, TTA is more practical for real-world applications as it requires neither source data nor a separate adaptation phase, and is particularly appealing for WHAR where cross-subject shifts are common and de-vices often have limited computational resources (Liu, Xue, and Schultz 2023). Recently, TTA for vision tasks has been extensively studied (Han, Na, and Hwang 2025; Tian et al. 2026; Deng et al. 2026), but WHAR-related TTA methods remain in their infancy, with few recent works (Wang et al. 2024; Gong et al. 2025; Fortes Rey et al. 2026). Despite these efforts, their effectiveness in practical WHAR applica-tions remains limited. This is largely because they are built on traditional assumptions of vision TTA without fully con-sidering the unique characteristics of WHAR scenarios. As shown in Figure 1, sensor streams often exhibit a temporal structure , where activities persist over consecutive windows and transitions between activities are infrequent. In this work, we aim to develop an efficient TTA frame-work that fully leverages this temporal structure of WHAR streams to improve adaptation performance and efficiency. Activity persistence, i.e., adjacent windows often share the same latent activity, offers a natural prior for stabilizing noisy predictions (Li et al. 2015; Kim et al. 2026). However, real-world WHAR streams are inherently non-stationary, as users may switch activities at irregular moments (Chan et al. 
+
+> arXiv:2605.04617v1 [cs.CV] 6 May 2026
+
+2024), and the source model may already be biased under cross-subject shifts (Zhu et al. 2025). Blindly enforcing tem-poral continuity can therefore over-preserve historical states and prevent the model from promptly adapting to emerging activities. An effective WHAR-oriented TTA method should preserve temporal inertia in stable segments while releasing it when the current observation becomes inconsistent with the expected activity state. This leads to our first question: 
+
+❶ How can we identify when an incoming window violates temporal persistence and should trigger inertia release? 
+
+Even when temporal inertia should be released, another challenge remains: determining where the prediction should move. Existing temporal dynamics-aware methods (Kim et al. 2026) estimate class transitions in the output space us-ing learned Markovian priors, but these statistics can be bi-ased by noisy predictions and skewed activity frequencies. Such an output-space prior can indicate which labels have frequently followed each other, but it cannot verify whether the current observation actually supports the predicted tran-sition. Moreover, output-space transition statistics ignore the local geometric evidence carried by the current sensor ob-servation. Since activity changes in WHAR are induced by continuous body motions (Baraka and Mohd Noor 2023), the deviation from the expected state can indicate where the prediction should move. Accordingly, our second question is: ❷ How can the current observation guide online predic-tion refinement when a new activity transition emerges? 
+
+In light of these two questions, we revisit temporal structure in WHAR streams as a feature-conditioned infer-ence signal for online TTA. To answer ❶, we construct a prototype-based expected state from the previous refined prediction and compare it with the current observation, yielding a predictive surprise score that preserves temporal inertia in stable segments and releases it near likely tran-sitions. In response to ❷, we exploit the direction of fea-ture deviation to guide prediction refinement toward geo-metrically aligned activity prototypes, and maintain a habit vector to incorporate stream-level marginal activity prefer-ences. Integrating these mechanisms, we propose Surprise-Induced Geometric Hierarchical Tracking (SIGHT ), an effi-cient temporal structure-aware TTA framework for WHAR that enables feature-conditioned prediction refinement while remaining lightweight and backpropagation-free for edge deployment. Overall, our contributions are as follows: 1) We reveal that activity persistence and transitions in WHAR streams provide a feature-conditioned inference-time signal for deciding both when to release temporal inertia and where to route prediction refinement under evolving target-stream dynamics. 2) We propose SIGHT , a lightweight, backpropagation-free TTA framework where predictive surprise controls tem-poral inertia, geometric attention guides transition rout-ing, and marginal habit tracking preserves stream-level activity context for online prediction refinement. 3) Extensive experiments on real-world and free-living WHAR datasets demonstrate that our method not only achieves superior overall performance compared to base-lines, but also significantly reduces computational costs. 
+
+## 2 Related Work 
+
+2.1 Human Activity Recognition under Shifts 
+
+A central challenge in wearable human activity recognition (WHAR) is the performance degradation caused by distribu-tion shifts between the source and target domains. The inher-ent heterogeneity among individuals, which arises from di-verse motion kinematics, unique physiological profiles, and idiosyncratic device-wearing behaviors, inevitably induces severe cross-subject distribution shifts (Chang et al. 2020; Wu, Liu, and Yongchareon 2024). To address this issue, un-supervised domain adaptation (UDA) has been widely stud-ied in WHAR to transfer knowledge from a labeled source domain to an unlabeled target domain (Sanabria et al. 2021). Source-free domain adaptation (SFDA) has also been ex-plored to further enable adaptation without access to source data to ensure user privacy and reduce storage needs. Re-cent SFDA methods for WHAR achieve lightweight adapta-tion via adapters and sample selection (Kang, Hu, and Zhang 2024), and enable robust transfer through source-target sim-ilarity and augmentation consistency (Xue et al. 2025). However, UDA requires source data, while both UDA and SFDA rely on a separate adaptation phase, imposing heavy computational burdens on resource-constrained edge devices where WHAR models are typically deployed. Al-though lightweight SFDA methods have been proposed, they still require multiple passes over the test set and are not tai-lored to real-world streaming data (Wang et al. 2024). 
+
+2.2 Test-Time Adaptation 
+
+Test-time adaptation (TTA) focuses on adapting models dur-ing inference using only incoming test data, without requir-ing offline adaptation or access to source data (Liang, He, and Tan 2025). One line of work mitigates test-time distribu-tion shift by updating normalization statistics or normaliza-tion parameters (Wang et al. 2021; Lim et al. 2023). Another dominant line performs lightweight unsupervised optimiza-tion on test data through entropy minimization or pseudo-label-based self-training (Niu et al. 2022, 2023). In addition, some methods improve adaptation stability via augmenta-tion consistency or teacher–student frameworks (Wang et al. 2022). Optimization-free approaches also adjust predictions directly in the output space (Boudiaf et al. 2022; Zhang et al. 2026b; Kim et al. 2026). Recently, TTA has been extended to WHAR through normalization-based adaptation (Wang et al. 2024), contrastive learning (Fortes Rey et al. 2026), and prototype refinement (Gong et al. 2025). However, these approaches often overlook the distinctive characteristics of WHAR. Continual TTA methods mainly treat temporal correlations as a non-i.i.d. challenge rather than an adaptation signal (Gong et al. 2022; Yuan, Xie, and Li 2023; Zhang et al. 2026a), and existing WHAR-related TTA methods still largely follow the vision paradigm (Gong et al. 2025; Fortes Rey et al. 2026), treating consecutive win-dows instance-wise and often requiring backpropagation or multiple test-time passes. Recent temporal dynamics-aware OATTA (Kim et al. 2026) is a step forward, but its output-space temporal statistics can be biased by noisy predictions and miss local observation-level geometric cues. 2      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+## 3 Preliminaries 
+
+3.1 Problem Setup 
+
+We consider TTA in WHAR under real-world scenarios. Consider a source-trained classification model fθ = hψ ◦gϕ,where gϕ and hψ are the feature encoder and linear classi-fier, respectively. Given an unlabeled target stream {xt}Nt=1 ,where each xt ∈ RD×L is a multivariate sensor window with D channels and L time steps, the classifier first ex-tracts a representation zt = gϕ(xt) and then produces the raw class distribution pt = Softmax( hψ (zt)) ∈ ∆K−1. The goal is to refine this raw prediction into a more reliable on-line class distribution qt ∈ ∆K−1 at each step, without ac-cess to ground-truth labels or future context. In real-world WHAR settings, the target inputs arrive sequentially and ex-hibit a latent temporal structure, formally defined as follows: 
+
+Definition 1 (Temporal Structure) A WHAR stream with latent activity state st and feature zt exhibits inter-window temporal structure when: (i) Activity Persistence: st = st−1
+
+holds for most adjacent windows, yielding contiguous activ-ity segments; (ii) Transition Geometry: features vary mildly within the same segment but show larger, directionally infor-mative deviations near genuine activity transitions. 
+
+Notably, this inter-window temporal structure differs from intra-window temporal dependency, which is captured by the time-series backbone through sensor dynamics model-ing within each window (Sun et al. 2024; Teng et al. 2025). 
+
+3.2 Motivation 
+
+From Activity Continuity to Predictive Surprise. As characterized in Definition 1, human activities persist over consecutive sensor windows rather than changing at every step, which helps stabilize noisy instantaneous predictions. However, using such continuity as an output-space temporal prior (Kim et al. 2026) may over-preserve historical states when self-transitions heavily dominate off-diagonals, lead-ing to inertial deadlock , as illustrated in Figure 2 (a). This motivates a feature-space surprise signal between expected and observed features that identifies when the current ob-servation becomes inconsistent with the predicted state, en-abling temporal inertia release near likely transitions. 
+
+Geometric Directionality in Activity Transitions. Ac-tivity changes in WHAR are not arbitrary label jumps, but structured movements on the feature manifold. As shown in Figure 2 (a), output-space transition statistics are dom-inated by activity persistence, and provide limited guid-ance through small, noisy off-diagonal entries. In contrast, when an observation deviates from the expected state, its feature-space direction can provide a cue about the emerg-ing activity. As shown in Figure 2 (b), this deviation offers observation-conditioned evidence for routing refinement to-ward geometrically aligned activity prototypes. This moti-vates direction-aware transition routing based on the align-ment between feature movement and activity prototypes. 
+
+3.3 Classifier Weights as Initial Prototypes 
+
+In TTA, the source data are unavailable. The pretrained lin-ear classifier hψ provides a compact source-side prior for 𝝁 𝟏 
+
+𝝁 𝟓 
+
+𝝁 𝟐 
+
+> Raw -biased
+> Routing -refined
+
+(b) (a) 
+
+"𝒛 𝒕 |𝒕 &𝟏 
+
+𝝁 𝟑 
+
+𝝁 𝟒 
+
+"𝒛 𝒕 
+
+Figure 2: Motivation of SIGHT . (a) Output-space transition statistics show strong diagonal dominance, reflecting activ-ity persistence and limited transition flexibility. (b) Feature-space deviation offers an observation-conditioned direction for routing refinement toward aligned activity prototypes. class-level geometry. Let the linear head be parameterized by class weights W = [ w1, . . . , w K ]⊤, where the logit of class k is ℓt,k = w⊤ 
+
+> k
+
+zt + bk. Following prior studies that use classifier weights as class anchors or to construct class prototypes (Gidaris and Komodakis 2018; Liang, Hu, and Feng 2020; Iwasawa and Matsuo 2021), we define the initial prototype of activity k as the normalized classifier weight: 
+
+μ(0)  
+
+> k
+
+= Norm( wk), k = 1 , . . . , K, (1) where Norm( ·) denotes ℓ2-normalization, and all normal-ization operations use a small ϵ for numerical stability. The resulting prototypes provide an initialization for adaptation. 
+
+## 4 Proposed Method 
+
+We propose SIGHT , an efficient TTA framework for WHAR. SIGHT initializes class prototypes from the source classifier weights as geometric anchors. For each target win-dow, it compares the current feature with the feature state ex-pected from the previous refined prediction, producing a pre-dictive surprise signal that adaptively preserves or releases temporal inertia. When a transition is likely, the feature devi-ation direction guides routing toward geometrically aligned activity prototypes, together with habit statistics. The result-ing prior is fused with the raw classifier output for predic-tion refinement, while prototypes and the habit vector are updated online. Figure 3 illustrates the overall framework. 
+
+4.1 Predictive Transition Modulation 
+
+Temporal refinement necessitates determining whether to maintain a prediction consistent with the preceding state or facilitate a transition toward a new activity. Prediction his-tories can provide a useful continuity signal, but they do not by themselves reveal whether the incoming feature re-mains aligned with the expected activity state. SIGHT there-fore constructs a prototype-based feature expectation from the previous refined prediction and compares it with the ob-served feature. The resulting predictive geometric surprise modulates temporal inertia on a per-sample basis, preserving state continuity when the observation matches the expecta-tion and relaxing it near likely activity transitions. 3      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+𝑥 ! 𝑥 !"# …𝑥 !$#𝑥 !$% 𝑥 !"% 𝑥 !"&
+
+…
+
+𝑥 ! 𝑥 !"# …𝑥 !$#𝑥 !$% 𝑥 !"% 𝑥 !"&
+
+…
+
+𝑔 ' 𝑧 !
+
+h
+
+ℎ( 𝑝 !
+
+𝑧 !$%
+
+𝑞 !$%
+
+𝑧 !$#
+
+𝑞 !$#
+
+> Online Memory
+> Previously Refined Pred.
+
+𝑞 !$#
+
+> Prototype Bank
+
+𝐌 !$#
+
+> Habit Vec.
+
+ℎ!$#  
+
+> ①Get Raw Feature and Pred.
+> ②Pred. Transition Mod .
+
+𝑞 !$#
+
+# ×𝐌 !$#̂ 𝑧 !|!$#̂
+
+𝑧 !|!$#̂ 𝑧 ! 
+
+> low high
+
+𝜆 !      
+
+> When to Transition?
+> ③Geom .State Routing
+> ④Inference, Update
+> Where to Transition?
+
+𝑝 ! ⊙ 𝜋 !
+
+𝑞 !  
+
+> Update ℎ!
+> Update 𝐌 !
+
+⊙ ℎ!$#
+
+𝑟 ! 𝜌 !
+
+…
+
+…𝑥 ! 𝑥 !"#𝑥 !$#𝑥 !$% 𝑥 !"% 𝑥 !"&
+
+> D
+
+Figure 3: Overview of SIGHT . It has predictive transition modulation, geometric state routing, and memory update. 
+
+Expected State Projection. Predictive transition modula-tion requires a reference feature describing what the cur-rent observation should look like if the previous activity state persists. A simple choice is to use ˆzt−1 as this refer-ence. However, ˆzt−1 is only a noisy observation and may vary within the same activity due to motion phase, sensor noise, or window-level sampling effects. Directly compar-ing ˆzt with ˆzt−1 therefore captures local fluctuation rather than the expected activity state from recent history. To obtain a more semantic and belief-conditioned ref-erence, SIGHT projects the previous refined prediction onto the current prototype geometry. The refined predic-tion qt−1 summarizes the previous activity belief, while the prototype bank Mt−1 provides class-level feature an-chors adapted to the target stream. Their projection gives the feature state expected under temporal persistence. Let 
+
+Mt−1 = [ μ(t−1) 1 , . . . , μ (t−1)  
+
+> K
+
+]⊤ ∈ RK×d denote the proto-type bank at time t−1. Given the previous refined prediction 
+
+qt−1 ∈ ∆K−1, the expected state is computed as: 
+
+ˆzt|t−1 = Norm  M⊤
+
+> t−1
+
+qt−1
+
+ = Norm 
+
+PKk=1 q(k)
+
+> t−1
+
+μ(t−1) 
+
+> k
+
+
+
+. (2) Here, ˆzt|t−1 denotes the expected feature state under tempo-ral persistence, while ˆzt = Norm( zt) denotes the normal-ized current observation feature. 
+
+Transition Surprise Estimation. Given the expected fea-ture state ˆzt|t−1 and the current observation ˆzt, we estimate how strongly the current feature violates temporal persis-tence. Since both vectors are ℓ2-normalized, their angular discrepancy can be measured by the cosine distance: 
+
+Dt = 1 − ˆz⊤ 
+
+> t
+
+ˆzt|t−1. (3) A small Dt indicates that the incoming feature remains con-sistent with the state predicted from recent history, whereas a large Dt suggests a potential activity transition. We convert this discrepancy into a bounded transition surprise score: 
+
+λt = 1 − exp  −βD2
+
+> t
+
+ , (4) where β > 0 controls the sensitivity to feature deviation. The resulting λt ∈ [0 , 1] serves as a sample-wise inertia re-lease factor: when the observed feature agrees with the ex-pected state, λt remains small and temporal inertia is pre-served; when the feature deviates sharply, λt increases and allows the prediction to move away from the previous state. 
+
+4.2 Geometric–Habit State Routing 
+
+After temporal inertia is relaxed, refinement must decide which activity state to favor. A Markov transition matrix offers a natural prior by estimating class-to-class dynam-ics from historical predictions (Lester et al. 2005; Mannini and Sabatini 2011; Asghari, Soleimani, and Nazerfard 2020; Kim et al. 2026). However, transition priors estimated from accumulated output-space histories are typically dominated by self-transition statistics and overlook the current obser-vation, offering limited discriminative guidance for routing probability mass toward emerging activity states. SIGHT 
+
+therefore introduces geometric attentional routing, which compares the observed deviation from the expected state with directions toward candidate activity prototypes, com-plemented by marginal-habit calibration prior to incorporate stream-level activity preferences. 
+
+Geometric Vector Attention. To make transition routing conditioned on the current observation, we compare the di-rection of the observed feature movement with the directions toward candidate activity prototypes. Specifically, we define the normalized observation-induced displacement as: 
+
+vt = Norm  ˆzt − ˆzt|t−1
+
+ , (5) where ˆzt|t−1 is the expected feature state and ˆzt is the nor-malized observed feature. For each candidate activity k, we define its prototype direction from the expected state as: 
+
+ut,k = Norm 
+
+
+
+μ(t−1)  
+
+> k
+
+− ˆzt|t−1
+
+
+
+. (6) We then measure how well each candidate direction aligns with the observed feature movement: 
+
+at,k = v⊤ 
+
+> t
+
+ut,k . (7) The alignment scores are converted into an attentional rout-ing distribution: 
+
+rt,k = exp( at,k /τ )
+
+PKj=1 exp( at,j /τ ) , k = 1 , . . . , K, (8) where τ controls the sharpness of the geometric atten-tion distribution. The resulting rt ∈ ∆K−1 serves as an observation-conditioned routing prior, assigning higher probability to candidate states whose prototype directions are better aligned with the current feature displacement. 4      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+Marginal-Habit Prior Calibration. The geometric rout-ing distribution rt captures the transition tendency induced by the current feature movement, but it does not account for stream-level activity preferences accumulated over time. To incorporate such marginal context while mitigating the dominance of frequent activities, we maintain a habit vector 
+
+ht−1 ∈ ∆K−1 and apply sub-linear flattening: 
+
+˜ht−1 = Π ∆
+
+p ht−1 + ϵ
+
+
+
+, (9) where ϵ is a small constant for numerical stability. Com-pared with directly using ht−1, the square-root transform preserves the relative ordering of activity frequencies while reducing the dominance of high-frequency states. We then calibrate the geometric routing prior by combining it with the flattened marginal prior: 
+
+ρt = Π ∆
+
+
+
+rt ⊙ ˜ht−1
+
+
+
+, (10) where Π∆(a) = a/ P 
+
+> k
+
+ak projects a non-negative vector onto the probability simplex, and ⊙ denotes element-wise multiplication. The resulting ρt balances local feature-driven transition evidence with stream-level marginal prevalence, providing a calibrated prior over candidate activity states. 
+
+4.3 Online Inference and Update 
+
+With the transition surprise λt and calibrated routing prior 
+
+ρt, SIGHT refines the current prediction and updates its on-line state. We initialize h0 uniformly, set q1 = p1 for the first window without prior history, and use each qt as the next prior belief. At subsequent steps, SIGHT integrates ob-servation evidence with temporal structure, then refreshes marginal habit statistics and prototypes for future inference. 
+
+Belief Refinement via Consensus. The transition surprise score λt determines how much the model should move from the previous refined prediction, while the calibrated routing prior ρt specifies where the transition should be directed. We therefore form the temporal prior by interpolating between state persistence and geometry-guided transition: 
+
+πt = (1 − λt)qt−1 + λtρt. (11) Small λt keeps πt close to qt−1 for continuity, whereas larger λt shifts the prior toward states favored by geometric routing and marginal calibration. The refined prediction cal-ibrates rather than overrides ambiguous or biased raw out-puts, requiring non-negligible class support: 
+
+qt = Π ∆(pt ⊙ πt) . (12) 
+
+Marginal Habit Tracking. After obtaining the refined prediction qt, SIGHT updates the habit vector to summarize stream-level marginal activity prevalence. Instead of com-mitting to hard pseudo-labels, we treat qt as a soft observa-tion and update the habit state by exponential averaging: 
+
+ht = (1 − ηh)ht−1 + ηhqt, (13) where ηh controls the tracking speed. The resulting ht pro-vides a lightweight memory of marginal activity tendencies for future prior calibration. 
+
+Soft Prototype Adaptation. To track gradual feature shifts in the target stream, SIGHT updates class prototypes using the refined prediction as a soft assignment, following the common practice of adapting classifier-induced proto-types in source-free settings (Liang, Hu, and Feng 2020; Tanwisuth et al. 2021; Li, L¨ u, and Li 2022). For each class k,we first compute an assignment-weighted prototype update: 
+
+¯μ(t) 
+
+> k
+
+= Norm 
+
+
+
+(1 − ημq(k) 
+
+> t
+
+)μ(t−1)  
+
+> k
+
++ ημq(k) 
+
+> t
+
+ˆzt
+
+
+
+, (14) where ημ controls the prototype adaptation rate. This soft update avoids committing to noisy hard pseudo-labels, while the factor q(k) 
+
+> t
+
+makes uncertain classes move only mildly toward the current observation. To further reduce the risk of prototype collapse and long-term drift, we elastically anchor each updated prototype to its source-side initialization: 
+
+μ(t) 
+
+> k
+
+= Norm 
+
+
+
+(1 − ωμ)¯ μ(t) 
+
+> k
+
++ ωμμ(0) 
+
+> k
+
+
+
+, (15) where ωμ controls the anchoring strength. Thus, prototypes can adapt to target-domain geometry while constrained by semantic directions learned from the source classifier. 
+
+## 5 Experiments 
+
+We comprehensively evaluate SIGHT through five axes: 
+
+RQ1 (Superiority), RQ2 (Effectiveness), RQ3 (Sensitivity), 
+
+RQ4 (Efficiency), and RQ5 (Adaptability). In the Appendix, we provide additional experimental details and results. 
+
+5.1 Experimental Setup 
+
+Datasets and Preprocessing. We use HARTH 1 (Logacjov et al. 2021) and CAPTURE-24 (Chan et al. 2024), since they provide continuous real-world, free-living activity streams with preserved temporal structure and natural activity or-dering, unlike many conventional WHAR datasets based on scripted activities or pre-segmented samples. We adopt the standard cross-subject evaluation protocol, treating each subject as a distinct domain. We apply a sliding window technique to segment the continuous time-series data into fixed-length segments while maintaining the continuity be-tween segments to preserve temporal dependency and ac-tivity transition information. For HARTH, we use a 2-second window with a 1-second stride at 50 Hz, while for CAPTURE-24, we use a 10-second non-overlapping win-dow at 100 Hz. To simulate real-world data streams, we strictly preserve the chronological ordering of test segments during adaptation, avoiding the random shuffling used in conventional protocols. For each dataset, we randomly se-lect six distinct source-target pairs for the main study. 
+
+Baselines. We compare SIGHT with several state-of-the-art methods, including (1) vanilla TTA : TENT (Wang et al. 2021), NOTE (Gong et al. 2022), SAR (Niu et al. 2023), RoTTA (Yuan, Xie, and Li 2023), and OATTA (Kim et al. 2026), (2) WHAR-related TTA : OFTTA (Wang et al. 2024), ACCUP (Gong et al. 2025) and COA-HAR (Fortes Rey et al. 2026). We also report the results of the source-only baseline without test-time adaptation for reference. 
+
+> 1We use the HARTH v2.0 release (2024), as updated on GitHub, which consists of acceleration data from 31 subjects.
+
+5      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+Method S006 → S032 S008 → S033 S013 → S031 S015 → S034 S016 → S038 S022 → S035 Avg Source-only 45.87 ±1.09 − 52.37 ±0.47 − 74.83 ±3.06 − 53.71 ±3.66 − 96.52 ±0.62 − 78.25 ±0.94 − 66.93 −
+
+TENT [ICLR’21] 45.92 ±1.01 ↑ 56.78 ±5.93 ↑ 73.09 ±3.23 ↓ 53.40 ±4.00 ↓ 96.28 ±0.55 ↓ 85.39 ±9.31 ↑ 68.48 ↑
+
+NOTE [NeurIPS’22] 46.23 ±0.75 ↑ 52.24 ±0.73 ↓ 63.70 ±4.27 ↓ 58.37 ±6.82 ↑ 56.87 ±7.88 ↓ 57.04 ±6.84 ↓ 55.74 ↓
+
+SAR [ICLR’23] 39.02 ±3.55 ↓ 49.05 ±1.17 ↓ 60.06 ±5.55 ↓ 55.79 ±3.62 ↑ 88.37 ±2.70 ↓ 68.53 ±5.22 ↓ 60.14 ↓
+
+RoTTA [CVPR’23] 45.87 ±1.09 ↑ 52.38 ±0.47 ↑ 75.12 ±3.14 ↑ 53.90 ±3.49 ↑ 96.67 ±0.45 ↑ 78.24 ±0.94 ↓ 67.03 ↑
+
+OATTA [arXiv’26] 48.31 ±3.34 ↑ 56.77 ±4.13 ↑ 75.29 ±3.12 ↑ 62.13 ±2.85 ↑ 96.58 ±0.49 ↑ 87.19 ±4.87 ↑ 71.05 ↑
+
+OFTTA [Ubicomp’24] 45.88 ±1.16 ↑ 52.38 ±0.43 ↑ 75.20 ±3.05 ↑ 54.82 ±3.31 ↑ 96.36 ±0.66 ↓ 78.13 ±1.17 ↓ 67.13 ↑
+
+ACCUP [KDD’25] 21.50 ±4.87 ↓ 29.40 ±4.72 ↓ 21.59 ±2.49 ↓ 15.62 ±1.12 ↓ 25.21 ±2.38 ↓ 28.74 ±1.86 ↓ 23.68 ↓
+
+COA-HAR [ESWA’26] 36.77 ±1.86 ↓ 50.13 ±1.29 ↓ 47.29 ±0.55 ↓ 59.37 ±3.94 ↑ 46.09 ±0.99 ↓ 43.36 ±6.21 ↓ 47.17 ↓
+
+SIGHT (ours) 58.27 ±1.19 ↑ 65.72 ±0.51 ↑ 79.17 ±2.99 ↑ 61.82 ±2.94 ↑ 97.02 ±0.51 ↑ 98.36 ±0.03 ↑ 76.73 ↑
+
+Table 1: MF1-scores (%) of SIGHT and the baselines on HARTH dataset. 
+
+Method P002 → P025 P004 → P036 P007 → P021 P009 → P034 P012 → P026 P013 → P029 Avg Source-only 42.69 ±1.18 − 39.78 ±1.06 − 56.76 ±1.05 − 37.31 ±1.50 − 47.66 ±1.85 − 24.29 ±1.91 − 41.42 −
+
+TENT [ICLR’21] 42.64 ±1.71 ↓ 40.13 ±0.87 ↑ 56.64 ±1.50 ↓ 37.09 ±1.69 ↓ 47.51 ±1.83 ↓ 23.69 ±2.36 ↓ 41.28 ↓
+
+NOTE [NeurIPS’22] 33.85 ±8.58 ↓ 29.40 ±1.26 ↓ 58.41 ±1.96 ↑ 35.42 ±1.28 ↓ 51.75 ±1.43 ↑ 18.20 ±3.04 ↓ 37.84 ↓
+
+SAR [ICLR’23] 23.91 ±1.47 ↓ 25.90 ±0.82 ↓ 34.32 ±2.85 ↓ 32.14 ±1.42 ↓ 33.11 ±2.05 ↓ 23.13 ±1.59 ↓ 28.75 ↓
+
+RoTTA [CVPR’23] 42.53 ±1.16 ↓ 39.74 ±1.08 ↓ 56.64 ±1.15 ↓ 37.27 ±1.57 ↓ 45.25 ±1.34 ↓ 24.18 ±1.78 ↓ 40.94 ↓
+
+OATTA [arXiv’26] 46.85 ±1.23 ↑ 42.62 ±1.19 ↑ 61.93 ±1.83 ↑ 37.50 ±1.90 ↑ 50.81 ±0.72 ↑ 27.69 ±4.35 ↑ 44.57 ↑
+
+OFTTA [Ubicomp’24] 42.61 ±1.64 ↓ 39.54 ±0.86 ↓ 56.26 ±1.38 ↓ 38.06 ±2.06 ↑ 45.74 ±0.94 ↓ 25.73 ±2.67 ↑ 41.32 ↓
+
+ACCUP [KDD’25] 21.35 ±0.18 ↓ 13.95 ±1.10 ↓ 18.93 ±6.32 ↓ 20.14 ±4.32 ↓ 12.65 ±2.79 ↓ 23.17 ±3.51 ↓ 18.37 ↓
+
+COA-HAR [ESWA’26] 27.12 ±2.79 ↓ 22.29 ±1.02 ↓ 43.41 ±3.10 ↓ 31.65 ±1.44 ↓ 47.09 ±1.91 ↓ 19.29 ±0.89 ↓ 31.81 ↓
+
+SIGHT (ours) 51.49 ±1.33 ↑ 45.23 ±2.11 ↑ 67.99 ±4.02 ↑ 40.06 ±1.17 ↑ 53.99 ±1.08 ↑ 33.83 ±3.68 ↑ 48.77 ↑
+
+Table 2: MF1-scores (%) of SIGHT and the baselines on CAPTURE-24 dataset. 
+
+Implementation Details. We adopt the widely-used 1D-CNN architecture as the backbone, and a simple linear layer as the classification head across all the baselines. The source-trained models are pretrained for 100 epochs using the Adam optimizer with a learning rate of 0.001 and a batch size of 64. During TTA, we set the learning rate to 0.0001 for the methods that require parameter updates, and for SIGHT ,we set β = 1 , τ = 0 .05 , ημ = 0 .005 , ηh = 0 .05 , and 
+
+ωμ = 0 .01 . For each source-target pair, we repeat the ex-periments three times with different random seeds. To en-sure a fair comparison, all methods share the exact same set of three pre-trained source models. Following previous works (Eldele et al. 2023; Fortes Rey et al. 2026), we adopt the macro-averaged F1-score (MF1-score) to better evaluate the performance on the imbalanced WHAR datasets. 
+
+5.2 Comparison with State-of-the-Arts (RQ1) 
+
+We benchmark SIGHT against the state-of-the-art methods on HARTH and CAPTURE-24. The comprehensive results are summarized in Table 1 and Table 2, respectively. 
+
+Performance on HARTH. SIGHT achieves the best av-erage performance on HARTH, reaching an MF1-score of 76.73% and surpassing the strongest baseline by 5.68 per-centage points. Many conventional TTA methods even de-grade below Source-only under cross-subject shifts, indicat-ing that direct test-time optimization without accounting for temporal structure may amplify the negative effects. In con-trast, the temporal dynamics-aware method OATTA is more competitive and slightly leads on one pair, while SIGHT 
+
+achieves the most reliable overall improvement. 
+
+Performance on CAPTURE-24. SIGHT also achieves the best performance on the more challenging CAPTURE-24 dataset, where all methods obtain lower absolute MF1-scores due to stronger free-living variability. It reaches an average MF1-score of 48.77%, improving over Source-only by 7.36 percentage points and the strongest baseline by 4.20 percentage points. The second-best results are distributed across different baselines, suggesting that CAPTURE-24 presents more diverse adaptation difficulties, while SIGHT 
+
+maintains stable gains across the evaluated transfers. 
+
+5.3 Diagnostic Analysis 
+
+Ablation Study (RQ2). We evaluate four mechanisms in SIGHT : (i) Predictive surprise, (ii) Geometric Routing, (iii) Habit Prior, and (iv) Prototype Update. The ablation re-sults are summarized in Table 3. Overall, every variant un-derperforms the full model, indicating that no module is re-dundant. The largest drops also differ across datasets, with CAPTURE-24 relying more on prototype adaptation. The consistent drops across datasets suggest that the gains come from complementary temporal, geometric, and habit-aware adaptation signals rather than dataset-specific tuning. In par-ticular, removing transition- or geometry-related cues makes the model more vulnerable to confusing activity changes with local feature noise, while removing habit or prototype updates weakens stream-specific calibration. 6                        
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix Mechanism HARTH CAPTURE-24 Source-only 66.93 41.42
+> w/o Pred. Surp. 73.60 47.91
+> w/o Geom. Rtg. 74.19 46.87
+> w/o Hab. Prior 73.78 47.75
+> w/o Proto. Upd. 74.92 46.45
+> Full 76.73 48.77
+
+Table 3: Ablation experimental MF1-scores (%) of each mechanism of SIGHT on HARTH and CAPTURE-24. 
+
+Sensitivity Analysis (RQ3). We analyze the sensitivity of SIGHT to three key hyperparameters: (i) β for transi-tion surprise sensitivity, (ii) τ for geometric attention sharp-ness, and (iii) ημ for prototype adaptation speed. As shown in Figure 4, the curves are generally stable across datasets and tested ranges, suggesting that SIGHT is not highly sensitive to hyperparameter choices. HARTH shows rela-tively flat curves and favors larger β, suggesting that struc-tured activity streams tolerate broader and more responsive inertia release. Such sensitivity can help clear transitions, whereas noisier free-living deviations require avoiding over-reaction. CAPTURE-24 is relatively more sensitive, espe-cially to larger β, τ , and ημ, whose effects can be amplified by free-living variability, over-smoothing geometric routing or updating prototypes too aggressively. Overall, moderate values provide a better balance between preserving stable activity segments and responding to genuine transitions. 0.1 0.5 1.0 2.0 5.0           
+
+> 5
+> 7.5
+> 10
+> MF1-Score (%)
+> .01 .02 .05 .1 .5 .001 .005 .01 .05 .1
+> HARTH CAPTURE-24
+
+Figure 4: Sensitivity Analysis. ∆ MF1-score over Source-only under different parameter values. 
+
+Efficiency Analysis (RQ4). As WHAR models are typ-ically deployed on resource-constrained edge devices, we evaluate SIGHT in inference time and memory usage. Spa-tially, SIGHT only maintains a prototype bank and a habit vector, with memory cost O(Kd ) for K activity classes. Computationally, its surprise estimation, geometric routing, and prototype updates add simple O(Kd ) vector operations per inference step. Since K is usually small in WHAR and no gradients or optimizer states are required, the overhead is minor compared with the model forward pass, making 
+
+SIGHT suitable for streaming adaptation. We further em-pirically measure the per-sample inference time and mem-ory overhead of SIGHT and the baselines, as shown in Fig-ure 5. SIGHT achieves inference time comparable to output-space-only OATTA, while being significantly faster than other methods. Its memory overhead is also minimal over-all, while some baselines require additional optimizer states. HARTH CAPTURE-24       
+
+> 0
+> 10
+> 20
+> 30
+> (ms)
+> (a) Inference Time
+> 1.098 2.391
+> HARTH CAPTURE-24
+> 0
+> 2000
+> 4000
+> 6000
+> (KB)
+> (b) Memory Usage
+> 80.0 64.0
+> RoTTA OFTTA OATTA SIGHT
+
+Figure 5: Efficiency comparison . (a) Per-sample inference time (ms), measured on a single CPU thread. (b) Memory overhead (KB), defined as the exact byte size of additional tensor state each method stores beyond the shared backbone. 
+
+Adaptability to Backbone Architectures (RQ5). SIGHT 
+
+can be seamlessly applied to various deep model architec-tures. As Table 4 shows, it consistently improves recogni-tion performance across three distinct backbones: (i) 1D-CNN, (ii) 1D-ResNet, and (iii) Transformer. These consis-tent improvements confirm its broad architectural adaptabil-ity, while the varying gains suggest that backbone selection should still consider dataset characteristics.                                   
+
+> Dataset Method 1D-CNN 1D-ResNet Transformer Src.-only 66.93 67.50 67.27 RoTTA 67.03 67.47 67.18 OATTA 71.05 70.22 68.91 OFTTA 67.13 67.20 66.96 HARTH
+> SIGHT 76.73 74.98 73.19
+> Src.-only 41.42 40.56 41.08 RoTTA 40.94 40.46 42.08 OATTA 44.57 44.11 44.93 OFTTA 41.32 40.53 40.57 CAPTURE-24
+> SIGHT 48.77 47.59 46.85
+
+Table 4: Average MF1-scores (%) of SIGHT and the base-lines on HARTH and CAPTURE-24. 
+
+## 6 Conclusion 
+
+In this paper, we studied test-time adaptation for wear-able human activity recognition under cross-subject shifts. We revisited activity persistence and transitions as feature-conditioned signals rather than output-space smooth-ing priors, and proposed SIGHT , a lightweight and backpropagation-free framework for online prediction re-finement. By estimating predictive surprise and routing adaptation with feature geometry and stream-level habits, 
+
+SIGHT balances temporal stability with timely response to activity changes. Experiments on HARTH and CAPTURE-24 show that SIGHT achieves superior overall performance over existing TTA baselines, while diagnostic studies verify its component contributions and adaptability across back-bones. These results highlight conditioning temporal inertia on feature evidence, offering a practical direction for effi-cient WHAR adaptation in streaming deployment. 7      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+## References 
+
+Anguita, D.; Ghio, A.; Oneto, L.; Parra, X.; and Reyes-Ortiz, J. L. 2013. A Public Domain Dataset for Human Activity Recognition Using Smartphones. In Proceedings of the 21st European Symposium on Artificial Neural Net-works, Computational Intelligence and Machine Learning ,437–442. Bruges, Belgium. Asghari, P.; Soleimani, E.; and Nazerfard, E. 2020. Online human activity recognition employing hierarchical hidden Markov models. Journal of Ambient Intelligence and Hu-manized Computing , 11(3): 1141–1152. Baraka, A. M. A.; and Mohd Noor, M. H. 2023. Similarity Segmentation Approach for Sensor-Based Activity Recog-nition. IEEE Sensors Journal , 23(17): 19704–19716. Boudiaf, M.; Mueller, R.; Ben Ayed, I.; and Bertinetto, L. 2022. Parameter-Free Online Test-Time Adaptation. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 8344–8353. New Orleans, LA, USA. Chan, S.; Hang, Y.; Tong, C.; Acquah, A.; Schonfeldt, A.; Gershuny, J.; and Doherty, A. 2024. CAPTURE-24: A large dataset of wrist-worn activity tracker data collected in the wild for human activity recognition. Scientific Data , 11(1): 1135. Chang, Y.; Mathur, A.; Isopoussu, A.; Song, J.; and Kawsar, F. 2020. A Systematic Study of Unsupervised Domain Adaptation for Robust Human-Activity Recognition. Pro-ceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technologies , 4(1): 39:1–39:30. Chen, K.; Zhang, D.; Yao, L.; Guo, B.; Yu, Z.; and Liu, Y. 2021. Deep Learning for Sensor-based Human Activ-ity Recognition: Overview, Challenges, and Opportunities. 
+
+ACM Computing Surveys , 54(4): 77:1–77:40. Deng, R.; Bao, W.; Wei, T.; and He, J. 2026. Panda: Test-Time Adaptation with Negative Data Augmentation. In Pro-ceedings of the AAAI Conference on Artificial Intelligence ,3551–3559. Singapore. Eldele, E.; Ragab, M.; Chen, Z.; Wu, M.; Kwoh, C.-K.; Li, X.; and Guan, C. 2023. Self-Supervised Contrastive Repre-sentation Learning for Semi-Supervised Time-Series Clas-sification. IEEE Transactions on Pattern Analysis and Ma-chine Intelligence , 45(12): 15604–15618. Fortes Rey, V.; Bressane Rezende, P. M.; Zhou, B.; Suh, S.; and Lukowicz, P. 2026. COA-HAR: Exploring contrastive online test-time adaptation for wearable sensor-based hu-man activity recognition using sensor data augmentation. 
+
+Expert Systems with Applications , 297: 129288. Ghosh, I.; Chugh, G.; Faridee, A. Z. M.; and Roy, N. 2025. High-Order Moments Conditional Domain Adaptation Net-works for Wearable Human Activity Recognition. In Pro-ceedings of the 34th ACM International Conference on In-formation and Knowledge Management , 718–728. Seoul, Republic of Korea. Gidaris, S.; and Komodakis, N. 2018. Dynamic Few-Shot Visual Learning without Forgetting. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recogni-tion , 4367–4375. Salt Lake City, UT, USA. Gong, P.; Ragab, M.; Wu, M.; Chen, Z.; Su, Y.; Li, X.; and Zhang, D. 2025. Augmented Contrastive Clustering with Uncertainty-Aware Prototyping for Time Series Test Time Adaptation. In Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining ,390–401. Toronto, ON, Canada. Gong, T.; Jeong, J.; Kim, T.; Kim, Y.; Shin, J.; and Lee, S.-J. 2022. NOTE: Robust Continual Test-time Adaptation Against Temporal Correlation. In Advances in Neural In-formation Processing Systems , 27253–27266. New Orleans, LA, USA. Han, J.; Na, J.; and Hwang, W. 2025. Ranked Entropy Minimization for Continual Test-Time Adaptation. In Pro-ceedings of the 42nd International Conference on Machine Learning , 21798–21813. Vancoouver, BC, Canada. Hu, R.; Chen, L.; Miao, S.; and Tang, X. 2023. SWL-Adapt: An Unsupervised Domain Adaptation Model with Sample Weight Learning for Cross-User Wearable Human Activity Recognition. In Proceedings of the AAAI Conference on Ar-tificial Intelligence , 6012–6020. Washington, DC, USA. Iwasawa, Y.; and Matsuo, Y. 2021. Test-Time Classifier Ad-justment Module for Model-Agnostic Domain Generaliza-tion. In Advances in Neural Information Processing Sys-tems , 2427–2440. Virtual Event. Kang, H.; Hu, Q.; and Zhang, Q. 2024. SF-Adapter: Computational-Efficient Source-Free Domain Adaptation for Human Activity Recognition. Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Technolo-gies , 7(4): 164:1–164:23. Kim, Y. K.; Schlesinger, O.; Wu, Q.; Di Martino, J. M.; and Sapiro, G. 2026. Order-Aware Test-Time Adaptation: Lever-aging Temporal Dynamics for Robust Streaming Inference. 
+
+CoRR , abs/2601.21012. Lara, O. D.; and Labrador, M. A. 2013. A Survey on Hu-man Activity Recognition using Wearable Sensors. IEEE Communications Surveys & Tutorials , 15(3): 1192–1209. Lester, J.; Choudhury, T.; Kern, N.; Borriello, G.; and Han-naford, B. 2005. A Hybrid Discriminative/Generative Ap-proach for Modeling Human Activities. In Proc. Int. Joint Conf. Artif. Intell. , 766–772. Edinburgh, Scotland, UK. Li, J.; L¨ u, S.; and Li, Z. 2022. Unsupervised domain adap-tation via softmax-based prototype construction and adapta-tion. Information Sciences , 609: 257–275. Li, Z.; Wei, Z.; Yue, Y.; Wang, H.; Jia, W.; Burke, L. E.; Baranowski, T.; and Sun, M. 2015. An adaptive hidden Markov model for activity recognition based on a wearable multi-sensor device. Journal of Medical Systems , 39(5): 57. Liang, J.; He, R.; and Tan, T. 2025. A Comprehensive Sur-vey on Test-Time Adaptation Under Distribution Shifts. In-ternational Journal of Computer Vision , 133(1): 31–64. Liang, J.; Hu, D.; and Feng, J. 2020. Do We Really Need to Access the Source Data? Source Hypothesis Transfer for Unsupervised Domain Adaptation. In Proceedings of the 37th International Conference on Machine Learning , 6028– 6039. Virtual Event, Austria. 8      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+Lim, H.; Kim, B.; Choo, J.; and Choi, S. 2023. TTN: A Domain-Shift Aware Batch Normalization in Test-Time Adaptation. In Procedings of the International Conference on Learning Representations . Kigali, Rwanda. Liu, H.; Xue, T.; and Schultz, T. 2023. On a Real Real-Time Wearable Human Activity Recognition System. In 
+
+Proceedings of the 16th International Joint Conference on Biomedical Engineering Systems and Technologies, Volume 5: HEALTHINF , 711–720. Lisbon, Portugal. Logacjov, A.; Bach, K.; Kongsvold, A.; B˚ ardstu, H. B.; and Mork, P. J. 2021. HARTH: a human activity recognition dataset for machine learning. Sensors , 21(23): 7853. Mannini, A.; and Sabatini, A. M. 2011. Accelerometry-Based Classification of Human Activities Using Markov Modeling. Computational Intelligence and Neuroscience ,2011(1): 647858:1–647858:10. Niu, S.; Wu, J.; Zhang, Y.; Chen, Y.; Zheng, S.; Zhao, P.; and Tan, M. 2022. Efficient Test-Time Model Adaptation without Forgetting. In Proceedings of the 39th International Conference on Machine Learning , 16888–16905. Baltimore, MD, USA. Niu, S.; Wu, J.; Zhang, Y.; Wen, Z.; Chen, Y.; Zhao, P.; and Tan, M. 2023. Towards Stable Test-time Adaptation in Dy-namic Wild World. In Proceedings of the International Con-ference on Learning Representations . Kigali, Rwanda. Sanabria, A. R.; Zambonelli, F.; Dobson, S.; and Ye, J. 2021. ContrasGAN: Unsupervised domain adaptation in Human Activity Recognition via adversarial and contrastive learn-ing. Pervasive Mobile Computing , 78: 101477. Sun, Y.; Xu, X.; Tian, X.; Zhou, L.; and Li, Y. 2024. Ef-ficient human activity recognition: A deep convolutional transformer-based contrastive self-supervised approach us-ing wearable sensors. Engineering Applications of Artificial Intelligence , 135: 108705. Tanwisuth, K.; Fan, X.; Zheng, H.; Zhang, S.; Zhang, H.; Chen, B.; and Zhou, M. 2021. A Prototype-Oriented Frame-work for Unsupervised Domain Adaptation. In Advances in Neural Information Processing Systems , 17194–17208. Vir-tual Event. Teng, Q.; Li, W.; Hu, G.; Shu, Y.; and Liu, Y. 2025. Inno-vative Dual-Decoupling CNN With Layer-Wise Temporal-Spatial Attention for Sensor-Based Human Activity Recog-nition. IEEE Journal of Biomedical and Health Informatics ,29(2): 1035–1048. Thukral, M.; Haresamudram, H.; and Pl¨ otz, T. 2025. Cross-Domain HAR: Few-Shot Transfer Learning for Human Ac-tivity Recognition. ACM Transactions on Intelligent Systems and Technology , 16(1): 22:1–22:35. Tian, Y.; Li, K.; He, T.; Wan, L.; Heng, P.; and Feng, W. 2026. Dual Domain-Attribute Learning Framework With Asynchronous Adapters for Continual Test-Time Adapta-tion. IEEE Transactions on Image Processing , 35: 376–387. Wang, D.; Shelhamer, E.; Liu, S.; Olshausen, B.; and Dar-rell, T. 2021. Tent: Fully Test-Time Adaptation by Entropy Minimization. In Proceedings of the International Confer-ence on Learning Representations . Virtual Event, Austria. Wang, Q.; Fink, O.; Van Gool, L.; and Dai, D. 2022. Con-tinual Test-Time Domain Adaptation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 7201–7211. New Orleans, LA, USA. Wang, S.; Wang, J.; Xi, H.; Zhang, B.; Zhang, L.; and Wei, H. 2024. Optimization-Free Test-Time Adaptation for Cross-Person Activity Recognition. Proceedings of the ACM on Interactive, Mobile, Wearable and Ubiquitous Tech-nologies , 7(4): 183:1–183:27. Wu, T.; Liu, Y.; and Yongchareon, S. 2024. Class-Aware Sample Weight Learning for Cross-Modal Unsupervised Domain Adaptation in Cross-User Wearable Human Ac-tivity Recognition. In Proceedings of the 27th European Conference on Artificial Intelligence , 569–576. Santiago de Compostela, Spain. Xiao, Z.; Xing, H.; Qu, R.; Li, H.; Cheng, X.; Xu, L.; Feng, L.; and Wan, Q. 2025. Heterogeneous Mutual Knowl-edge Distillation for Wearable Human Activity Recognition. 
+
+IEEE Transactions on Neural Networks and Learning Sys-tems , 36(9): 16589–16603. Xue, M.; Zhu, Y.; Xie, W.; Wang, Z.; Chen, Y.; Jiang, K.; and Zhang, Q. 2025. MobHAR: Source-free Knowledge Transfer for Human Activity Recognition on Mobile De-vices. Proceedings of the ACM on Interactive, Mobile, Wear-able and Ubiquitous Technologies , 9(1): 22:1–22:24. You, L.; Lu, J.; and Huang, X. 2025. Test-time Correlation Alignment. In Proceedings of the 42nd International Con-ference on Machine Learning , 72700–72729. Vancoouver, BC, Canada. Yuan, L.; Xie, B.; and Li, S. 2023. Robust Test-Time Adaptation in Dynamic Scenarios. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 15922–15932. Vancouver, BC, Canada. Zhang, M.; and Sawchuk, A. A. 2012. USC-HAD: a daily activity dataset for ubiquitous activity recognition using wearable sensors. In Proceedings of the 2012 ACM Con-ference on Ubiquitous Computing , 1036–1043. Pittsburgh, PA, USA. Zhang, R.; Cheng, A.; Luo, Y.; Dai, G.; Yang, H.; Liu, J.; Xu, R.; Du, L.; Wang, D.; and Du, Y. 2026a. Decompos-ing the Neurons: Activation Sparsity via Mixture of Experts for Continual Test Time Adaptation. In Proceedings of the AAAI Conference on Artificial Intelligence , 36057–36065. Singapore. Zhang, R.; Niu, S.; Deng, Q.; Dong, Y.; Chen, J.; and Zeng, R. 2026b. ZOTTA: Test-Time Adaptation with Gradient-Free Zeroth-Order Optimization. CoRR , abs/2603.14254. Zhu, T.; Dong, Y.; Zhou, Y.; Zhu, C.; and Cao, L. 2025. Cross-Domain Human Activity Recognition via Domain Adaptation and Fused Attention. IEEE Journal of Biomedi-cal and Health Informatics , 29(8): 5394–5404. 9      
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+# Appendix 
+
+## A1 Overall Procedure of SIGHT 
+
+SIGHT operates on the target stream in a single online pass. It first initializes the class prototypes from the source-trained linear classifier weights and sets the habit vector to a uni-form distribution, i.e., h0 = 1/K , which provides a neu-tral stream-level prior before observing target samples. For the first incoming window, no previous refined prediction is available, so SIGHT directly uses the source model predic-tion as the refined prediction, i.e., q1 = p1. For each sub-sequent window, SIGHT projects the previous refined pre-diction onto the current prototype bank to form an expected feature state, estimates the surprise between this expectation and the current observation, and uses the observed feature displacement to construct a geometry-aware routing prior calibrated by the habit statistics. The resulting temporal prior is fused with the raw prediction to obtain qt, after which both the habit vector and prototypes are updated online for future inference. Algorithm 1 summarizes the overall procedure. Algorithm 1: Overall Pipeline of SIGHT 
+
+Input: Source-trained model fθ , stream {xt}Nt=1 , hyperpa-rameters β, τ, η μ, η h, ω μ;
+
+Output: Refined predictions {qt}Nt=1 ; 
+
+> 1:
+
+Initialize prototypes {μ(0)  
+
+> k
+
+}Kk=1 from classifier weights;  
+
+> 2:
+
+Initialize h0 uniformly;  
+
+> 3:
+
+for t = 1 to N do  
+
+> 4:
+
+Obtain feature ˆzt and raw prediction pt; 
+
+> 5:
+
+if t = 1 then  
+
+> 6:
+
+Set qt = pt; 
+
+> 7:
+
+else  
+
+> 8:
+
+Project qt−1 to expected state ˆzt|t−1; 
+
+> 9:
+
+Estimate surprise λt from ˆzt and ˆzt|t−1; 
+
+> 10:
+
+Compute geometric routing rt; 
+
+> 11:
+
+Calibrate rt with habit statistics to obtain ρt; 
+
+> 12:
+
+Fuse prior πt = (1 − λt)qt−1 + λtρt; 
+
+> 13:
+
+Refine prediction qt = Π ∆(pt ⊙ πt); 
+
+> 14:
+
+end if  
+
+> 15:
+
+Update habit vector ht with qt; 
+
+> 16:
+
+Update prototypes {μ(t) 
+
+> k
+
+}Kk=1 with soft assignment;  
+
+> 17:
+
+end for  
+
+> 18:
+
+return {qt}Nt=1 ;
+
+## A2 Experiments 
+
+A2.1 Details of Datasets 
+
+We use two real-world and free-living datasets, HARTH (Logacjov et al. 2021) and CAPTURE-24 (Chan et al. 2024), to evaluate the performance of SIGHT 
+
+and the baselines. Conventional WHAR datasets, like UCI-HAR (Anguita et al. 2013), are collected either in a controlled lab environment or following a scripted protocol, lacking the naturalness and diversity of real-world scenarios. In contrast, recent datasets like HARTH and CAPTURE-24 are collected in free-living conditions, capturing a wide range of activities and contexts, thus providing a more realistic benchmark for evaluating WHAR models. The details of the two datasets are as follows. • HARTH (Logacjov et al. 2021) is a free-living WHAR dataset collected using two tri-axial accelerometers placed on the thigh and lower back. We use the latest v2.0 release with 31 subjects and segment the 50 Hz streams into 2-second windows with a 1-second stride. • CAPTURE-24 (Chan et al. 2024) is a large-scale in-the-wild dataset collected from 151 participants using wrist-worn tri-axial accelerometers. It contains 3883 hours of acceleration data, of which 2562 hours are annotated, and we use non-overlapping 10-second windows at 100 Hz. So far, HARTH and CAPTURE-24 are the only public datasets collected in free-living conditions without scripted protocols. Nevertheless, we include conventional scripted datasets USC-HAD (Zhang and Sawchuk 2012) and UCI-HAR (Anguita et al. 2013) to provide complementary re-sults on the performance of SIGHT and baselines under con-trolled conditions. The details of the datasets are as follows. • USC-HAD (Zhang and Sawchuk 2012): an HAR dataset collected from 14 subjects using a waist-mounted iner-tial sensor, covering 12 well-defined daily activities for benchmarking ubiquitous activity recognition. • UCI-HAR (Anguita et al. 2013) is a smartphone-based HAR dataset collected from 30 subjects carrying a waist-mounted smartphone, using accelerometer and gyro-scope signals to recognize 6 activities of daily living. These two datasets are widely used in the HAR commu-nity and provide a useful reference point for evaluating TTA methods under more traditional conditions. 
+
+A2.2 Details of Baselines 
+
+In the main text, we use two groups of baselines for compari-son: (1) conventional TTA methods, including TENT (Wang et al. 2021), NOTE (Gong et al. 2022), SAR (Niu et al. 2023), and RoTTA (Yuan, Xie, and Li 2023); (2) recent WHAR-related methods, including OFTTA (Wang et al. 2024), ACCUP (Gong et al. 2025), and COA-HAR (Fortes Rey et al. 2026). We use the official implementations if available. The details of the baselines are as follows. • TENT (Wang et al. 2021) adapts the model by minimiz-ing prediction entropy at test time. • NOTE (Gong et al. 2022) improves continual TTA un-der temporally correlated test samples by maintaining a balanced online adaptation queue. • SAR (Niu et al. 2023) performs sharpness-aware and re-liable entropy minimization with sample filtering for sta-ble adaptation under dynamic shifts. 10       
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+• RoTTA (Yuan, Xie, and Li 2023) uses robust batch nor-malization and a teacher–student mechanism to handle long-term test-time distribution shifts. • OATTA (Kim et al. 2026) performs gradient-free Bayesian refinement with a learned transition matrix and likelihood-ratio gate for weakly structured streams. • OFTTA (Wang et al. 2024) is an optimization-free TTA method for cross-person activity recognition based on adaptive normalization statistics. • ACCUP (Gong et al. 2025) combines augmented con-trastive clustering with uncertainty-aware prototype re-finement for time-series TTA, which is evaluated on some WHAR datasets in their paper. • COA-HAR (Fortes Rey et al. 2026) applies contrastive online adaptation with sensor-data augmentation and pseudo-label refinement for WHAR streams. To further evaluate recent TTA methods published in 2025, we include additional results in this appendix. The de-tails of these methods are as follows. • TCA (You, Lu, and Huang 2025) aligns test-time feature correlations with a high-confidence pseudo-source bank through lightweight linear transformations. • REM (Han, Na, and Hwang 2025) stabilizes continual entropy minimization with object masking, masked con-sistency, and entropy-ranking losses to prevent collapse. 
+
+A2.3 More Implementation Details 
+
+We provide additional implementation details that comple-ment the experimental setup. The model-specific parameters for 1D-CNN are summarized in Table A1. For baselines that require batch processing such as ACCUP, we set the batch size to 32. The ϵ for numerical stability is set to 10 −8. The hyperparameters of SIGHT are determined by grid search on validation pairs disjoint from comparison pairs. Parameter Value Input channels 3Middle channels 64 Kernel size 5Stride 1Dropout rate 0.1 Final output channels 128 Feature length 16 Table A1: Model-specific implementation parameters. 
+
+A2.4 More Results 
+
+Full Comparison. As space is limited in the main text, we provide detailed MF1-scores of SIGHT and all baselines on more source–target pairs in Table A6 and Table A7. For each dataset, we report 18 additional source–target pairs for a more comprehensive comparison. Overall, the expanded comparison shows a consistent pattern across shifts: SIGHT 
+
+is more stable than entropy-minimization or prototype-only adaptation methods, and preserves gains across structured HARTH streams and heterogeneous CAPTURE-24. These results suggest that using temporal structure and conserva-tive prototype refinement helps avoid unstable adaptation while exploiting target-stream information. As a supplemen-tary reference, Table A8 and Table A9 show that SIGHT also remains competitive on the conventional scripted datasets USC-HAD and UCI-HAR, achieving many best or near-best results, though its advantage is less pronounced. This is likely because these controlled benchmarks exhibit milder shifts and weaker chronological structure due to scripted collection and pre-segmentation, leaving less room for tem-poral surprise and transition-routing cues to help. 
+
+Full Efficiency Results. We provide the efficiency com-parison of SIGHT and all the baselines in Table A2, which includes both the inference time and memory us-age on HARTH and CAPTURE-24. Notably, compared to optimization-based methods like COA-HAR and RoTTA that require gigabytes of memory, SIGHT maintains a min-imal footprint under 100 KB and extremely low latency around 1.1 to 2.4 ms. The results demonstrate that SIGHT 
+
+achieves a highly favorable balance between performance and efficiency for on-device deployment.                                                  
+
+> HARTH CAPTURE-24 Method Time ↓Mem. ↓Time ↓Mem. ↓
+> Source-only 0.61 0.0 1.90 0.0 TENT 3.86 821.8 9.69 813.8 NOTE 1.83 896.8 6.86 1563.8 SAR 6.08 816.8 15.69 808.8 RoTTA 3.23 2643.7 28.93 5431.4 OATTA 0.86 0.3 2.20 0.2
+> OFTTA 2.23 303.7 4.86 325.0 ACCUP 9.16 1655.8 97.94 1645.0 COA-HAR 10.17 3986.6 74.84 6670.6
+> SIGHT 1.10 80.0 2.39 64.0
+
+Table A2: Full efficiency comparison of SIGHT and the baselines (Time: ms, Mem.: KB). Bold and underline in-dicate the best and second-best results among adaptation methods, excluding Source-only. 
+
+Design-Choice Ablation. We conduct ablation studies to analyze the contribution of each design choice by replac-ing it with an alternative. The replacement alternatives are as follows: (i) for surprise estimation, we replace the pro-posed geometric surprise with a simple feature distance 
+
+λt = ∥ˆzt − ˆzt|t−1∥; (ii) for habit vector, we replace the Sqrt habit with raw habit; (iii) for the prototype update, we re-place the soft assignment with top-1 hard assignment; and (iv) also for the prototype update, we remove the source an-choring term. The results are shown in Table A3. Overall, the full SIGHT consistently achieves the best performance on both datasets, confirming the effectiveness of these detailed design choices. The drops are relatively mild on HARTH but more evident on CAPTURE-24, especially for hard pro-totype assignment and removing source anchoring, suggest-11       
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+ing that noisy free-living streams benefit more from conser-vative prototype adaptation and semantic anchoring.                     
+
+> Variant HARTH CAPTURE-24 Surprise w/ Feat. Dist. 75.82 47.80 Habit w/ Raw Vec. 75.74 48.60 Update w/ Hard Assign. 76.21 47.91
+> w/o Source Anchoring 75.98 47.73
+> Full SIGHT 76.73 48.77
+
+Table A3: Ablation experimental MF1-scores (%) on the de-tailed design choices of SIGHT .
+
+Sensitivity of Other Hyperparameters. Besides the main hyperparameters, we also investigate the sensitivity of additional hyperparameters: (i) ηh for habit vector up-date speed; (ii) ωμ for prototype anchoring strength. As shown in Figure A1, the curves are generally stable across tested ranges, suggesting that SIGHT is not highly sensi-tive to these extra hyperparameters. HARTH shows nearly flat performance for both ηh and ωμ, indicating that struc-tured streams can tolerate a broad range of habit tracking and anchoring strengths. CAPTURE-24 is relatively more sensitive and favors faster habit updates and moderate proto-type anchoring, reflecting its stronger free-living variability and greater risk of prototype drift. Overall, moderate values provide a good balance between adapting to target-stream statistics and preserving source-side semantic stability. .001 .01 .02 .05 .1      
+
+> h
+> 5
+> 7.5
+> 10
+> MF1-Score (%)
+> .001 .005 .01 .02 .05
+> HARTH CAPTURE-24
+
+Figure A1: Sensitivity Analysis. ∆ MF1-score over Source-only under different parameter ( ηh, ωμ) values. 
+
+Transition Geometry Validation. To empirically vali-date Definition 1 (ii), especially its two geometric assump-tions, we extract source features on target streams and com-pare each observation with its projected expectation un-der persistence. As shown in Figure A2, the two cosine-similarity distributions are strongly separable, with within-segment similarities concentrated near one and boundary de-viations substantially lower, confirming mild variation and pronounced dips. We further assess whether the deviation direction at true transitions is discriminative by scoring can-didate classes via alignment with the observed feature shift. The ranking accuracy far exceeds random baselines on both datasets, indicating that transition geometry is informative for online routing. Together, these results verify that bound-ary deviations are both large enough to trigger surprise and directionally structured enough to guide geometric attention across heterogeneous streams. 0.0 0.5 1.0 
+
+> Cosine Similarity
+
+0
+
+5
+
+10 
+
+15     
+
+> Density
+> (a) HARTH
+> AUC =0.903
+> KS =0.674
+
+0.0 0.5 1.0 
+
+> Cosine Similarity
+
+0
+
+5
+
+10 
+
+15      
+
+> Density
+> (b) CAPTURE-24
+> AUC =0.850
+> KS =0.554
+> Within-Segment Across-Segment
+
+Figure A2: Transition geometry validation. Observed vs projected expectation cosine similarities; within-segment and boundary distributions are strongly separable. 
+
+Prototype Refinement Results. To verify that SIGHT prototypes accumulate target knowledge, we measure per-segment alignment against ground-truth target centroids us-ing true labels on a pair of HARTH subjects. As elastic an-choring reverts inactive prototypes toward source initializa-tion, step-level curves are dominated by boundary dips. We therefore aggregate per-segment averages and compare the 
+
+first and last occurrence of each activity in Figure A3. Ev-ery multi-segment class improves substantially, even from poor initial alignment caused by source classifier weights under severe cross-subject shifts, with large gains observed for classes that were initially far from their ground-truth cen-troids, confirming that repeated exposure refines prototypes toward target-specific feature geometry. The monotonic in-crease suggests no catastrophic drift in this analysis. Cycling Like Lying Sitting Standing Walking Like    
+
+> 0.0
+> 0.5
+> 1.0
+> Cosine  +0.05
+> +0.17 +0.48 +0.38
+> First Segment Last Segment
+
+Figure A3: Prototype alignment improvement. Cosine similarity w.r.t. ground-truth centroids for first and last seg-ments. All classes improve. 
+
+Chronological-Order Test. To quantify each method’s reliance on temporal structure, we evaluate under three pro-gressive degradation levels on HARTH and CAPTURE-24. (i) Chrono.: use the original streaming order. (ii) Block Perm.: shuffle 32-sample blocks, preserving local continu-ity but destroying global transitions. (iii) Full Shfl.: permute windows i.i.d., removing all temporal context. As shown in Table A4, SIGHT achieves its best performance under chronological order and degrades as temporal structure is destroyed, especially on CAPTURE-24. OATTA shows a similar tendency, though with smaller changes, indicating that temporal dynamics-aware methods benefit from ordered activity streams. In contrast, ACCUP and COA-HAR of-ten perform better under block permutation or full shuffling, suggesting that these methods are more aligned with i.i.d. 12       
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+test samples and may be affected by temporally correlated streaming inputs. These results support our motivation that chronological structure is not merely a nuisance in WHAR TTA, but a useful signal when explicitly modeled. 
+
+Dataset Method Chrono. Block Perm. Full Shfl. Src.-only All 66.93 ACCUP 23.68 26.13 29.15 
+
+COA-HAR 47.17 63.00 63.29 
+
+OATTA 71.05 70.93 70.97 HARTH 
+
+SIGHT 76.73 76.18 75.12 Src.-only All 41.42 ACCUP 18.37 22.23 23.46 
+
+COA-HAR 31.81 38.32 37.94 OATTA 44.57 43.99 43.04 CAPTURE-24 
+
+SIGHT 48.77 47.39 44.86 
+
+Table A4: Macro-F1 on HARTH and CAPTURE-24 under three levels of temporal structure degradation. 
+
+## A3 Discussion 
+
+Role of Temporal Correlation. The chronological-order test in Section A2.4 provides a broader view of temporal correlation in WHAR TTA. SIGHT performs best under the original chronological stream and degrades as block per-mutation and full shuffling progressively remove temporal structure, whereas ACCUP and COA-HAR can improve af-ter shuffling. This contrast suggests that temporal correlation is not merely a non-i.i.d. nuisance or a potential evaluation bias. It can also be an inference signal when modeled explic-itly. The key distinction is whether a method can separate ordinary segment persistence from genuine activity transi-tions. Methods that assume i.i.d. batches may benefit from shuffling because it weakens streaming correlation, while 
+
+SIGHT benefits from chronological order because predictive surprise and geometric routing turn persistence and transi-tions into usable online evidence. 
+
+Why WHAR-Related Baselines Underperform. AC-CUP (Gong et al. 2025) and COA-HAR (Fortes Rey et al. 2026) are recent methods designed for time-series TTA, while COA-HAR is specifically proposed for WHAR. How-ever, both methods degrade severely in our streaming proto-col because their designs implicitly assume pre-segmented samples and stable batch statistics rather than the sustained temporal continuity of free-living streams. They were origi-nally evaluated on traditional scripted HAR datasets. Such settings often use shuffled pre-segmented samples, which weakens the chronological activity continuity considered in our streaming setting. ACCUP relies on prototype-based contrastive optimization within each test batch, yet online WHAR batches usually contain only one or two activity classes, making the contrastive signal weak and biased. Cross-subject shift further produces noisy early pseudo-labels that contaminate its support sets, while class imbal-ance leaves rare classes with unreliable centroids. COA-HAR employs periodic batch adaptation with memory re-play and InfoNCE contrastive loss, but its contrastive signal requires batch diversity that single-sample streaming can-not offer, while BN updates are destabilized by noisy one-sample running statistics. Both methods modify model pa-rameters via backpropagation on streaming pseudo-labels; without the clean target distributions or segmented sam-ple pools their algorithms presuppose, the adaptation drifts rather than improves. 
+
+Limitations. SIGHT remains subject to several limita-tions. Although the prototype refinement analysis shows that poorly initialized prototypes can improve through repeated target exposure, early predictions may still be affected by the calibration of the source representation. In addition, SIGHT 
+
+is most beneficial when the target stream preserves meaning-ful chronological structure; its advantage may be reduced for heavily shuffled inputs, sparse sampling, or extremely abrupt activity changes where temporal and geometric cues become unreliable. Finally, our experiments focus on accelerometer-based cross-subject WHAR, and extending SIGHT to multi-modal sensing, cross-device shifts, and longer real-world de-ployments remains an important direction for future work. 
+
+## A4 Notation 
+
+Table A5 summarizes the main notation used in the paper. 
+
+Notation Description 
+
+fθ Source-trained WHAR model. 
+
+gϕ Feature encoder in the model. 
+
+hψ Linear classifier in the model. 
+
+xt Target sensor window at time t.
+
+zt Raw feature from the encoder. 
+
+ˆzt Normalized current feature. 
+
+pt Raw prediction from the source model. 
+
+qt Refined prediction produced by SIGHT .
+
+wk Classifier weight for class k.
+
+μ(0)  
+
+> k
+
+Initial source-side prototype. 
+
+μ(t) 
+
+> k
+
+Online prototype of class k.
+
+Mt Prototype bank at time t.
+
+ˆzt|t−1 Expected feature under temporal persistence. 
+
+Dt Feature discrepancy to expectation. 
+
+λt Surprise score for inertia release. 
+
+vt Observed feature displacement direction. 
+
+ut,k Direction toward prototype k.
+
+at,k Alignment score for class k.
+
+rt Geometry-based routing distribution. 
+
+ht Stream-level marginal habit vector. 
+
+˜ht Flattened habit for calibration. 
+
+ρt Habit-calibrated routing prior. 
+
+πt Temporal prior for refinement. 
+
+Π∆(·) Projection onto the simplex. 
+
+β Sensitivity of surprise estimation. 
+
+τ Sharpness of geometric routing. 
+
+ηh Update rate of habit tracking. 
+
+ημ Update rate of prototypes. 
+
+ωμ Strength of source anchoring. 
+
+Table A5: Summary of the main notation used in SIGHT .13       
+
+> Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR
+> Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
+
+Algorithm S006 → S009 S006 → S026 S008 → S015 S008 → S017 S009 → S035 S013 → S023 S013 → S033 S014 → S026 Source-only 77.90 ±10.63 − 74.48 ±8.05 − 70.69 ±0.64 − 66.50 ±0.77 − 35.93 ±0.07 − 49.54 ±0.26 − 50.93 ±0.52 − 41.92 ±7.78 −
+
+TENT [ICLR’21] 77.93 ±10.76 ↑ 73.95 ±8.03 ↓ 70.57 ±0.56 ↓ 66.70 ±0.85 ↑ 35.65 ±0.25 ↓ 49.49 ±0.36 ↓ 51.32 ±0.71 ↑ 45.30 ±8.45 ↑
+
+NOTE [NeurIPS’22] 52.31 ±4.31 ↓ 56.76 ±1.44 ↓ 66.15 ±2.93 ↓ 62.61 ±3.24 ↓ 19.65 ±1.56 ↓ 49.23 ±0.53 ↓ 53.06 ±0.69 ↑ 25.71 ±1.38 ↓
+
+SAR [ICLR’23] 31.81 ±0.56 ↓ 32.53 ±3.36 ↓ 61.40 ±2.82 ↓ 58.64 ±1.41 ↓ 35.93 ±0.07 ↑ 50.00 ±7.80 ↑ 49.95 ±0.76 ↓ 18.69 ±3.45 ↓
+
+RoTTA [CVPR’23] 77.90 ±10.63 ↑ 74.42 ±8.19 ↓ 70.69 ±0.67 ↑ 66.52 ±0.76 ↑ 35.92 ±0.09 ↓ 49.55 ±0.26 ↑ 50.95 ±0.53 ↑ 42.11 ±7.87 ↑
+
+OATTA [arXiv’26] 89.76 ±1.05 ↑ 80.52 ±1.98 ↑ 72.01 ±0.87 ↑ 68.28 ±0.57 ↑ 36.25 ±0.09 ↑ 50.00 ±0.23 ↑ 58.69 ±5.52 ↑ 46.87 ±3.75 ↑
+
+TCA [ICML’25] 50.58 ±4.81 ↓ 44.66 ±0.55 ↓ 37.31 ±4.63 ↓ 36.86 ±1.46 ↓ 21.68 ±0.72 ↓ 29.95 ±3.92 ↓ 13.63 ±2.62 ↓ 29.59 ±1.55 ↓
+
+REM [ICML’25] 78.00 ±10.72 ↑ 74.08 ±8.18 ↓ 70.52 ±0.66 ↓ 66.71 ±0.78 ↑ 35.55 ±0.29 ↓ 49.54 ±0.41 ↑ 51.38 ±0.73 ↑ 44.93 ±8.20 ↑
+
+OFTTA [Ubicomp’24] 78.23 ±10.91 ↑ 73.09 ±7.13 ↓ 70.69 ±0.56 ↓ 66.50 ±0.99 ↑ 35.60 ±0.20 ↓ 49.67 ±0.13 ↑ 50.62 ±0.71 ↓ 42.46 ±7.40 ↑
+
+ACCUP [KDD’25] 13.76 ±1.16 ↓ 12.18 ±2.62 ↓ 24.46 ±3.49 ↓ 23.37 ±2.10 ↓ 1.98 ±0.34 ↓ 23.07 ±1.29 ↓ 44.30 ±5.82 ↓ 8.84 ±1.67 ↓
+
+COA-HAR [ESWA’26] 39.01 ±8.02 ↓ 40.20 ±4.15 ↓ 45.73 ±5.21 ↓ 57.99 ±3.07 ↓ 14.27 ±0.47 ↓ 40.84 ±4.36 ↓ 51.33 ±1.10 ↑ 18.12 ±1.64 ↓
+
+SIGHT (ours) 94.12 ±1.30 ↑ 83.38 ±3.00 ↑ 72.17 ±0.90 ↑ 68.79 ±0.42 ↑ 38.53 ±0.05 ↑ 62.87 ±0.10 ↑ 64.34 ±0.84 ↑ 49.77 ±4.00 ↑
+
+Algorithm S014 → S032 S015 → S024 S015 → S028 S016 → S021 S016 → S034 S018 → S030 S020 → S023 S020 → S027 Source-only 46.46 ±0.08 − 74.53 ±0.26 − 53.33 ±0.01 − 74.28 ±1.40 − 55.01 ±0.37 − 60.63 ±2.02 − 50.10 ±0.01 − 46.35 ±1.91 −
+
+TENT [ICLR’21] 46.57 ±0.01 ↑ 74.52 ±0.30 ↓ 66.67 ±0.05 ↑ 74.33 ±1.56 ↑ 55.20 ±0.35 ↑ 61.49 ±1.93 ↑ 50.11 ±0.01 ↑ 50.44 ±3.40 ↑
+
+NOTE [NeurIPS’22] 46.49 ±0.15 ↑ 54.55 ±3.95 ↓ 58.12 ±4.89 ↑ 73.84 ±7.57 ↓ 52.45 ±1.94 ↓ 34.54 ±4.51 ↓ 53.81 ±3.04 ↑ 48.45 ±5.54 ↑
+
+SAR [ICLR’23] 34.85 ±0.53 ↓ 76.82 ±6.44 ↑ 53.38 ±3.94 ↑ 62.21 ±4.09 ↓ 50.41 ±1.83 ↓ 43.87 ±4.79 ↓ 45.75 ±1.09 ↓ 37.39 ±1.93 ↓
+
+RoTTA [CVPR’23] 46.49 ±0.09 ↑ 74.53 ±0.26 ↑ 53.33 ±0.01 ↑ 74.19 ±1.32 ↓ 55.02 ±0.37 ↑ 60.73 ±2.10 ↑ 50.11 ±0.01 ↑ 46.35 ±1.91 ↑
+
+OATTA [arXiv’26] 46.50 ±0.16 ↑ 91.45 ±8.08 ↑ 66.62 ±0.15 ↑ 74.83 ±1.15 ↑ 68.66 ±0.47 ↑ 62.76 ±2.06 ↑ 50.22 ±0.05 ↑ 50.18 ±4.54 ↑
+
+TCA [ICML’25] 31.26 ±0.13 ↓ 51.78 ±1.80 ↓ 30.75 ±2.17 ↓ 34.19 ±0.66 ↓ 20.60 ±7.44 ↓ 26.07 ±2.97 ↓ 45.78 ±0.35 ↓ 30.88 ±2.59 ↓
+
+REM [ICML’25] 46.56 ±0.02 ↑ 74.56 ±0.29 ↑ 60.02 ±6.64 ↑ 74.26 ±1.55 ↓ 55.28 ±0.35 ↑ 61.21 ±1.83 ↑ 50.12 ±0.02 ↑ 50.46 ±3.38 ↑
+
+OFTTA [Ubicomp’24] 39.63 ±0.47 ↓ 74.81 ±0.34 ↑ 53.36 ±0.02 ↑ 73.66 ±1.19 ↓ 54.81 ±0.36 ↓ 58.84 ±2.76 ↓ 50.02 ±0.08 ↓ 47.28 ±1.65 ↑
+
+ACCUP [KDD’25] 31.45 ±0.15 ↓ 36.88 ±6.56 ↓ 35.43 ±3.02 ↓ 20.45 ±2.22 ↓ 22.30 ±2.88 ↓ 15.32 ±2.45 ↓ 16.09 ±2.18 ↓ 25.69 ±7.07 ↓
+
+COA-HAR [ESWA’26] 34.45 ±0.09 ↓ 50.04 ±3.31 ↓ 58.09 ±0.44 ↑ 59.49 ±1.66 ↓ 47.33 ±1.71 ↓ 38.97 ±9.11 ↓ 31.11 ±7.57 ↓ 33.96 ±3.52 ↓
+
+SIGHT (ours) 58.52 ±0.20 ↑ 93.18 ±0.14 ↑ 66.38 ±0.05 ↑ 76.20 ±0.87 ↑ 68.89 ±0.46 ↑ 67.96 ±6.74 ↑ 63.30 ±0.22 ↑ 57.18 ±1.89 ↑
+
+Table A6: Detailed MF1-scores (%) of SIGHT and the baselines on additional HARTH source–target pairs. 
+
+Algorithm P001 → P005 P003 → P006 P005 → P014 P006 → P017 P007 → P018 P009 → P011 P011 → P026 P013 → P021 Source-only 48.13 ±3.43 − 36.34 ±1.50 − 45.15 ±0.17 − 47.95 ±0.10 − 26.82 ±0.18 − 18.93 ±0.18 − 42.84 ±0.16 − 55.88 ±0.30 −
+
+TENT [ICLR’21] 49.50 ±3.90 ↑ 37.52 ±1.59 ↑ 45.66 ±0.42 ↑ 48.18 ±0.09 ↑ 26.76 ±1.61 ↓ 18.82 ±0.49 ↓ 42.83 ±0.43 ↓ 52.99 ±1.46 ↓
+
+NOTE [NeurIPS’22] 44.56 ±3.85 ↓ 38.63 ±0.79 ↑ 47.51 ±2.34 ↑ 35.92 ±3.45 ↓ 28.50 ±0.80 ↑ 24.15 ±3.92 ↑ 41.05 ±1.24 ↓ 52.78 ±2.90 ↓
+
+SAR [ICLR’23] 36.83 ±2.52 ↓ 35.19 ±0.86 ↓ 28.05 ±2.81 ↓ 29.80 ±0.35 ↓ 22.98 ±1.47 ↓ 25.05 ±3.16 ↑ 29.98 ±0.92 ↓ 40.89 ±8.64 ↓
+
+RoTTA [CVPR’23] 48.07 ±3.34 ↓ 36.00 ±1.01 ↓ 45.11 ±0.21 ↓ 47.88 ±0.15 ↓ 26.81 ±0.18 ↓ 18.96 ±0.16 ↑ 42.80 ±0.39 ↓ 55.81 ±0.38 ↓
+
+OATTA [arXiv’26] 49.95 ±3.58 ↑ 38.77 ±1.77 ↑ 47.83 ±0.21 ↑ 50.51 ±0.26 ↑ 26.49 ±1.14 ↓ 19.34 ±0.63 ↑ 45.70 ±0.05 ↑ 60.63 ±0.21 ↑
+
+TCA [ICML’25] 34.61 ±1.00 ↓ 30.53 ±3.45 ↓ 34.94 ±3.65 ↓ 43.12 ±2.36 ↓ 28.40 ±3.35 ↑ 19.27 ±1.37 ↑ 36.17 ±0.69 ↓ 45.98 ±0.88 ↓
+
+REM [ICML’25] 49.46 ±3.94 ↑ 37.31 ±1.58 ↑ 45.62 ±0.38 ↑ 48.18 ±0.11 ↑ 26.97 ±1.48 ↑ 18.83 ±0.42 ↓ 42.82 ±0.45 ↓ 53.04 ±1.43 ↓
+
+OFTTA [Ubicomp’24] 43.70 ±3.77 ↓ 35.97 ±2.66 ↓ 44.46 ±0.29 ↓ 48.73 ±0.59 ↑ 27.00 ±0.06 ↑ 19.02 ±0.02 ↑ 43.24 ±0.53 ↑ 55.79 ±1.87 ↓
+
+ACCUP [KDD’25] 15.27 ±2.18 ↓ 34.89 ±0.83 ↓ 21.04 ±1.19 ↓ 32.40 ±1.92 ↓ 25.08 ±0.34 ↓ 25.11 ±2.44 ↑ 29.05 ±2.98 ↓ 36.18 ±0.53 ↓
+
+COA-HAR [ESWA’26] 37.80 ±1.43 ↓ 28.95 ±0.79 ↓ 34.68 ±0.46 ↓ 22.53 ±0.85 ↓ 25.82 ±1.70 ↓ 29.01 ±2.73 ↑ 24.41 ±0.68 ↓ 38.55 ±0.65 ↓
+
+SIGHT (ours) 52.93 ±3.20 ↑ 41.34 ±2.57 ↑ 48.66 ±0.41 ↑ 53.23 ±0.11 ↑ 35.20 ±3.12 ↑ 22.47 ±2.19 ↑ 48.49 ±0.30 ↑ 64.33 ±0.50 ↑
+
+Algorithm P014 → P034 P016 → P040 P019 → P025 P023 → P035 P024 → P029 P028 → P036 P031 → P032 P033 → P034 Source-only 46.44 ±1.36 − 64.97 ±0.43 − 51.16 ±1.06 − 55.99 ±0.24 − 27.37 ±2.33 − 44.34 ±0.90 − 56.93 ±1.51 − 46.37 ±1.72 −
+
+TENT [ICLR’21] 46.81 ±1.27 ↑ 65.30 ±0.00 ↑ 48.91 ±0.55 ↓ 55.10 ±0.24 ↓ 26.73 ±2.31 ↓ 43.97 ±1.47 ↓ 58.95 ±3.65 ↑ 46.43 ±1.48 ↑
+
+NOTE [NeurIPS’22] 48.90 ±0.90 ↑ 59.73 ±2.72 ↓ 40.26 ±1.16 ↓ 51.10 ±1.36 ↓ 29.07 ±2.20 ↑ 30.98 ±6.92 ↓ 48.91 ±1.68 ↓ 42.57 ±2.08 ↓
+
+SAR [ICLR’23] 32.24 ±2.08 ↓ 37.20 ±1.49 ↓ 27.57 ±3.12 ↓ 36.41 ±0.48 ↓ 28.93 ±1.65 ↑ 25.32 ±1.79 ↓ 22.71 ±1.39 ↓ 27.69 ±0.96 ↓
+
+RoTTA [CVPR’23] 46.57 ±1.43 ↑ 64.95 ±0.39 ↓ 51.30 ±0.91 ↑ 55.74 ±0.33 ↓ 27.25 ±2.14 ↓ 44.40 ±0.88 ↑ 57.30 ±1.81 ↑ 46.10 ±1.70 ↓
+
+OATTA [arXiv’26] 48.39 ±1.50 ↑ 69.04 ±0.64 ↑ 53.69 ±1.48 ↑ 57.59 ±0.25 ↑ 27.33 ±3.37 ↓ 47.41 ±0.45 ↑ 59.81 ±3.02 ↑ 50.90 ±3.01 ↑
+
+TCA [ICML’25] 40.92 ±2.26 ↓ 41.05 ±0.35 ↓ 39.36 ±1.56 ↓ 41.07 ±0.27 ↓ 20.62 ±0.34 ↓ 35.05 ±1.48 ↓ 36.13 ±3.79 ↓ 36.60 ±1.02 ↓
+
+REM [ICML’25] 46.79 ±1.22 ↑ 65.35 ±0.05 ↑ 48.77 ±0.26 ↓ 54.94 ±0.20 ↓ 26.72 ±2.34 ↓ 43.91 ±1.46 ↓ 58.94 ±3.70 ↑ 46.77 ±1.35 ↑
+
+OFTTA [Ubicomp’24] 46.65 ±0.96 ↑ 64.78 ±0.73 ↓ 48.53 ±2.19 ↓ 56.71 ±0.05 ↑ 25.79 ±1.52 ↓ 44.26 ±0.80 ↓ 57.60 ±0.05 ↑ 46.35 ±1.76 ↓
+
+ACCUP [KDD’25] 33.15 ±0.35 ↓ 33.12 ±0.70 ↓ 22.53 ±2.97 ↓ 34.12 ±1.37 ↓ 29.06 ±0.10 ↑ 20.34 ±3.98 ↓ 37.58 ±0.78 ↓ 21.33 ±1.62 ↓
+
+COA-HAR [ESWA’26] 27.09 ±0.39 ↓ 44.77 ±0.31 ↓ 27.20 ±1.48 ↓ 29.09 ±0.67 ↓ 24.66 ±2.31 ↓ 20.36 ±0.04 ↓ 41.34 ±0.15 ↓ 36.08 ±1.37 ↓
+
+SIGHT (ours) 49.74 ±1.69 ↑ 72.86 ±0.30 ↑ 56.95 ±1.62 ↑ 60.23 ±0.16 ↑ 31.64 ±0.33 ↑ 50.77 ±0.48 ↑ 63.30 ±5.07 ↑ 53.71 ±3.76 ↑
+
+Table A7: Detailed MF1-scores (%) of SIGHT and the baselines on additional CAPTURE-24 source–target pairs. 14 
+
+Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR 
+
+Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix Algorithm S01 → S03 S01 → S05 S02 → S01 S02 → S06 S03 → S10 S03 → S13 S04 → S03 S04 → S07 Source-only 60.51 ±1.90 − 45.12 ±8.85 − 53.25 ±4.60 − 39.91 ±1.08 − 40.78 ±1.37 − 35.74 ±0.72 − 54.62 ±1.72 − 52.27 ±3.83 −
+
+TENT [ICLR’21] 57.52 ±2.55 ↓ 43.49 ±6.30 ↓ 52.50 ±4.91 ↓ 40.93 ±0.92 ↑ 38.43 ±2.46 ↓ 34.96 ±0.92 ↓ 53.47 ±2.04 ↓ 49.75 ±4.05 ↓
+
+NOTE [NeurIPS’22] 48.52 ±3.63 ↓ 46.27 ±4.23 ↑ 53.94 ±4.83 ↑ 36.61 ±2.56 ↓ 35.56 ±2.28 ↓ 27.70 ±1.48 ↓ 43.51 ±1.72 ↓ 43.53 ±2.58 ↓
+
+SAR [ICLR’23] 13.23 ±2.47 ↓ 11.55 ±1.14 ↓ 14.55 ±3.74 ↓ 13.75 ±0.53 ↓ 12.23 ±2.10 ↓ 13.24 ±1.84 ↓ 10.68 ±0.83 ↓ 12.54 ±1.21 ↓
+
+RoTTA [CVPR’23] 60.54 ±1.82 ↑ 45.10 ±8.88 ↓ 53.28 ±4.61 ↑ 39.91 ±1.11 ↓ 40.70 ±1.41 ↓ 35.54 ±0.60 ↓ 54.55 ±1.73 ↓ 52.41 ±3.90 ↑
+
+OATTA [arXiv’26] 61.03 ±1.85 ↑ 47.51 ±8.97 ↑ 56.14 ±5.01 ↑ 40.90 ±2.60 ↑ 42.46 ±1.14 ↑ 37.44 ±1.16 ↑ 56.08 ±2.72 ↑ 53.70 ±4.27 ↑
+
+TCA [ICML’25] 28.04 ±6.86 ↓ 27.08 ±3.74 ↓ 32.73 ±4.46 ↓ 20.59 ±5.09 ↓ 23.41 ±2.18 ↓ 25.18 ±0.43 ↓ 32.62 ±1.93 ↓ 33.54 ±7.09 ↓
+
+REM [ICML’25] 57.57 ±2.53 ↓ 43.53 ±6.04 ↓ 52.50 ±4.92 ↓ 40.84 ±0.84 ↑ 38.13 ±2.52 ↓ 34.91 ±0.97 ↓ 53.34 ±1.83 ↓ 49.66 ±4.10 ↓
+
+OFTTA [Ubicomp’24] 59.75 ±1.52 ↓ 45.59 ±9.22 ↑ 53.50 ±4.59 ↑ 39.93 ±1.10 ↑ 40.97 ±1.88 ↑ 35.68 ±1.22 ↓ 53.90 ±2.31 ↓ 52.17 ±3.69 ↓
+
+ACCUP [KDD’25] 27.99 ±3.25 ↓ 17.29 ±2.91 ↓ 25.52 ±3.33 ↓ 24.63 ±4.89 ↓ 24.08 ±1.56 ↓ 16.09 ±1.49 ↓ 20.37 ±2.54 ↓ 18.20 ±2.22 ↓
+
+COA-HAR [ESWA’26] 33.26 ±2.57 ↓ 36.02 ±4.47 ↓ 42.32 ±4.08 ↓ 38.02 ±0.43 ↓ 31.79 ±1.87 ↓ 21.40 ±1.41 ↓ 27.01 ±1.28 ↓ 27.01 ±6.36 ↓
+
+SIGHT (ours) 62.81 ±2.03 ↑ 47.84 ±5.75 ↑ 57.50 ±5.18 ↑ 35.69 ±6.66 ↓ 42.55 ±1.22 ↑ 37.56 ±1.28 ↑ 58.87 ±4.07 ↑ 56.91 ±6.01 ↑
+
+Algorithm S04 → S09 S05 → S08 S05 → S09 S05 → S12 S06 → S02 S06 → S04 S07 → S05 S07 → S14 Source-only 38.81 ±3.77 − 46.94 ±0.06 − 55.23 ±4.87 − 33.00 ±0.01 − 39.67 ±3.27 − 39.72 ±3.63 − 52.61 ±6.31 − 35.07 ±3.74 −
+
+TENT [ICLR’21] 36.41 ±4.64 ↓ 47.45 ±0.45 ↑ 52.86 ±4.97 ↓ 29.68 ±2.56 ↓ 39.16 ±2.15 ↓ 38.78 ±3.04 ↓ 50.78 ±5.46 ↓ 33.72 ±3.68 ↓
+
+NOTE [NeurIPS’22] 40.51 ±5.40 ↑ 43.06 ±3.80 ↓ 37.33 ±3.49 ↓ 30.98 ±2.98 ↓ 31.89 ±7.84 ↓ 40.28 ±9.81 ↑ 46.82 ±4.51 ↓ 36.14 ±3.44 ↑
+
+SAR [ICLR’23] 11.02 ±1.14 ↓ 9.36 ±0.63 ↓ 10.52 ±1.34 ↓ 9.12 ±2.43 ↓ 12.43 ±2.08 ↓ 8.86 ±0.27 ↓ 11.22 ±0.71 ↓ 10.41 ±0.80 ↓
+
+RoTTA [CVPR’23] 38.68 ±3.81 ↓ 46.81 ±0.25 ↓ 55.32 ±5.00 ↑ 32.86 ±0.42 ↓ 39.83 ±3.21 ↑ 39.92 ±3.80 ↑ 52.00 ±5.91 ↓ 34.77 ±3.57 ↓
+
+OATTA [arXiv’26] 40.30 ±4.02 ↑ 48.99 ±0.25 ↑ 57.94 ±5.13 ↑ 34.05 ±0.41 ↑ 40.70 ±3.97 ↑ 40.45 ±3.88 ↑ 54.32 ±5.80 ↑ 37.26 ±3.92 ↑
+
+TCA [ICML’25] 23.82 ±2.71 ↓ 21.77 ±1.61 ↓ 31.77 ±4.69 ↓ 20.34 ±1.31 ↓ 27.77 ±2.07 ↓ 31.46 ±0.95 ↓ 30.40 ±4.89 ↓ 15.71 ±5.09 ↓
+
+REM [ICML’25] 36.44 ±4.61 ↓ 47.30 ±0.42 ↑ 52.59 ±4.77 ↓ 29.59 ±2.57 ↓ 38.91 ±2.20 ↓ 38.75 ±2.80 ↓ 50.93 ±5.43 ↓ 33.48 ±3.65 ↓
+
+OFTTA [Ubicomp’24] 39.15 ±4.20 ↑ 46.93 ±0.10 ↓ 55.14 ±4.90 ↓ 33.25 ±0.93 ↑ 39.66 ±3.37 ↓ 39.91 ±4.26 ↑ 54.66 ±7.96 ↑ 35.11 ±3.71 ↑
+
+ACCUP [KDD’25] 22.59 ±3.90 ↓ 18.78 ±0.51 ↓ 25.78 ±3.26 ↓ 15.73 ±5.05 ↓ 23.79 ±1.28 ↓ 24.82 ±2.17 ↓ 21.05 ±3.68 ↓ 14.54 ±2.48 ↓
+
+COA-HAR [ESWA’26] 32.45 ±3.42 ↓ 30.25 ±2.26 ↓ 35.65 ±4.99 ↓ 25.84 ±3.75 ↓ 31.30 ±12.58 ↓ 34.26 ±11.19 ↓ 30.59 ±4.41 ↓ 20.97 ±4.45 ↓
+
+SIGHT (ours) 40.73 ±3.02 ↑ 44.05 ±5.77 ↓ 58.11 ±5.54 ↑ 31.87 ±3.07 ↓ 40.96 ±3.00 ↑ 40.89 ±2.35 ↑ 55.74 ±3.14 ↑ 39.19 ±4.21 ↑
+
+Table A8: Detailed MF1-scores (%) of SIGHT and the baselines on additional USC-HAD source–target pairs. 
+
+Algorithm S01 → S16 S01 → S26 S02 → S22 S02 → S24 S03 → S25 S03 → S28 S04 → S17 S04 → S20 Source-only 35.26 ±3.50 − 32.38 ±6.27 − 70.78 ±4.93 − 79.42 ±0.82 − 61.86 ±5.71 − 59.90 ±3.24 − 59.54 ±3.98 − 43.36 ±7.33 −
+
+TENT [ICLR’21] 35.19 ±1.70 ↓ 31.55 ±4.62 ↓ 73.62 ±1.42 ↑ 77.16 ±0.60 ↓ 58.90 ±6.69 ↓ 60.89 ±4.46 ↑ 56.49 ±2.17 ↓ 49.26 ±12.78 ↑
+
+NOTE [NeurIPS’22] 34.96 ±4.51 ↓ 41.82 ±7.41 ↑ 71.91 ±7.20 ↑ 82.81 ±1.80 ↑ 64.92 ±3.41 ↑ 63.05 ±4.37 ↑ 60.36 ±4.46 ↑ 43.74 ±7.15 ↑
+
+SAR [ICLR’23] 21.03 ±0.88 ↓ 21.44 ±0.99 ↓ 26.61 ±3.26 ↓ 23.48 ±5.53 ↓ 11.34 ±2.76 ↓ 16.56 ±1.88 ↓ 15.84 ±5.16 ↓ 19.65 ±1.89 ↓
+
+RoTTA [CVPR’23] 35.26 ±3.50 ↓ 32.38 ±6.27 ↓ 70.71 ±4.88 ↓ 79.36 ±0.90 ↓ 61.86 ±5.71 ↓ 59.90 ±3.24 ↓ 59.54 ±3.98 ↓ 43.36 ±7.33 ↓
+
+OATTA [arXiv’26] 33.48 ±3.98 ↓ 32.57 ±3.44 ↑ 71.76 ±6.16 ↑ 79.85 ±2.08 ↑ 69.23 ±6.70 ↑ 61.79 ±1.95 ↑ 56.50 ±4.05 ↓ 44.51 ±7.47 ↑
+
+TCA [ICML’25] 21.42 ±0.79 ↓ 28.70 ±8.10 ↓ 57.15 ±12.27 ↓ 54.99 ±4.67 ↓ 33.77 ±5.32 ↓ 38.18 ±6.55 ↓ 50.76 ±2.30 ↓ 28.76 ±7.34 ↓
+
+REM [ICML’25] 34.52 ±1.04 ↓ 31.22 ±4.57 ↓ 74.80 ±0.82 ↑ 77.86 ±0.50 ↓ 58.90 ±6.29 ↓ 60.40 ±5.00 ↑ 56.35 ±1.89 ↓ 48.38 ±11.49 ↑
+
+OFTTA [Ubicomp’24] 36.84 ±3.61 ↑ 33.62 ±7.72 ↑ 68.00 ±4.76 ↓ 79.51 ±1.40 ↑ 58.15 ±4.92 ↓ 59.13 ±4.89 ↓ 59.67 ±4.11 ↑ 44.68 ±8.44 ↑
+
+ACCUP [KDD’25] 34.47 ±2.32 ↓ 49.63 ±3.40 ↑ 71.29 ±3.16 ↑ 69.71 ±5.35 ↓ 55.22 ±2.58 ↓ 52.08 ±1.98 ↓ 48.15 ±3.27 ↓ 49.41 ±5.55 ↑
+
+COA-HAR [ESWA’26] 35.27 ±0.02 ↑ 43.35 ±3.95 ↑ 59.03 ±6.62 ↓ 66.64 ±6.10 ↓ 36.35 ±3.19 ↓ 47.04 ±2.03 ↓ 50.55 ±1.66 ↓ 40.56 ±9.39 ↓
+
+SIGHT (ours) 39.34 ±2.74 ↑ 42.86 ±1.30 ↑ 73.81 ±4.56 ↑ 83.86 ±2.54 ↑ 72.19 ±8.01 ↑ 70.35 ±1.75 ↑ 57.34 ±2.35 ↓ 52.45 ±4.33 ↑
+
+Algorithm S05 → S18 S05 → S29 S07 → S19 S07 → S27 S08 → S21 S08 → S23 S09 → S19 S09 → S30 Source-only 54.06 ±3.62 − 71.01 ±5.32 − 50.11 ±3.12 − 73.79 ±0.59 − 78.67 ±2.82 − 75.29 ±4.81 − 40.33 ±4.06 − 34.63 ±2.63 −
+
+TENT [ICLR’21] 52.58 ±4.62 ↓ 68.44 ±2.31 ↓ 51.07 ±3.92 ↑ 71.40 ±1.43 ↓ 74.64 ±2.88 ↓ 73.46 ±3.49 ↓ 41.59 ±5.38 ↑ 37.33 ±3.98 ↑
+
+NOTE [NeurIPS’22] 58.86 ±2.60 ↑ 72.34 ±3.35 ↑ 52.55 ±2.58 ↑ 75.00 ±1.94 ↑ 80.46 ±1.07 ↑ 76.72 ±4.88 ↑ 40.57 ±1.51 ↑ 38.93 ±2.09 ↑
+
+SAR [ICLR’23] 14.87 ±0.15 ↓ 17.01 ±2.29 ↓ 23.58 ±1.77 ↓ 30.25 ±3.39 ↓ 31.75 ±0.15 ↓ 22.31 ±1.25 ↓ 25.49 ±2.02 ↓ 17.70 ±1.99 ↓
+
+RoTTA [CVPR’23] 54.06 ±3.62 ↓ 71.01 ±5.32 ↓ 50.11 ±3.12 ↓ 73.71 ±0.57 ↓ 78.67 ±2.82 ↓ 75.29 ±4.81 ↓ 40.33 ±4.06 ↓ 34.55 ±2.65 ↓
+
+OATTA [arXiv’26] 53.38 ±5.99 ↓ 72.87 ±6.71 ↑ 48.58 ±2.24 ↓ 76.51 ±1.32 ↑ 78.78 ±4.21 ↑ 76.29 ±5.27 ↑ 37.29 ±5.92 ↓ 31.68 ±2.85 ↓
+
+TCA [ICML’25] 23.47 ±7.20 ↓ 54.36 ±4.49 ↓ 46.76 ±8.96 ↓ 61.30 ±6.25 ↓ 61.65 ±6.07 ↓ 48.29 ±12.11 ↓ 34.39 ±0.73 ↓ 18.03 ±5.29 ↓
+
+REM [ICML’25] 51.42 ±4.02 ↓ 68.76 ±2.30 ↓ 51.21 ±4.58 ↑ 70.92 ±1.00 ↓ 74.47 ±2.82 ↓ 72.34 ±3.35 ↓ 41.44 ±5.14 ↑ 37.03 ±4.07 ↑
+
+OFTTA [Ubicomp’24] 53.54 ±3.13 ↓ 67.04 ±4.50 ↓ 49.96 ±3.17 ↓ 70.91 ±0.88 ↓ 79.35 ±1.52 ↑ 75.38 ±5.53 ↑ 40.79 ±3.31 ↑ 36.78 ±4.51 ↑
+
+ACCUP [KDD’25] 52.98 ±0.87 ↓ 64.49 ±4.65 ↓ 44.89 ±7.76 ↓ 67.70 ±2.06 ↓ 63.41 ±1.21 ↓ 73.78 ±5.56 ↓ 38.89 ±3.63 ↓ 36.31 ±4.70 ↑
+
+COA-HAR [ESWA’26] 31.49 ±3.82 ↓ 58.38 ±5.29 ↓ 45.18 ±4.91 ↓ 56.23 ±2.37 ↓ 71.83 ±3.19 ↓ 64.70 ±8.88 ↓ 40.62 ±4.08 ↑ 28.83 ±3.44 ↓
+
+SIGHT (ours) 59.89 ±4.33 ↑ 73.04 ±4.53 ↑ 53.22 ±3.04 ↑ 80.05 ±1.52 ↑ 76.84 ±4.29 ↓ 77.89 ±3.18 ↑ 46.20 ±5.10 ↑ 40.03 ±5.72 ↑
+
+Table A9: Detailed MF1-scores (%) of SIGHT and the baselines on additional UCI-HAR source–target pairs. 15 
+
+Temporal Structure Matters for Efficient Test-Time Adaptation in WHAR 
+
+Sec 1: Intro Sec 2: Related Work Sec 3: Preliminaries Sec 4: Method Sec 5: Experiments Sec 6: Conclusion Appendix
