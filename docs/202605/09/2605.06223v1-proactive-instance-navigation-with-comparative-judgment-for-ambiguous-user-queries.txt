@@ -1,0 +1,632 @@
+Title: Proactive Instance Navigation with Comparative Judgment for Ambiguous User Queries
+
+URL Source: https://arxiv.org/pdf/2605.06223v1
+
+Published Time: Fri, 08 May 2026 01:33:09 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Proactive Instance Navigation with Comparative Judgment for Ambiguous User Queries 
+
+Junhyuk Kwon 1, Seungjoon Lee 2, Hyejin Park 1, Kyle Min 3, Jungseul Ok 1,2 †
+
+> 1
+
+Graduate School of Artificial Intelligence, POSTECH 
+
+> 2
+
+Department of Computer Science and Engineering, POSTECH, 3Oracle 
+
+{treejhk, sjlee1218, parkebbi2, jungseul}@postech.ac.kr kyle.min@oracle.com 
+
+## Abstract 
+
+Natural-language instance navigation becomes challenging when the initial user request does not uniquely specify the target instance. A practical agent should reduce the user’s burden by actively asking only the information needed to distin-guish the target from similar distractors, rather than requiring a detailed description upfront. Existing approaches often fall short of this goal: they may stop at the first plausible candidate before sufficiently exploring alternatives, or, even after collect-ing multiple candidates, ask about the target’s attributes derived from individual candidates rather than questions selected to distinguish candidates in the pool. As a result, despite the dialogue, the agent may still fail to distinguish the target from distractors, leading to premature decisions and lengthy user responses. We pro-pose Proactive Instance Navigation with Comparative Judgment (ProCompNav), a two-stage framework that first constructs a candidate pool and then identifies the target through comparative judgment. At each round, ProCompNav extracts an attribute-value pair that splits the current pool, asks a binary yes/no question, and prunes all inconsistent candidates at once. This reframes disambiguation from open-ended target description to pool-level discriminative questioning, where each question is chosen to narrow the candidate set. On CoIN-Bench, ProCompNav improves Success Rate over interactive baselines with the same minimal input and non-interactive baselines with detailed descriptions, while substantially reducing Response Length. ProCompNav also achieves state-of-the-art Success Rate on TextNav, suggesting that comparative judgment is broadly useful for instance-level navigation among similar distractors. 
+
+## 1 Introduction 
+
+Language-driven instance navigation [Sun et al., 2024, Ziliotto et al., 2025, Yin et al., 2025, Jang and Kim, 2026, Yang et al., 2025] requires an agent to reach a specific target instance (e.g., a particular cabinet) in a 3D environment while distinguishing it from same-category distractors (i.e., other cabinets). However, this task has been typically studied under the assumption that a sufficiently detailed description is provided upfront to distinguish the target, whereas natural user requests are often ambiguous [Taioli et al., 2025, Chisari et al., 2025, Pramanick et al., 2022]. Therefore, we focus on Collaborative Instance Navigation (CoIN) task [Taioli et al., 2025], where, given an ambiguous initial user query (e.g., “Find the cabinet”), the agent must find the true target by disambiguating it from distractors through interaction with the user. 
+
+> †Corresponding author. Preprint.
+> arXiv:2605.06223v1 [cs.AI] 7 May 2026
+
+Table 1: Comparison of three disambiguation strategies on CoIN-Bench. We report Success Rate (SR), average total Response Length (RL), and average Number of Questions (NQ) per episode.                                                                        
+
+> Decision Strategy Stage Val Seen Val Seen Synonyms Val Unseen Pool Compare SR ↑RL ↓NQ ↓SR ↑RL ↓NQ ↓SR ↑RL ↓NQ ↓
+> (a) Independent Matching [Taioli et al., 2025] ✗✗10.5 109.5 1.2 15.3 129.2 1.2 8.9 122.8 1.3 (b) Pooled Independent Matching ✓✗17.5 460.2 3.6 22.0 519.2 3.7 13.3 467.7 3.4
+> (c) Comparative Judgment (Ours) ✓✓23.7 4.2 2.2 28.1 4.3 2.2 17.0 4.2 2.3 (a) Independent Matching
+> Initial user query:
+> “Find the cabinet ”True Target: Distractors:
+> (b) Pooled Independent Matching (c) Comparative Judgment (Ours)
+> Q3
+> 0.9 0.0 0.8 0.0
+> Decide
+> First detection:
+> (distractor)
+> Q: What is the
+> surrounding
+> context of the
+> cabinet?
+> A: It is in a
+> bathroom with
+> a white tone.
+> Premature
+> decision: Decide
+> Q4
+> A4A3
+> in bathroom
+> no TV on top
+> near mirror
+> Q2
+> A2
+> in bathroom
+> no TV on top
+> Q1
+> A1
+> in bathroom
+> Candidate set Candidate set
+> Independent matching
+> Too many questions!
+> in bathroom
+> no TV on top
+> near mirror
+> not in bedroom
+> Target facts
+> Ask about a
+> discriminative attribute
+> Q1: Is it wood -tone? A1: Yes.
+> Q2: TV on top? A2: No.
+> Decide
+
+Figure 1: Three strategies for instance navigation under an ambiguous user query. (a) Independent Matching [Taioli et al., 2025] scores each candidate independently, causing premature decision to a distractor sharing attributes with the true target. (b) Pooled Independent Matching defers the decision until multiple candidates are collected, but non-discriminative questions still fail to separate similar distractors, while imposing high user burden. (c) Comparative Judgment (Ours) proactively builds a candidate pool and asks binary questions about discriminative attributes derived from candidate contrasts, accurately identifying the target with minimal user burden. For disambiguation, prior works typically employ an independent matching strategy, where the agent asks the user about the true target’s attributes (e.g., color, nearby objects) and their values (e.g., blue, next to a TV), accumulates the responses, and scores encountered candidates based on the collected information [Taioli et al., 2025]. However, this approach often leads to premature, wrong decision of a distractor as the target, because the collected attributes may be shared by both the target and distractors, allowing distractors to receive high scores. A promising way to mitigate premature decisions is to defer decision until multiple candidates are collected, i.e., the agent gathers a set of candidates, asks the user about the target’s attributes for each candidate, and scores all candidates based on the accumulated information, which we refer to as pooled independent matching . While this reduces premature decisions, it still relies on questions that are not explicitly designed to distinguish the target from other candidates, and thus may fail to disambiguate the true target from similar distractors that share many attributes. Furthermore, this strategy increases user burden as it requires substantially more user interaction. We propose Proactive Instance Navigation with Comparative Judgment ( ProCompNav ), which first constructs a candidate pool and then compares candidates to ask discriminative questions that prune the pool. At each round, ProCompNav extracts an attribute-value pair, asks whether the target has it, and removes the inconsistent group. Crucially, comparative judgment does not need an attribute that uniquely identifies the target. Each round only needs a valid attribute-value pair that splits the current candidate pool into two non-empty groups, whereas (pooled) independent matching can be reliable only when the collected evidence is sufficient to distinguish the target from distractors. Furthermore, our approach reduces user burden in two ways. First, each discriminative question can eliminate multiple candidates at once. Second, binary yes/no questions shorten user responses compared with long descriptive answers. We summarize our contributions as follows. First, we propose comparative judgment for ambiguous instance navigation, replacing independent matching strategy with a two-stage collect-then-compare pipeline: candidate pool construction and candidate pool pruning through user interaction. Second, 2we introduce Recursive Comparative Judgment (RCJ), which iteratively extracts a discriminative attribute-value pair that splits the candidate pool and asks a binary question to eliminate inconsistent candidates. Third, experiments on CoIN-Bench show that ProCompNav achieves higher success rate than both interactive baselines that receive an ambiguous initial user query and non-interactive baselines that receive detailed target descriptions upfront, while substantially reducing user burden. Moreover, experiments on TextNav demonstrate that ProCompNav generalizes to the non-interactive setting with detailed user queries, achieving state-of-the-art success rate. 
+
+## 2 Related Works 
+
+2.1 Language-driven instance navigation 
+
+Language-driven instance navigation requires a robot to find a specific target instance among same-category distractors in a 3D environment, typically specified by user-provided detailed language descriptions. Training-based methods train navigation policies that map raw observations and the description directly to actions [Sun et al., 2024, Yokoyama et al., 2024b], but they often generalize poorly to unseen environments and demand substantial compute for training. Therefore, training-free methods have emerged as viable alternatives [Ziliotto et al., 2025, Yin et al., 2025, Jang and Kim, 2026, Yang et al., 2025]. However, most works follow independent matching , evaluating each candidate against the description without considering other candidates [Ziliotto et al., 2025, Yin et al., 2025, Jang and Kim, 2026], leaving them vulnerable to distractors sharing similar attributes. 3D-Mem [Yang et al., 2025] takes a step toward joint reasoning by collecting candidates and prompting a VLM to select the target, but without explicit cross-candidate comparison, the decision could be unreliable when candidates are visually similar. Moreover, most of these works assume a detailed description is provided upfront, and thus cannot handle ambiguous queries. 
+
+2.2 Embodied interactive disambiguation 
+
+As user requests are often ambiguous, a growing body of work studies how embodied agents can ask users for clarification to resolve task ambiguity. However, works on instance disambiguation—where the agent must identify the exact instance to find or manipulate—mainly assume that candidate instances are already visible to the robot, sidestepping exploration in unknown environments [Ren et al., 2023, Yang et al., 2022, Chisari et al., 2025, Lin et al., 2025, Pramanick et al., 2022]. A notable work is AIUTA [Taioli et al., 2025], which simultaneously explores an unknown environment and disambiguates the target through dialogue with the user. However, AIUTA can struggle with instance disambiguation when visually similar distractors share many attributes with the true target, because it employs an independent matching strategy. Furthermore, it imposes high user burden by requiring lengthy open-ended descriptions of the target from the user. In contrast, ProCompNav improves robustness against visually similar distractors through comparative judgment over collected candidates, while reducing user burden by asking only binary questions about discriminative attributes derived from candidate contrasts. 
+
+## 3 Problem Formulation 
+
+We study an interactive instance navigation task in an unknown 3D environment, where a robot starts from an arbitrary location and must identify the user-intended target instance T ∗. The robot navigates using RGB-D observations with a restricted 30 ◦ field of view (FOV). At the beginning of each episode, the robot receives minimal natural language input: an open-vocabulary category-c (e.g., “cabinet”). Let Oc denote the set of all instances of category-c in the environment (unknown to the robot). The target is unique, T ∗ ∈ O c, and the remaining instances are distractors D = Oc \ { T ∗}.Since the category-c may not uniquely specify an instance, T ∗ can be indistinguishable from the distractors D with minimal information. To resolve such ambiguities, the robot can engage in a natural language dialogue with the user during navigation, without exchanging any visual information [Taioli et al., 2025]. At each timestep, the robot can take four discrete actions: move_forward , turn_left ,
+
+turn_right , and stop , and may optionally ask a free-form natural-language question. An episode terminates when the robot executes stop or the predefined episode horizon is reached. Success is declared if the robot executes stop within distance r of T ∗, within the horizon. 3Current candidate pool  𝑈 𝑡 
+
+Attribute candidates  𝐴                          
+
+> Core set 𝐺 𝑐 Remainder set 𝐺 𝑟
+> Simi larity -based core set selection
+> User query :“Find the table .”
+> “teal chair”
+> “brown color”
+> “wooden desk”
+> “near window”
+> Choose an attribute
+> with the largest gap
+> “teal chair”
+> Discriminative
+> attribute 𝒂 𝒕
+> ∗
+> Binary Question
+> Q: Does the target have 𝒂 𝒕
+> ∗?
+> Yes
+> No
+> 𝑈 𝑡 +1=𝐺 𝑐
+> 𝑈 𝑡 +1=𝐺 𝑟
+> 𝑈 𝑡 +1
+> if 𝑈 𝑡 +1=1→stop
+> Update
+> 𝐺 𝑐
+> 𝐺 𝑐 𝐺 𝑟
+> 𝐺 𝑐 𝐺 𝑟
+> 𝐺 𝑐 𝐺 𝑟
+
+Entailment score 
+
+> 𝐺 𝑟
+
+Figure 2: Recursive Comparative Judgment. At iteration t, ProCompNav splits the candidate pool 
+
+Ut into a core set Gc and a remainder set Gr by similarity. It identifies a discriminative attribute a∗ 
+
+> t
+
+,that is common in Gc but not in Gr . Finally, it asks whether the target has a∗ 
+
+> t
+
+, and prunes the pool to obtain the next candidate pool Ut+1 based on the user’s response. Because distractors D and T ∗ share many attribute-value pairs, (pooled) independent matching [Taioli et al., 2025] is reliable only when the available target information suffices to distinguish T ∗ from D.We instead identify T ∗ through comparative judgment : the robot accumulates a candidate pool of category-c instances and, at each round, prunes it with an attribute-value pair that splits the pool into two non-empty groups, until only T ∗ remains. 
+
+## 4 Proposed Method 
+
+4.1 Overview 
+
+We propose Proactive Instance Navigation with Comparative Judgment ( ProCompNav ), which first constructs a candidate pool and then compares candidates to ask discriminative questions that prune the pool. In the Pool Construction Stage (Sec 4.2), ProCompNav explores the environment to construct a candidate pool of category-c instances. In the Recursive Comparison Stage (Sec 4.3), ProCompNav replaces independent matching with comparative judgment across candidates, and minimizes user burden by asking only binary yes/no questions that each eliminate multiple candidates. 
+
+4.2 Pool construction stage 
+
+The Pool Construction Stage explores the unknown environment to collect the candidate pool 
+
+C = {ci}Ni=1 of N distinct candidates on which the Recursive Comparison Stage operates. Each candidate ci = ( Ii, d i) is represented by a multi-view collage image Ii and a multi-view description 
+
+di. For each candidate i, the agent maintains an accumulated 3D point cloud Pi of the instance and a set of RGB views Vi captured from different viewpoints during exploration. For each new detection of category-c, we extract a 3D point cloud from the detected region. If it sufficiently overlaps with the accumulated point cloud Pi of an existing candidate i, the detection is assigned to candidate i and its RGB view is added to Vi. Otherwise, a new candidate is initialized with its point cloud and view set seeded from this detection. From Vi, we cluster the views in an embedding space into K clusters and select a representative per cluster, arrange the K representatives into the multi-view collage Ii,and prompt an MLLM to produce the multi-view description di. The description summarizes the candidate’s attribute-value pairs—attributes (e.g., color, nearby objects) and their values (e.g., blue, next to a TV)—aggregated across the K views, capturing pairs that may be missed from any single viewpoint. Once |C| ≥ Nmin , the Pool Construction Stage terminates and the agent transitions to the Recursive Comparison Stage. Implementation details and example multi-view candidates are provided in Appendix B. 
+
+4.3 Recursive comparison stage 
+
+We propose Recursive Comparative Judgment (RCJ, Fig. 2), which identifies the target T ∗ by iteratively pruning the candidate pool C through binary questions on attribute-value pairs that contrast 4candidates. At each interaction round, ProCompNav extracts an attribute-value pair—a Discriminative Attribute (DA) that one group of candidates in the current pool has but the rest lack—asks the user whether T ∗ has it, and removes the inconsistent group. Crucially, RCJ does not require an attribute that uniquely identifies T ∗ at any round. Each round only needs an attribute-value pair that splits the current pool into two non-empty groups. Formally, let Ut ⊆ C denote the active candidate set at interaction round t, initialized as U0 = C. At iteration t, ProCompNav discovers a DA a∗ 
+
+> t
+
+that partitions Ut. After asking the user whether T ∗ possesses a∗ 
+
+> t
+
+and receiving their binary answer, ProCompNav updates the active candidate set to Ut+1 by retaining only the candidates consistent with this answer. This recursive pruning continues until |Ut| = 1 . In the following, we detail how we divide Ut into internally coherent groups to extract a DA at each round. 
+
+4.3.1 Similarity-based core set selection 
+
+To identify a DA at round t, we divide the candidates Ut into a coherent ( i.e. , semantically similar) core set Gc ⊆ Ut and the remainder set Gr = Ut \ Gc. Since similar instances tend to share substantial overlap in their attribute-value pairs, maximizing coherence only in Gc (leaving Gr
+
+unconstrained) facilitates extracting an attribute-value pair that contrasts Gc against Gr , which is empirically more effective than jointly maximizing coherence within both groups, as in KMeans (Table 3). Accordingly, we seek a cohesive core by selecting a subset V ⊆ Ut with high intra-set similarity, defined as the mean pairwise similarity: 
+
+ρ(V ) = 1
+
+|V |(|V | − 1) 
+
+X
+
+> i,j ∈V,i ̸=j
+
+S(i, j ) ,
+
+where S(i, j ) is the pairwise similarity between instances i and j (defined below). However, selecting the optimal core set by maximizing ρ(V ) over all subsets of Ut is computation-ally intractable, requiring O(2 |Ut|). We therefore approximate it by adapting the greedy peeling algorithm Charikar [2000], Khuller and Saha [2009] to find Gc ⊂ Ut with the maximum intra-set similarity, via a two-step procedure. First, starting from V0 = Ut, we produce a sequence of interme-diate subsets Vl, by removing the instance least similar to the others in the current set until |Vl| = 2 :
+
+Vl+1 = Vl \ { i′}, where i′ = arg min 
+
+> i∈Vl
+
+X 
+
+> j∈Vl,j ̸=i
+
+S(i, j ) .
+
+Second, we determine the core set Gc as the intermediate set Vl that yields the highest intra-set similarity ρ(Vl).We compute the pairwise similarity S(i, j ) by averaging text and visual similarities: 
+
+S(i, j ) = 12
+
+
+
+ˆetext  
+
+> i
+
+, ˆetext  
+
+> j
+
++
+
+D
+
+ˆeimg  
+
+> i
+
+, ˆeimg 
+
+> j
+
+E 
+
+,
+
+where ˆetext and ˆeimg denote the ℓ2-normalized textual and visual embeddings extracted from the instance’s description and image, respectively. 
+
+4.3.2 Discriminative attribute (DA) discovery 
+
+To identify the target T ∗, we aim to discover a DA a∗ 
+
+> t
+
+that contrasts the core set Gc against the remainder set Gr and enables effective pruning with a yes/no question. This requires instance-level evidence of whether an attribute is present in Gc but absent in Gr , which is precisely what an entailment classifier is trained to judge. We therefore use a Natural Language Inference (NLI) model as a verifier: given the description di of an instance i and a hypothesis of the form “instance i has attribute a”, the NLI model provides a standardized judgment (entails, contradicts, or neutral) that yields stable scores for quantifying group-level contrast. Our procedure consists of three steps: (i) we extract a candidate set of attributes A from captions in Gc using an LLM; (ii) we score each attribute a ∈ A on every instance i ∈ Gc ∪ Gr using the NLI-based entailment score s(di, a ); (iii) we select the DA a∗ 
+
+> t
+
+that maximizes the contrast between 
+
+Gc and Gr :
+
+a∗ 
+
+> t
+
+= arg max  
+
+> a∈A
+
+(Ei∈Gc [s(di, a )] − Ej∈Gr [s(dj , a )]) .
+
+The entailment score s(di, a ) is derived from the NLI logits. Detailed definitions of the scoring function and implementation settings are provided in Appendix C. 54.3.3 Property-guided group refinement 
+
+Although a∗ 
+
+> t
+
+is selected to maximize the contrast between Gc and Gr , the candidate attribute set A
+
+is extracted from Gc only, so a∗ 
+
+> t
+
+may also be possessed by candidates in Gr . We therefore refine the remainder set Gr by re-evaluating each candidate i ∈ Gr via the NLI-based entailment score 
+
+s(di, a ∗ 
+
+> t
+
+), and moving i to Gc if s(di, a ∗ 
+
+> t
+
+) ≥ τ , where τ is a conservative threshold. 
+
+4.3.4 Interactive pruning and re-exploration 
+
+We then ask the user a binary question of whether the target T ∗ possesses the selected DA a∗ 
+
+> t
+
+. Based on the user’s response, we update the active candidate pool as: 
+
+Ut+1 =
+
+Gc, if the user answers Yes ,
+
+Gr , otherwise ( No ),  (1) thereby pruning the candidate pool according to the answer. Once the candidate pool Ut+1 is finalized, we identify the target if |Ut+1 | = 1 . Otherwise, if |Ut+1 | ≥ 2, we proceed to the next round of RCJ on the narrowed pool. When the user answers No but the remainder set is empty, i.e. , |Gr | = 0 , the initial candidate pool may not contain the target. In this case, we resume the Pool Construction Stage to add one more candidate, then pre-prune the candidate pool with the target’s facts collected from previous RCJ rounds before resuming RCJ. 
+
+## 5 Experiments 
+
+5.1 Benchmarks and implementation details Benchmarks To demonstrate that ProCompNav is applicable to both ambiguous and detailed user queries, we evaluate it on two simulated benchmarks: CoIN-Bench [Taioli et al., 2025] and text-goal navigation (TextNav) [Sun et al., 2024]. Both benchmarks feature multi-instance scenes but differ in initial user query specificity and the availability of user interaction. In CoIN-Bench, the agent is given only a coarse category at episode start, making interactive disambiguation necessary to identify the correct target instance; we follow its standard evaluation splits ( Val Seen , Val Seen Synonyms ,
+
+Val Unseen ), and simulate user responses with an MLLM that has access to the image of the target instance. In contrast, in TextNav, the agent is given a detailed textual description of the target instance at episode start, making a setting without user interaction. 
+
+Evaluation metrics We report Success Rate (SR) and Success weighted by Path Length (SPL) as the primary evaluation metrics. SR measures the proportion of episodes in which the agent successfully reaches the target, while SPL evaluates exploration efficiency by comparing the agent’s path length to the optimal path. In interactive settings, we additionally report Response Length (RL) and Number of Questions (NQ) as user-burden metrics: RL denotes the total response length per episode, measured as the token count of the user-simulator MLLM responses, and NQ is the average number of questions per episode with interaction. 
+
+Implementation details We use a single Qwen3-VL-8B [Bai et al., 2025] model for both the text-only LLM and MLLM modules, and adopt VLFM [Yokoyama et al., 2024a] as the exploration backbone, consistent with AIUTA [Taioli et al., 2025]. We initiate recursive comparison stage once the number of merged candidates stored in IMVM reaches 5; if recursive comparison stage has not started by step 400 on CoIN or step 600 on TextNav, we start it at that step for consistency. We use DeBERTa-v3-large [He et al., 2021, Laurer et al., 2024] as the NLI verifier for scoring attribute entailment in recursive comparison stage. We set the maximum episode length to 500 and the question budget to 4 for CoIN following CoIN-Bench, and to 1000 for TextNav following prior work. An episode is considered successful if the agent executes stop within 1 m of the target instance. On CoIN, recursive comparison stage extracts attribute candidates from the collected candidate set Ut;on TextNav, we disable the user-question module and instead extract attributes directly from the detailed initial goal (see Appendix D for details). We further apply loop-escape and occasional 360 ◦
+
+rotation heuristics (see Appendix E). We also report the per-episode computational cost of AIUTA* and ProCompNav in Appendix I. 6Table 2: Performance on CoIN-Bench. In the Judge column, Indep/Comp indicate whether each method uses independent matching or comparative judgment for target disambiguation. The Interact 
+
+column indicates whether the method interacts with the user for target disambiguation. For fair comparison across models, we include 3D-Mem ∗ and AIUTA ∗, our reproductions using the same MLLM and LLM as ProCompNav. Results denoted by † are taken from [Taioli et al., 2025] and those denoted by ‡ are taken from [Jang and Kim, 2026].                                                                                               
+
+> Method Model Condition Val Seen Val Seen Synonyms Val Unseen Judge Interact SR ↑SPL ↑SR ↑SPL ↑SR ↑SPL ↑
+> Training-based Methods
+> Monolithic-GOAT †[Khanna et al., 2024] –✗6.6 3.1 13.1 6.5 0.2 0.1 PSL †[Sun et al., 2024] –✗8.8 3.3 8.9 2.8 4.6 1.4
+> Training-free Methods (description input)
+> 3D-Mem* [Yang et al., 2025] Comp ✗15.9 11.0 18.9 13.6 5.7 3.9 Context-Nav ‡[Jang and Kim, 2026] Indep ✗13.5 6.7 20.3 10.9 11.3 5.2
+> Training-free Methods (category input)
+> VLFM †[Yokoyama et al., 2024a] Indep ✗0.4 0.3 0.0 0.0 0.0 0.0 AIUTA †[Taioli et al., 2025] Indep ✓7.4 2.9 14.4 8.0 6.7 2.3 AIUTA ∗Indep ✓10.5 4.5 15.3 8.4 8.9 4.0 Pooled Independent Matching Indep ✓17.5 5.1 22.0 8.1 13.3 5.1
+> ProCompNav (Ours) Comp ✓23.7 7.0 28.1 8.5 17.0 6.2
+
+5.2 Main results 5.2.1 Interactive navigation 
+
+As shown in Table 2, ProCompNav achieves the highest SR on all CoIN-Bench splits with only category-level input. Table 1 further separates the roles of pool construction and comparison. Pooled Independent Matching constructs a candidate pool using the pool construction stage of ProCompNav and then applies independent matching, substantially improving SR over AIUTA ∗. This suggests that AIUTA ∗ often fails by prematurely deciding to an early-encountered distractor that shares attributes with the target. However, because its questions are still derived from individual candidates rather than selected through comparison among candidates, the accumulated facts may remain non-discriminative. Thus, distractors sharing many attribute-value pairs with the target can still receive high matching scores. Using the same candidate pool, ProCompNav further improves SR by selecting attribute-value pairs that split the pool and asking binary questions to prune inconsistent candidates, greatly reducing response length. 
+
+5.3 Effect of design choices 
+
+Table 3: Ablation studies on CoIN-Bench Val Seen split.                             
+
+> Method SR ↑SPL ↑NQ ↓RL ↓
+> w/o multi-view aggregation 23.1 6.3 2.1 4.2 LLM-only DA (w/o NLI) 20.6 5.5 2.2 4.2 w/o similarity-based core set 20.5 6.5 2.2 4.1 w/o refinement 21.8 6.0 2.1 4.2
+> ProCompNav (Ours) 23.7 7.0 2.2 4.2
+
+Table 3 reports the effect of four design choices on the CoIN-Bench Val Seen split. Disabling multi-view aggregation and using only a sin-gle view per candidate drops SR from 23 .7 to 
+
+23 .1. Removing NLI entirely and letting the LLM alone pick a discriminative attribute from the two group descriptions drops SR to 20 .6,showing that adding the entailment LM provides further performance gain on top of the LLM. Replacing the similarity-based core set selection with KMeans grouping over description text embed-dings drops SR to 20 .5: our method tightens only the core set and disregards the remainder, whereas KMeans optimizes both clusters to be internally similar—a sub-optimal objective for this stage. Disabling the refinement module drops SR to 21 .8: since the discriminative attribute is selected from the core set Gc only, the remainder group may still contain candidates that match it, and refinement is needed to recover them. 75.4 Episode termination-step analysis 1-99 100-199 200-299 300-399 400-499 500 (max) 
+
+> Episode Termination Step (bin)
+> 0
+> 50
+> 100
+> 150
+> 200
+> 250
+> 300
+> 350
+> Terminated Episodes (#)
+> AIUTA
+> ProCompNav
+> 0
+> 50
+> 100
+> 150
+> 200
+> Cumulative Successes (#)
+> AIUTA
+> ProCompNav
+
+Figure 3: Termination-step analysis of AIUTA and ProCompNav. The x-axis shows termina-tion steps in 100-step bins, except the max ex-ploration step; bars (left y-axis) show number of terminated episodes, and lines (right y-axis) show cumulative number of successful episodes. To demonstrate the advantage of our collect-then-compare strategy, we compare the episode ter-mination steps and success rates of AIUTA and ProCompNav on the CoIN-Bench Val Seen split in Figure 3. AIUTA, which adopts an indepen-dent matching strategy, either makes a premature wrong target decision upon encountering a distrac-tor (see the 1–99 step bin in Figure 3), or fails to make any target decision until the episode horizon is exhausted (see the 500 (max) step bin in Fig-ure 3), both of which lead to a low success rate. In contrast, ProCompNav collects candidates and de-termines the target through comparative judgment, hitting a sweet spot where episodes terminate at moderate steps (see 100–499 step range Figure 3) with a substantially higher success rate. This sup-ports our motivation that ambiguous instance navi-gation requires both deferred decision-making and comparative disambiguation judgement strategy. 
+
+5.5 Non-interactive navigation 
+
+Table 4: Performance on TextNav. In the Judgment 
+
+column, Indep/Comp indicate whether each method uses independent matching or comparative judgment for target disambiguation. Results denoted by † are taken from [Yin et al., 2025], those denoted by ‡ are taken from [Jang and Kim, 2026]. Methods denoted by ∗ are our reproductions using the same MLLM and LLM as ProCompNav.                              
+
+> Method Judgment SR ↑SPL ↑
+> Training-based Methods
+> Modular-GOAT †[Khanna et al., 2024] –17.0 8.8 PSL †[Sun et al., 2024] –16.5 7.5
+> Training-free Methods
+> UniGoal †[Yin et al., 2025] Indep 20.2 11.4
+> AIUTA* [Taioli et al., 2025] Indep 10.9 2.7 3D-Mem* [Yang et al., 2025] Comp 14.1 9.6 Context-Nav ‡[Jang and Kim, 2026] Indep 26.2 9.1
+> ProCompNav (Ours) Comp 28.5 6.9
+
+While ProCompNav is designed for interac-tive instance navigation, we can simply gen-eralize it to the non-interactive instance nav-igation benchmark. Instead of asking the user questions to obtain target information, we ex-tract attributes directly from the detailed target description provided at episode start and use them to distinguish the target from distractors (see Appendix D for implementation details). Table 4 shows experimental results on the non-interactive TextNav benchmark, where Pro-CompNav achieves the highest SR ( 28 .5%). This result suggests that the core mechanism of ProCompNav—deferring the target deci-sion until a candidate pool is constructed and then pruning it with discriminative attributes— is also effective in the non-interactive setting for distinguishing the target from distractors, where a detailed description is available but candidates still need to be compared against each other carefully rather than scored independently. 
+
+## 6 Qualitative Analysis 
+
+Fig. 4 contrasts independent matching and ProCompNav on the ambiguous query “Find the dresser”. The independent matching baseline [Taioli et al., 2025] (left) asks an open-ended attribute question (“What is the color and material of the handles. . . ”), forcing a long descriptive response. Even with this detailed answer, the baseline often decides on the first detected distractor as the target. ProCompNav (right) instead defers its decision, builds a candidate pool, and asks discriminative binary questions. In Round 1, “Is there a red box nearby?” splits the pool into a core set ( Gc) and a remainder set ( Gr ), and a single Yes eliminates three distractors. In Round 2, “Is there a TV on top?” isolates the true target ( T ∗). 8Comparative Judgment  (ProCompNav) Independent  Matching  (AIUTA)  
+
+> User
+> What is the color and
+> material of the handles on
+> the dresser's drawers?
+> The dresser is a white,
+> modern -style dresser
+> positioned against a wall,
+> likely in a bedroom. It has
+> silver or chrome tone handles.
+> High user
+> burden
+> Avg. user response
+> length:
+
+109.5  tokens 
+
+> Robot
+> Prematurely choose a distractor as the target!
+> Distractor matches user response
+> First detection
+> (distractor)
+
+Initial user query: 
+
+“Find the  dresser ”     
+
+> User
+> Candidate pool
+> Is there a red box nearby?
+> Yes. (next set: 𝐺 𝑐 )
+> Correctly decided the target!
+> Only one candidate left
+> Low user
+> burden
+> Avg. user response
+> length:
+
+4.2  tokens      
+
+> Robot
+> Is there a TV on top?
+> Yes. (next set: 𝐺 𝑐 )Robot User
+> 𝑮 𝒄 𝑮 𝒓
+> Target
+> 𝑮 𝒄 𝑮 𝒓
+
+Figure 4: Qualitative comparison of Independent Matching and Comparative Judgment under a minimally specified query (“Find the dresser”). Independent Matching (left) asks the user to describe an attribute of the intended target without knowing whether that attribute distinguishes it from distractors. This burdens the user with a long response and can lead the robot to mistakenly match a distractor sharing the same attribute. In contrast, Comparative Judgment (right) asks about discriminative attributes in a way that elicits only short user responses, reducing verbal burden while correctly isolating the user-intended target. 
+
+## 7 Conclusion 
+
+We studied natural-language instance navigation under ambiguous user queries. We proposed ProCompNav, a zero-shot framework that first collects a candidate pool and then identifies the target through comparative judgment, replacing the independent matching used in prior pipelines. On both CoIN-Bench and TextNav, ProCompNav improves Success Rate over the prior zero-shot state of the art, and on CoIN-Bench it further reduces the average user response length. Forming an instance candidate pool offers a new direction for future research on ambiguous instance navigation, since comparison across candidates lets the agent resolve the target without having to find evidence that uniquely identifies it. 
+
+Limitations ProCompNav is currently evaluated in simulation, and extending it to real-world robotic platforms remains an important future direction. Similarly, our evaluation relies on an MLLM as a user simulator, and validation with real human users would further assess the practical utility of binary question-asking strategies. Finally, the candidate pool construction stage requires a minimum number of candidates, which could be inefficient when few same-category instances exist; dynamic pool size adaptation is a promising avenue. 
+
+## References 
+
+Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, et al. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 , 2025. Moses Charikar. Greedy approximation algorithms for finding dense components in a graph. In 
+
+International workshop on approximation algorithms for combinatorial optimization , pages 84–95. Springer, 2000. Eugenio Chisari, Jan Ole Von Hartz, Fabien Despinoy, and Abhinav Valada. Robotic task ambiguity resolution via natural language interaction. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 14821–14827. IEEE, 2025. 9Pengcheng He, Jianfeng Gao, and Weizhu Chen. Debertav3: Improving deberta using electra-style pre-training with gradient-disentangled embedding sharing. arXiv preprint arXiv:2111.09543 ,2021. Won Shik Jang and Ue-Hwan Kim. Context-nav: Context-driven exploration and viewpoint-aware 3d spatial reasoning for instance navigation. arXiv preprint arXiv:2603.09506 , 2026. Mukul Khanna, Ram Ramrakhya, Gunjan Chhablani, Sriram Yenamandra, Theophile Gervet, Matthew Chang, Zsolt Kira, Devendra Singh Chaplot, Dhruv Batra, and Roozbeh Mottaghi. Goat-bench: A benchmark for multi-modal lifelong navigation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 16373–16383, 2024. Samir Khuller and Barna Saha. On finding dense subgraphs. In International colloquium on automata, languages, and programming , pages 597–608. Springer, 2009. Moritz Laurer, Wouter Van Atteveldt, Andreu Casas, and Kasper Welbers. Less annotating, more classifying: Addressing the data scarcity issue of supervised machine learning with deep transfer learning and bert-nli. Political Analysis , 32(1):84–100, 2024. Xingyao Lin, Xinghao Zhu, Tianyi Lu, Sicheng Xie, Hui Zhang, Xipeng Qiu, Zuxuan Wu, and Yu-Gang Jiang. Ask-to-clarify: Resolving instruction ambiguity through multi-turn dialogue. 
+
+arXiv preprint arXiv:2509.15061 , 2025. Maxime Oquab, Timothée Darcet, Théo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, et al. Dinov2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 , 2023. Pradip Pramanick, Chayan Sarkar, Sayan Paul, Ruddra dev Roychoudhury, and Brojeshwar Bhowmick. Doro: Disambiguation of referred object for embodied agents. IEEE Robotics and Automation Letters , 7(4):10826–10833, 2022. Allen Z Ren, Anushri Dixit, Alexandra Bodrova, Sumeet Singh, Stephen Tu, Noah Brown, Peng Xu, Leila Takayama, Fei Xia, Jake Varley, et al. Robots that ask for help: Uncertainty alignment for large language model planners. In Conference on Robot Learning , pages 661–682. PMLR, 2023. Xinyu Sun, Lizhao Liu, Hongyan Zhi, Ronghe Qiu, and Junwei Liang. Prioritized semantic learning for zero-shot instance navigation. In European Conference on Computer Vision , pages 161–178. Springer, 2024. Francesco Taioli, Edoardo Zorzi, Gianni Franchi, Alberto Castellini, Alessandro Farinelli, Marco Cristani, and Yiming Wang. Collaborative instance object navigation: Leveraging uncertainty-awareness to minimize human-agent dialogues. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 18781–18792, 2025. Yang Yang, Xibai Lou, and Changhyun Choi. Interactive robotic grasping with attribute-guided disambiguation. In 2022 International Conference on Robotics and Automation (ICRA) , pages 8914–8920. IEEE, 2022. Yuncong Yang, Han Yang, Jiachen Zhou, Peihao Chen, Hongxin Zhang, Yilun Du, and Chuang Gan. 3d-mem: 3d scene memory for embodied exploration and reasoning. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 17294–17303, 2025. Hang Yin, Xiuwei Xu, Zhenyu Wu, Jie Zhou, and Jiwen Lu. Sg-nav: Online 3d scene graph prompting for llm-based zero-shot object navigation. Advances in neural information processing systems , 37: 5285–5307, 2024. Hang Yin, Xiuwei Xu, Linqing Zhao, Ziwei Wang, Jie Zhou, and Jiwen Lu. Unigoal: Towards universal zero-shot goal-oriented navigation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 19057–19066, 2025. Naoki Yokoyama, Sehoon Ha, Dhruv Batra, Jiuguang Wang, and Bernadette Bucher. Vlfm: Vision-language frontier maps for zero-shot semantic navigation. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 42–48. IEEE, 2024a. 10 Naoki Yokoyama, Ram Ramrakhya, Abhishek Das, Dhruv Batra, and Sehoon Ha. Hm3d-ovon: A dataset and benchmark for open-vocabulary object goal navigation. In 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 5543–5550. IEEE, 2024b. Filippo Ziliotto, Tommaso Campari, Luciano Serafini, and Lamberto Ballan. Tango: training-free embodied ai agents for open-world tasks. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 24603–24613, 2025. 11 A Baselines 
+
+For CoIN-Bench [Taioli et al., 2025], we compare ProCompNav against trained policies Monolithic-GOAT [Khanna et al., 2024] and PSL [Sun et al., 2024]. Among training-free methods, 3D-Mem [Yang et al., 2025] and Context-Nav [Jang and Kim, 2026] receive a detailed target description— a richer input than the target category available to ProCompNav—while VLFM [Yokoyama et al., 2024a] and AIUTA [Taioli et al., 2025] receive only the target category. VLFM navigates without interaction, whereas AIUTA asks the user simulator open-ended clarifying questions. We further eval-uate on TextNav to verify that ProCompNav generalizes to the non-interactive, detailed-description setting, using the same baselines as CoIN-Bench and additionally including UniGoal [Yin et al., 2025]. We include AIUTA ∗, our reproduction of AIUTA with the same LLM and MLLM as ProCompNav; on TextNav, it is additionally adapted for the non-interactive setting (see Appendix F). 
+
+## B Pool Construction Stage Details 
+
+Cross-view instance assignment. For each new detection of category-c, the agent back-projects the bounding box to a 3D point cloud and computes the symmetric overlap ratio against every existing candidate’s accumulated point cloud Pi, defined as the fraction of points in either cloud that have a neighbor in the other within radius ϵ = 0 .03 m (we take the maximum of the two directed fractions). If the maximum overlap is at least 0.3, the detection is assigned to the matching candidate and its RGB view is added to Vi. Otherwise, a new candidate is initialized. 
+
+Diverse view selection. For each candidate i, we extract a visual embedding for every view v ∈ V i
+
+using DINOv2 [Oquab et al., 2023], cluster the embeddings into K = 6 clusters via K-means, and select the view closest to each centroid as a representative. We arrange the resulting representatives into the multi-view collage Ii.
+
+## C NLI-based Entailment Scoring 
+
+We instantiate the attribute verifier with a pretrained Natural Language Inference (NLI) classifier. For each instance description di (premise) and candidate attribute a, we form the hypothesis “the instance has attribute a” and query the NLI model to obtain logits ℓE (di, a ), ℓN (di, a ), and ℓC (di, a ) for entailment, neutral, and contradiction, respectively. We convert these logits into a scalar entailment score 
+
+s(di, a ) = σ ℓE (di, a ) − max( ℓN (di, a ), ℓ C (di, a ))  ,
+
+where σ is the sigmoid function. This score provides a calibrated measure of attribute support that is comparable across instances and attributes. In our implementation, we use a lightweight NLI backbone ( e.g. , DeBERTa-v3-large [He et al., 2021, Laurer et al., 2024]) and apply the same scoring to all candidates in Gc and Gr .
+
+## D Adaptation of ProCompNav to TextNav 
+
+Unlike CoIN-Bench, TextNav provides a detailed target description at the beginning of each episode and does not allow user interaction. We therefore disable the question-asking module and adapt the Recursive Comparison Stage in the following two ways. 
+
+(1) Goal-derived attribute set. Instead of extracting attribute candidates from the current core set 
+
+Gc at each iteration, we parse a fixed attribute set A once from the text goal describing the target instance using the LLM. Since A is derived from the goal description, its attributes are assumed to hold for the target. Accordingly, after property-guided group refinement, we always set Ut+1 = Gc,rather than choosing between Gc and Gr based on user feedback as in CoIN. 
+
+(2) Candidate verification without user feedback. When Gr = ∅, we invoke a text-only LLM-based verifier. Specifically, if |Ut| = 1 , we verify the sole remaining candidate instance; if Gr = ∅ and 
+
+|Gc| ≥ 2, we verify the candidate instance i ∈ Gc with the highest entailment score s(di, a ∗ 
+
+> t
+
+). The verifier compares the candidate description di with the text goal describing the target instance and returns a binary accept/reject decision. If accepted, the agent executes stop ; otherwise, it resumes the Pool Construction Stage to collect additional candidates from unexplored regions. 12 Target ( 𝑇 ∗)
+
+DA 𝒂 𝟎  
+
+> ∗
+
+: a table with a 
+
+lamp beside the bed            
+
+> Text goal: The bed in this image is
+> made up with a light green quilt
+> (DA 𝒂 1
+> ∗), which has some dark
+> patterns on it. The bed is the focus
+> of this image, and there are several
+> objects around it. These include a
+> chair on the right side, a table with
+> a lamp next to the bed (DA 𝒂 0
+> ∗),a
+> dresser in front of the bed, and a
+> mirror hanging above the dresser.
+
+DA 𝒂 𝟏  
+
+> ∗
+
+: light green 
+
+quilt on bed 
+
+𝐺 𝑐  𝐺 𝑟 
+
+ProCompNav (Ours) - Comparative Judgment 
+
+Later decision  (success ) at step 577 
+
+Round 1
+
+𝐺 𝑐  𝐺 𝑟 
+
+Decide 
+
+the target!        
+
+> Note: In TextNav , since attributes are derived from the text goal , they inherently describe the target 𝑇 ∗,so we always select 𝑮 𝒄 .
+
+𝑈 1 = 𝐺 𝑐 Robot 
+
+Attribute set 𝒜 
+
+Robot 
+
+Round 2
+
+𝑈 2 = 𝐺 𝑐 and 
+
+|𝑈 2| = 1Figure 5: TextNav adaptation of the Recursive Comparison Stage. In TextNav, ProCompNav pre-extracts an attribute set A from the text goal before the Recursive Comparison Stage and, at each round, selects the discriminative attribute that best supports the current core set Gc. Since these attributes are derived from the goal, the active set is always updated to Gc. The agent terminates once the target-selection condition is met. 
+
+## E Adapting Object Navigation for Instance-Level Exploration 
+
+Language-driven instance navigation methods often adopt an object navigation (ON) backbone for exploration— e.g. , AIUTA [Taioli et al., 2025] uses VLFM [Yokoyama et al., 2024a] and UniGoal [Yin et al., 2025] uses SG-Nav [Yin et al., 2024]. These methods repeatedly select the frontier with the highest reasoning score and are designed to reach any instance of the target category. In instance navigation, however, the first observed instance is not necessarily the target, so the agent may need to continue exploring even after an initial detection. Directly extending ON backbones to this setting introduces two practical issues. First, greedy top-1 frontier selection can repeatedly favor an unreachable or suboptimal frontier, causing local loops and reducing exploration coverage. Second, with a forward-facing monocular camera and a narrow field of view (30 ◦), the agent may pass nearby objects without observing them, leaving potential candidates undetected. To address these issues, we add two lightweight heuristics to our VLFM-based exploration backbone. 
+
+E.1 Loop Detection and Frontier Escape 
+
+We maintain an exponential moving average (EMA) of the agent’s position to detect trajectory stagnation. Let pt denote the agent’s position at step t. The trajectory center ct and spread st are updated as: 
+
+ct = α pt + (1 − α) ct−1 ,st = α ∥pt − ct∥2 + (1 − α) st−1 .
+
+13 Final merged views of the Bed  Final merged views of the Desk 
+
+Pre -merging result of Mirror  Pre -merging result of Heater Figure 6: Examples of multi-view candidates produced by the Pool Construction Stage. For each candidate (e.g., the bed and the desk), multiple viewpoints captured during exploration are shown. We then define the loopness score as 
+
+loop t = exp 
+
+
+
+− ∥pt − ct∥2
+
+st
+
+
+
+,
+
+which approaches 1 when the agent remains near its recent trajectory center. The normalization by 
+
+st makes the score adaptive to the recent motion scale. If loop t ≥ 0.9 persists for 5 consecutive steps while moving toward a frontier, we temporarily blacklist all frontiers in the same grid cell by assigning them a large negative score, forcing the planner to redirect exploration elsewhere. 
+
+E.2 Line-of-Sight Rotation 
+
+To compensate for the narrow field of view, we trigger an in-place 360 ◦ rotation when the surroundings are sufficiently open. We define the openness of the current position (x0, y 0) as the fraction of 360 uniformly spaced angular bins (1 ◦ resolution) whose line of sight is not blocked on the occupancy map: 
+
+openness = 1 − |{ occluded bins }| 
+
+360 .
+
+A bin at angle θ is marked occluded if the ray in that direction intersects an obstacle, where each obstacle point (xi, y i) is associated with angle θi = atan2( yi − y0, x i − x0). We execute a 360 ◦
+
+rotation when openness ≥ 0.1 and the agent is at least 1.0 m away from the previous rotation point, which avoids redundant rotations in confined areas. 
+
+## F Adaptation of AIUTA to TextNav 
+
+For a fair comparison under the same model condition, we adapt AIUTA [Taioli et al., 2025] to both CoIN-Bench [Taioli et al., 2025] and TextNav [Sun et al., 2024] using the same Qwen3-VL-8B [Bai et al., 2025] MLLM as in our method. On CoIN-Bench, AIUTA* follows the original interactive setting. On TextNav, however, we remove the user-interaction module and replace the original dynamically updated fact memory with the given detailed text goal, which is kept fixed throughout the episode. Accordingly, when a target-category object is detected, AIUTA* no longer considers the Ask 
+
+action; instead, it compares the detected object against the fixed text goal and chooses only between 
+
+Stop and Skip . If the detected object is judged to match the detailed goal, the agent executes stop ;otherwise, it skips the instance and continues exploration. 14 Table 5: Ablation on refinement threshold on Val Seen.                                
+
+> Threshold SR ↑SPL ↑NQ ↓RL ↓
+> No refinement 21.8 6.0 2.1 4.2
+> τ= 0 .522.0 6.3 2.2 4.1
+> τ= 0 .722.6 6.5 2.2 4.2
+> τ= 0 .9(ours) 23.7 7.0 2.2 4.2 456
+> Candidate Pool Size
+> 20
+> 25
+> SR (%)
+> 6
+> 7
+> SPL (%)
+> SR SPL
+
+N SR ↑ SPL ↑ NQ ↓ RL ↓ Steps 4 19.4 7.1 2.0 3.8 212.7 5 23.7 7.0 2.2 4.2 257.0 6 25.5 6.1 2.4 4.5 299.3 Figure 7: Effect of the candidate pool size threshold Nmin that triggers the Recursive Comparison Stage. (Left) SR and SPL under different Nmin values. A larger Nmin improves comparative judgment and thus increases SR, but leads to lower SPL. (Right) Detailed results for all evaluation metrics, including user burden and navigation cost. Based on this trade-off, we choose Nmin = 5 as the default setting. 
+
+## G Effect of The Refinement Threshold 
+
+Table 5 shows that refinement improves SR and SPL over the no-refinement variant with almost no increase in user burden. Among the refinement thresholds, the conservative setting τ = 0 .9 performs best, achieving the highest SR and SPL while keeping NQ and RL nearly unchanged. This suggests that refinement is beneficial, but should be applied conservatively to avoid introducing unreliable comparisons. 
+
+## H Effect of the Pool Size Threshold 
+
+In Fig. 7, we further analyze the effect of the candidate pool size threshold Nmin that triggers the Recursive Comparison Stage. When Nmin = 4 , the Recursive Comparison Stage is invoked earlier, yielding the highest SPL and fewest steps, but the candidate pool may not yet be sufficiently representative, resulting in a low SR of 19.4. Increasing Nmin to 5 substantially improves SR to 23.7 (+4.3) while incurring only a modest SPL drop, suggesting that the additional exploration translates directly into SR gains by providing a more reliable comparison set. In contrast, Nmin = 6 provides only a limited SR gain (+1.8) but noticeably worsens efficiency and interaction cost. We therefore choose Nmin = 5 as the default setting, as it offers the best balance between success rate, navigation efficiency, and user burden. 
+
+## I Computational Cost 
+
+Table 6 breaks down the per-episode computational cost. All computational costs were measured on two NVIDIA RTX 3090 GPUs with 24GB memory each. The dominant saving comes from MLLM/LLM inference: AIUTA* invokes the MLLM repeatedly to score each candidate indepen-dently and to generate open-ended questions, accumulating 227.36s per episode, whereas ProComp-Nav concentrates its MLLM calls in the Pool Construction Stage’s captioning and a small number of attribute extractions in the Recursive Comparison Stage, totaling only 82.89s. The NLI verifier used for DA scoring adds a negligible 1.29s. Exploration time is also lower (465.42s vs. 580.80s) 15 Table 6: Per-episode computational cost comparison between AIUTA* and ProCompNav on the Val Seen Synonyms split (359 episodes). Although ProCompNav takes more navigation steps to proactively collect candidates, it reduces MLLM/LLM inference time by 63.5% relative to AIUTA*, replacing repeated open-ended MLLM scoring with lightweight NLI verification, and thus achieves a lower total wall-clock time. 
+
+Metric AIUTA* ProCompNav Total runtime (s) 808.16 549.60 Number of steps 204.20 271.53 MLLM/LLM inference time (s) 227.36 82.89 NLI inference time (s) – 1.29 Exploration time (s) 580.80 465.42 
+
+despite ProCompNav taking more steps, because AIUTA* interleaves costly MLLM calls within its exploration loop, effectively stalling navigation while waiting for model responses. 
+
+## J Prompts 
+
+We provide the prompt templates used in ProCompNav. 
+
+Shared Property Extraction: 
+
+You are given a list of [{category}] descriptions. Task: Identify properties that are shared by ALL [{category}s] in the list. - Properties should be based on visible appearance or nearby surrounding objects. - If a surrounding object is distinctive, explicitly name it. - Each property should be specific but concise. - Each property must be no more than 10 words. - Output only properties, one per line. List of descriptions: {descriptions} Format: property1 property2 property3 
+
+where {descriptions} is replaced by the candidate descriptions and {category} by the target instance category c.
+
+Multi-view Object Description: 
+
+You are given an image which shows a {category} from multiple viewpoints. You need to describe the {category}, by combining the information from these different viewpoints. First, describe the {category} in detail, focusing on its appearance and distinctive features (use only: color, shape). Then, describe the other objects (use only: color, shape) close to the {category}, and their spatial relationships (use only: [‘next to’, ‘on top of’, ‘under’]) relative to the {category}. Mention all clearly visible nearby objects around the {category}. 
+
+This prompt is used to generate a unified caption from multiple viewpoints of the same object instance. 
+
+Text-goal Matching: 
+
+16 You are given two descriptions of a [{category}]. Description A (reference): {reference_description} Description B (candidate): {candidate_description} Notes: - Each description can include both the object description and nearby surrounding context. - Focus on whether they refer to the same object; surrounding context may differ. Question: Do Description A and Description B refer to the same [{category}]? Answer strictly with ‘yes’ or ‘no’. Do not say anything else. 
+
+This prompt is used to check whether a final candidate matches the given detailed description in the TextNav setting. 17

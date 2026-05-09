@@ -1,0 +1,1601 @@
+Title: Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation
+
+URL Source: https://arxiv.org/pdf/2605.01772v1
+
+Published Time: Tue, 05 May 2026 01:14:57 GMT
+
+Number of Pages: 36
+
+Markdown Content:
+## Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Zhilong Zhang 1 2 * Wenyu Luo 2 * Haonan Wang 2 * Yifei Sheng 2 * Yidi Wang 1 2 Hanyuan Guo 2
+
+Haoxiang Ren 2 Xinghao Du 1 2 Yuhan Che 3 Tongtong Cao 3 Lei Yuan 1 2 Yang Yu 1 2 †
+
+Abstract 
+
+Vision-Language-Action (VLA) models have emerged as a powerful paradigm for embodied intelligence, enabling robots to perform tasks based on natural language instructions and current visual input. However, existing VLA models struggle with long-horizon tasks due to compounding errors. Prior methods decompose tasks into subtasks of fixed granularity, which cannot adapt to the varying complexity of execution states, limiting their robustness in long-horizon tasks. To overcome this, we introduce Anticipation Model , which adaptively and recursively generates future subgoals . This model continuously adapts as the task unfolds, adjusting future subgoals in response to evolving dynamics, facilitating more reliable planning paths. Building on this concept, we propose Anticipation-VLA , a hierarchical VLA model that leverages the anticipation model to generate actionable subgoals that guide VLA policy execution. We implement Anticipation-VLA with finetuning a Unified Multimodal Model (UMM) for high-level subgoal generation and a goal-conditioned VLA policy for low-level action execution. Experiments in both simulated and real-world robotic tasks demonstrate the effectiveness of Anticipation-VLA, highlighting the importance of adaptive and recursive subgoal generation for robust policy execution. 
+
+1. Introduction 
+
+Vision-Language-Action (VLA) models have emerged as a powerful paradigm for embodied intelligence, allowing robots to execute low-level actions directly from raw visual observations and natural language instructions (Brohan et al., 2023; Zitkovich et al., 2023; Ghosh et al., 2024; Kim et al., 2024; Black et al., 2024a; Kim et al., 2025). By leveraging large-scale robots data pretraining, these models demonstrate impressive generalization across tasks, objects, and environments (Team, 2025; Intelligence et al., 2025b;a). Despite these advancements, existing VLA models face significant challenges when dealing with long-horizon tasks (Fan et al., 2025; Zhang et al., 2025b; Gao et al., 2025; Li et al., 2025a) . While prior research has explored approaches such as skill retrieval (Long et al., 2025; Fan et al., 2025), VLM-based planning (Mu et al., 2023; Ichter et al., 2022; Intelligence et al., 2025b), and subgoal image prediction (Black et al., 2024b; Wu et al., 2024b; Sun et al., 2025; Gao et al., 2025), most of these methods rely on fixed-granularity subtask planning. As a result, they often generate either overly fine-grained subgoals that introduce unnecessary complexity, or too sparse subgoal generation that fail to guide policy execution, ultimately hindering scalability and generalization. To address these, we introduce Anticipation Model (Yu, 2025) for adaptive and recursive subgoal generation. Given the current observation and the desired goal, the anticipation model outputs the multimodal subgoal that lies on the optimal path from the current state to the goal objective, thus breaking down high-level instructions into intermediate achievable goals. Its core property is recursive generation : each generated subgoal can be further decomposed into more precise subgoals once policy execution is staged. By continuously updating subgoals based on current observations and task progress, the model provides a principled approach for long-horizon task decomposition. This progress-aware decomposition ensures 
+
+> 1
+
+National Key Laboratory for Novel Software Technology, Nanjing University, Nanjing, China 2School of Artificial Intelligence, Nan-jing University, Nanjing, China 3Department of Foundation model, 2012 Labs, Huawei. Correspondence to: Yang Yu <yuy@nju.edu.cn >.
+
+Preprint. May 5, 2026. 
+
+1
+
+> arXiv:2605.01772v1 [cs.RO] 3 May 2026
+
+Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation Anticipation VLA      
+
+> What’s the goal ?
+> Anticipation VLA solves long-horizon tasks via adaptive subgoals generation!
+> Goal-conditioned
+> VLA policy
+> Stagnate
+> 1. Finest-grained stack top
+> (backtrack & replan)
+> 2. Else (recursive plan)
+> In progress (keep going) keep
+> Subgoal achieved (pop stack) pop
+> Anticipation Model
+> push
+> push
+> backtrack
+> “spell the word: CAT using
+> the blocks on the table”
+> “place the block with
+> letter <C> on the table’”
+> “pick up the block
+> with letter <C>”
+> subgoal
+> text
+> Subgoal
+> image
+> Consistency
+> self-check
+> spell the word ‘cup’!
+> Choice 3: Both of them
+> spell the
+> word ‘cup’!
+
+Figure 1. Overall architecture of Anticipation-VLA. The anticipation model adaptively outputs multimodal subgoals guided by progress feedback, while a goal-conditioned VLA executes low-level actions. During this process, we maintain a dynamic goal stack enables backtracking and refinement for robust execution. 
+
+that each subgoal contributes meaningfully to maximizing cumulative reward, while simplifying policy execution across arbitrary horizons. Building on this conceptual model, we present a hierarchical VLA framework, Anticipation-VLA , that leverages the anticipation model to guide low-level goal-conditioned policy execution, as shown in Figure 1. In this framework, a Unified Multimodal Model (UMM) (Deng et al., 2025a; Sun et al., 2025; Cui et al., 2025) serves as both anticipation and value models, reasoning over visual and linguistic inputs to generate subgoals and provide the value estimation. A separate goal-conditioned VLA model executes low-level actions conditioned on these generated subgoals. By monitoring task progress and refining subgoals when progress stalls, Anticipation-VLA enables robust and adaptive execution of long-horizon tasks in complex environments. Experiments in both simulated and real-world robotic tasks demonstrate the effectiveness of Anticipation-VLA, highlighting the importance of dynamic anticipation and recursive subgoal generation for robust policy execution. In summary, our contributions are: • We introduce the Anticipation Model, an adaptive planning model for value-optimal and policy-aware subgoal generation. • We propose Anticipation-VLA, a hierarchical framework that integrates the anticipation model with a goal-conditioned VLA policy for long-horizon task planning and execution. • We validate the framework in both simulated and real-world robotic tasks, demonstrating the effectiveness of our hierarchical framework, Anticipation-VLA. 
+
+2. The Foundation of Anticipation-VLA 
+
+In this section, we present the foundational framework for the Anticipation-VLA. We begin by formalizing the task environment using the Goal-Conditioned Markov Decision Process (GMDP) in Section 2.1. We then introduce the crucial high-level planner Anticipation Model in Section 2.2, followed by the complete architecture and inference procedure for the Anticipation-VLA in Section 2.3. 2Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+2.1. Goal-Conditioned Markov Decision Process 
+
+While VLA models offer a powerful paradigm for human-robot interaction, scaling to long-horizon tasks presents a major challenge due to exacerbated policy compounding error and limited generalization ability. To address this challenge, we first formalize the problem using the Goal-Conditioned Markov Decision Process (GMDP) (Puterman, 1990; 2014), which is defined by the tuple (S, A, G, P, r, T ).The state space S represents the set of all possible visual observations (e.g., camera images), and the action space A is the set of continuous control inputs the robot can execute. Crucially, the goal space G is defined as the Cartesian product of the state space and the language space: 
+
+G = ( L ∪ {∅ L}) × (S ∪ {∅ S }) \ { (∅L, ∅S )}, (1) where L represents the set of possible instructions, ∅L is the null instruction, and ∅S is the null state observation. The exclusion of the non-informative pair (∅L, ∅S ) ensures that every goal g ∈ G is non-vacuous. Under this definition, a goal g
+
+is an observation-instruction pair (ℓg , s g ), where at least one component, sg ∈ S (the target visual state) or ℓg ∈ L (the text command), is explicitly defined. For example, a goal can be purely language-conditioned, such as (∅S , ”Make a coffee”), or purely observation-conditioned, such as (”Image of a cup of coffee”, ∅L). The dynamics function P : S × A → ∆( S) defines the probability of transitioning to a new state s′ from a current state 
+
+s after taking an action a. The reward function r : S × A × G → R provides a scalar reward signal for executing action 
+
+a in state s while pursuing goal g. Here, we define the reward as the improvement to the goal from state s after taking action a. The objective in a GMDP is to find an optimal goal-conditioned policy π : S × G → ∆( A) that maximizes the expected cumulative reward V (π) = Eπ
+
+hPTt=0 r(st, a t, g )
+
+i
+
+. Intuitively, this value function can be viewed as the expected total distance the policy needs to traverse from the current observation to the goal. This framework explicitly incorporates the goal into the decision-making process, allowing the policy to adapt its behavior based on the specific task objective defined by the combined visual and linguistic components. 
+
+2.2. Anticipation Model Formal Definition. The anticipation model G, first introduced by Yu (2025), is the central mechanism for enabling hierarchical planning in the GMDP. Its role is to select the immediate subgoal g′ ∈ G that serves as an efficient stepping stone toward achieving the overall high-level goal g. This process directly mitigates compounding error of the subsequent goal-conditioned policy by reducing the effective horizon. Formally, the anticipation model is a mapping G : S × G → G that takes the current state s and the active goal g as input, and outputs a refined subgoal g′ ∈ G . Here, the recursive nature of the anticipation model arises because the output subgoal 
+
+g′ can be immediately fed back into the model as the new active goal for the next decomposition step, enabling subgoal generation at various granularities. This iterative process continues through multiple intermediate steps until an executable target is obtained. 
+
+Optimal Subgoal Generation. The selection of an optimal subgoal g′ is governed by the global optimality of reinforcement learning with anticipation (Yu, 2025). This principle requires the shortest-path reward structure (Yu, 2025). The definition of optimality relies on the Optimal Value Function V ∗(s, g ), which represents the maximum expected cumulative reward from state s towards goal g. V ∗(s, g ) is the unique solution to the Bellman Optimality Equation: 
+
+V ∗(s, g ) = max 
+
+> a
+
+r(s, a, g ) + Es′∼P (·| s,a )[V ∗(s′, g )]  (2) Based on this framework, the anticipation model G is trained to generate a subgoal g′ that approaches the following Optimal Decomposition :
+
+V ∗(s0, g ) = V ∗(s0, g ′) + V ∗(sg′ , g ), (3) This equation establishes that the maximum reward from s0 to the final goal g must be perfectly decomposable into the maximum reward from s0 to the waypoint g′ plus the maximum reward from the waypoint g′ to the final goal g. This provides the principled objective for training an optimal intermediate subgoal generator. 3Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+2.3. Anticipation-VLA 
+
+The Anticipation-VLA integrates high-level planning and low-level control into a unified, hierarchical system tailored for long-horizon embodied tasks. It consists of three core components: 1) Anticipation Model ( G): a high-level planner that recursively generates intermediate subgoals. 2) Optimal Value Function ( V ∗): a value function that captures the optimal expected cumulative reward to guide subgoal generation. 3) Goal-Conditioned VLA Model ( π): a low-level controller that executes fine-grained actions based on the current observation and the immediate subgoal. 
+
+Dynamic Subgoal Management. The key innovation of the Anticipation-VLA lies in its adaptive subgoal management. Rather than relying on fixed planning intervals or handcrafted decomposition, the system uses an estimate of the optimal value function V ∗ to dynamically trigger re-planning when progress stalls or a subgoal is achieved. This ensures computational efficiency and robustness in complex environments. The complete inference procedure is detailed in Algorithm 1. Specifically, the system maintains a subgoal stack and, at each planning check (every K timesteps), the system evaluates three conditions using V ∗:1. Goal Achievement : if the current value V ∗(s, g ) is close to the value at the goal state ( |V ∗(s, g ) − V ∗(g, g )| < δ ), the subgoal is considered complete and popped from the stack. 2. Insufficient Progress : if the value improvement over the last interval is negligible ( |V ∗(s, g ) − V ∗(sprev , g )| < δ ) and the stack is not full, the anticipation model G generates a refined subgoal and push it into the stack. Moreover, if the stack has reached its maximum depth, the system backtracks to the initial state, as the policy may be stuck in a local stagnation. 3. Sufficient Progress : otherwise, if substantial progress has been made ( |V ∗(s, g ) − V ∗(sprev , g )| ≥ δ)), the current subgoal remains on the stack, and the process continues until the next evaluation step. This closed-loop interaction between G, π, and V ∗ enables flexible, error-resilient execution of long-horizon tasks. 
+
+3. Practical Implementation 
+
+3.1. UMM-based Anticipation Model and Value Model 
+
+We implement our anticipation model based on Bagel (Deng et al., 2025a), a UMM model capable of jointly understanding and generating both textual and visual content. Therefore, this model can function simultaneously as an anticipation model and an optimal value model within a unified framework. Simplifying the system design, and enabling the cross-modal knowledge transfer within the shared model. 
+
+Anticipation Model. Although UMM can predict a subgoal g′ directly from the current observation s and high-level goal 
+
+g, we find that such direct generation often suffers from hallucination, producing subgoals that are inconsistent with the environment state or task semantics. To address this, we decompose the anticipation process into two stages inspired by Sun et al. (2025). First, UMM functions as a language-based policy lθ : S × G → L that predicts a subgoal instruction ℓg′ given 
+
+(s, g ). Then, conditioned on (s, ℓ g′ ), UMM serves as a dynamics model Pθ : S × L → S that grounds the instruction and predicts the corresponding subgoal image sg′ . Formally, we define the anticipation mapping as Gθ = ( Pθ ◦ lθ , l θ ). This decomposition constrains the generation process through a semantically meaningful bottleneck for subgoal generation. 
+
+Self-Discriminative Regularization. To further reduce the hallucination, we adopt the self-discriminative regularization introduced in Uni-Plan (Sun et al., 2025), which encourages the model to assess the plausibility of its own outputs. Specifically, after generating a candidate subgoal image sg′ from (s, l g′ ) by Pθ , we apply the inverse dynamics model of the UMM, denoted as P −1 
+
+> θ
+
+: S × S → L , to infer the instruction l′ 
+
+> inv
+
+that would lead from s to sg′ . If the inferred instruction 
+
+l′ 
+
+> inv
+
+is semantically equivalent to the original instruction lg′ , we retain the generated subgoal. Otherwise, we discard it and prompt the anticipation model to regenerate a new candidate. 
+
+Optimal Value Model. The standard formulation of an optimal value model takes the current observation and goal as input and predicts the maximum expected cumulative reward. This model is typically trained by Temporal Difference (TD) methods (Sutton & Barto, 2018). However, in real-world settings, obtaining step-wise dense rewards is nearly infeasible. Instead, we usually only have the sparse, trajectory-level signals indicating whether a task was successful. Such sparsity destabilizes TD learning and makes it difficult to train a reliable and accurate value model. 4Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Fortunately, in our system, the optimal value model is not tasked with computing the exact absolute value but rather with determining Goal Achievement or Progress Stagnation as shown in Algorithm 1. This allows us to reformulate the value prediction task as a classification problem . Specifically, the value model Vθ takes the current observation s, the previous observation sprev , and the goal g as input, and classifies the state as one of the following three categories: goal achieved, progress stagnated, or progress improved. This transformation simplifies the original value regression task into a more manageable classification task. More details are shown in Appendix C.2. Anticipation 
+
+# Shared 
+
+# parameters 𝜽 
+
+## Step 01 𝑉 !
+
+Input: 
+
+Output: 
+
+Previous 
+
+Image 
+
+Current 
+
+Image 
+
+Goal Image 
+
+and Text 
+
+> “spell the word: CUP
+> with the blocks on
+> the table”
+
+Stagnate Recursive Plan 
+
+Input: 
+
+Output: 
+
+## Step 03 𝑃 !
+
+Current Image Subgoal Text 
+
+> “pick the block
+> with letter <C> on
+> the table”
+
+Subgoal 
+
+Image 
+
+Input: 
+
+Output: 
+
+> “pick the block with
+> letter <C> on the table”
+
+Current 
+
+Image 
+
+Goal 
+
+Text 
+
+Subgoal 
+
+Text 
+
+## Step 02 ℓ!
+
+> “spell the word: CUP with
+> the blocks on the table”
+
+Input: 
+
+Output: 
+
+> “pick the block with
+> letter <C> on the table”
+
+Current 
+
+State 
+
+Subgoal 
+
+Image 
+
+Inverse Subgoal 
+
+Text 
+
+## Step 04 𝑃 !
+
+"#
+
+Figure 2. Inference procedure of Anticipation Model. At each inference step, Value Model Vθ first outputs a progress label. If stagnation is detected, Policy Model πθ generates a textual subgoal. Dynamics Model Pθ then predicts the corresponding visual subgoal. Finally, 
+
+Inverse Dynamics Model P −1 
+
+> θ
+
+verifies whether the actions inferred from the predicted visual transition align with the generated textual subgoal. 
+
+Data Preparation. We construct two hierarchical datasets to train the anticipation model and the value model, respectively: (i) Danti = SHh=1 Dh
+
+> anti
+
+, where each Dh 
+
+> anti
+
+= {(s, g h+1 = ( ℓgh+1 , s gh+1 ), g h)} consists of tuples of a current observation 
+
+s, a current goal gh, and a sub-level goal gh+1 . (ii) Dvalue = SHh=1 Dh
+
+> value
+
+, where each Dh 
+
+> value
+
+= {(s1, s 2, g h, y )} contains pairs of sequential observations (s1, s 2), the goal gh, and the progress label y ∈ { progress , achieve , no progress } assigned based on temporal and geometric proximity to the goal. Here, H denotes the total number of subgoal hierarchy levels, with level h = 1 corresponding to the highest-level goals (original task description) and level h = H to the lowest-level (finest-grained) subgoals. Full details of the labeling protocol and sampling strategy are shown in the Appendix C. 
+
+Training Recipe. In general, our anticipation model requires optimizing four distinct roles: (i) the language-based policy 
+
+lθ , (ii) the forward dynamics model Pθ , (iii) the inverse dynamics model P −1 
+
+> θ
+
+, and (iv) the optimal value model Vθ . The corresponding loss functions optimized over the dataset Danti and Dvalue are defined below: 5Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+• Policy Loss : A cross-entropy (CE) loss for training the policy model to predict the subgoal instruction ℓgh+1 .
+
+Lpolicy (θ) = EDanti [− log lθ (ℓgh+1 |s, g h)] , (4) • Forward Dynamics Loss : A mean-squared-error (MSE) loss for training the flow matching model to predict the next state sgh+1 . This minimizes the error between the predicted velocity vθ and the actual sampled velocity v.
+
+Ldyna (θ) = Et, Danti [|| vθ (s, s tgh+1 , ℓ gh+1 , t ) − v|| 22], (5) • Inverse Dynamics Loss : A CE loss for training the inverse dynamics model to predict the instruction lgh+1 that connects s and sgh+1 .
+
+Linverse (θ) = EDanti [− log P −1 
+
+> θ
+
+(ℓgh+1 |s, s gh )] , (6) • Value Loss : A CE loss that trains the value model to predict goal achievement or progress status. 
+
+Lvalue (θ) = EDvalue [− log Vθ (y|s1, s 2, g h)] , (7) Notably, all of these models are implemented within the unified UMM architecture, where the overall loss function is defined as a weighted sum of the loss components: 
+
+L(θ) = λ1Lpolicy (θ) + λ2Ldyna (θ)+λ3Linverse (θ) + λ4Lvalue (θ), (8) 
+
+3.2. Goal-conditioned VLA Model 
+
+We implement the goal-conditioned VLA model based on π0.5 (Intelligence et al., 2025b), a state-of-the-art flow matching-based VLA model. Specifically, we enhance the VLA model by incorporating a current subgoal image stg as part of the input, placing it after the current observation from all cameras, sto = [ st
+
+> 1
+
+, . . . , s tn]. Subsequently, we concatenate the robot’s configuration q and the subgoal instruction ℓtg after the images. The goal-conditioned VLA model captures the distribution 
+
+πθ (at:t+h|sto, g t = ( sg , ℓ g )) , where gt represents the subgoal at time t.Furthermore, to address potential issues such as ambiguity and deformation in the generated subgoals from the anticipation model, we improve the model’s robustness to goal image variations by randomly masking out the tokens of the goal image 
+
+sg during training. This regularization technique ensures better generalization in the presence of noisy or incomplete goal representations. Given an overall goal g, which can either be a language instruction or a goal image, we combine the UMM-based anticipation model and the goal-conditioned VLA model. Our Anticipation-VLA framework decomposes the distribution as follows: 
+
+πθ (at:t+h|sto, g ) = πθ (at:t+h|sto, g t) · Gθ (gt|g) (9) where πθ (at:t+h|sto, g t) is the action distribution conditioned on the observations and subgoal, and Gθ (gt|g) represents the anticipation model output probability of the goal gt given the overall goal g.
+
+Data Preparation. We construct a hierarchical dataset Dpolicy = SHh=1 Dh 
+
+> policy
+
+for training the goal-conditioned VLA model, where each level h contains tuples Dh 
+
+> policy
+
+= {(s, a, g h)}. Here, s denotes the current observation, a is an action chunk, and 
+
+gh = ( ℓgh , s gh ) represents the corresponding subgoal at hierarchy level h. We reuse the same annotated subgoals from the anticipation dataset to ensure consistency between policy training and subgoal prediction. 
+
+Training Recipe. Our goal-conditioned VLA model uniformly samples data from Dpolicy and is finetuned using a flow matching loss. To improve robustness against inaccurate or noisy subgoals produced by the anticipation model at inference time, we randomly mask the goal inputs with a fixed probability during VLA training. 
+
+4. Experiments 
+
+In this section, we perform comprehensive experiments to answer the following questions: Q1 : How does Anticipation-VLA perform in simulated tasks? (Section 4.1) Q2 : How does Anticipation-VLA perform in real-world tasks? (Section 4.2) 6Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Q3 : How sensitive is Anticipation-VLA to hyperparameters and components design choices? (Section 4.3) Q4 : Can Anticipation-VLA generalize to more challenging unseen tasks? (Section 4.4) Q5 : How well do anticipation models generate subgoal text and images? (Section 4.5) 
+
+Benchmarks. We evaluate Anticipation-VLA on two widely used robotic manipulation simulation benchmarks. Libero (Liu et al., 2023) is a lifelong learning benchmark designed for language-guided manipulation tasks. We test our model and baselines on four task suites, Goal , Spatial , Object , and Long , with each suite consisting of 10 tasks. All models are trained in a one-shot setting using 40 trajectories in total. VLABench (Zhang et al., 2025b) is a large-scale VLA benchmark focused on long-horizon reasoning and execution. We conduct evaluation on the challenging Hammer Nail & Hang Picture task, where nearly all models fail to achieve any success. This task not only requires precise control but also demands strong reasoning and planning abilities to select the correct picture, which is unseen during training. For this task, we train all models on 100 trajectories. 
+
+4.1. Simulated Experiments LIBERO Task 
+
+## VLABench Task 
+
+Put the yellow and white mug in the microwave and close it 
+
+Please hang the <Image Name> on the wall steadily and safely  
+
+> Figure 3. Illustration of Simulated Tasks.
+
+Baselines. We compare Anticipation-VLA against several baselines including: (i) π0 (Black et al., 2024a), a VLA model pretrained on large-scale real-world robotic dataset; (ii) UniVLA (Wang et al., 2025), a unified and native multimodal VLA model that with explicit future image generation; (iii) DreamVLA (Zhang et al., 2025c) 1, a VLA model that integrates comprehensive world knowledge with implicit subgoal prediction; (iv) π0.5 (Intelligence et al., 2025b), the state-of-art VLA model with subtask prediction pretraining; (v) π0.5+VLM 2, a variant of π0.5 enhanced subtask planning ability through VLM model. We implement all baselines using their official codebases. 
+
+Task Results. On Libero (Table 1), Anticipation-VLA demonstrates superior performance across all task suites than either implicit and explicit planning-based baselines. In particular, it achieves the highest improvement on the most challenging long-horizon task Libero-Long , demonstrating it effectiveness on managing long-horizon and complex tasks. On VLABench (Table 2), Anticipation-VLA again surpasses all baselines in both process reward and success rate. The higher process 
+
+> 1For DreamVLA, we follow the original setup by pretraining on Libero90 and then performing one-shot SFT on Libero.
+> 2We finetune Qwen2.5-7B to serve as the VLM for subgoal text generation.
+
+7Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Table 1. Performance Comparison on Libero. 
+
+Model Libero Spatial Object Goal Long Avg 
+
+One-Trajectory SFT 
+
+π0 70.2 80.0 70.6 37.6 64.6 UniVLA 26.0 40.0 18.0 1.8 21.5 DreamVLA 38.0 34.0 16.6 20.6 27.3 
+
+π0.5 78.2 88.6 85.8 54.6 76.8 
+
+π0.5+VLM 82.0 88.0 80.8 53.2 76.0 
+
+Anticipation-VLA 81.8 91.6 86.6 63.2 80.8 
+
+Table 2. Performance Comparison on VLABench. 
+
+Model VLABench Process Reward Success Rate 
+
+π0 39.6 1.0 UniVLA 28.1 1.0 DreamVLA 7.3 0.0 
+
+π0.5 42.7 2.1 
+
+π0.5+VLM 47.9 2.1 
+
+Anticipation-VLA 56.3 4.2 
+
+reward suggests that Anticipation-VLA adheres to more coherent, task-relevant intermediate steps throughout execution. Remarkably, it achieves at least twice the success rate of the baseline on the highly demanding Hammer Nail & Hang Picture task. This substantial improvement underscores the effectiveness of our anticipation mechanism in facilitating robust long-horizon reasoning and precise execution even in OOD scenarios. 
+
+4.2. Real-World Experiments 0 1   
+
+> 9
+> 0
+> 2
+> 8
+> 4
+> 3
+> 9
+> 9
+> 6
+> 0
+> 0
+> 7
+> 2
+> 5
+> Spell the word “KIND” on the black board
+> 01
+> 4
+> 7
+> 3
+> 1
+> 5
+> 4
+> 5
+> 4
+> 6
+> 3
+> 2
+> 6
+> 7
+> 1
+> Arrange items to match the goal image
+> Real -World Task: Rearrange Items
+> Real -World Task: Spell Word
+> Task Results
+
+Figure 4. Task illustration and Comparison Results of real-world experiments. 
+
+Hardware & Task Design. To evaluate the real-world performance of Anticipation-VLA, we conduct real-world experiments on the Arx-X5 mobile manipulator platform. We design two long-horizon tasks each with a different modality of goal specification, as shown in Figure 4. 1) Rearrange Objects : VLAs should rearrange physical objects on a table to match a provided goal image. 2) Spell Words : VLAs should place letter tiles in the correct sequence according to the overall instruction. We collect 100 multi-stage expert demonstrations via human teleoperation for Rearrange Objects and 200 multi-stage demonstrations for Spell Words .8Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Baselines. We include π0.5 and π0.5+VLM, both of which are pretrained on extensive real-robot data and previously shown to outperform standard VLA models in simulated tasks. For evaluation, each model is tested over 40 rollouts per task: 20 on seen and 20 on unseen configurations. We report the trajectory-level success rate and the stage-level score . Additional details on the hardware setup, task design, and data collection can be found in Appendix B.1, Appendix B.2, and Appendix B.3, respectively. 
+
+Task Results. As shown in the right panel of Figure 4, Anticipation-VLA consistently outperforms all baselines across both real-world tasks, demonstrating improved performance under both image-based and language-based goals. The improvement is especially pronounced in unseen scenarios, where the model exhibits substantially larger gains ( +107% ) compared to seen configurations ( +60% ). Notably, Anticipation-VLA is the only model achieves non-zero success rate in unseen Spell Words 
+
+task, highlighting its strong generalizability. In contrast, π0.5 baselines show limited performance even when augmented with a VLM for planning, underscoring that effective long-horizon reasoning relies not on static external modules but on an adaptive multimodal anticipation mechanism. To further illustrate this planning process, we visualize the evolution of the goal stack during inference in Appendix F.2, revealing how it progressively decomposes goals into actionable steps. 
+
+4.3. Ablation Study 
+
+To isolate the contribution of each component in Anticipation VLA, we conduct an ablation study with three variants: (1) w/o subgoal image , which removes predicted future frames from the policy input; (2) w/o subgoal text , which excludes generated textual subgoals; and (3) w/o recursive , which replaces the adaptive recursive planning with a fixed-level generation strategy. seen unseen 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6   
+
+> Success Rate  0.50
+> 0.40
+> 0.25 0.25
+> 0.35
+> 0.25
+> 0.20 0.20
+
+## Rearrange Objects 
+
+seen unseen  
+
+> 0.40
+> 0.30
+> 0.10
+> 0.00
+> 0.20
+> 0.05
+> 0.10 0.05
+
+## Spell Words 
+
+seen unseen 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0  
+
+> Score  0.70
+> 0.59
+> 0.49 0.42
+> 0.57
+> 0.49
+> 0.53
+> 0.39
+
+## Rearrange Objects 
+
+seen unseen 
+
+> 0.66
+> 0.49
+> 0.38
+> 0.17
+> 0.47
+> 0.32
+> 0.37
+> 0.21
+
+## Spell Words 
+
+Anticipation VLA w/o subgoal image w/o subgoal text w/o recursive  
+
+> Figure 5. Ablation Study on Real-World Tasks.
+
+Task Results. Figure 5 summarizes the results across both Rearrange Objects and Spell Words tasks. As shown in the results, the standard Anticipation-VLA consistently outperforms all ablated variants. This validates the complementarity of our design: adaptive planning supports long-horizon execution, visual subgoals provide physical guidance, while textual 9Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+predictions offer semantic grounding. Together, the integration of multimodal anticipation and adaptive planning proves essential for robust real-world manipulation. 
+
+4.4. Generalization Evaluation 
+
+To rigorously assess the generalization of Anticipation-VLA, we extend our evaluation to two more challenging settings. (1) Object Generalization : Testing the model’s ability to manipulate novel instances. For instance, in the Spell Words task, where the training corpus consists exclusively of alphabetic tiles, we mandate the agent to compose alphanumeric sequences (e.g., “H2O”). (2) Background Generalization : Evaluating the model’s invariance to environmental perturbations. We dramatically alter the visual scene by modifying surface textures and varying illumination conditions. For further details, please refer to Appendix B.4. Object Background 
+
+0.0 
+
+0.2 
+
+0.4 
+
+> Success Rate
+
+0.30 
+
+0.20 
+
+0.10 0.10 
+
+0.00 
+
+0.10 
+
+## Rearrange Objects 
+
+Object Background 
+
+0.10 
+
+0.20 
+
+0.00 0.00 0.00 0.00 
+
+## Spell Words 
+
+Object Background 
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Score
+
+0.58 0.64 
+
+0.31 0.36 0.36 0.42 
+
+## Rearrange Objects 
+
+Object Background 
+
+0.39 0.39 
+
+0.08 0.11 0.14 0.11 
+
+## Spell Words 
+
+Anticipation VLA pi05 pi05+VLM  
+
+> Figure 6. Performance Comparison on Generalization Settings.
+
+Task Results. Figure 6 empirically validates the superior robustness of Anticipation-VLA. In Rearrange Objects , the model exhibits negligible degradation, achieving scores ( 0.58 for objects, 0.64 for backgrounds) comparable to the standard unseen benchmark ( 0.59 ) reported in Figure 4. Crucially, in the Spell Words task, Anticipation-VLA stands as the only policy to achieve non-zero success, in stark contrast to the complete failure observed in the baselines. 
+
+4.5. Anticipation Evaluation 
+
+In this section, we evaluate the anticipation from two perspectives: 1) The subtask prediction accuracy of policy model 
+
+lθ ; 2) The subgoal generation quality of dynamics model Pθ . To achieve this, we test anticipation models on 400 held-out samples per task. The qualitative visualizations are shown in Figure 7, while the corresponding quantitative evaluation is presented in Table 3. We observe that the anticipation model demonstrates impressive subtask prediction accuracy across various benchmarks. Regarding visual subgoal generation, the model demonstrates strong generalization to real-world tasks, 10 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation Current Observation  Current Subgoal  Candidate Subgoal1  Candidate Subgoal2  Candidate Subgoal3  GT Subgoal 
+
+Current Subgoal: open the top drawer and put the bowl inside  Pred/GT Subgoal: open the top drawer of the cabinet 
+
+Current Observation  Current Subgoal  Candidate Subgoal1  Candidate Subgoal2  Candidate Subgoal3  GT Subgoal 
+
+Current Subgoal: pick up spoon in brown squared plate and place it in pink circle plate  Pred/GT Subgoal: pick up spoon in brown squared plate 
+
+Current Observation  Current Subgoal  Candidate Subgoal1  Candidate Subgoal2  Candidate Subgoal3  GT Subgoal 
+
+Current Subgoal: spell the word: JOLT using the blocks on the table  Pred/GT Subgoal: pick and place the block with letter <O> to the right of the previous block 
+
+Current Observation  Current Subgoal  Candidate Subgoal1  Candidate Subgoal2  Candidate Subgoal3  GT Subgoal 
+
+Current Subgoal: pick up the picture Caress of the Sphinx and hang the picture on the nail  Pred/GT Subgoal: Pick up the picture Caress of the Sphinx 
+
+√
+
+√
+
+√
+
+√
+
+Figure 7. Qualitative visualization of generated subgoals. 
+
+11 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+maintaining robust performance even in complex scenarios. However, performance on simulated tasks is relatively lower, particularly for the VLABench benchmark. We attribute this gap to several factors: the simulated dataset being smaller, the challenge of generating intricate and unseen pictures, and the fact that the UMM was not pretrained on simulated data.  
+
+> Table 3. Quantitative results anticipation model.
+
+Benchmark Textual Subgoal Image Subgoal Pred. Acc. PSNR MAE SSIM FID Libero 84.4 20.4 9.4 0.85 31.0 
+
+VLABench 88.8 15.5 19.0 0.76 55.1 
+
+Rearrange Objects 88.1 28.0 6.1 0.93 45.1 
+
+Spell Words 98.9 26.4 6.9 0.92 34.7 
+
+5. Related Works 
+
+Vision-Language-Action Models. By leveraging the generalization ability from pretrained VLMs (Steiner et al., 2024; Bai et al., 2025), VLA models have shown strong task performance across diverse manipulation tasks (Kim et al., 2025; Intelligence et al., 2025b; Bjorck et al., 2025). A prominent line of work focuses on discretizing low-level actions and using the next token prediction framework to predict actions directly from multimodal inputs (Ghosh et al., 2024; Kim et al., 2024; Pertsch et al., 2025; Goyal et al., 2025). Complementary approaches adopt continuous action representations through flow matching or diffusion-based techniques to better capture the fine-grained actions (Black et al., 2024a; Wen et al., 2025b; Zhong et al., 2025; Deng et al., 2025b; Bjorck et al., 2025). Efforts to further extend the generalization abilities of VLA models have focused on incorporating cross-modal perception and prediction abilities (Zhen et al., 2024; Zheng et al., 2025; Zhang et al., 2025c; Cen et al., 2025; Li et al., 2025c; Wang et al., 2025). However, despite these advancements, VLA models still struggle with long-horizon tasks due to the compounding policy errors (Fan et al., 2025; Zhang et al., 2025b; Gao et al., 2025; Li et al., 2025a). 
+
+Subgoal Generation for Long-Horizon Tasks. To address compounding errors in long-horizon tasks, subgoal generation has been widely explored. A prominent research use VLMs to decompose tasks into natural language-based subtask (Mu et al., 2023; Ichter et al., 2022; Zhou et al., 2025b;a; Intelligence et al., 2025b). Meanwhile, several works direct generate visual-based subgoals via pretrained vision models to guide action generation (Black et al., 2024b; Bharadhwaj et al., 2024; Wu et al., 2024b; Nasiriany et al., 2024; Sun et al., 2025; Zhao et al., 2025). Additionally, multimodal approaches like VLA-OS (Gao et al., 2025) and dVLA (Wen et al., 2025a) integrate both textual and visual subgoals, enriching contextual understanding and improving policy robustness. Despite their advances, these methods often rely on fixed subgoal granularities, which may either overly fine-grained subgoals that introduce unnecessary complexity, or too sparse subgoal generation that fail to guide policy execution. Another line of works use implicit world modeling by predicting future observations (Wu et al., 2024a; Cheang et al., 2024; Li et al., 2025b;c; Bu et al., 2025; Zhang et al., 2025a; Cen et al., 2025). However, these tend to focus on single-step predictions, leading to overly fine-grained subgoals that lack of planning ability. In contrast, Anticipation-VLA dynamically adjusts subgoal granularity based on task progress, continuously refining subgoals to overcome these limitations. 
+
+6. Conclusion 
+
+In this paper, we propose Anticipation-VLA, a hierarchical framework with an adaptive, recursive subgoal generation mechanism to solve long-horizon embodied tasks. By dynamically refining multimodal subgoals based on execution progress, it reduces compounding errors and enables robust, generalizable policy execution. Empirical evaluation on both simulated and real-world tasks shows that our method significantly outperforms existing VLA baselines. 
+
+Limitations. Although Anticipation-VLA can generalize to unseen tasks, it still requires a few annotated subgoal demon-strations for finetuning. Additionally, despite our adaptive strategy significantly reducing subgoal generation frequency, visual subgoal generation remains computationally costly, causing occasional inference pauses. Future work could address these through improved pretraining for one-shot or zero-shot planning and more efficient inference via smaller models or acceleration techniques. 12 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none of which we feel must be specifically highlighted here. 
+
+References 
+
+Bai, S., Chen, K., Liu, X., Wang, J., Ge, W., Song, S., Dang, K., Wang, P., Wang, S., Tang, J., Zhong, H., Zhu, Y., Yang, M., Li, Z., Wan, J., Wang, P., Ding, W., Fu, Z., Xu, Y., Ye, J., Zhang, X., Xie, T., Cheng, Z., Zhang, H., Yang, Z., Xu, H., and Lin, J. Qwen2.5-vl technical report. CoRR , 2025. Bharadhwaj, H., Dwibedi, D., Gupta, A., Tulsiani, S., Doersch, C., Xiao, T., Shah, D., Xia, F., Sadigh, D., and Kirmani, S. Gen2act: Human video generation in novel scenarios enables generalizable robot manipulation. CoRR , 2024. Bjorck, J., Casta ˜neda, F., Cherniadev, N., Da, X., Ding, R., Fan, L., Fang, Y., Fox, D., Hu, F., Huang, S., Jang, J., Jiang, Z., Kautz, J., Kundalia, K., Lao, L., Li, Z., Lin, Z., Lin, K., Liu, G., LLontop, E., Magne, L., Mandlekar, A., Narayan, A., Nasiriany, S., Reed, S., Tan, Y. L., Wang, G., Wang, Z., Wang, J., Wang, Q., Xiang, J., Xie, Y., Xu, Y., Xu, Z., Ye, S., Yu, Z., Zhang, A., Zhang, H., Zhao, Y., Zheng, R., and Zhu, Y. GR00T N1: an open foundation model for generalist humanoid robots. CoRR , 2025. Black, K., Brown, N., Driess, D., Esmail, A., Equi, M., Finn, C., Fusai, N., Groom, L., Hausman, K., Ichter, B., Jakubczak, S., Jones, T., Ke, L., Levine, S., Li-Bell, A., Mothukuri, M., Nair, S., Pertsch, K., Shi, L. X., Tanner, J., Vuong, Q., Walling, A., Wang, H., and Zhilinsky, U. π0 : A vision-language-action flow model for general robot control. CoRR ,2024a. Black, K., Nakamoto, M., Atreya, P., Walke, H. R., Finn, C., Kumar, A., and Levine, S. Zero-shot robotic manipulation with pre-trained image-editing diffusion models. In The Twelfth International Conference on Learning Representations, (ICLR’24), Vienna, Austria , 2024b. Brohan, A., Brown, N., Carbajal, J., Chebotar, Y., Dabis, J., Finn, C., Gopalakrishnan, K., Hausman, K., Herzog, A., Hsu, J., Ibarz, J., Ichter, B., Irpan, A., Jackson, T., Jesmonth, S., Joshi, N. J., Julian, R., Kalashnikov, D., Kuang, Y., Leal, I., Lee, K., Levine, S., Lu, Y., Malla, U., Manjunath, D., Mordatch, I., Nachum, O., Parada, C., Peralta, J., Perez, E., Pertsch, K., Quiambao, J., Rao, K., Ryoo, M. S., Salazar, G., Sanketi, P. R., Sayed, K., Singh, J., Sontakke, S., Stone, A., Tan, C., Tran, H. T., Vanhoucke, V., Vega, S., Vuong, Q., Xia, F., Xiao, T., Xu, P., Xu, S., Yu, T., and Zitkovich, B. RT-1: robotics transformer for real-world control at scale. In Robotics: Science and Systems XIX, Daegu, Republic of Korea, July 10-14, 2023 , 2023. Bu, Q., Yang, Y., Cai, J., Gao, S., Ren, G., Yao, M., Luo, P., and Li, H. Univla: Learning to act anywhere with task-centric latent actions. CoRR , 2025. Cen, J., Yu, C., Yuan, H., Jiang, Y., Huang, S., Guo, J., Li, X., Song, Y., Luo, H., Wang, F., Zhao, D., and Chen, H. Worldvla: Towards autoregressive action world model. CoRR , 2025. Cheang, C., Chen, G., Jing, Y., Kong, T., Li, H., Li, Y., Liu, Y., Wu, H., Xu, J., Yang, Y., Zhang, H., and Zhu, M. GR-2: A generative video-language-action model with web-scale knowledge for robot manipulation. CoRR , 2024. Cui, Y., Chen, H., Deng, H., Huang, X., Li, X., Liu, J., Liu, Y., Luo, Z., Wang, J., Wang, W., Wang, Y., Wang, C., Zhang, F., Zhao, Y., Pan, T., Li, X., Hao, Z., Ma, W., Chen, Z., Ao, Y., Huang, T., Wang, Z., and Wang, X. Emu3.5: Native multimodal models are world learners. CoRR , 2025. Deng, C., Zhu, D., Li, K., Gou, C., Li, F., Wang, Z., Zhong, S., Yu, W., Nie, X., Song, Z., Guang, S., and Fan, H. Emerging properties in unified multimodal pretraining. CoRR , 2025a. Deng, S., Yan, M., Wei, S., Ma, H., Yang, Y., Chen, J., Zhang, Z., Yang, T., Zhang, X., Cui, H., Zhang, Z., and Wang, H. Graspvla: a grasping foundation model pre-trained on billion-scale synthetic action data. CoRR , 2025b. Fan, Y., Bai, S., Tong, X., Ding, P., Zhu, Y., Lu, H., Dai, F., Zhao, W., Liu, Y., Huang, S., et al. Long-vla: Unleashing long-horizon capability of vision language action model for robot manipulation. In The 9th Annual Conference on Robot Learning (CoRL’25), Seoul, South Korea , 2025. 13 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Gao, C., Liu, Z., Chi, Z., Huang, J., Fei, X., Hou, Y., Zhang, Y., Lin, Y., Fang, Z., and Shao, L. VLA-OS: Structuring and dissecting planning representations and paradigms in vision-language-action models. In The Thirty-ninth Annual Conference on Neural Information Processing Systems (NeurIPS’25), San Diego, CA, USA , 2025. Ghosh, D., Walke, H. R., Pertsch, K., Black, K., Mees, O., Dasari, S., Hejna, J., Kreiman, T., Xu, C., Luo, J., Tan, Y. L., Chen, L. Y., Vuong, Q., Xiao, T., Sanketi, P. R., Sadigh, D., Finn, C., and Levine, S. Octo: An open-source generalist robot policy. In Robotics: Science and Systems XX, Delft, The Netherlands, July 15-19, 2024 , 2024. Goyal, A., Hadfield, H., Yang, X., Blukis, V., and Ramos, F. VLA-0: building state-of-the-art vlas with zero modification. 
+
+CoRR , 2025. Ichter, B., Brohan, A., Chebotar, Y., Finn, C., Hausman, K., Herzog, A., Ho, D., Ibarz, J., Irpan, A., Jang, E., Julian, R., Kalashnikov, D., Levine, S., Lu, Y., Parada, C., Rao, K., Sermanet, P., Toshev, A., Vanhoucke, V., Xia, F., Xiao, T., Xu, P., Yan, M., Brown, N., Ahn, M., Cortes, O., Sievers, N., Tan, C., Xu, S., Reyes, D., Rettinghouse, J., Quiambao, J., Pastor, P., Luu, L., Lee, K., Kuang, Y., Jesmonth, S., Joshi, N. J., Jeffrey, K., Ruano, R. J., Hsu, J., Gopalakrishnan, K., David, B., Zeng, A., and Fu, C. K. Do as I can, not as I say: Grounding language in robotic affordances. In The 6th Annual Conference on Robot Learning (CoRL’22), Auckland, New Zealand , 2022. Intelligence, P., Amin, A., Aniceto, R., Balakrishna, A., Black, K., Conley, K., Connors, G., Darpinian, J., Dhabalia, K., DiCarlo, J., Driess, D., Equi, M., Esmail, A., Fang, Y., Finn, C., Glossop, C., Godden, T., Goryachev, I., Groom, L., Hancock, H., Hausman, K., Hussein, G., Ichter, B., Jakubczak, S., Jen, R., Jones, T., Katz, B., Ke, L., Kuchi, C., Lamb, M., LeBlanc, D., Levine, S., Li-Bell, A., Lu, Y., Mano, V., Mothukuri, M., Nair, S., Pertsch, K., Ren, A. Z., Sharma, C., Shi, L. X., Smith, L., Springenberg, J. T., Stachowicz, K., Stoeckle, W., Swerdlow, A., Tanner, J., Torne, M., Vuong, Q., Walling, A., Wang, H., Williams, B., Yoo, S., Yu, L., Zhilinsky, U., and Zhou, Z. π*0.6 : a VLA that learns from experience. CoRR , 2025a. Intelligence, P., Black, K., Brown, N., Darpinian, J., Dhabalia, K., Driess, D., Esmail, A., Equi, M., Finn, C., Fusai, N., Galliker, M. Y., Ghosh, D., Groom, L., Hausman, K., Ichter, B., Jakubczak, S., Jones, T., Ke, L., LeBlanc, D., Levine, S., Li-Bell, A., Mothukuri, M., Nair, S., Pertsch, K., Ren, A. Z., Shi, L. X., Smith, L., Springenberg, J. T., Stachowicz, K., Tanner, J., Vuong, Q., Walke, H., Walling, A., Wang, H., Yu, L., and Zhilinsky, U. π0.5: a vision-language-action model with open-world generalization. CoRR , 2025b. Kim, M. J., Pertsch, K., Karamcheti, S., Xiao, T., Balakrishna, A., Nair, S., Rafailov, R., Foster, E. P., Sanketi, P. R., Vuong, Q., Kollar, T., Burchfiel, B., Tedrake, R., Sadigh, D., Levine, S., Liang, P., and Finn, C. Openvla: An open-source vision-language-action model. In The 8th Annual Conference on Robot Learning (CoRL’24), Munich, Germany , 2024. Kim, M. J., Finn, C., and Liang, P. Fine-tuning vision-language-action models: Optimizing speed and success. CoRR , 2025. Li, H., Zuo, Y., Yu, J., Zhang, Y., Yang, Z., Zhang, K., Zhu, X., Zhang, Y., Chen, T., Cui, G., Wang, D., Luo, D., Fan, Y., Sun, Y., Zeng, J., Pang, J., Zhang, S., Wang, Y., Mu, Y., Zhou, B., and Ding, N. Simplevla-rl: Scaling VLA training via reinforcement learning. CoRR , 2025a. Li, P., Wu, H., Huang, Y., Cheang, C., Wang, L., and Kong, T. GR-MG: leveraging partially-annotated data via multi-modal goal-conditioned policy. IEEE Robotics Autom. Lett. , 2025b. Li, S., Gao, Y., Sadigh, D., and Song, S. Unified video action model. CoRR , 2025c. Liu, B., Zhu, Y., Gao, C., Feng, Y., Liu, Q., Zhu, Y., and Stone, P. LIBERO: benchmarking knowledge transfer for lifelong robot learning. In The Thirty-seventh Conference on Neural Information Processing Systems (NeurIPS’23), New Orleans, LA, USA , 2023. Long, Y., Zhang, J., Pan, M., Wu, T., Kim, T., and Dong, H. Checkmanual: A new challenge and benchmark for manual-based appliance manipulation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition 2025, (CVPR’25), Nashville, TN, USA , 2025. Mu, Y., Zhang, Q., Hu, M., Wang, W., Ding, M., Jin, J., Wang, B., Dai, J., Qiao, Y., and Luo, P. Embodiedgpt: Vision-language pre-training via embodied chain of thought. In The Thirty-seventh Conference on Neural Information Processing Systems (NeurIPS’23), New Orleans, LA, USA , 2023. 14 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Nasiriany, S., Xia, F., Yu, W., Xiao, T., Liang, J., Dasgupta, I., Xie, A., Driess, D., Wahid, A., Xu, Z., Vuong, Q., Zhang, T., Lee, T. E., Lee, K., Xu, P., Kirmani, S., Zhu, Y., Zeng, A., Hausman, K., Heess, N., Finn, C., Levine, S., and Ichter, B. PIVOT: iterative visual prompting elicits actionable knowledge for vlms. In The Forty-first International Conference on Machine Learning (ICML’24), Vienna, Austria , 2024. Pertsch, K., Stachowicz, K., Ichter, B., Driess, D., Nair, S., Vuong, Q., Mees, O., Finn, C., and Levine, S. FAST: efficient action tokenization for vision-language-action models. CoRR , 2025. Puterman, M. L. Markov decision processes. Handbooks in operations research and management science , 1990. Puterman, M. L. Markov decision processes: discrete stochastic dynamic programming . John Wiley & Sons, 2014. Steiner, A., Pinto, A. S., Tschannen, M., Keysers, D., Wang, X., Bitton, Y., Gritsenko, A., Minderer, M., Sherbondy, A., Long, S., et al. Paligemma 2: A family of versatile vlms for transfer. arXiv preprint arXiv:2412.03555 , 2024. Sun, Y., Zhang, Z., Yu, Y., and Bacon, P. Planning with unified multimodal models. CoRR , 2025. Sutton, R. S. and Barto, A. G. Reinforcement learning: An introduction . MIT press, 2018. Team, G. R. Gemini robotics: Bringing AI into the physical world. CoRR , 2025. Wang, Y., Li, X., Wang, W., Zhang, J., Li, Y., Chen, Y., Wang, X., and Zhang, Z. Unified vision-language-action model. 
+
+CoRR , 2025. Wen, J., Zhu, M., Liu, J., Liu, Z., Yang, Y., Zhang, L., Zhang, S., Zhu, Y., and Xu, Y. dvla: Diffusion vision-language-action model with multimodal chain-of-thought. CoRR , 2025a. Wen, J., Zhu, Y., Li, J., Tang, Z., Shen, C., and Feng, F. DexVLA: Vision-language model with plug-in diffusion expert for general robot control. In 9th Annual Conference on Robot Learning (CoRL’25), Seoul, South Korea , 2025b. Wu, H., Jing, Y., Cheang, C., Chen, G., Xu, J., Li, X., Liu, M., Li, H., and Kong, T. Unleashing large-scale video generative pre-training for visual robot manipulation. In The Twelfth International Conference on Learning Representations, (ICLR’24), Vienna, Austria , 2024a. Wu, K., Hou, C., Liu, J., Che, Z., Ju, X., Yang, Z., Li, M., Zhao, Y., Xu, Z., Yang, G., Zhao, Z., Li, G., Jin, Z., Wang, L., Mao, J., Wang, X., Fan, S., Liu, N., Ren, P., Zhang, Q., Lyu, Y., Liu, M., He, J., Luo, Y., Gao, Z., Li, C., Gu, C., Fu, Y., Wu, D., Wang, X., Chen, S., Wang, Z., An, P., Qian, S., Zhang, S., and Tang, J. Robomind: Benchmark on multi-embodiment intelligence normative data for robot manipulation. CoRR , 2024b. Yu, Y. Reinforcement learning with anticipation. arXiv preprint arXiv:2509.05545 , 2025. Zhang, J., Guo, Y., Hu, Y., Chen, X., Zhu, X., and Chen, J. UP-VLA: A unified understanding and prediction model for embodied agent. In The Forty-second International Conference on Machine Learning (ICML’25), Vancouver, BC, Canada ,2025a. Zhang, S., Xu, Z., Liu, P., Yu, X., Li, Y., Gao, Q., Fei, Z., Yin, Z., Wu, Z., Jiang, Y.-G., et al. Vlabench: A large-scale benchmark for language-conditioned robotics manipulation with long-horizon reasoning tasks. In IEEE/CVF International Conference on Computer Vision (ICCV’25), Honolulu, Hawaii, USA , 2025b. Zhang, W., Liu, H., Qi, Z., Wang, Y., Yu, X., Zhang, J., Dong, R., He, J., Wang, H., Zhang, Z., et al. Dreamvla: A vision-language-action model dreamed with comprehensive world knowledge. In The Thirty-ninth Annual Conference on Neural Information Processing Systems (NeurIPS’25), San Diego, CA, USA , 2025c. Zhao, Q., Lu, Y., Kim, M. J., Fu, Z., Zhang, Z., Wu, Y., Li, Z., Ma, Q., Han, S., Finn, C., Handa, A., Lin, T., Wetzstein, G., Liu, M., and Xiang, D. Cot-vla: Visual chain-of-thought reasoning for vision-language-action models. In IEEE/CVF Conference on Computer Vision and Pattern Recognition 2025 (CVPR’25), Nashville, TN, USA , 2025. Zhen, H., Qiu, X., Chen, P., Yang, J., Yan, X., Du, Y., Hong, Y., and Gan, C. 3d-vla: A 3d vision-language-action generative world model. In The Forty-first International Conference on Machine Learning (ICML’24), Vienna, Austria , 2024. 15 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Zheng, R., Liang, Y., Huang, S., Gao, J., III, H. D., Kolobov, A., Huang, F., and Yang, J. Tracevla: Visual trace prompting enhances spatial-temporal awareness for generalist robotic policies. In The Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025 , 2025. Zhong, Y., Huang, X., Li, R., Zhang, C., Liang, Y., Yang, Y., and Chen, Y. Dexgraspvla: A vision-language-action framework towards general dexterous grasping. CoRR , 2025. Zhou, Z., Zhu, Y., Wen, J., Shen, C., and Xu, Y. Chatvla-2: Vision-language-action model with open-world embodied reasoning from pretrained knowledge. CoRR , 2025a. Zhou, Z., Zhu, Y., Zhu, M., Wen, J., Liu, N., Xu, Z., Meng, W., Peng, Y., Shen, C., Feng, F., et al. Chatvla: Unified multimodal understanding and robot control with vision-language-action model. In The 2025 Conference on Empirical Methods in Natural Language Processing (EMNLP’25), Suzhou, China , 2025b. Zitkovich, B., Yu, T., Xu, S., Xu, P., Xiao, T., Xia, F., Wu, J., Wohlhart, P., Welker, S., Wahid, A., Vuong, Q., Vanhoucke, V., Tran, H. T., Soricut, R., Singh, A., Singh, J., Sermanet, P., Sanketi, P. R., Salazar, G., Ryoo, M. S., Reymann, K., Rao, K., Pertsch, K., Mordatch, I., Michalewski, H., Lu, Y., Levine, S., Lee, L., Lee, T. E., Leal, I., Kuang, Y., Kalashnikov, D., Julian, R., Joshi, N. J., Irpan, A., Ichter, B., Hsu, J., Herzog, A., Hausman, K., Gopalakrishnan, K., Fu, C., Florence, P., Finn, C., Dubey, K. A., Driess, D., Ding, T., Choromanski, K. M., Chen, X., Chebotar, Y., Carbajal, J., Brown, N., Brohan, A., Arenas, M. G., and Han, K. RT-2: vision-language-action models transfer web knowledge to robotic control. In The 7th Annual Conference on Robot Learning (CoRL’23), Atlanta, GA, USA , 2023. 16 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+A. Computational Resources 
+
+All experiments were conducted using 4 NVIDIA H100 GPUs. Training the Anticipation Model on the collected dataset takes approximately 4–6 hours. Meanwhile, training the Goal-conditioned VLA typically completes in about 1–2 hours. 
+
+B. Real-World Task Setup 
+
+B.1. Hardware Setup 
+
+We conduct real-world experiments on the Arx-X5 mobile manipulator platform (see Figure 8), a widely adopted system for training and benchmarking real-world robotic policies. We only use the right arm in our experiments. For visual image capturing, we use two Realsense D435i cameras. One of the camera is mounted at the top of the platform and the other one is on the robot’s right arm. Right follower arm  
+
+> Right leader arm
+> Left follower arm
+> Left leader arm
+> Top camera
+> Right gripper camera
+> Figure 8. Hardware Illustration of ARX-X5 robotic platform.
+
+B.2. Task Design 
+
+We design two real-world manipulation tasks to evaluate the long-horizon execution for our framework. 1. Rearrange Objects. In this task, the robot is provided with a goal image that specifies the desired final configuration of the tabletop. The scene contains multiple everyday objects, including fruits (e.g., apples and lemons) and utensils (e.g., forks and knives), placed on plates of different shapes and colors. Given the target image, the robot is required to identify the objects to be manipulated and sequentially pick and place each object into its corresponding target location to match the goal configuration. Successful execution requires accurate visual grounding, object discrimination among multiple candidates, and reliable long-horizon manipulation under image-conditioned goals. 2. Spell Words. In this task, the robot receives a natural language instruction specifying a target word (e.g., “spell the word ICML”). A set of lettered blocks is scattered on the tabletop. The robot must correctly identify the blocks corresponding to the target letters and place them on the table in the correct left-to-right order to form the specified word. This task evaluates the model’s ability to ground language instructions into sequential object selection and ordered placement, as well as its robustness in long-horizon execution with language-conditioned goals. 
+
+B.3. Data Collection 
+
+We collect expert demonstration data on the Arx-X5 robotic platform for both real-world tasks using human teleoperation. All the real-world objects for training can be found in Figure 9. For Rearrange Objects task, we design 100 distinct scenes with varying object layouts and target configurations. For each scene, an expert operator provides a single successful demonstration, resulting in a total of 100 expert trajectories. 17 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+These demonstrations cover diverse object arrangements and manipulation sequences, enabling the model to learn robust image-conditioned multi-object rearrangement behaviors. For Spell Words task, we construct 100 different scenes with varying distributions of lettered blocks and target words, where the word length ranges from three to five letters. Due to the increased task complexity and longer execution horizon, we collect 200 expert trajectories, with multiple demonstrations provided for each scene. This data set captures various execution strategies and ordering variations, supporting stable learning for language-conditioned sequential manipulation. All demonstrations are recorded as multimodal trajectories, including visual observations and action sequences, and are used for training and evaluation in real-world experiments. Training Objects  
+
+> Figure 9. Seen objects for real-world tasks.
+
+B.4. Generalization Evaluation 
+
+Beyond the standard evaluation on the held-out test set, we additionally conduct robustness tests under challenging conditions, including variations in environmental appearance (Figure 10) and scenarios involving unseen objects (Figure 11). These settings intentionally introduce distribution shifts to evaluate the generalization of our model. Standard  Changed Light Unseen Objects  Green Background  
+
+> Figure 10. Unseen background for real-world tasks.
+
+C. Dataset Construction 
+
+C.1. Hierarchical Subgoal Annotation 
+
+To train and evaluate the anticipation model with explicit hierarchical supervision, we annotate multi-level subgoals and corresponding language prompts for trajectories from both simulation benchmarks and real-world tasks. 18 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation Testing Objects  
+
+> Figure 11. Uneen objects for real-world tasks.
+
+Subgoal Hierarchy Definition. For each trajectory, we define a hierarchical subgoal structure with multiple levels of granularity. Let level h = 0 denote the highest-level task goal (i.e., the original instruction or final target), and larger values of h correspond to increasingly fine-grained subgoals until reaching atomic, directly executable objectives. Each subgoal at level h is represented as a multimodal goal gh = ( ℓh, s h), where ℓh denotes a language subgoal instruction and sh denotes a visual target image specifying the desired future state. 
+
+Annotation Protocol. The annotation process follows a top-down and recursive decomposition strategy: 1. High-level goal identification. The original task instruction or final goal image is assigned as the level-0 goal. 2. Recursive subgoal decomposition. Annotators iteratively decompose each goal into a sequence of intermediate subgoals that are achievable from the current state and correspond to meaningful progress toward the final goal. 3. Multimodal labeling. For each subgoal, annotators provide a language prompt describing the intended subgoal (e.g., “pick up the block with letter <C>”) together with a visual target image selected from the trajectory or rendered from the simulator. 4. Granularity consistency. Subgoals at the same hierarchy level across different trajectories are annotated to maintain consistent semantic abstraction and comparable planning granularity. 
+
+Annotated Datasets. Our annotated dataset is composed of four distinct parts: • LIBERO (Simulation) : 40 expert trajectories sampled from the LIBERO official expert dataset. • VLABench (Simulation) : 100 expert trajectories collected from the VLABench simulator. • Pick-and-Place (Real World) : 100 expert trajectories collected via human teleoperation. • Spell Words (Real World) : 200 expert trajectories collected via human teleoperation. 
+
+C.2. Anticipation Dataset Preparation. 
+
+With the subgoal sequences at hand, we convert them into concrete supervised learning signals. In this process, we construct four datasets, which are trained jointly within a unified multimodal model (UMM). Below are the specific methods used to construct each dataset: • Dynamics Dataset: This dataset is built using a systematic sampling strategy. For each subgoal g, we randomly select a frame f from the interval between g and its preceding subgoal at the same level. The model takes f. image (the initial observation) and g. action (the target action) as inputs, with the visual state g. image as the prediction target. • Policy Dataset: To construct this dataset, we sample a frame f from between the frames of two consecutive subgoals 
+
+(gprev , g ) in S. For input, we use f. image as the current observation, along with g. parent .image and g. parent .action as goal observations. The prediction target is g. action. • Inverse Dynamics Dataset: This dataset is constructed similarly to the Dynamics Dataset, where we sample a frame f
+
+between subgoals. However, here, the input consists of f. image and g. image, and the target is g. action. 19 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+• Optimal Value Dataset: To construct this dataset, we first sample a frame f1 for each subgoal g using the same method as the Dynamics Dataset. Next, we sample another frame f2 in the range of (f1.frame + δ, g. frame + ϵ) to serve as the current observation. We then label the progress toward subgoal g made by f2 relative to f1 using the following classification: label (f1, f 2, g ) = 
+
+
+
+Insufficient Progress if f2.frame ∈ [0 , f 1.frame + β)
+
+Sufficient Progress if f2.frame ∈ [f1.frame + β, g. frame − γ)
+
+Goal Achievement if f2.frame ∈ [g. frame − γ, ∞)
+
+In this setup, the labels categorize the frame transitions as ”No Progress,” ”Progress,” or ”Achieved,” based on the temporal differences and the progress made toward the goal. 
+
+Task-Specific Characteristics. For Libero and VLABench, subgoals typically correspond to object-centric or spatial manipulation primitives (e.g., opening drawers, picking objects, or placing objects). For the real-world Rearrange Objects task, subgoals emphasize precise object selection and placement under visual variability. For the Spell Words task, subgoals reflect sequential symbolic reasoning, where each subgoal corresponds to selecting and placing a specific letter block in the correct order. The annotated target words range from 3 to 5 letters, resulting in diverse task horizons. 
+
+D. Implementation Details 
+
+D.1. Inference Procedure Algorithm 1 Anticipation-VLA Inference Procedure 
+
+Require: Current state s0, Final goal gfinal  
+
+> 1:
+
+Models: Optimal Value Model V ∗, Anticipation Model G, Goal-conditioned Policy Model π 
+
+> 2:
+
+Parameters: Planning Check Interval K, Goal Achievement Threshold δ, Stack Max Depth d 
+
+> 3:
+
+Initialize Gstack ← ∅ , s ← s0, spref ← s0, t ← 0 
+
+> 4:
+
+Gstack .push (gfinal ) Push the final goal  
+
+> 5:
+
+while Gstack is not empty do  
+
+> 6:
+
+g ← G stack .peek () Peek the active goal  
+
+> 7:
+
+a ← π(·| s, g ) Generate low-level action  
+
+> 8:
+
+s′ ← P (·| s, a ) Execute action and observe new state  
+
+> 9:
+
+s ← s′ Update state for next timestep  
+
+> 10:
+
+t ← t + 1 Increment timestep  
+
+> 11:
+
+if t mod K = 0 and t > 0 then  
+
+> 12:
+
+if |V ∗(s, g ) − V ∗(sg , g )| < δ then Condition 1: Goal Achieved (Pop)  
+
+> 13:
+
+Gstack .pop () Pop achieved subgoal  
+
+> 14:
+
+endif  
+
+> 15:
+
+else if |V ∗(s, g ) − V ∗(sprev , g )| < δ and |G stack | < d then Condition 2: Insufficient Progress (Refine)  
+
+> 16:
+
+g′ ← G(·| s, g ) Generate refined subgoal  
+
+> 17:
+
+Gstack .push (g′) Push the refined subgoal  
+
+> 18:
+
+endif  
+
+> 19:
+
+else if |V ∗(s, g ) − V ∗(sprev , g )| < δ and |G stack | = d then Condition 3: Local Stagnate (Backtrack)  
+
+> 20:
+
+Gstack ← ∅ Clear goal stack  
+
+> 21:
+
+Gstack .push (gfinal ) Push the final goal  
+
+> 22:
+
+s ← s0 Reset the robot pose  
+
+> 23:
+
+endif  
+
+> 24:
+
+endif  
+
+> 25:
+
+sprev ← s Update state sprev  
+
+> 26:
+
+end if  
+
+> 27:
+
+end while 
+
+The inference Procedure of Anticipation Model is described in algorithm 1. We maintain a stack-driven high-level planner, 20 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+where each element on the stack represents a subgoal. The low-level VLA always receives the top element of the stack as the current subgoal to be completed. The high-level planner uses the optimal value model to check the progress to complete current subgoal g after the low-level VLA executes for K steps. If there has been almost no progress since the last observation sprev , the high-level planner will generate a finer-grained subgoal gnew that completes before the current subgoal 
+
+g, based on s and g. If g has already been completed, the planner will pop it from the stack, so that the next, coarser-grained subgoal will be at the top again. If s does achieve some progress compared to sprev but g is still not achieved, we will continue using g as current subgoal. The stack-based subgoal maintenance ensures the top subgoal starts after the bottom subgoal begins and finishes before it completes, enabling finer grained decomposition and tighter synchronization with low-level VLA’s execution. 
+
+D.2. Anticipation Model 
+
+We finetuned Bagel as the anticipation model and the value model. Here, we provide the casual mask of the anticipation model during training, as illustrated in Figure 12.   
+
+> Figure 12. Causal mask configurations for four anticipation tasks. (a) Dynamics Model sequence comprises prompt tokens (causal), initial ViT features (full), VAE condition tokens at t=0 (full), current ViT features (full), action tokens (causal), and VAE generation tokens at t=t (noise). (b) Inverse Dynamics Model sequence comprises Prompt (causal), current ViT (full), next ViT (full), and answer tokens (causal). Both ViT blocks apply bidirectional attention internally. (c) Policy Model sequence compromises Prompt (causal), current ViT (full), text goal (casual), and answer (causal). (d) Optimal Value Model sequence compromises Prompt (causal), previous ViT (full), current ViT (full), text goal (causal), and answer (causal).
+
+21 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+The training and inference hyperparameters of the anticipation model are provided in Table 4.  
+
+> Table 4. Hyperparameters for Anticipation Model.
+
+Parameters Value 
+
+lr 2e −5
+
+Cross entropy weight 0.01 MSE weight 1.0 Max latent size 64 Timestep shift 4Cfg interval [0.4, 1.0] Text scale 6Image scale 2
+
+D.3. Goal-conditioned VLA Model 
+
+We instantiate our policy using π0.5 (Intelligence et al., 2025b), adapting it to condition on anticipated subgoals. The input sequence is constructed by concatenating multi-view observations sto, the subgoal image stg , robot state q, and subgoal instruction ℓtg . The model learns the trajectory distribution πθ (at:t+h|sto, g t), conditioned on the goal tuple 
+
+gt = ( sg , ℓ g ). To bridge the domain gap between ground-truth and generated subgoals, we apply a robustness strategy where tokens in the goal image sg are randomly masked with a probability p during training. Table 5 lists hyperparameters for goal-conditioned π0.5 fine-tuning. We finetune VLAs until convergence following the official implementation https: //github.com/Physical-Intelligence/openpi . 
+
+> Table 5. Hyperparameters of Goal-conditioned VLA
+
+hyperparameter value 
+
+# GPUs 4 × NVIDIA H100 (80GB VRAM) learning rate (LR) 2.5e-5 peak LR (1K steps linear warmup, 29K steps cosine decay to 2.5e-6) total batch size 64 # train steps 5k for LIBERO 10k for VLABench 10k for real-world tasks input images 1 head camera image, 1 wrist camera image for LIBERO 1 head camera image, 1 wrist camera image for VLABench 1 head camera image, 1 right camera image real-world tasks input image size 224 × 224 px use observation history no (use single-step inputs) action chunk size 10 steps for LIBERO 10 steps for VLABench 20 steps for real-world tasks 
+
+E. Prompts Details 
+
+E.1. Prompt for Libero Prompt for Libero 
+
+Policy Model 
+
+You are a vision-language model with advanced reasoning abilities. Your task is to carefully observe the current state image and the goal (text and image) of a given libero task, and then **predict the next action to better achieve this goal**. 
+
+22 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+### Environment description: You are in a robot manipulation workspace that contains: - Various household objects: plates, mugs, bowls, food items, kitchen appliances - Manipulable items: drawers, cabinets, microwave, stove, trash bins - A robotic arm with a gripper for manipulation ### Action space: - "pick up the [object] and place it on/in [location]" - "pick up [object]" - "place it on/in [location]" - "grasp [object]" - "open/close [object]" - "turn on [object]" ### Task: You will receive: 1. **Current observation**: An image showing the robot’s current view 2. **Current goal description**: A text description of the current goal to achieve 3. **Current goal observation**: An image of the current goal to achieve (may be absent for high-level tasks) Your task is to predict what action the robot should take from the current state to progress toward the current goal. You should output the action directly. Do not include any other output. 
+
+Inverse Dynamics Model 
+
+You are a vision-language model with advanced reasoning abilities. Your task is to carefully observe the current state image, next state image, and then **infer the action taken from the current state to reach the next state**. ### Environment description: You are in a robot manipulation workspace that contains: - Various household objects: plates, mugs, bowls, food items, kitchen appliances - Manipulable items: drawers, cabinets, microwave, stove, trash bins - A robotic arm with a gripper for manipulation ### Action space: - "pick up the [object] and place it on/in [location]" - "pick up [object]" - "place it on/in [location]" - "grasp [object]" - "open/close [object]" - "turn on [object]" ### Task: You will receive: 1. **Current observation**: An image (first image) showing the current state 2. **Next observation**: An image (second image) showing the next state to reach Your task is to determine the action that was most likely taken to transition from the current observation to the next observation. You should output the action directly. Do not include any other output. 
+
+Dynamics Model 
+
+You are now acting as a **world model** that simulates robot manipulation task execution. 
+
+23 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Your task is to predict the **next state observation after executing the action at the current state**. ### Environment description: - You are observing a robot workspace with various objects that can be manipulated - The environment is from the LIBERO dataset, containing realistic household manipulation tasks - Common objects include: plates, mugs, bowls, food items, kitchen appliances, drawers, etc. - Tasks involve pick-and-place, opening/closing, and spatial arrangement operations ### Action space: - "pick up the [object] and place it on/in [location]" - "pick up [object]" - "place it on/in [location]" - "grasp [object]" - "open/close [object]" - "turn on [object]" ### Task: You will receive: 1. **Init observation**: An image showing the initial state 2. **Current observation**: An image showing the robot’s current view 3. **Action**: A text describing the manipulation to execute Your task is to predict the **next subgoal frame of visual observation after executing the action at the current state**. ### Important notes: - Maintain **visual coherence** of the scene - Accurately simulate the physical effect of the manipulation action - Keep object positions and states consistent with the action description - Preserve the background and unaffected objects - Show appropriate changes in gripper position and object states 
+
+Optimal Value Model 
+
+You are a vision-language model with advanced reasoning abilities. Your task is to carefully observe two images from a robot manipulation task along with textual goal descriptions, and then **evaluate the progress status**. ### Environment description: You are in a robot manipulation workspace that contains: - Various household objects: plates, mugs, bowls, food items, kitchen appliances - Manipulable items: drawers, cabinets, microwave, stove, trash bins - A robotic arm with a gripper for manipulation ### Action space: - "pick up the [object] and place it on/in [location]" - "pick up [object]" - "place it on/in [location]" - "grasp [object]" - "open/close [object]" - "turn on [object]" ### Task: You will receive: 1. **Previous observation**: An image (first image) showing the robot’s previous state 
+
+24 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+2. **Current observation**: An image (first image) showing the robot’s current state 3. **Goal description**: A text description of the goal to achieve Your task is to evaluate the progress status by comparing the two frames and the textual goal descriptions, then classify into one of three categories: **Category 0 (No Progress/Stagnant)**: - The current state shows MINIMAL or NO progress from the previous state toward the subgoal - The change between previous and current is negligible - The subgoal is still far from being achieved - Examples: slight camera jitter, minimal gripper movement, waiting state, preparation phase, action not yet started **Category 1 (Progress/Forward but Not Yet Complete)**: - The current state shows SIGNIFICANT progress from the previous state - Clear advancement toward the subgoal is visible - But the subgoal is NOT yet achieved - the robot is still in the process of completing it - Examples: successfully grasped object, moved closer to target location, mid-way through placing action, drawer partially opened **Category 2 (Achieved/Completed)**: - The current state shows that the subgoal has been ACHIEVED or is VERY CLOSE to completion - The described subgoal action appears completed - Examples: object successfully placed on target, door fully closed, grasp completed, target location reached ### Output specification: You should output **only a single integer** representing the progress category: - **0**: No progress (stagnant or minimal change) - **1**: Progress (significant forward movement but goal not reached) - **2**: Achieved (goal reached or nearly reached) **Do NOT include any explanation, reasoning, or additional text** **Only output the integer number itself (0, 1, or 2)** ### Evaluation tips: - Compare object positions, gripper states, and scene configurations between the two images (previous and current) - Consider the temporal direction: previous → current (how much progress was made?) - Match the visual changes to the subgoal description: does the current state align with achieving the subgoal? - Look for visual cues: grasping success, object placement, spatial relationships, gripper state changes - Consider action completion: has the described action in the subgoal been executed successfully? 
+
+E.2. Prompt for VLABench Prompt for VLABench 
+
+Policy Model 
+
+You are a vision-language model with advanced reasoning abilities. Your task is to observe the goal, and then **describe the current state and give the next action to achieve the goal**. 
+
+25 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+### Environment description: You are in a robot manipulation workspace that contains: - Various household objects: plates, mugs, bowls, food items, kitchen appliances - Manipulable items: drawers, cabinets, microwave, stove, trash bins - A robotic arm with a gripper for manipulation ### Action space: Your actions should be in natural language format, such as: - "grasp the [object]" - "move to the [location/object]" - "place the [object] on the [location]" - "put the [object] on/in the [location]" - "open/close the [object]" - "turn on/off the [object]" - "release the [object]" - "push the [object] [direction/location]" ### Task: Given the current observation and the overall goal, determine what the robot should do next.You should output the next action directly. Do not include any other output. 
+
+Dynamics Model 
+
+You are now acting as a **world model** that simulates robot manipulation task execution. Your task is to predict the **next frame of visual observation**, given the following inputs: - A **current observation image** showing the robot’s view of the workspace - An **action description** describing the manipulation to execute ### Environment description: - You are observing a robot workspace with various objects that can be manipulated - The environment is from the LIBERO dataset, containing realistic household manipulation tasks - Common objects include: plates, mugs, bowls, food items, kitchen appliances, drawers, etc. - Tasks involve pick-and-place, opening/closing, and spatial arrangement operations ### Action space: Actions are described in natural language, such as: - "grasp the [object]" - "move to the [location/object]" - "place the [object] on the [location]" - "put the [object] on the [location]" - "open/close the [object]" - "turn on the [object]" - "get close to the [object]" - "push the [object] [direction/location]" - "release the [object]" Your task is to **predict the next image** that results from executing the given action from the current observation. You must: - Maintain **visual coherence** of the scene - Accurately simulate the physical effect of the manipulation action - Keep object positions and states consistent with the action description 
+
+26 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+- Preserve the background and unaffected objects - Show appropriate changes in gripper position and object states 
+
+Inverse Dynamics Model 
+
+You are a vision-language model with advanced reasoning abilities. Your task is to carefully observe the current state image and goal state image, and then **describe the current state and goal state, and give the action taken in the current state to achieve the goal**. ### Environment description: You are in a robot manipulation workspace that contains: - Various household objects: plates, mugs, bowls, food items, kitchen appliances - Manipulable items: drawers, cabinets, microwave, stove, trash bins - A robotic arm with a gripper for manipulation ### Action space: Your actions should be in natural language format, such as: - "grasp the [object]" - "move to the [location/object]" - "place the [object] on the [location]" - "put the [object] on/in the [location]" - "open/close the [object]" - "turn on/off the [object]" - "release the [object]" - "push the [object] [direction/location]" ### Task: Given the current observation and the goal observation, determine the action the model most probably does to achieve the goal state. You should output the corresponding action directly. Do not include any other output. 
+
+Optimal Value Model 
+
+You are a vision-language model with advanced reasoning abilities. Your task is to carefully observe three images from a robot manipulation task, and then **evaluate the progress status**. ### Environment description: You are in a robot manipulation workspace that contains: - Various household objects: plates, mugs, bowls, food items, kitchen appliances - Manipulable items: drawers, cabinets, microwave, stove, trash bins - A robotic arm with a gripper for manipulation ### Task context: You will be given three frames from the same task execution: - **Image 1 (Previous)**: The state at an earlier time step - **Image 2 (Current)**: The current state - **Image 3 (Goal)**: The target state to achieve All three images are part of **subtasks within the same overarching task framework**. ### Action space: The robot performs actions in natural language format, such as: - "grasp the [object]" - "move to the [location/object]" - "place the [object] on the [location]" - "put the [object] on/in the [location]" - "open/close the [object]" 
+
+27 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+- "turn on/off the [object]" - "release the [object]" - "push the [object] [direction/location]" ### Task: Evaluate the progress status by comparing the three frames and classify into one of four categories: **Category 0 (Regression/Backward)**: - The current state has moved BACKWARD compared to the previous state - The robot appears to have regressed or moved away from the goal - Examples: object dropped back, incorrect action executed, further from target **Category 1 (No Progress/Stagnant)**: - The current state shows MINIMAL or NO progress from the previous state - The change between previous and current is negligible (< a small threshold) - Examples: slight camera jitter, minimal gripper movement, waiting state **Category 2 (Progress/Forward)**: - The current state shows SIGNIFICANT progress from the previous state - Clear advancement toward the goal is visible - The change is substantial (≥ a meaningful threshold) - But the goal is NOT yet reached - Examples: successfully grasped object, moved closer to target location **Category 3 (Completed/Near-Completion)**: - The current state is AT or VERY CLOSE TO the goal state - The task appears completed or almost completed - The current state has finished the goal and is executing next task (For this task, you need to predict the success state of the goal) - Examples: object placed on target, door fully closed, goal configuration achieved ### Output specification: You should output **only a single integer** representing the progress category: - **0**: Regression (moved backward) - **1**: No progress (stagnant or minimal change) - **2**: Progress (significant forward movement) - **3**: Completed (goal reached or nearly reached) **Do NOT include any explanation, reasoning, or additional text** **Only output the integer number itself (0, 1, 2, or 3)** ### Evaluation tips: - Compare object positions, gripper states, and scene configurations across all three images - Consider the temporal direction: previous → current (did we move forward or backward?) - Assess proximity to goal: current v.s. goal (how close are we?) - Look for visual cues: grasping success, object placement, spatial relationships 
+
+E.3. Prompt for Rearrange Objects Prompt for Rearrange Objects 
+
+Policy Model 
+
+You are a robot learning agent. Given the current observation and goal information, predict the next action to take. 
+
+28 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+For level 2 tasks (atomic actions): - You will receive the current observation image and a goal description with goal observation image - Predict the immediate next action (e.g., "pick up apple in pink circle plate", "place it in brown squared plate") For level 1 tasks (composite actions): - You will receive the current observation image and goal observation image (final state) - Goal description will be: (No goal description for high-level task) - Predict the composite action to achieve the goal state Action space includes: - pick up [object] in [location] - place it in [location] - [object] can be: apple, pepper, carrot, lemon, fork, knife, spoon, chopstick - [location] can be: [color] [shape] plate (e.g., pink circle plate, brown squared plate) Output only the action description, nothing else. 
+
+Dynamics Model 
+
+You are a robot dynamics model. Given the current state and an action, predict the next state after executing the action. Input: - Initial observation image (starting state) - Current observation image - Action to execute - (For level 1 tasks) Goal observation image (final target state) Output: - The observation image after executing the action The action space includes pick and place operations on various objects (apple, pepper, carrot, lemon, fork, knife, spoon, chopstick) between different colored plates (pink, brown, blue, green circle/squared plates). Note: The model gives higher weight to samples near subgoals to better capture critical transitions. 
+
+Inverse Dynamics Model 
+
+You are a robot inverse dynamics model. Given two consecutive observations, infer what action was taken between them. Input: - Current observation image - Next observation image Output: - The action that was executed to transition from current to next state Action space includes: - pick up [object] in [location] - place it in [location] - [object] can be: apple, pepper, carrot, lemon, fork, knife, spoon, chopstick - [location] can be: [color] [shape] plate Output only the action description, nothing else. 
+
+Optimal Value Model 
+
+You are a robot progress evaluator. Given previous and current observations along with a goal, evaluate the progress towards achieving the goal. For level 2 tasks: 
+
+29 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+- Goal is specified as a text description (e.g., "pick up apple in pink circle plate") For level 1 tasks: - Goal description is: (No goal description for high-level task) - Goal observation image shows the target final state Output: - 0: No progress (current state is similar to previous state) - 1: Progress (moved closer to the goal but not yet achieved) - 2: Achieved (goal has been accomplished) Note: The dataset includes extra samples near subgoals to better capture difficult "no progress" cases where the robot is close to achieving a goal but hasn’t made the final step yet. Output only the number (0, 1, or 2), nothing else. 
+
+E.4. Prompt for Spell Words Prompt for Spell Words 
+
+Policy Model 
+
+You are a robot learning agent. Given the current observation and goal information, predict the next action to take. For level 2 tasks (atomic actions): - You will receive the current observation image and a goal description with goal observation image - Predict the immediate next action (e.g., "pick up the block with letter: <A>", "place the block on the table") For level 1 tasks (composite actions): - You will receive the current observation image and overall task description - Goal description will be the overall task (e.g., "spell the word: CAT using the blocks on the table") - Predict the composite action to achieve the current sub-goal Action space includes: - pick up the block with letter: <LETTER> - place the block on the table - place the current block to the right of the previous block - place the block with letter <LETTER> on the table - place the block with letter <LETTER> to the right of the previous block Output only the action description, nothing else. 
+
+Dynamics Model 
+
+You are a robot dynamics model. Given the current state and an action, predict the next state after executing the action. Input: - Initial observation image (starting state) - Current observation image - Action to execute Output: - The observation image after executing the action The action space includes picking up letter blocks and placing them on the table to spell words. 
+
+Inverse Dynamics Model 
+
+You are a robot inverse dynamics model. Given two consecutive observations and the current subgoal, infer what action was taken between them. Input: 
+
+30 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+- Current subgoal description - Current observation image - Next observation image Output: - The action that was executed to transition from current to next state Action space includes: - pick up the block with letter: <LETTER> - place the block on the table - place the current block to the right of the previous block - place the block with letter <LETTER> on the table - place the block with letter <LETTER> to the right of the previous block Output only the action description, nothing else. 
+
+Optimal Value Model 
+
+You are a robot progress evaluator. Given previous and current observations along with a goal, evaluate the progress towards achieving the goal. For level 2 tasks: - Goal is a specific action (e.g., "pick up the block with letter: <A>") For level 1 tasks: - Goal is a composite action (e.g., "place the block with letter <A> to the right of the previous block") For level 0 tasks: - Goal is the overall task (e.g., "spell the word: CAT using the blocks on the table") Output: - 0: No progress (current state is similar to previous state) - 1: Progress (moved closer to the goal but not yet achieved) - 2: Achieved (goal has been accomplished) Output only the number (0, 1, or 2), nothing else. 
+
+F. Additional Experiments 
+
+F.1. Stage-wise Scores of Real-World Tasks 
+
+To provide a granular understanding of policy behavior beyond binary success rates and holistic scores, we report the Stage-wise Score for all real-world experiments. This metric, denoted as the ith Stage Score, represents the probability of successfully completing the ith subgoal within a long-horizon task. 
+
+Main Results. As shown in Table 6, baselines exhibit a sharp temporal decay in performance, especially in unseen 
+
+settings. In the Unseen Rearrange Objects task, while baselines demonstrate competitive capability in the initial phase, their performance collapses rapidly by Stage 3. In contrast, Anticipation VLA sustains robust completion rates throughout the trajectory (retaining 0.41 at Stage 3), confirming that our recursive anticipation mechanism effectively mitigates compounding errors in long-horizon manipulation. 
+
+Ablation Analysis. The breakdown in Table 7 further clarifies the failure modes of each ablation variant. Notably, the 
+
+w/o recursive variant shows a distinct performance drop-off in the later stages, validating the hypothesis that fixed-level generation lacks the adaptability required for deep subgoal planning. Complementing this, multimodal subgoals provide essential grounding: ablating visual or textual predictions precipitates a rapid collapse, stemming from the deprivation of visual guidance from future goals or textual instructions, respectively. 
+
+Generalization Analysis. Table 8 highlights the robustness of our model under severe distribution shifts. In the challenging task Spell Words , baselines scarcely manage to complete a single stage and fail completely by Stage 2. Conversely, Anticipation VLA maintains a strong start and continues to make meaningful progress through intermediate stages. 31 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Setting Model ith Stage Score SR. ↑
+
+1 2 3 4 5
+
+Task: Rearrange Objects 
+
+Seen 
+
+π0.5 0.95 0.84 0.29 0.23 0.00 0.30 
+
+π0.5+VLM 0.80 0.63 0.29 0.15 0.00 0.20 Anticipation-VLA 0.95 0.79 0.59 0.46 0.43 0.50 
+
+Unseen 
+
+π0.5 0.90 0.47 0.12 0.00 0.00 0.15 
+
+π0.5+VLM 0.80 0.53 0.12 0.08 0.00 0.15 Anticipation-VLA 0.90 0.74 0.41 0.31 0.29 0.40 
+
+Task: Spell Words 
+
+Seen 
+
+π0.5 0.60 0.20 0.05 0.11 0.00 0.00 
+
+π0.5+VLM 0.65 0.30 0.10 0.00 0.00 0.05 Anticipation-VLA 0.95 0.75 0.55 0.44 0.14 0.40 
+
+Unseen 
+
+π0.5 0.35 0.00 0.00 0.00 0.00 0.00 
+
+π0.5+VLM 0.45 0.10 0.00 0.00 0.00 0.00 Anticipation-VLA 0.90 0.55 0.35 0.10 0.14 0.30  
+
+> Table 6. Stage-wise performance comparison on Real-World Tasks.
+
+Setting Model ith Stage Score SR. ↑
+
+1 2 3 4 5
+
+Task: Rearrange Objects 
+
+Seen Anticipation-VLA 0.95 0.79 0.59 0.46 0.43 0.50 
+
+w/o subgoal image 0.85 0.53 0.41 0.23 0.00 0.25 w/o subgoal text 0.80 0.74 0.53 0.31 0.00 0.35 w/o recursive 0.95 0.68 0.24 0.23 0.14 0.20 Unseen Anticipation-VLA 0.90 0.74 0.41 0.31 0.29 0.40 
+
+w/o subgoal image 0.70 0.47 0.41 0.08 0.14 0.25 w/o subgoal text 0.95 0.47 0.29 0.23 0.14 0.25 w/o recursive 0.85 0.47 0.18 0.08 0.00 0.20 
+
+Task: Spell Words 
+
+Seen Anticipation-VLA 0.95 0.75 0.55 0.44 0.14 0.40 
+
+w/o subgoal image 0.95 0.40 0.10 0.00 0.00 0.10 w/o subgoal text 0.90 0.60 0.30 0.11 0.00 0.20 w/o recursive 0.80 0.45 0.15 0.00 0.00 0.10 Unseen Anticipation-VLA 0.90 0.55 0.35 0.10 0.14 0.30 
+
+w/o subgoal image 0.50 0.15 0.00 0.00 0.00 0.00 w/o subgoal text 0.65 0.50 0.05 0.10 0.00 0.05 w/o recursive 0.55 0.15 0.10 0.00 0.00 0.05  
+
+> Table 7. Ablation analysis on Real-World Tasks using Stage-wise Scores.
+
+32 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 
+
+Setting Model ith Stage Score SR. ↑
+
+1 2 3 4 5
+
+Task: Rearrange Objects 
+
+Object 
+
+π0.5 0.70 0.40 0.00 0.00 0.00 0.10 
+
+π0.5+VLM 0.70 0.40 0.20 0.00 0.00 0.00 Anticipation-VLA 0.90 0.70 0.30 0.17 0.50 0.30 
+
+Background 
+
+π0.5 0.70 0.40 0.20 0.00 0.00 0.10 
+
+π0.5+VLM 0.80 0.60 0.10 0.00 0.00 0.10 Anticipation-VLA 0.90 0.70 0.50 0.33 0.00 0.20 
+
+Task: Spell Words 
+
+Object 
+
+π0.5 0.30 0.00 0.00 0.00 0.00 0.00 
+
+π0.5+VLM 0.30 0.20 0.00 0.00 0.00 0.00 Anticipation-VLA 0.80 0.40 0.20 0.00 0.00 0.10 
+
+Background 
+
+π0.5 0.30 0.10 0.00 0.00 0.00 0.00 
+
+π0.5+VLM 0.40 0.00 0.00 0.00 0.00 0.00 Anticipation-VLA 0.80 0.40 0.20 0.17 0.00 0.20  
+
+> Table 8. Generalization results on Real-World Tasks using Stage-wise Scores.
+
+F.2. Qualitative Results of Subgoal Stack 
+
+We present, in Figures 13, 14, 15, and 16, a possible stack evolution of Anticipation across four benchmarks—VLABench, LIBERO,Rearrange Objects, and Spell Words respectively. For each subfigure, the left shows the current observation, and the right shows the corresponding stack state, with the stack top as the current subgoal received by the low-level VLA. Note that we omit cases where the output of Sufficient Progress will make the stack remain unchanged; We only consider two cases: the Insufficient Progress pushing a new subgoal (marked in red, with 0) and the Goal Achievement popping completed subgoals (marked in green, with 1). 33 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+0->Push 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+pick up the hammer to drive the 
+
+nail into the wall and place back 
+
+the hammer 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+pick up the hammer to drive the 
+
+nail into the wall and place back 
+
+the hammer 
+
+Pick up the hammer 
+
+0->Push  1->Pop 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily 
+
+pick up the hammer to drive the 
+
+nail into the wall and place back 
+
+the hammer 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily 
+
+pick up the hammer to drive the 
+
+nail into the wall and place back 
+
+the hammer 
+
+Drive the nail into the wall 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily 
+
+pick up the hammer to drive the 
+
+nail into the wall and place back 
+
+the hammer 
+
+0->Push  1->Pop  0->Push 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+pick up the hammer to drive the 
+
+nail into the wall and place back 
+
+the hammer 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+pick up the picture 江戸日本橋 
+
+and hang the picture on the nail 1->Pop  0->Push  0->Push 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+pick up the picture 江戸日本橋 
+
+and hang the picture on the nail 
+
+Pick up the picture 江戸日本橋 
+
+Please hang the 江戸日本橋 on 
+
+the wall safely and steadily. 
+
+pick up the picture 江戸日本橋 
+
+and hang the picture on the nail 
+
+1->Pop  1->Pop 
+
+done 
+
+Place the hammer back on the 
+
+table 
+
+Figure 13. Execution process of the first simulated task in the simulator VLAbench. Given a high-level instruction, the agent sequentially completes sub-tasks such as using the hammer, driving the nail, placing the tool back, and hanging the picture, illustrating the full task workflow under long-horizon execution. 0->Push  0->Push  1->Pop 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the white mug and place 
+
+it on the left plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the white mug and place 
+
+it on the left plate 
+
+pick up the white mug 
+
+0->Push  1->Pop 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the white mug and place 
+
+it on the left plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the white mug and place 
+
+it on the left plate 
+
+place it on the left plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the white mug and place 
+
+it on the left plate 
+
+1->Pop 
+
+0->Push  0->Push 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the yellow and white mug 
+
+and place it on the right plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the yellow and white mug 
+
+and place it on the right plate 
+
+pick up the yellow and white 
+
+mug 
+
+1->Pop 
+
+1->Pop  1->Pop 
+
+done 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+pick up the yellow and white mug 
+
+and place it on the right plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+put the white mug on the left 
+
+plate and put the yellow and 
+
+white mug on the right plate 
+
+Figure 14. Execution process of the second simulated task in the simulator LIBERO. The agent follows the instruction to rearrange objects by sequentially picking up the white mug and placing it on the left plate, followed by moving the yellow-and-white mug to the right plate, demonstrating the complete task workflow in the simulator. 
+
+34 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation 0->Push 
+
+<A image describing the goal 
+
+state of table> 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up apple in pink circle plate 
+
+and place it in brown squared plate  1->Pop 
+
+<A image describing the goal 
+
+state of table> 
+
+0->Push 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up spoon in blue circle plate 
+
+and place it in pink circle plate 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up spoon in blue circle plate 
+
+and place it in pink circle plate 
+
+pick up spoon in blue circle plate 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up spoon in blue circle plate 
+
+and place it in pink circle plate 
+
+0->Push  1->Pop  0->Push 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up spoon in blue circle plate 
+
+and place it in pink circle plate 
+
+place it in pink circle plate 
+
+1->Pop 
+
+<A image describing the goal 
+
+state of table> 
+
+0->Push 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up chopstick in pink circle plate 
+
+and place it in blue circle plate 
+
+0->Push 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up chopstick in pink circle plate 
+
+and place it in blue circle plate 
+
+place it in pink circle plate 
+
+1->Pop 
+
+<A image describing the goal 
+
+state of table> 
+
+0->Push 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up knife in blue circle plate 
+
+and place it in pink circle plate  0->Push 
+
+1->Pop 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up knife in blue circle plate 
+
+and place it in pink circle plate 
+
+pick up knife in blue circle plate 
+
+<A image describing the goal 
+
+state of table> 
+
+pick up knife in blue circle plate 
+
+and place it in pink circle plate 
+
+1->Pop 
+
+done 
+
+Figure 15. Execution process of the first real-world task. Given a goal state specified by a target image, the robot sequentially rearranges multiple objects by picking and placing items such as the apple, spoon, chopstick, and knife into their designated plates, illustrating the complete task workflow in the real-world setting. 
+
+35 Anticipation-VLA: Solving Long-Horizon Embodied Tasks via Anticipation-based Subgoal Generation spell the word: ICML using the 
+
+blocks on the table 
+
+0->Push 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<I> on the table 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<I> on the table 
+
+pick up the block with letter: <I> 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<I> on the table 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<I> on the table 
+
+place the block on the table 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<C> to the right of previous block 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<C> to the right of previous block 
+
+pick up the block with letter: <C> 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<C> to the right of previous block 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<C> to the right of previous block 
+
+place the current block to the right 
+
+of the previous block 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+0->Push 
+
+0->Push  0->Push 
+
+0->Push 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<M> to the right of previous block 
+
+1->Pop 
+
+1->Pop 
+
+1->Pop 
+
+0->Push  1->Pop 
+
+0->Push  0->Push 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<M> to the right of previous block 
+
+pick up the block with letter: <M> 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<M> to the right of previous block 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+1->Pop  0->Push 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+pick and place the block with letter 
+
+<L> to the right of previous block 
+
+1->Pop 
+
+1->Pop 
+
+1->Pop 
+
+done 
+
+spell the word: ICML using the 
+
+blocks on the table 
+
+Figure 16. Execution process of the second real-world task. Given a language instruction to spell a target word, the robot sequentially picks and places letter blocks in the correct order (e.g., “I–C–M–L”), demonstrating the complete task workflow for long-horizon execution in the real-world setting. 
+
+36

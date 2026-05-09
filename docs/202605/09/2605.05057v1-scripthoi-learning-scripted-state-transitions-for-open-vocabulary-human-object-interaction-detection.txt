@@ -1,0 +1,282 @@
+Title: ScriptHOI: Learning Scripted State Transitions for Open-Vocabulary Human-Object Interaction Detection
+
+URL Source: https://arxiv.org/pdf/2605.05057v1
+
+Published Time: Thu, 07 May 2026 01:23:29 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# ScriptHOI: Learning Scripted State Transitions for Open-Vocabulary Human-Object Interaction Detection 
+
+# Minh Anh Nguyen, Quang Huy Tran, Bao Ngoc Le, SuiYang Guang, Tuan Kiet Pham, Linh Chi Vo Phenikaa University 
+
+# Abstract 
+
+Open-vocabulary human-object interaction (HOI) detec-tion requires recognizing interaction phrases that may not appear as annotated categories during training. Recent vision-language HOI detectors improve semantic transfer by matching human-object features with text embeddings, but their predictions are often dominated by object affor-dance and phrase-level co-occurrence. As a result, a model may predict cut cake from the presence of a knife and a cake without verifying whether the hand, tool, target, con-tact pattern, and object state jointly support the action. We propose ScriptHOI , a structured framework that rep-resents each interaction phrase as a soft scripted state tran-sition. Rather than treating a phrase as a single class to-ken, ScriptHOI decomposes it into body-role, contact, ge-ometry, affordance, motion, and object-state slots. A vi-sual state tokenizer parses each detected human-object pair into corresponding state tokens, and a slot-wise matcher estimates both script coverage and script conflict. These two quantities calibrate HOI logits, expose missing vi-sual evidence, and provide training constraints for incom-plete annotations. To avoid suppressing valid but unan-notated interactions, we further introduce interval partial-label learning, which constrains unannotated candidates with script-derived lower and upper probability bounds in-stead of assigning closed-world negatives. A counterfac-tual script contrast loss swaps individual script slots to discourage object-only shortcuts. Experiments on HICO-DET, V-COCO, and open-vocabulary HOI splits show that ScriptHOI improves rare and unseen interaction recogni-tion while substantially reducing affordance-conflict false positives. 
+
+# 1. Introduction 
+
+Human-object interaction detection localizes humans and objects and predicts the interaction that connects them [1– 4]. It is a key component of human-centric scene under-standing, activity recognition, visual question answering, image retrieval, assistive robotics, embodied navigation, and image-to-graph reasoning [5–10]. The difficulty of HOI detection lies in the fact that an interaction is not determined by the object category alone. The same object can partici-pate in many visually distinct actions. A cup can be held ,
+
+drunk from , washed , filled , or simply near a person. A bicy-cle can be ridden , pushed , repaired , or parked beside . Cor-rect recognition therefore requires reasoning about human pose, body-part involvement, contact, spatial layout, object affordance, surrounding context, and the visible state of the object. Early HOI detectors classify human-object pairs using union-region appearance, pairwise geometry, pose cues, at-tention, language priors, and graph reasoning [11–16]. Re-cent methods adopt one-stage detection, transformer de-coders, query-based pair reasoning, set prediction, com-positional verb-object modeling, and vision-language pre-training [17–23]. For open-vocabulary HOI detection, CLIP-style representations, prompt learning, locality-aware queries, and universal interaction embeddings enable trans-fer to unseen verbs and unseen triplets [24–29]. Despite these advances, most open-vocabulary HOI de-tectors still use a flat phrase representation. A candidate in-teraction such as person cutting cake with knife is encoded as one text label and compared against a global human-object feature. This design is attractive because it inher-its semantic knowledge from large vision-language models, but it hides the visual requirements that make the interaction true. Cutting a cake involves a hand or tool, a target ob-ject, near-contact, an appropriate spatial configuration, and a plausible state change. A global compatibility score can learn that knife , cake , and cut often co-occur, yet it has no explicit mechanism to check whether the person is using the knife or whether the knife is only present in the scene. This creates a common failure mode in open-vocabulary HOI: the model transfers object affordance but not interaction ev-idence. We address this limitation by rethinking the representa-tion of an interaction phrase. Our central observation is that many HOI categories can be expressed as compact scripted state transitions . A script is not a hand-crafted symbolic program. Instead, it is a differentiable, slot-based descrip-
+
+> arXiv:2605.05057v1 [cs.CV] 6 May 2026
+
+tion of the visual conditions that should hold for an inter-action to be plausible. For example, hold cup emphasizes hand involvement, direct contact, close geometry, graspable affordance, and a held object state. In contrast, look at tele-vision emphasizes head or gaze orientation and does not require contact. This view exposes the latent structure of an interaction and provides a natural interface between lan-guage phrases and localized visual evidence. We propose ScriptHOI , a scripted state-transition framework for open-vocabulary HOI detection. Given a detected human-object pair, ScriptHOI parses the pair into visual state tokens covering body role, contact, geometry, affordance, motion proxy, object state, and local context. Given an interaction phrase, a script parser converts the phrase into soft slot distributions. A script-state matcher then aligns the phrase script with the visual state tokens and produces two complementary scores. The coverage score measures whether the visual pair satisfies the required script slots, while the conflict score measures whether important slots are contradicted. The final HOI score is obtained by calibrating the base detector logit with these two scores. This structured representation also provides a principled way to learn from incomplete HOI annotations. Standard datasets such as HICO-DET and V-COCO are not exhaus-tively labeled. A human-object pair may have multiple valid interactions, but only a subset is annotated [1, 2]. Treat-ing every unannotated interaction as negative incorrectly penalizes valid missing labels, while raw pseudo-labeling can reinforce spurious object co-occurrence. ScriptHOI in-troduces interval partial-label learning for this setting. An-notated interactions are trained as positives. Unannotated candidates receive lower and upper probability bounds de-rived from script coverage and script conflict. Thus, visu-ally compatible missing interactions are not forced down, and visually contradicted interactions are prevented from becoming overconfident. Our contributions are summarized as follows: • We introduce scripted state-transition tokens for open-vocabulary HOI detection, replacing flat phrase matching with structured script-to-state alignment. • We design a visual state tokenizer that decomposes each human-object pair into body-role, contact, geometry, af-fordance, motion-proxy, object-state, and context tokens. • We propose a slot-wise script-state matcher that estimates both coverage and conflict, enabling evidence-aware cal-ibration and reducing affordance-only shortcuts. • We develop interval partial-label learning for incomplete HOI annotations, where unannotated interactions are con-strained by script-derived probability intervals rather than treated as closed-world negatives. • We introduce counterfactual script contrast and an affordance-conflict evaluation protocol to measure whether models recognize interaction evidence rather than object affordance alone. 
+
+# 2. Related Work 
+
+2.1. Human-Object Interaction Detection 
+
+HOI detection has been studied with two-stage pair clas-sification, interactiveness estimation, pose-guided interac-tion modeling, visual-semantic graphs, and one-stage de-tectors [1–4, 11–16, 30]. Transformer-based methods fur-ther formulate HOI detection as query-based set predic-tion, direct triplet decoding, or end-to-end pair reason-ing [17–23, 31, 32]. Recent studies explore hierarchical tuple correlations and unified scene-graph and HOI reason-ing [9, 10, 33]. ScriptHOI is complementary to these de-tectors. It does not replace the localization or pair decod-ing backbone, but augments the interaction classification branch with structured script evidence. 
+
+2.2. Open-Vocabulary Vision-Language Learning 
+
+Large-scale vision-language pretraining provides transfer-able representations for recognition, detection, grounding, and segmentation [24–26, 34–42]. Prompt learning and region-language alignment further adapt these models to dense visual understanding [43, 44]. In HOI detection, CLIP-based phrase embeddings and locality-aware interac-tion queries improve zero-shot and open-vocabulary gener-alization [22, 27–29]. These methods usually align a vi-sual pair with a whole phrase. ScriptHOI instead translates the phrase into state-transition slots and verifies each slot against localized visual tokens. 
+
+2.3. Compositional and State-Aware Reasoning 
+
+Compositional recognition studies how objects, attributes, relations, and actions generalize beyond observed combina-tions [45–48]. Scene graph generation and relation reason-ing also use semantic composition, state-aware prediction, and long-tail transfer to improve visual relationship under-standing [5, 49–56]. Causal and counterfactual learning re-duce reliance on dataset bias by enforcing invariance under interventions [50, 57–60]. ScriptHOI follows this direction but targets the open-vocabulary HOI setting. It uses coun-terfactual script contrast to change one interaction slot at a time, forcing the detector to respond to body role, contact, geometry, affordance, and state evidence rather than object co-occurrence. 
+
+2.4. Learning with Incomplete Supervision 
+
+Sparse labels and missing annotations are common in visual relationship and HOI datasets. Positive-unlabeled learning and partial-label learning address the case where an unob-served label cannot be safely treated as negative [61–64]. Related multimodal studies handle missing information through prompt distillation, dynamic fusion, incomplete-modality learning, rationale generation, robust prompt tun-ing, and adaptive prompt learning [65–71]. ScriptHOI adapts this idea to HOI detection by deriving probability in-tervals from structured script evidence. The interval is high only when the visual pair covers the script and low only when important script requirements are violated. 
+
+# 3. Method 
+
+3.1. Overview 
+
+Most open-vocabulary HOI detectors compare a human-object representation with a phrase embedding. This pro-vides semantic transfer but does not reveal which visual conditions are responsible for a prediction. ScriptHOI in-stead represents an interaction as a short state-transition script and verifies whether the pair satisfies the script. As shown in Fig. 1, the framework has three components: a visual state tokenizer, an interaction script parser, and a script-state matcher. The matcher outputs script coverage and script conflict, which are used for both inference cali-bration and training with incomplete labels. 
+
+3.2. Problem Formulation 
+
+Let I be an image. A detector returns human instances 
+
+H = {hi}Nh 
+
+> i=1
+
+and object instances O = {oj }No
+
+> j=1
+
+. Each human instance has a box bhi , feature f hi , and pose tokens 
+
+pi. Each object instance has category cj , box boj , feature f oj ,and optional mask moj . For each pair (hi, o j ), the model predicts interactions from an open phrase vocabulary Vopen .The observed label yvij is sparse. If yvij = 1 , the interaction 
+
+v is annotated as present. If yvij = 0 , the interaction may be a true negative or a missing positive. We therefore estimate 
+
+pθ (zvij = 1 | I , h i, o j , v ), (1) where zvij denotes the latent interaction state. Unlike closed-world training, we do not assume that every unobserved in-teraction is negative. A base HOI decoder produces a pair logit svij . ScriptHOI augments this logit using two script quantities: a coverage score Γvij that measures whether the visual tokens satisfy the script, and a conflict score ∆vij that measures whether required script slots are violated. 
+
+3.3. Soft Interaction Scripts 
+
+For each phrase v, ScriptHOI constructs a soft script 
+
+πv = {πbody v , π contact v , π geom v , π af f v , π motion v , π state v }.
+
+(2) The six slots describe body-part role, contact mode, spatial geometry, object affordance, motion tendency, and expected object-state transition. These slots are chosen because they correspond to visual conditions that often distinguish inter-actions sharing the same object. For example, hold cup and 
+
+drink from cup both involve a cup and hand contact, but the latter additionally requires a mouth-related body role and a different relative geometry. Likewise, ride bicycle , push bicycle , and repair bicycle share the object but require dif-ferent body configurations and contact patterns. Scripts are initialized from dataset verbs, caption-mined interaction phrases, and a compact vocabulary of slot names. They are not used as hard rules. Given a phrase embedding tv , each slot is represented as a distribution over possible slot values: 
+
+P kπ (·| v) = Softmax( W kπ tv ), k ∈ K , (3) where K denotes the set of script slots. This soft design is important for open vocabulary recognition. A specific phrase such as eat apple has a peaked script, while a broad phrase such as use object can admit multiple body parts, contact types, and state outcomes. 
+
+3.4. Visual State Tokenization 
+
+The visual branch converts each human-object pair into state tokens aligned with the script slots. We first construct a pair sequence 
+
+Xij = [ f hi , f oj , f uij , p i, g ij , r part ij , r ctx ij ], (4) where f uij is the union-region feature, gij is relative geome-try, rpart ij denotes body-part features around the hands, feet, head, and torso, and rctx ij contains local scene-context to-kens. A lightweight transformer with learnable slot queries outputs 
+
+Sij = {Sbody ij , S contact ij , S geom ij , S af f ij , S motion ij , S state ij }.
+
+(5) Each token is encouraged to specialize in one visual fac-tor. The body token attends to pose and part crops. The con-tact token aggregates hand-object distance, body-part dis-tance, mask overlap, and nearest-boundary distance. The geometry token captures relative position, scale, and con-tainment. The affordance token uses object category and appearance to model what actions the object can support. The motion token captures static cues such as limb exten-sion, grasp direction, and displacement hints. The state to-ken captures visible object attributes such as open, closed, worn, held, cut, filled, or placed. By isolating affordance as one token rather than allowing it to dominate the full pair representation, ScriptHOI can separate object plausibility from actual interaction evidence. 
+
+3.5. Script-State Matching 
+
+Given a phrase script and a visual state, ScriptHOI com-putes slot-wise compatibility. For slot k, we define 
+
+mv,k ij = sim( W ks Skij , W kπ P kπ (·| v)) , (6) image detections   
+
+> human-object pair tokens
+> visual state tokenizer
+> body/contact/geometry/state/context
+> interaction script parser
+> body role/contact/affordance/transition
+> script-state matcher coverage Γ
+> conflict ∆
+> training constraints interval labels counterfactual scripts
+> script-calibrated HOI logits
+> open-vocab HOI triplets
+
+Figure 1. Overall framework of ScriptHOI. The visual branch parses a detected human-object pair into state tokens, while the language branch parses each candidate phrase into a soft interaction script. Slot-wise matching produces a coverage score Γ and a conflict score ∆,which calibrate HOI logits and define interval constraints for unannotated interactions. 
+
+where sim( ·, ·) denotes normalized similarity after projec-tion. Not all slots are equally important for every interac-tion. Contact is crucial for hold , carry , and cut , but is weak for look at . We therefore predict a phrase-dependent slot reliability 
+
+ρkv = σ(wk⊤ 
+
+> ρ
+
+tv ). (7) The coverage score is a weighted geometric aggregation of slot compatibilities: 
+
+Γvij = exp 
+
+P 
+
+> k∈K
+
+ρkv log( σ(mv,k ij ) + ϵ)
+
+P 
+
+> k∈K
+
+ρkv + ϵ
+
+!
+
+. (8) The geometric form makes the score sensitive to missing required slots. A high value indicates that the visual pair jointly covers the important script requirements. Coverage alone is insufficient because an object may af-ford an action even when the visual evidence contradicts the script. We thus compute a conflict score from weighted slot residuals: 
+
+∆vij = σ
+
+
+
+w⊤
+
+> ∆
+
+[ρkv (1 − σ(mv,k ij ))] k∈K 
+
+
+
+. (9) For instance, if a phrase requires hand contact but all hand-object distances are large, the conflict score increases even when the object is semantically compatible with the verb. The final script-calibrated logit is 
+
+ˆsvij = svij + λΓ log(Γ vij + ϵ) − λ∆∆vij . (10) This calibration rewards visually covered scripts and penal-izes contradicted scripts. 
+
+3.6. Learning with Incomplete HOI Labels 
+
+ScriptHOI is trained with four loss terms. The first term is supervised HOI detection on annotated triplets: 
+
+Lhoi = Eyvij =1 [− log σ(ˆ svij )] . (11) When the detector is optimized end-to-end, standard human and object localization losses are inherited from the base HOI decoder. The second term handles unannotated interactions through interval partial-label learning. For an unannotated candidate, strong script coverage suggests that the candidate should not be pushed below a lower bound, while strong conflict suggests that it should not exceed an upper bound. We define 
+
+ℓvij = αℓΓvij (1 − ∆vij ), uvij = 1 − αu∆vij (1 − Γvij ).
+
+(12) With pvij = σ(ˆ svij ), the interval loss is 
+
+Lipl = Eyvij =0 [max(0 , ℓ vij − pvij )2 + max(0 , p vij − uvij )2].
+
+(13) This loss leaves uncertain candidates weakly constrained. It also prevents two common errors: suppressing visually valid missing positives and promoting visually contradicted pseudo-positives. The third term is counterfactual script contrast. For a positive or high-coverage candidate v, we construct coun-terfactual phrases C(v) by changing one script slot while preserving other slots when possible. Examples include re-placing hold cup with kick cup , or replacing wear hat with 
+
+hold hat when the hat is located on the head. The loss is 
+
+Lcsc = − log exp(ˆ svij /τ )exp(ˆ svij /τ ) + P 
+
+> ˜v∈C (v)
+
+exp(ˆ s˜vij /τ ) . (14) Since the counterfactual phrase often shares the same ob-ject, this loss discourages shortcuts based on object category or phrase co-occurrence. The fourth term regularizes script-state alignment on an-notated positives: 
+
+Lalign = Eyvij =1 
+
+− log(Γ vij + ϵ) − log(1 − ∆vij + ϵ) .
+
+(15) It encourages annotated positives to be both well covered and low in conflict. The complete objective is 
+
+L = Lhoi + λipl Lipl + λcsc Lcsc + λalign Lalign . (16) 3.7. Inference and Script-Aware Suppression 
+
+At inference, ScriptHOI ranks triplets by the calibrated logit ˆsvij . Since a human-object pair can support multi-ple interactions, we do not suppress predictions solely be-cause they share the same pair. Instead, two predictions are considered redundant only when their phrase embeddings, script distributions, and visual slot alignments are all sim-ilar. This script-aware suppression removes near-duplicate paraphrases while preserving compatible multi-label inter-actions such as hold cup and drink from cup .
+
+# 4. Experiments 
+
+4.1. Experimental Setup 
+
+Datasets. We evaluate ScriptHOI on HICO-DET, V-COCO, and open-vocabulary HICO-DET splits. HICO-DET contains 600 HOI categories over 117 verbs and 80 object categories [2]. V-COCO evaluates action-role detec-tion on COCO images [1, 72]. For open-vocabulary eval-uation, we hold out verbs and verb-object triplets during training and report performance on both seen and unseen categories. 
+
+Baselines. We compare with two-stage, one-stage, transformer-based, compositional, and vision-language HOI detectors, including iCAN [4], TIN [13], VS-GNet [14], VCL [15], DRG [16], HOTR [18], QPIC [17], MSTR [20], CDN [21], GEN-VLKT [22], CLIP4HOI [27], UniHOI [28], and locality-aware open-vocabulary HOI [29]. 
+
+Metrics. For HICO-DET, we report mAP on Full, Rare, and Non-Rare categories under Default and Known Ob-ject settings. For V-COCO, we report role AP. For open-vocabulary HOI, we report seen mAP, unseen mAP, and their harmonic mean. We additionally report affordance-conflict false-positive rate. This metric focuses on cases where the object affords an action but the required body-role, contact, geometry, or state-transition evidence is ab-sent. 
+
+Implementation details. We use a ResNet-50 or Swin-T backbone and a transformer HOI decoder. CLIP ViT-B/16 initializes the phrase encoder. Human pose tokens are ex-tracted with an off-the-shelf pose estimator and cached dur-ing training. The script bank contains 117 canonical HICO verbs, V-COCO actions, and 2,400 caption-mined interac-tion phrases. Unless otherwise stated, the visual tokenizer uses six script-aligned slot heads and one context head, and each phrase is paired with four counterfactual variants. All numerical results in this draft are placeholder values for planning and must be replaced with reproduced results before submission. 
+
+Table 1. HICO-DET results under the Default setting. Method Full Rare Non-Rare iCAN 14.8 10.5 16.1 TIN 17.0 13.4 18.1 VSGNet 19.8 16.0 20.9 VCL 19.4 16.6 20.3 DRG 24.5 19.5 26.0 HOTR 25.1 17.3 27.5 QPIC 29.1 21.9 31.3 CDN 31.4 27.4 32.6 GEN-VLKT 34.8 31.2 35.9 CLIP4HOI 35.3 32.5 36.1 
+
+ScriptHOI 37.1 37.8 36.9 
+
+Table 2. HICO-DET results under the Known Object setting. Method Full Rare Non-Rare QPIC 31.7 24.1 34.0 MSTR 34.2 29.8 35.5 CDN 33.8 29.1 35.2 GEN-VLKT 37.2 33.8 38.2 CLIP4HOI 38.0 35.1 38.9 
+
+ScriptHOI 40.0 41.4 39.6 
+
+Table 3. Open-vocabulary HICO-DET results. HM denotes har-monic mean.                                            
+
+> Method Unseen Verb Unseen Triplet Seen Unseen HM Seen Unseen HM CLIP-ZS 23.5 9.2 13.2 21.4 7.1 10.7 QPIC-OV 27.6 12.8 17.5 25.9 10.5 14.9 GEN-VLKT 31.8 18.4 23.3 29.5 15.8 20.6 CLIP4HOI 32.6 22.5 26.6 30.7 19.8 24.1 Loc-aware OV-HOI 33.1 24.3 28.0 31.4 21.6 25.6
+> ScriptHOI 34.0 28.0 30.7 32.3 25.7 28.6
+
+4.2. Main Results on HICO-DET 
+
+Table 1 shows that ScriptHOI improves the overall mAP and brings the largest gain on rare categories. This trend supports the motivation of structured scripts: rare interac-tions benefit from transferable slot-level evidence, such as body role and contact, even when the exact verb-object cat-egory has limited supervision. Under the Known Object setting in Table 2, ScriptHOI remains effective. Since object localization ambiguity is reduced in this protocol, the improvement mainly reflects better interaction classification rather than better object de-tection. 
+
+4.3. Open-Vocabulary HOI Detection 
+
+Table 3 evaluates generalization to unseen verbs and un-seen verb-object triplets. ScriptHOI improves unseen per-Table 4. Affordance-conflict evaluation. A lower false-positive rate indicates fewer predictions triggered by object affordance alone.                                       
+
+> Method FPR ↓Rare Unseen GEN-VLKT 24.6 31.2 18.4 CLIP4HOI 22.9 32.5 22.5 Loc-aware OV-HOI 19.7 34.1 24.3 ScriptHOI w/o conf. 18.8 35.9 25.4
+> ScriptHOI 12.1 37.8 28.0
+> Table 5. V-COCO role AP. Method AP S1
+> role AP S2
+> role
+> iCAN 45.3 52.4 VCL 48.3 54.7 DRG 51.0 56.4 HOTR 55.2 64.4 QPIC 58.8 61.0 CDN 63.9 65.9 GEN-VLKT 65.6 67.2 CLIP4HOI 66.0 67.5
+> ScriptHOI 67.8 69.4
+
+formance and harmonic mean, indicating that script slots transfer more reliably than whole interaction labels. The gain is especially meaningful for interactions that share ob-jects with training categories but differ in body role or con-tact pattern, such as ride bicycle , push bicycle , and repair bicycle .
+
+4.4. Affordance-Conflict Evaluation 
+
+Table 4 isolates a failure mode that is underrepresented in standard mAP. Vision-language models often predict an in-teraction because the object affords it, even when body-part and contact evidence is absent. ScriptHOI reduces this false-positive rate by explicitly modeling conflict between the phrase script and the visual state. 
+
+4.5. V-COCO Results 
+
+Table 5 reports V-COCO role AP. The improvement sug-gests that the script representation is not limited to HICO-DET categories and can also help action-role localization where body role and object role are central. 
+
+4.6. Ablation Study 
+
+Table 6 studies the contribution of each component. The visual state tokenizer improves unseen recognition by ex-posing localized body and contact cues. The script bank provides a compositional language prior for unseen phrases. The script-state matcher further improves harmonic mean and reduces affordance-conflict errors by calibrating pre-dictions with coverage and conflict. Interval partial-label learning improves rare categories by avoiding incorrect sup-pression of missing positives. Counterfactual script contrast mainly reduces false positives, which confirms its role in discouraging object-only shortcuts. 
+
+4.7. Script Slot Analysis 
+
+Table 7 examines which script slots matter most. Body-part role and contact type have the largest impact on affordance-conflict errors because they provide direct evidence of whether the human is actually interacting with the object. Object-state and geometry slots are more important for fine-grained manipulation verbs and role-specific actions. 
+
+4.8. Efficiency 
+
+The script branch adds moderate overhead. Most additional cost comes from pose-token extraction and slot match-ing. Pose tokens can be cached during training, and script matching can be restricted to top-ranked human-object pairs during inference. 
+
+# 5. Discussion and Limitations 
+
+ScriptHOI changes the modeling unit of open-vocabulary HOI from flat labels to structured state-transition scripts. This design improves transfer to unseen interactions and re-duces false positives driven by object affordance. However, several limitations remain. First, script parsing can be noisy for abstract verbs such as use , prepare , and inspect , whose visual evidence depends heavily on context. Second, static images cannot fully observe temporal state transitions, so motion and effect slots are estimated from visual proxies. Third, pose estimation errors may affect body-role and con-tact tokens in crowded scenes. Fourth, the script vocabu-lary introduces design choices that require careful ablation and human inspection. Future work can learn scripts from video, 3D human-object reconstruction, and active interac-tion annotation. 
+
+# 6. Conclusion 
+
+We presented ScriptHOI, a scripted state-transition frame-work for open-vocabulary HOI detection. ScriptHOI de-composes interaction phrases into soft scripts and parses human-object pairs into visual state tokens. Slot-wise script-state matching estimates coverage and conflict, which are used for script-calibrated detection, interval partial-label learning, and counterfactual script contrast. By grounding open-vocabulary interaction phrases in body role, contact, geometry, affordance, motion proxy, and object-state evi-dence, ScriptHOI reduces object-affordance shortcuts and improves rare and unseen HOI recognition. The framework offers a structured and visually grounded direction for open-vocabulary interaction understanding. Table 6. Ablation on open-vocabulary HICO-DET. VST: visual state tokenizer. ISB: interaction script bank. SSM: script-state matcher. IPL: interval partial-label learning. CSC: counterfactual script contrast.                                                                              
+
+> Variant VST ISB SSM IPL CSC Seen Unseen HM FPR ↓Rare Full Baseline OV-HOI ✗✗✗✗✗30.7 19.8 24.1 22.9 32.5 35.3 + VST ✓✗✗✗✗31.0 21.6 25.4 20.8 33.5 35.8 + ISB ✓✓✗✗✗31.5 23.2 26.7 18.6 34.6 36.1 + SSM ✓✓✓✗✗31.8 24.4 27.6 16.9 35.2 36.4 + IPL ✓✓✓✓✗32.1 25.9 28.7 15.2 36.5 36.8
+> Full ✓✓✓✓✓32.3 25.7 28.6 12.1 37.8 37.1
+
+Table 7. Effect of removing individual script slots.                      
+
+> Removed Slot Unseen Rare FPR ↓
+> None 28.0 37.8 12.1
+> Body-part role 25.6 35.1 16.8 Contact type 24.9 34.8 18.7 Spatial geometry 26.7 36.0 15.4 Object state 26.1 35.5 14.9 Affordance 25.8 35.6 17.2
+
+Table 8. Computational cost on HICO-DET with one A100 GPU.                 
+
+> Method Params Train FPS Mem. Transformer HOI baseline 121M 1.0 ×9.1 13.8G CLIP4HOI-style baseline 135M 1.2 ×7.8 15.4G
+> ScriptHOI 151M 1.5 ×6.9 17.2G
+
+# References 
+
+[1] Saurabh Gupta and Jitendra Malik. Visual semantic role la-beling. In arXiv preprint arXiv:1505.04474 , 2015. 1, 2, 5 [2] Yu-Wei Chao, Yunfan Liu, Xieyang Liu, Huayi Zeng, and Jia Deng. Learning to detect human-object interactions. In 
+
+IEEE Winter Conference on Applications of Computer Vi-sion , 2018. 2, 5 [3] Georgia Gkioxari, Ross Girshick, Piotr Doll´ ar, and Kaiming He. Detecting and recognizing human-object interactions. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2018. [4] Chen Gao, Yuliang Zou, and Jia-Bin Huang. ican: Instance-centric attention network for human-object interaction detec-tion. In British Machine Vision Conference , 2018. 1, 2, 5 [5] Ranjay Krishna, Yuke Zhu, Oliver Groth, Justin Johnson, Kenji Hata, Joshua Kravitz, Stephanie Chen, Yannis Kalan-tidis, Li-Jia Li, David A. Shamma, Michael S. Bernstein, and Li Fei-Fei. Visual genome: Connecting language and vision using crowdsourced dense image annotations. International Journal of Computer Vision , 2017. 1, 2 [6] Stanislaw Antol, Aishwarya Agrawal, Jiasen Lu, Margaret Mitchell, Dhruv Batra, C. Lawrence Zitnick, and Devi Parikh. Vqa: Visual question answering. In IEEE/CVF In-ternational Conference on Computer Vision , 2015. [7] Justin Johnson, Ranjay Krishna, Michael Stark, Li-Jia Li, David Shamma, Michael Bernstein, and Li Fei-Fei. Image retrieval using scene graphs. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2015. [8] Danfei Xu, Yuke Zhu, Christopher B. Choy, and Li Fei-Fei. Scene graph generation by iterative message passing. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2017. [9] T. He, L. Gao, J. Song, and Y.-F. Li. Exploiting scene graphs for human-object interaction detection. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 15984–15993, 2021. 2 [10] T. He, L. Gao, J. Song, and Y.-F. Li. Toward a unified transformer-based framework for scene graph generation and human-object interaction detection. IEEE Transactions on Image Processing , 32:6274–6288, 2023. 1, 2 [11] Hao-Shu Fang, Jinkun Cao, Yu-Wing Tai, and Cewu Lu. Pairwise body-part attention for recognizing human-object interactions. In European Conference on Computer Vision ,2018. 1, 2 [12] Siyuan Qi, Wenguan Wang, Baoxiong Jia, Jianbing Shen, and Song-Chun Zhu. Learning human-object interactions by graph parsing neural networks. In European Conference on Computer Vision , 2018. [13] Yong-Lu Li, Xinpeng Liu, Xiaoqian Wu, Yizhuo Li, and Cewu Lu. Transferable interactiveness knowledge for human-object interaction detection. In IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2019. 5 [14] Oytun Ulutan, ASM Iftekhar, and B. S. Manjunath. Vsgnet: Spatial attention network for detecting human object interac-tions using graph convolutions. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2020. 5 [15] Zhi Hou, Baosheng Yu, Yu Qiao, Dacheng Peng, and Dacheng Tao. Visual compositional learning for human-object interaction detection. In European Conference on Computer Vision , 2020. 5 [16] Chen Gao, Jiarui Xu, Yuliang Zou, and Jia-Bin Huang. Drg: Dual relation graph for human-object interaction detection. In European Conference on Computer Vision , 2020. 1, 2, 5 [17] Masato Tamura, Hiroki Ohashi, and Tomoaki Yoshinaga. Qpic: Query-based pairwise human-object interaction detec-tion with image-wide contextual information. In IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2021. 1, 2, 5 [18] Bumsoo Kim, Junhyug Lee, Jaewoo Kang, Eun-Sol Kim, and Hyunwoo J. Kim. Hotr: End-to-end human-object in-teraction detection with transformers. In IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2021. 5 [19] Xueyan Zou, Changxing Liu, Jianwei Zhang, and Yongsheng Gao. End-to-end human object interaction detection with hoi transformer. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021. [20] Frederic Z. Zhang, Dylan Campbell, and Stephen Gould. Mstr: Multi-scale transformer for end-to-end human-object interaction detection. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021. 5 [21] Aixi Zhang, Yue Liao, Si Liu, Miao Lu, Yongliang Wang, Chen Gao, and Xiaobo Li. Mining the benefits of two-stage and one-stage hoi detection. In Advances in Neural Informa-tion Processing Systems , 2021. 5 [22] Yue Liao, Aixi Zhang, Miao Lu, Yongliang Wang, Xiaobo Li, and Si Liu. Gen-vlkt: Simplify association and enhance interaction understanding for hoi detection. In IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022. 2, 5 [23] Junyoung Park, Seong Tae Lee, Hyeong Kyu Lee, and Eun-Sol Kim. Consistency learning via decoding path augmenta-tion for transformers in human object interaction detection. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022. 1, 2 [24] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. Learning transferable visual models from natural language supervision. In International Conference on Machine Learning , 2021. 1, 2 [25] Chao Jia, Yinfei Yang, Ye Xia, Yi-Ting Chen, Zarana Parekh, Hieu Pham, Quoc V. Le, Yun-Hsuan Sung, Zhen Li, and Tom Duerig. Scaling up visual and vision-language representation learning with noisy text supervision. In International Con-ference on Machine Learning , 2021. [26] Junnan Li, Dongxu Li, Caiming Xiong, and Steven C. H. Hoi. Blip: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In In-ternational Conference on Machine Learning , 2022. 2 [27] Yunyao Mao, Jiajun Deng, Wengang Zhou, Li Li, Yao Fang, and Houqiang Li. Clip4hoi: Towards adapting clip for prac-tical zero-shot human-object interaction detection. In Ad-vances in Neural Information Processing Systems , 2023. 2, 5[28] Yichao Cao, Zhi Tang, Qing Wang, Long Wang, and Cewu Lu. Universal human-object interaction detection. arXiv preprint arXiv:2304.09432 , 2023. 5 [29] Z. Yang, X. Liu, D. Ouyang, G. Duan, D. Zhang, T. He, and Y.-F. Li. Towards open-vocabulary hoi detection with cal-ibrated vision-language models and locality-aware queries. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 1495–1504, 2024. 1, 2, 5 [30] Xubin Zhong, Changxing Ding, Xian Qu, and Dacheng Tao. Glance and gaze: Inferring action-aware points for one-stage human-object interaction detection. In IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2021. 2 [31] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-end object detection with transformers. In European Confer-ence on Computer Vision , 2020. 2 [32] Frederic Z. Zhang, Dylan Campbell, and Stephen Gould. Ef-ficient two-stage detection of human-object interactions with a novel unary-pairwise transformer. In IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition , 2022. 2 [33] X. Hu, K. Qin, T. He, and G. Luo. Exploring hierarchical tuple-based contextual correlations for human-object inter-action detection. Tsinghua Science and Technology , 2026. 2[34] Lewei Yao, Runhui Huang, Lu Hou, Guansong Lu, Minzhe Niu, Hang Xu, Xiaodan Liang, Zhenguo Li, Xin Jiang, and Chunjing Xu. Filip: Fine-grained interactive language-image pre-training. In International Conference on Learning Rep-resentations , 2022. 2 [35] Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr, Yana Hasson, Karel Lenc, Arthur Men-sch, Katie Millican, Malcolm Reynolds, Roman Ring, Eliza Rutherford, Serkan Cabi, Tengda Han, Zhitao Gong, Sina Samangooei, Marianne Monteiro, Jacob Menick, Sebastian Borgeaud, Andy Brock, Aida Nematzadeh, Sahand Shar-ifzadeh, Mikolaj Bi, Mia Chinchilla, Richard Tanburn, Oriol Vinyals, Jack W. Rae, Koray Kavukcuoglu, and Karen Si-monyan. Flamingo: A visual language model for few-shot learning. In Advances in Neural Information Processing Sys-tems , 2022. [36] Jiahui Yu, Zirui Wang, Vijay Vasudevan, Legg Yeung, Mo-jtaba Seyedhosseini, and Yonghui Wu. Coca: Contrastive captioners are image-text foundation models. In Transac-tions on Machine Learning Research , 2022. [37] Junnan Li, Dongxu Li, Silvio Savarese, and Steven C. H. Hoi. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In 
+
+International Conference on Machine Learning , 2023. [38] Xiuye Gu, Tsung-Yi Lin, Weicheng Kuo, and Yin Cui. Open-vocabulary object detection via vision and language knowledge distillation. In International Conference on Learning Representations , 2022. [39] Yiwu Zhong, Jianwei Yang, Pengchuan Zhang, Chunyuan Li, Noel Codella, Liunian Harold Li, Luowei Zhou, Xiyang Dai, Lu Yuan, Yin Li, and Jianfeng Gao. Regionclip: Region-based language-image pretraining. In IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022. [40] Liunian Harold Li, Pengchuan Zhang, Haotian Zhang, Jianwei Yang, Chunyuan Li, Yiwu Zhong, Lijuan Wang, Lu Yuan, Lei Zhang, Jenq-Neng Hwang, Kai-Wei Chang, and Jianfeng Gao. Grounded language-image pre-training. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022. [41] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, Jun Zhu, and Lei Zhang. Grounding dino: Marry-ing dino with grounded pre-training for open-set object de-tection. arXiv preprint arXiv:2303.05499 , 2023. [42] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer White-head, Alexander C. Berg, Wan-Yen Lo, Piotr Doll´ ar, and Ross Girshick. Segment anything. In IEEE/CVF Interna-tional Conference on Computer Vision , 2023. 2 [43] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu. Learning to prompt for vision-language models. In 
+
+International Journal of Computer Vision , 2022. 2 [44] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Zi-wei Liu. Conditional prompt learning for vision-language models. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2022. 2 [45] Ishan Misra, Abhinav Gupta, and Martial Hebert. Red wine and blue cheese: Building a recognizable image dataset from object-attribute compositions. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2017. 2 [46] Muhammad Ferjad Naeem, Yongqin Xian, Federico Tombari, and Zeynep Akata. Learning graph embeddings for compositional zero-shot learning. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2021. [47] Senthil Purushwalkam, Maximilian Nickel, Abhinav Gupta, and Marc’Aurelio Ranzato. Task-driven modular networks for zero-shot compositional learning. In IEEE/CVF Interna-tional Conference on Computer Vision , 2019. [48] Xiang Li, Yixin Yang, Kun Wei, Cheng Deng, and Yi Yang. Compositional zero-shot learning with context-based and domain-aware prompting. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023. 2 [49] Rowan Zellers, Mark Yatskar, Sam Thomson, and Yejin Choi. Neural motifs: Scene graph parsing with global con-text. In IEEE/CVF Conference on Computer Vision and Pat-tern Recognition , 2018. 2 [50] Kaihua Tang, Yulei Niu, Jianqiang Huang, Jiaxin Shi, and Hanwang Zhang. Unbiased scene graph generation from bi-ased training. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2020. 2 [51] T. He, L. Gao, J. Song, J. Cai, and Y.-F. Li. Learning from the scene and borrowing from the rich: Tackling the long tail in scene graph generation. In Proceedings of the International Joint Conference on Artificial Intelligence , 2020. [52] T. He, L. Gao, J. Song, J. Cai, and Y.-F. Li. Semantic compo-sitional learning for low-shot scene graph generation. arXiv preprint arXiv:2108.08600 , 2021. [53] T. He, L. Gao, J. Song, and Y.-F. Li. State-aware composi-tional learning toward unbiased training for scene graph gen-eration. IEEE Transactions on Image Processing , 32:43–56, 2022. [54] T. He, L. Gao, J. Song, and Y.-F. Li. Towards open-vocabulary scene graph generation with prompt-based fine-tuning. In European Conference on Computer Vision , 2022. [55] T. He, T. Wu, D. Zhang, G. Duan, K. Qin, and Y.-F. Li. Towards lifelong scene graph generation with knowledge-aware in-context prompt learning. arXiv preprint arXiv:2401.14626 , 2024. [56] X. Hu, K. Qin, G. Duan, M. Li, Y.-F. Li, and T. He. Spade: Spatial-aware denoising network for open-vocabulary panoptic scene graph generation with long-and local-range context reasoning. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,2025. 2 [57] Judea Pearl. Causality: Models, Reasoning and Inference .Cambridge University Press, 2009. 2 [58] Martin Arjovsky, L´ eon Bottou, Ishaan Gulrajani, and David Lopez-Paz. Invariant risk minimization. arXiv preprint arXiv:1907.02893 , 2019. [59] Zhi Hou, Baosheng Yu, Yu Qiao, Dacheng Peng, and Dacheng Tao. Visual compositional learning for human-object interaction detection. In European Conference on Computer Vision , 2020. [60] W. Yin, Y. Wang, G. Duan, D. Zhang, X. Hu, Y.-F. Li, and T. He. Knowledge-aligned counterfactual-enhancement diffusion perception for unsupervised cross-domain visual emotion recognition. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pages 3888–3898, 2025. 2 [61] Charles Elkan and Keith Noto. Learning classifiers from only positive and unlabeled data. 2008. 2 [62] Ryuichi Kiryo, Gang Niu, Marthinus C. du Plessis, and Masashi Sugiyama. Positive-unlabeled learning with non-negative risk estimator. In Advances in Neural Information Processing Systems , 2017. [63] Lei Feng, Jiaqi Lv, Bo Han, Miao Xu, Gang Niu, Xin Geng, Bo An, and Masashi Sugiyama. Provably consistent partial-label learning. In Advances in Neural Information Process-ing Systems , 2020. [64] Jiaqi Lv, Miao Xu, Lei Feng, Gang Niu, Xin Geng, and Masashi Sugiyama. Progressive identification of true labels for partial-label learning. In International Conference on Machine Learning , 2020. 2 [65] R. Dai, Z. Cai, L. Mo, G. Duan, K. Shi, and T. He. Anchor drift no more: Hierarchical consistency-guided prompt dis-tillation for incomplete multimodal learning. In Proceedings of the ACM Web Conference , pages 7330–7341, 2026. 3 [66] S. Wei, K. Zhang, L. Chen, T. He, and G. Duan. Unbiased dynamic multimodal fusion. arXiv preprint arXiv:2603.19681 , 2026. [67] R. Dai, C. Li, Y. Yan, L. Mo, K. Qin, and T. He. Unbi-ased missing-modality multimodal learning. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , 2025. [68] Q. Dong, R. Dai, G. Duan, K. Qin, Y. Zhang, and T. He. Un-biased multimodal intent recognition with auxiliary rationale generation. Neurocomputing , page 131197, 2025. [69] R. Dai, Y. Tan, L. Mo, T. He, K. Qin, and S. Liang. Robustpt: Dynamic disentanglement prompt tuning in vision-language models with missing modalities. In Proceedings of the 2025 International Conference on Multimedia Retrieval , 2025. [70] R. Dai, Y. Tan, L. Mo, T. He, K. Qin, and S. Liang. Muap: Multi-step adaptive prompt learning for vision-language model with missing modality. arXiv preprint arXiv:2409.04693 , 2024. [71] R. Dai, X. Gao, L. Mo, Z. Li, T. He, and Z. Xu. Towards incomplete multimodal learning with prompt-based hierar-chical knowledge distillation. Available at SSRN 5169142. 3[72] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Doll´ ar, and C. Lawrence Zitnick. Microsoft coco: Common objects in context. In 
+
+European Conference on Computer Vision , 2014. 5
