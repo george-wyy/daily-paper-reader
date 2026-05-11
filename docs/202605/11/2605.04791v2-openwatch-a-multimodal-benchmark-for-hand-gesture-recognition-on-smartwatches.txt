@@ -1,0 +1,618 @@
+Title: OpenWatch: A Multimodal Benchmark for Hand Gesture Recognition on Smartwatches
+
+URL Source: https://arxiv.org/pdf/2605.04791v2
+
+Published Time: Fri, 08 May 2026 00:56:45 GMT
+
+Number of Pages: 23
+
+Markdown Content:
+# OpenWatch: A Multimodal Benchmark for Hand Gesture Recognition on Smartwatches 
+
+Pietro Bonazzi 1∗, Youssef Ahmed 1∗, Daniel Eckert 2, Andrea Ronco 2,Junjie Zeng 2, Dengxin Dai 2, Michele Magno 11ETH Zürich, 2Huawei Research Zürich 
+
+> ∗
+
+Equal contribution 
+
+Abstract 
+
+Despite widespread adoption of smartwatches worldwide, open-benchmarks for wrist-based gesture recognition remain surprisingly limited. In this work, we intro-duce the first open-access multi-modal benchmark, OpenWatch , for wrist-based gesture recognition using synchronized inertial and physiological sensing on a com-mercial smartwatch. It contains over 10 hours of Inertial Measurement Unit (IMU) and Photoplethysmography (PPG) data across 50 participants and a vocabulary of 59 labelled gesture sequences. Furthermore, we present a subject-independent evaluation protocol including traditional and deep learning methods for time-series classification. On top of this, we develop two novel methodologies for hand-gesture recognition: (i) MixToken , a task-specific mixture-of-experts that fuses per-channel IMU filterbank features with cross-channel statistical tokens through learned logit mixing, and (ii) NormWear-Lora, a low-rank adaptation module for smartwatch foundation models. Our benchmarking results reveal that PPG signals carries a sub-stantial predictive benefit ( +12 .5% F1-score) for foundational smartwatch models. In addition, we show that task-specific architectures (i.e. MixToken) substantially outperforms finetuned smartwatch foundation models in terms of accuracy (F1-score= 90% vs 66% ) and memory efficiency ( 223 k vs 136 M parameters). Finally, we also provide clear empirical guidance on the trade-offs between specialized architecture design, modality fusion, data augmentations, and foundation-model adaptation for resource-constrained wearable sensing. 
+
+1 Introduction 
+
+The rapid global adoption of smartwatches has established them as one of the most pervasive wearable sensing platforms, with more than half a billion active users worldwide in 2025 [ 9]. Modern devices integrate IMU for motion tracking and PPG sensors for cardiovascular monitoring, enabling simultaneous capture of kinematic and physiological signals from the wrist in everyday settings [ 7, 27 ]. This multimodal capability has transformed smartwatches from simple fitness trackers into continuous, always-on systems supporting rich human–computer interaction, including fine-grained gesture recognition [ 30 , 38 ]. Despite their ubiquity, the joint potential of these sensing modalities remains underexplored and three key gaps remain. First, public wrist-based gesture datasets are close-source, unimodal, and do not include labeled negative or background classes, limiting in-the-wild evaluation even in prior proprietary work [ 49 ]. Second, PPG data in commercial devices has never been adopted as informative signals linked to gesture dynamics. Third, although wearable foundation models pretrained via self-supervision [ 37 , 39 , 34 ] show strong transfer for coarse activities, their performance on fine-grained hand gestures remains largely unexamined. To address these limitations, we introduce OpenWatch , the first open-access multimodal benchmark for smartwatch-based hand gesture recognition. OpenWatch provides synchronized six-axis IMU and PPG recordings from 50 participants across 78 sessions, covering 59 gesture classes with explicit negative labeling under diverse postural and activity conditions. Building on this benchmark, we perform a controlled comparison between two modeling paradigms. First, we propose Mix-Token , a 
+
+> arXiv:2605.04791v2 [cs.HC] 7 May 2026
+
+Figure 1: Overall pipeline: dataset, preprocessing and augmentation, compared model families, training protocol, and evaluation at window and clip level. lightweight mixture-of-expert architecture which combines per-channel IMU filterbank features with cross-channel statistical tokens through learned logit mixing. Second, we adapt NormWear [ 34 ], a large wearable foundation model, using parameter-efficient Low-Rank Adaptation (LoRA). This setup allows us to systematically study the trade-offs between task-specific architectures and pretrained foundation models for hand gesture recognition. The main contributions of the paper are summarized as follows • OpenWatch : the first open smartwatch gesture dataset and benchmark with synchronized IMU and PPG signals, featuring the largest set of labeled positive and negative gestures. • Mix-Token : a lightweight mixture-of-expert architecture that integrates per-channel filter-banks with cross-channel statistical representations via learned fusion. • Empirical insights : we show (i) that passing PPG improves zero-shot predictions on the NormWear foundation watch model, (ii) lightweight mixture-of-expert architectures can outperform large pretrained models in both accuracy and efficiency. 
+
+2 Related Work 
+
+2.1 Datasets for Wearable Hand Gesture Recognition 
+
+Hand gesture recognition for wrist-worn devices has been extensively studied using a broad spectrum of sensing modalities. These include cameras [ 48 , 50 , 22 , 17 , 5, 51 ], acoustics [ 31 , 24 ], elec-tromyography (EMG) [ 36 , 21 ], radar [ 3, 6, 12 ]. Among them, the IMU, has emerged as the most prevalent choice in commercial smartwatches owing to its low cost, minimal power requirements, widespread availability without line-of-sight [45, 28, 48, 4, 49]. Initial methods depended primarily on template-based techniques such as dynamic time warping (DTW) [ 33 ] or hidden Markov mod-els [ 35 ]. Modern systems have shifted toward data-driven deep learning architectures, spanning convolutional networks [ 49 ] to hybrid designs that operate on raw or filterbank-processed IMU sig-nals [ 18 , 24 ]. Multimodal combinations of sEMG and IMU have demonstrated consistent gains over single-modality baselines by leveraging complementary kinematic and muscular information [ 41 ]. Wearable data glove systems with multimodal sensing (flex, force, IMU) have also been explored, achieving strong controlled-environment performance [47, 15]. Recent work has also explored PPG signals—already embedded in commercial smartwatches—for fine-grained finger-level gesture recognition by exploiting blood-flow perturbations caused by mus-cle and tendon movements [ 54 ]. Complementary IMU-only systems on standard smartwatches have targeted thumb-to-finger interactions and broader hand gestures using patchable single six-2axis sensors [ 43 ]. Multimodal wrist-worn approaches further combine optical/inertial sensing for touch-and-grasp detection or soft sensors for real-time hand-motion recognition, while systematic reviews highlight the growing maturity of smartwatch-based gesture methods [ 38 , 19 ]. Despite these advances, the majority existing wrist-worn datasets and models remain unimodal (or lack explicit negative/background classes), operate under controlled conditions, and have not been examined PPG as a complementary modality for the deployment of smartwatches in-the-wild. This paper addresses these gaps by introducing the first public benchmark that simultaneously records synchronized six-axis IMU and PPG data from half-hundred participants in 59 gesture classes with comprehensive negative labeling. Leveraging insights from prior IMU-focused models, we establish a benchmark comparison between a mixture-of expert lightweight architecture and large self-supervised wearable foundation models. We also provide quantitative insights into the trade-offs of modality fusion and foundation-model adaptation under a subject-independent evaluation protocol. 
+
+2.2 Deep Learning and Wearable Foundation Models for Time-Series Gesture Recognition 
+
+Modern approaches to wrist-based hand gesture recognition have evolved from classical template-matching and shallow statistical models toward data-driven deep learning architectures designed specifically for time-series data. Early deep learning methods relied primarily on hybrid designs that operate on raw or filterbank-processed IMU signals [18, 24] and convolutional networks [49]. More recently, self-supervised pretraining on large-scale wearable sensor time-series data has enabled general-purpose foundation models to transfer effectively to downstream tasks with minimal task-specific labels [ 37 , 1, 39 , 53 , 52 , 20 , 2, 13 ]. Building on these advances, newer large-scale models trained on biosignals (PPG/ECG) and customizable human activity recognition foundation models further demonstrate strong transfer potential, motivating parameter-efficient adaptation strategies (e.g., LoRA) for fine-grained gesture tasks [40]. Among existing models, NormWear [ 34 ] has emerged as a particularly strong multivariate time– frequency encoder. Pretrained on heterogeneous wearable streams (accelerometer, gyroscope, and PPG), it is a natural candidate for smartwatch-based gesture recognition as it natively supports the sensor modalities in the OpenWatch dataset. For a comprehensive survey of deep learning methods for time-series classification more broadly, we refer the reader to [14, 10, 16]. 
+
+3 Methodology 
+
+3.1 Dataset Description 
+
+OpenWatch 1 includes the first multimodal dataset featuring synchronized 6-axis IMU (100,Hz) and PPG signals for wrist-worn gesture recognition. It was recorded from 50 participants across 78 sessions using a Huawei Smartwatch GT 4 watch with a custom data collection script connected to the activity app. A summary of the dataset characteristics is provided in Table 3. Data was collected using a custom recording application (see Fig. 8 in Appendix) that guided participants through gesture execution with visual instructions. Each participant performed gestures under varying body postures and actions to reflect realistic usage conditions. Similarly to [ 49 ], continuous IMU and PPG streams were automatically segmented using a prepro-cessing pipeline based on bandpass filtering, motion envelope computation, smoothing, and peak detection (see preprocessing details in Appendix ?? ). The final data set contains a total of 59 gesture classes, comprising both command (positive) gestures designed to trigger device actions and a negative (background) class representing everyday hand activities such as grabbing a cup , typing , waving , and answering a phone (full taxonomy can be found in Tables 4 in Section A.2 of the Appendix). For these classes, we selected a subset of five positive command gestures (depicted in Fig. 2) for model evaluation and benchmark creation based on reported gesture ease, usability ratings (Appendix 9) as well as to cover different interaction primitives such as force-based actions ( double_clench ), precision 
+
+> 1https://huggingface.co/datasets/pietrobonazzi/openwatch
+
+3finger coordination ( double_pinch ), directional variation ( pinch_up and pinch_down ) and continuous motion ( slide ). (a) Double Clench  (b) Double Pinch  (c) Pinch Down  (d) Pinch Up  (e) Slide        
+
+> x2
+> t_end t_start t_start t_end
+> x2
+> t_start t_end t_start t_end t_start t_end
+
+Figure 2: The five benchmark gestures: double clench, double pinch, pinch down, pinch up, and slide. Table 1 compares OpenWatch with existing smartwatch and IMU-based gesture datasets [ 6 , 3, 29 ,49 , 11 ]. To the best of our knowledge, OpenWatch is the first publicly available multimodal dataset to jointly capture synchronized six-axis IMU and PPG streams from a commercial smartwatch for gesture recognition. 
+
+Dataset Gesture Classes Negative Classes Number of Users Sensors Data Rate Public 
+
+DHG-14/28 [8] 14 ✗ 20 RGB 30 FPS ✓
+
+NinaPro [6] 52 ✗ 27 EMG 100 Hz ✓
+
+UWB-Gest. [3] 12 ✗ 8 Radar Var. ✓
+
+WaveGlove [29] 10 ✓ - IMU - ✓
+
+Apple [49] 5 ✓ 512 IMU 100 Hz ✗
+
+OpenWatch (Ours) 59 ✓ 50 IMU+PPG 100 Hz ✓
+
+Table 1: Comparison with representative smartwatch and IMU-based gesture datasets. OpenWatch is the first one to combine IMU and PPG sensors. 
+
+3.2 Data Preprocessing 
+
+Raw recordings are converted into per-gesture clips and organized by participant and condition folders. The training, validation and test splits follow a randomized selection balanced per posture and activity condition. During model training and evaluation, each clip was further processed via (i) sliding-window segmentation to increase the number of training instances and to reduce temporal sensitivity, and (ii) augmentation procedures to address watch-wrist imbalance and to introduce posture and locomotion-related variability. All time-series inputs were normalized using channel-wise z-score normalization, where mean and standard deviation were computed on the training split and then applied to validation and test data. 
+
+3.2.1 Window Segmentation 
+
+Each gesture clip was segmented into multiple fixed-length windows to increase training instances and reduce temporal sensitivity. Given a clip x ∈ RT ×C , windows of length W =100 samples (1 s at 100 Hz) were extracted with stride ∆=20 samples from a restricted sub-interval of the clip, yielding 6 overlapping windows per clip. 
+
+3.2.2 Data Augmentation 
+
+Several augmentation techniques were benchmarked to improve inter-subject and in-the-wild ro-bustness. These build upon prior work on wearable sensor data augmentation [ 42 ] and include three complementary procedures three complementary procedures: wrist mirroring, signal-space perturbations, and locomotion overlay. 
+
+Wrist mirroring. To compensate for the imbalance in watch-wearing wrist (37 left-wrist vs. 11 right-wrist), participants were duplicated with a deterministic sagittal-plane reflection applied to the inertial channels. Specifically, the signs of the X-axis accelerometer, X-axis gyroscope, and Z-axis gyroscope channels were negated to emulate execution on the opposite wrist, while all other channels remained unchanged. 
+
+Signal-space perturbations. Label-preserving perturbations were applied to windowed time series to increase tolerance to condition-dependent signal variations. These included multiplicative scaling 4by a random factor, monotone time-warping (including slight zooming via resampling), and additive smooth low-frequency noise. All transforms were applied before normalization. 
+
+Locomotion augmentation (walking overlay). To emulate motion artifacts encountered during natural use, we augment gesture sequences with recorded walking signals. Let gacc( t), ggyro( t) ∈
+
+R3 denote the accelerometer and gyroscope channels of a gesture clip of duration T . We sample a walking segment wacc( t), wgyro( t) ∈ R3 and align it to length T via cyclic tiling and cropping. The augmented signals are defined as 
+
+˜gacc( t) = gacc( t) + α, wacc( t), ˜ggyro( t) = ggyro( t) + β, wgyro( t), (1) where α ∼ U (αmin , α max ) and β ∼ U (βmin , β max ) are independently sampled per clip. The walking signals are extracted from a continuous recording and partitioned into non-overlapping segments of length Lw; for T > L w, we define w(t) = w(t mod Lw). This augmentation injects quasi-periodic locomotion patterns and broadband perturbations that partially overlap with gesture dynamics, encouraging robustness to a dominant source of noise in unconstrained wrist-worn settings. 
+
+3.3 Hand Gesture Recognition Benchmark 
+
+The OpenWatch benchmark evaluates our proposed model Mix-Token (Section 3.3.1) against three families of models: (1) wearable foundation models, including NormWear-Base [ 34 ] and its LoRA-adapted variant NormWear-LoRA (Section 3.3.2); (2) general time-series classification models, including InceptionTime [ 14 ] and Hydra [ 10 ]; and (3) specialized hand-gesture recognition models, represented by Apple-CNN [49], the previous state-of-the-art on wrist-based gesture recognition. 
+
+3.3.1 Mix-Token 
+
+Mix-Token is a lightweight and computationally efficient architecture that combines a multi-band con-volutional branch to capture local temporal structure [ 49 ], a transformer encoder [ 44 ] to model global statistical features and a learned fusion mechanism[ 25 ] for adaptive integration of the representation of complementary features. 
+
+Multi-band Convolutional Branch To enrich the input representation, each channel of the raw inertial signal is first decomposed using a fixed band-pass filterbank, producing multiple frequency-specific views that separate low-, mid-, and high-frequency motion dynamics. The resulting multi-channel signal is processed using a residual 1D convolutional network [ 26 , 49 ], which captures the local temporal structure. A global temporal pooling operation is applied at the end of the convolutional stack to obtain a fixed-dimensional embedding per channel, which is then concatenated into a unified representation and followed by a multi-layer perceptron (MLP) for the final prediction ( ˆycnn ). 
+
+Statistical Transformer Branch In parallel, we construct a structured statistical representation derived from time-series signals, consisting of time-domain, frequency-domain, and cross-channel descriptors. These features are computed over fixed-length windows and organized into a token sequence, which is subsequently projected into an embedding space and processed by a Transformer encoder (see Appendix 5 for a complete list). Positional encodings are added to preserve ordering over feature tokens, and a learnable query vector is used for attention-based pooling, yielding a compact representation of global statistical structure. These features are arranged as a sequence and projected into an embedding space via learned linear encoder. Positional encodings are added, and the resulting sequence is processed using a Transformer encoder [ 44 , 46 ]. A learnable query vector is then used for attention-based pooling and projects the feature to a compact representation of the global statistical structure. Similarly to the previous section, an MLP projects the attention vector for the final prediction ( ˆyatnn ). 
+
+Prediction Heads To combine complementary representations from convolutional, transformer-based, and joint feature spaces ( ˆyfused ), we introduce a learnable convex fusion over three prediction heads, similar to mixture-of-experts models [ 25 ]. Specifically, we compute three logits from (i) the convolutional branch, (ii) the Transformer-based statistical branch, and (iii) their concatenated representation, and combine them using normalized weights π0, π 1, π 2.
+
+ˆy = π0 ˆycnn + π1 ˆyattn + π2 ˆyfused , [π0, π 1, π 2] = softmax( w). (2) 5In our setting, the convolution branch is known to be particularly effective for inertial hand gesture recognition [ 49 ]. The inclusion of a separate attention-based and fusion head allows one to explicitly evaluate the standalone predictive utility of global statistical and cross-representation attention-based operators for hand gesture recognition. 
+
+3.3.2 Foundation Model Fine-Tuning 
+
+We evaluate two fine-tuning strategies for the pretrained wearable foundation model NormWear [ 34 ]. We first follow the protocol described in the original NormWear paper and fine-tune only a custom classification head on top of the frozen foundation model. In addition, we perform parameter-efficient fine-tuning using LoRA [ 23 ]. The base model weights remain frozen, and only a small subset of parameters is updated: the classification head and the LoRA modules. This design enables efficient task adaptation while preserving pretrained representations. The classification head is a lightweight multilayer perceptron that maps the model embedding to task logits, consisting of a LayerNorm layer followed by a linear projection to a 128-dimensional hidden space, a GELU activation, dropout regularization, and a final linear layer producing K class logits. LoRA is applied to the query, key, value, and output projection matrices of the last two transformer blocks, as well as the [CLS]-attention fusion module. In each case, only the low-rank adaptation parameters are trained, while the original weights remain frozen. 
+
+3.3.3 Training Protocol 
+
+Both Mix-Token and NormWear-LoRA are trained to minimize a class-weighted cross-entropy loss. Inverse-frequency class weighting is applied in both cases. NormWear-LoRa additionally uses weighted sampling of minority-class windows. During training, the AdamW optimizer with decoupled weight decay is used. For Mix-Token, a single parameter group is trained with initial learning rate η0 = 10 −3, weight decay λ = 10 −3, and exponential decay. For NormWear-LoRA, the backbone is frozen and only LoRA parameters + classifier head are optimized (separate learning rates with the same decay schedule). Both Mix-Token and NormWear are trained with dropout regularization on the classifier head. Gradient clipping (value 1.0 for Mix-Token, global norm for NormWear) and mixed-precision training are employed. All models were trained for up to 100 epochs with batch size of 16 and fixed random seeds of 42. Model selection used early stopping on validation macro-F1 (patience of 5) with checkpointing of the best epoch. 
+
+3.3.4 Evaluation Protocol 
+
+All models classify fixed-length windows independently in the window-level evaluation setting. In 
+
+clip-level evaluation , a number of k window predictions within each clip is aggregated for sequence-level performance. An early-stop rule assigns the clip label once any class appears in k = 3 
+
+consecutive windows. If no class meets the threshold, majority voting is used as a fallback. We report accuracy, F1 (macro), precision and recall on all test windows. 
+
+4 Experimentation 
+
+4.1 Benchmark Comparison 
+
+We compare task-specific hand-gesture recognition model like Apple-CNN [ 49 ] and Mix-Token against wearable foundation models including NormWear-Base (frozen backbone with trained head), NormWear-LoRA (LoRA + trained head), and general time-series classification models like Incep-tionTime [14], Hydra [10]. We report test performance at clip level (aggregation with k = 3 ; Section 3.3.4) using macro, micro, and weighted F1. Micro-F1 equals accuracy in this single-label multi-class setting. Figure 3 visualizes clip-level macro-F1 across all models for window-level without augmentation, clip-level without augmentation, and clip-level with augmentation. As expected robustness increases with clip-level aggregation and data augmentation. Hydra is the one case with a negative delta which suggests that dictionary-based methods do not benefit from a larger set of synthetic data. 6Model Params Window-Level Clip-Level (k=3) Total F1 Acc. Recall F1 Acc. Recall 
+
+Hydra [10] 74K 0.347 0.584 0.521 0.391 0.616 0.529 InceptionTime [14] 449K 0.516 0.777 0.644 0.624 0.838 0.724 Apple CNN [49] 51K 0.576 0.774 0.818 0.756 0.879 0.949 
+
+Mix-Token 223K 0.768 0.908 0.881 0.903 0.955 0.991 
+
+NormWear-Base [34] 136M 0.430 0.682 0.617 0.565 0.788 0.759 NormWear-LoRA 136M 0.560 0.751 0.806 0.660 0.803 0.929 NormWear-Base* [34] 136M 0.340 0.370 - 0.620 0.690 -NormWear-Base-PPG* 136M 0.370 0.490 0.415 0.760 0.840 0.494 Table 2: Performance comparison on window-level and clip-level aggregated predictions. * Model trained without data augmentations. MixToken Normwear Base Normwear LoRA Apple CNN InceptionTime Hydra     
+
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> F1 Macro Score
+> 0.40*
+> 0.34
+> 0.30 0.30
+> 0.42 0.41
+> 0.48*
+> 0.37 0.36
+> 0.41
+> 0.54 0.52
+> 0.90
+> 0.56
+> 0.66
+> 0.76
+> 0.62
+> 0.39
+> F1 Window (no aug.)
+> F1 Clip (no aug.)
+> F1 Clip (aug.)
+
+Figure 3: Clip-level macro-F1 comparison across all models: window-level without augmentation, clip-level without augmentation, and clip-level with augmentation ( k = 3 ). 
+
+4.2 Mix-Token Analysis 0 5 10 15 20       
+
+> Epoch
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> 1.2
+> 1.4
+> 1.6
+> 1.8
+> Fusion weight
+> CNN ( 0) (aug)
+> Transf. ( 1) (aug)
+> Fused ( 2) (aug)
+> CNN ( 0) (no aug)
+> Transf. ( 1) (no aug)
+> Fused ( 2) (no aug)
+
+Figure 4: Fusion-weight dynamics for Mix-Token, trained with and without data augmentation. 
+
+Fusion weight dynamics. As shown in Figure 4, data augmentation strongly encourages synergistic use of the Transformer. This indicates that the Transformer contributes valuable complementary information, but primarily through fusion with the CNN rather than in isolation. Data augmen-tation creates stronger pressure for the model to learn an effective logit-mixing strategy. Importantly, completely removing the Transformer branch causes a substantial performance drop, as shown in the feature ablation study (Figure 10), further validating that the Transformer provides meaningful complementary signal when properly integrated via the learned fusion weights. 
+
+Confusion matrices. Figure 5 presents the per-class con-fusion patterns for the Mix-Token. At window level, errors concentrate between the Negative class and pinch_down and 
+
+slide . At clip level, temporal aggregation ( k = 3 ) largely resolves these confusions, with off-diagonal mass shifting to the Negative column, indicating that false negatives dominate over inter-gesture confusions. 
+
+Statistical feature ablation. To find the revelant set of statistical features we perform several experiments where we mask the feature and evaluate the resulting macro-F1 score. Figure 10 shows the results at both window and clip level. Across the statistical components inputs, the the features 7double_clench                                                             
+
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> Predicted
+> double_clench
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> True
+> 0.88 0.06 0.02 0.04 0.00 0.00
+> 0.00 0.83 0.02 0.00 0.12 0.02
+> 0.00 0.00 0.89 0.03 0.00 0.08
+> 0.00 0.00 0.00 0.93 0.00 0.07
+> 0.00 0.00 0.03 0.00 0.70 0.27
+> 0.00 0.01 0.03 0.02 0.01 0.92
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0 double_clench
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> Predicted
+> double_clench
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> True
+> 1.00 0.00 0.00 0.00 0.00 0.00
+> 0.00 1.00 0.00 0.00 0.00 0.00
+> 0.00 0.00 1.00 0.00 0.00 0.00
+> 0.00 0.00 0.00 1.00 0.00 0.00
+> 0.00 0.00 0.00 0.00 1.00 0.00
+> 0.01 0.01 0.02 0.00 0.01 0.95
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+Figure 5: Mix-Token confusion matrices (test set, with augmentation): window-level row-normalized (left) and clip-level row-normalized after aggregation with k = 3 (right). of the frequency-domain are the most critical: masking them causes the largest drop ( −8.2% , to 0.807). Cross-channel features contribute a −4.1% drop (to 0.843). Time-domain features contribute least among the retained groups ( −1.0% , to 0.870). Finally, removing the entire transformer branch, yields a −4.9% drop (to 0.836), which furthers empirically supports the mixture-of-expert design of Mix-Token. 
+
+4.3 NormWear Analysis NormWear-Base vs. -LoRA NormWear-LoRA improves over NormWear-Base by +0 .130 macro-F1 at window level and +0 .096 at clip level, confirming that adapting attention parameters in the last two encoder blocks is sufficient to substantially improve the gesture discrimination. The t-SNE visualization in Figure 6 corroborates this qualitatively: with a frozen backbone, gesture class embeddings exhibit substantial overlap, particularly between fine-grained pinch and slide gestures and the Negative class, whereas after LoRA adaptation embeddings show increased intra-class compactness and clearer inter-class separation, indicating that LoRA reshapes the representation space rather than merely adjusting the classifier boundary. 100 50 0 50 100     
+
+> t-SNE Dimension 1
+> 100
+> 50
+> 0
+> 50
+> 100
+> t-SNE Dimension 2
+> Double Clench
+> Double Pinch
+> Pinch Down
+> Pinch Up
+> Slide
+> Negative
+> 100 50 050 100
+> t-SNE Dimension 1
+> 100
+> 50
+> 0
+> 50
+> 100
+> t-SNE Dimension 2
+> Double Clench
+> Double Pinch
+> Pinch Down
+> Pinch Up
+> Slide
+> Negative
+
+Figure 6: t-SNE visualization of clip-level embeddings (test set). Left: NormWear-Base (frozen backbone). Right: NormWear-LoRA (last k = 2 encoder blocks adapted). LoRA fine-tuning yields more compact intra-class clusters and improved inter-class separation. Figure 12 in the Appendix shows the confusion metrics obtained. Similar to results for other models, clip-level aggregation improves accuracy. 
+
+Impact of LoRA on activity recognition. Gesture-specific fine-tuning of NormWear with LoRA leads to a modest degradation in general activity recognition performance on the UCI-HAR dataset (−3.8 percentage points in macro-F1). As shown in Figure 11, this drop is concentrated among the static posture classes (sitting, standing, and laying), where the model’s embeddings become slightly less separable after adaptation. In contrast, performance on dynamic locomotion activities (walking, walking upstairs, and walking downstairs) remains largely unaffected or even slightly improved. 8NormWear-Base Finetuning with PPG We compare NormWear-Base in IMU-only and IMU+PPG configurations by finetuning the model on the non-augmented dataset. IMU IMU + PPG  
+
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> F1 Score
+> 0.34 0.37
+> 0.62
+> 0.76
+> 0.37
+> 0.49
+> 0.69
+> 0.84
+> Ma. F1 Window
+> Mi. F1 Window
+> Ma. F1 Clip
+> Mi. F1 Clip
+
+Figure 7: Effect of PPG on NormWear-Base (no augmentation). Adding PPG yields a modest window-level gain but a 3.6× larger gain at clip level, consistent with a temporally stabilizing role.. Adding PPG improves window-level macro-F1 by +0 .035 and clip-level by +0 .125 (3.6× ra-tio), suggesting that PPG provides a useful sig-nal to predict gestures in wearable foundation models. This is consistent with prior findings on the value of multi-wavelength PPG for mitigat-ing motion artifacts in wearable settings [32]. 
+
+5 Limitations 
+
+While OpenWatch and Mix-Token provide the first open multimodal benchmark for com-mercial smartwatch-based gesture recognition and state-of-the-art results, several limitations should be acknowledged. First, although the dataset defines a rich taxon-omy of 59 gesture classes (including both pos-itive and negative/background activities), the core benchmark focuses on a small subset of five representative command gestures. This design choice is intentional: rather than attempting to classify an exhaustive and fine-grained gesture vocabulary—which is likely unrealistic given the sensing limitations of IMU and PPG—we prioritize a set of gestures that are practical, distinguishable, and suitable for real-world interaction. Second, the dataset comprises recordings from 50 participants under semi-structured conditions. Despite efforts to introduce variability through different postures and augmentation strategies, the data may not fully capture the diversity of real-world usage, including long-term deployment effects, sensor drift, or unseen motion patterns. Third, although we adopt a subject-independent evaluation protocol, we do not explore personalization or user adaptation, which are important for practical deployment in wearable systems. Addressing these limitations represents an important direction for future work. 
+
+6 Conclusion 
+
+In this work, we introduced OpenWatch , the first open-access multimodal benchmark for smartwatch-based hand gesture recognition. By releasing over 10 hours of synchronized IMU and PPG recordings from 50 participants across 59 gesture classes—including explicit negative/background activities—we provide the community with a realistic, subject-independent evaluation framework that addresses critical gaps in existing datasets. Our comprehensive benchmarking reveals several actionable insights for resource-constrained wearable sensing. First, PPG signals, already present in commercial smartwatches, deliver substantial predictive value for foundation models (+12.5% clip-level macro F1), acting as a temporally stabilizing modality that complements IMU motion cues. Second, we designed lightweight task-specific architecture, such as MixToken (223K parameters), which substantially outperforms both large pretrained foundation models (136M parameters) and prior specialized CNNs. MixToken achieves 90.3% clip-level macro F1 while maintaining orders-of-magnitude better memory and compute efficiency. This demonstrates that domain- and task-specific inductive biases remain highly valuable even in the era of foundation models. Finally, our controlled experiments clarify the practical trade-offs between modality fusion, data augmentation strategies, statistical feature design, and parameter-efficient adaptation. OpenWatch and MixToken together establish a strong new baseline for on-device hand gesture recognition and open promising avenues for future research. Immediate opportunities include expanding the gesture vocabulary and participant diversity, exploring more advanced multimodal fusion techniques, investigating personalization under strict privacy constraints, and integrating these capabilities into end-to-end smartwatch interaction systems. This benchmark and the accompanying empirical guidance will accelerate progress toward intuitive, always-available gesture interfaces on everyday wearable devices, ultimately making human–computer interaction more natural and accessible in real-world settings. 9Ethics Statement 
+
+Data collection was conducted under informed consent from all participants. Participants were briefed on the study objectives, the types of sensor data recorded, and their right to withdraw at any time without consequence. Collected sensor data were pseudonymized prior to analysis and public release; no personally identifiable information is included in the dataset. Participants were not financially compensated. 
+
+NeurIPS Paper Checklist 
+
+1. Claims 
+
+Question: Do the main claims made in the abstract and introduction accurately reflect the paper’s contributions and scope? Answer: [Yes] Justification: The abstract and introduction clearly state the key contributions—namely the OpenWatch dataset and benchmark, the Mix-Token architecture, and the empirical findings—and these are directly supported by the experimental results and analyses presented in the paper. The claims are specific, aligned with the reported benchmarks, and do not overstate generalization beyond the evaluated setting. Guidelines: • The answer [N/A] means that the abstract and introduction do not include the claims made in the paper. • The abstract and/or introduction should clearly state the claims made, including the contributions made in the paper and important assumptions and limitations. A [No] or [N/A] answer to this question will not be perceived well by the reviewers. • The claims made should match theoretical and experimental results, and reflect how much the results can be expected to generalize to other settings. • It is fine to include aspirational goals as motivation as long as it is clear that these goals are not attained by the paper. 2. Limitations 
+
+Question: Does the paper discuss the limitations of the work performed by the authors? Answer: [Yes] Justification: The paper includes a dedicated limitations section discussing the gesture subset, semi-structured data collection, and lack of personalization, clearly outlining future directions for real-world deployment. Guidelines: • The answer [N/A] means that the paper has no limitation while the answer [No] means that the paper has limitations, but those are not discussed in the paper. • The authors are encouraged to create a separate “Limitations” section in their paper. • The paper should point out any strong assumptions and how robust the results are to violations of these assumptions (e.g., independence assumptions, noiseless settings, model well-specification, asymptotic approximations only holding locally). The authors should reflect on how these assumptions might be violated in practice and what the implications would be. • The authors should reflect on the scope of the claims made, e.g., if the approach was only tested on a few datasets or with a few runs. In general, empirical results often depend on implicit assumptions, which should be articulated. • The authors should reflect on the factors that influence the performance of the approach. For example, a facial recognition algorithm may perform poorly when image resolution is low or images are taken in low lighting. Or a speech-to-text system might not be used reliably to provide closed captions for online lectures because it fails to handle technical jargon. • The authors should discuss the computational efficiency of the proposed algorithms and how they scale with dataset size. 10 • If applicable, the authors should discuss possible limitations of their approach to address problems of privacy and fairness. • While the authors might fear that complete honesty about limitations might be used by reviewers as grounds for rejection, a worse outcome might be that reviewers discover limitations that aren’t acknowledged in the paper. The authors should use their best judgment and recognize that individual actions in favor of transparency play an impor-tant role in developing norms that preserve the integrity of the community. Reviewers will be specifically instructed to not penalize honesty concerning limitations. 3. Theory assumptions and proofs 
+
+Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof? Answer: [N/A] Justification: The paper does not present formal theoretical results requiring assumptions or proofs, focusing instead on empirical benchmarking and model design. Guidelines: • The answer [N/A] means that the paper does not include theoretical results. • All the theorems, formulas, and proofs in the paper should be numbered and cross-referenced. • All assumptions should be clearly stated or referenced in the statement of any theorems. • The proofs can either appear in the main paper or the supplemental material, but if they appear in the supplemental material, the authors are encouraged to provide a short proof sketch to provide intuition. • Inversely, any informal proof provided in the core of the paper should be complemented by formal proofs provided in appendix or supplemental material. • Theorems and Lemmas that the proof relies upon should be properly referenced. 4. Experimental result reproducibility 
+
+Question: Does the paper fully disclose all the information needed to reproduce the main ex-perimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)? Answer: [Yes] Justification: The paper provides detailed descriptions of dataset construction, preprocessing, model architectures, and training procedures sufficient to reproduce the main experimental results. Guidelines: • The answer [N/A] means that the paper does not include experiments. • If the paper includes experiments, a [No] answer to this question will not be perceived well by the reviewers: Making the paper reproducible is important, regardless of whether the code and data are provided or not. • If the contribution is a dataset and/or model, the authors should describe the steps taken to make their results reproducible or verifiable. • Depending on the contribution, reproducibility can be accomplished in various ways. For example, if the contribution is a novel architecture, describing the architecture fully might suffice, or if the contribution is a specific model and empirical evaluation, it may be necessary to either make it possible for others to replicate the model with the same dataset, or provide access to the model. In general. releasing code and data is often one good way to accomplish this, but reproducibility can also be provided via detailed instructions for how to replicate the results, access to a hosted model (e.g., in the case of a large language model), releasing of a model checkpoint, or other means that are appropriate to the research performed. • While NeurIPS does not require releasing code, the conference does require all submis-sions to provide some reasonable avenue for reproducibility, which may depend on the nature of the contribution. For example 11 (a) If the contribution is primarily a new algorithm, the paper should make it clear how to reproduce that algorithm. (b) If the contribution is primarily a new model architecture, the paper should describe the architecture clearly and fully. (c) If the contribution is a new model (e.g., a large language model), then there should either be a way to access this model for reproducing the results or a way to reproduce the model (e.g., with an open-source dataset or instructions for how to construct the dataset). (d) We recognize that reproducibility may be tricky in some cases, in which case authors are welcome to describe the particular way they provide for reproducibility. In the case of closed-source models, it may be that access to the model is limited in some way (e.g., to registered users), but it should be possible for other researchers to have some path to reproducing or verifying the results. 5. Open access to data and code 
+
+Question: Does the paper provide open access to the data and code, with sufficient instruc-tions to faithfully reproduce the main experimental results, as described in supplemental material? Answer: [Yes] Justification: The dataset and benchmark are introduced as open-access resources, and the paper describes their structure and intended public release for reproducibility. Guidelines: • The answer [N/A] means that paper does not include experiments requiring code. • Please see the NeurIPS code and data submission guidelines ( https://neurips.cc/ public/guides/CodeSubmissionPolicy ) for more details. • While we encourage the release of code and data, we understand that this might not be possible, so [No] is an acceptable answer. Papers cannot be rejected simply for not including code, unless this is central to the contribution (e.g., for a new open-source benchmark). • The instructions should contain the exact command and environment needed to run to reproduce the results. See the NeurIPS code and data submission guidelines ( https: //neurips.cc/public/guides/CodeSubmissionPolicy ) for more details. • The authors should provide instructions on data access and preparation, including how to access the raw data, preprocessed data, intermediate data, and generated data, etc. • The authors should provide scripts to reproduce all experimental results for the new proposed method and baselines. If only a subset of experiments are reproducible, they should state which ones are omitted from the script and why. • At submission time, to preserve anonymity, the authors should release anonymized versions (if applicable). • Providing as much information as possible in supplemental material (appended to the paper) is recommended, but including URLs to data and code is permitted. 6. Experimental setting/details 
+
+Question: Does the paper specify all the training and test details (e.g., data splits, hyperpa-rameters, how they were chosen, type of optimizer) necessary to understand the results? Answer: [Yes] Justification: The paper specifies training protocols, hyperparameters, architectures, prepro-cessing steps, and evaluation procedures. In addition, the entire benchmark is open-access thus enabling clear understanding of architectures and preprocessing steps. Guidelines: • The answer [N/A] means that the paper does not include experiments. • The experimental setting should be presented in the core of the paper to a level of detail that is necessary to appreciate the results and make sense of them. • The full details can be provided either with the code, in appendix, or as supplemental material. 12 7. Experiment statistical significance 
+
+Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments? Answer: [Yes] Justification: The paper reports point estimates of performance metrics and includes error bars and confusion met and several ablation studies. Guidelines: • The answer [N/A] means that the paper does not include experiments. • The authors should answer [Yes] if the results are accompanied by error bars, confidence intervals, or statistical significance tests, at least for the experiments that support the main claims of the paper. • The factors of variability that the error bars are capturing should be clearly stated (for example, train/test split, initialization, random drawing of some parameter, or overall run with given experimental conditions). • The method for calculating the error bars should be explained (closed form formula, call to a library function, bootstrap, etc.) • The assumptions made should be given (e.g., Normally distributed errors). • It should be clear whether the error bar is the standard deviation or the standard error of the mean. • It is OK to report 1-sigma error bars, but one should state it. The authors should preferably report a 2-sigma error bar than state that they have a 96% CI, if the hypothesis of Normality of errors is not verified. • For asymmetric distributions, the authors should be careful not to show in tables or figures symmetric error bars that would yield results that are out of range (e.g., negative error rates). • If error bars are reported in tables or plots, the authors should explain in the text how they were calculated and reference the corresponding figures or tables in the text. 8. Experiments compute resources 
+
+Question: For each experiment, does the paper provide sufficient information on the com-puter resources (type of compute workers, memory, time of execution) needed to reproduce the experiments? Answer: [No] Justification: The paper reports training hyperparameters (epochs, batch size, optimizer settings) and total training duration, which allow estimation of compute requirements on standard hardware, but does not specify exact compute worker type or memory usage. Guidelines: • The answer [N/A] means that the paper does not include experiments. • The paper should indicate the type of compute workers CPU or GPU, internal cluster, or cloud provider, including relevant memory and storage. • The paper should provide the amount of compute required for each of the individual experimental runs as well as estimate the total compute. • The paper should disclose whether the full research project required more compute than the experiments reported in the paper (e.g., preliminary or failed experiments that didn’t make it into the paper). 9. Code of ethics 
+
+Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics https://neurips.cc/public/EthicsGuidelines ?Answer: [Yes] Justification: The study follows ethical guidelines with informed consent, pseudonymization of data, and transparency about data collection procedures. Guidelines: 13 • The answer [N/A] means that the authors have not reviewed the NeurIPS Code of Ethics. • If the authors answer [No], they should explain the special circumstances that require a deviation from the Code of Ethics. • The authors should make sure to preserve anonymity (e.g., if there is a special consid-eration due to laws or regulations in their jurisdiction). 10. Broader impacts 
+
+Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed? Answer: [No] Justification: The paper does not explicitly discuss broader societal impacts, although potential implications (e.g., wearable interaction systems) are implicit in the application domain. Guidelines: • The answer [N/A] means that there is no societal impact of the work performed. • If the authors answer [N/A] or [No], they should explain why their work has no societal impact or why the paper does not address societal impact. • Examples of negative societal impacts include potential malicious or unintended uses (e.g., disinformation, generating fake profiles, surveillance), fairness considerations (e.g., deployment of technologies that could make decisions that unfairly impact specific groups), privacy considerations, and security considerations. • The conference expects that many papers will be foundational research and not tied to particular applications, let alone deployments. However, if there is a direct path to any negative applications, the authors should point it out. For example, it is legitimate to point out that an improvement in the quality of generative models could be used to generate Deepfakes for disinformation. On the other hand, it is not needed to point out that a generic algorithm for optimizing neural networks could enable people to train models that generate Deepfakes faster. • The authors should consider possible harms that could arise when the technology is being used as intended and functioning correctly, harms that could arise when the technology is being used as intended but gives incorrect results, and harms following from (intentional or unintentional) misuse of the technology. • If there are negative societal impacts, the authors could also discuss possible mitigation strategies (e.g., gated release of models, providing defenses in addition to attacks, mechanisms for monitoring misuse, mechanisms to monitor how a system learns from feedback over time, improving the efficiency and accessibility of ML). 11. Safeguards 
+
+Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse (e.g., pre-trained language models, image generators, or scraped datasets)? Answer: [No] Justification: The dataset does not pose high misuse risks (e.g., no sensitive personal data or generative models), so additional safeguards are not required. Guidelines: • The answer [N/A] means that the paper poses no such risks. • Released models that have a high risk for misuse or dual-use should be released with necessary safeguards to allow for controlled use of the model, for example by requiring that users adhere to usage guidelines or restrictions to access the model or implementing safety filters. • Datasets that have been scraped from the Internet could pose safety risks. The authors should describe how they avoided releasing unsafe images. • We recognize that providing effective safeguards is challenging, and many papers do not require this, but we encourage authors to take this into account and make a best faith effort. 14 12. Licenses for existing assets 
+
+Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected? Answer: [No] Justification: While prior datasets and models are cited, the paper does not explicitly specify licenses or terms of use for all referenced assets. Guidelines: • The answer [N/A] means that the paper does not use existing assets. • The authors should cite the original paper that produced the code package or dataset. • The authors should state which version of the asset is used and, if possible, include a URL. • The name of the license (e.g., CC-BY 4.0) should be included for each asset. • For scraped data from a particular source (e.g., website), the copyright and terms of service of that source should be provided. • If assets are released, the license, copyright information, and terms of use in the package should be provided. For popular datasets, paperswithcode.com/datasets 
+
+has curated licenses for some datasets. Their licensing guide can help determine the license of a dataset. • For existing datasets that are re-packaged, both the original license and the license of the derived asset (if it has changed) should be provided. • If this information is not available online, the authors are encouraged to reach out to the asset’s creators. 13. New assets 
+
+Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets? Answer: [Yes] Justification: The paper introduces the OpenWatch dataset and provides detailed documenta-tion of data collection, preprocessing, and structure. Guidelines: • The answer [N/A] means that the paper does not release new assets. • Researchers should communicate the details of the dataset/code/model as part of their submissions via structured templates. This includes details about training, license, limitations, etc. • The paper should discuss whether and how consent was obtained from people whose asset is used. • At submission time, remember to anonymize your assets (if applicable). You can either create an anonymized URL or include an anonymized zip file. 14. Crowdsourcing and research with human subjects 
+
+Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation (if any)? Answer: [No] Justification: The paper describes the human-subject data collection protocol and includes the data acquisition interface and instructions (Figure8). Guidelines: • The answer [N/A] means that the paper does not involve crowdsourcing nor research with human subjects. • Including this information in the supplemental material is fine, but if the main contribu-tion of the paper involves human subjects, then as much detail as possible should be included in the main paper. 15 • According to the NeurIPS Code of Ethics, workers involved in data collection, curation, or other labor should be paid at least the minimum wage in the country of the data collector. 15. Institutional review board (IRB) approvals or equivalent for research with human subjects 
+
+Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether Institutional Review Board (IRB) approvals (or an equivalent approval/review based on the requirements of your country or institution) were obtained? Answer: [No] Justification: : The paper mentions informed consent and ethical procedures but does not explicitly state IRB or equivalent approval. Guidelines: • The answer [N/A] means that the paper does not involve crowdsourcing nor research with human subjects. • Depending on the country in which research is conducted, IRB approval (or equivalent) may be required for any human subjects research. If you obtained IRB approval, you should clearly state this in the paper. • We recognize that the procedures for this may vary significantly between institutions and locations, and we expect authors to adhere to the NeurIPS Code of Ethics and the guidelines for their institution. • For initial submissions, do not include any information that would break anonymity (if applicable), such as the institution conducting the review. 16. Declaration of LLM usage 
+
+Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does not impact the core methodology, scientific rigor, or originality of the research, declaration is not required. Answer: [No] Justification: Large language models are not part of the methodology or experimental pipeline. Guidelines: • The answer [N/A] means that the core method development in this research does not involve LLMs as any important, original, or non-standard components. • Please refer to our LLM policy in the NeurIPS handbook for what should or should not be described. 
+
+References 
+
+[1] Salar Abbaspourazad, Oussama Elachqar, Andrew C. Miller, Saba Emrani, Udhyakumar Nal-lasamy, and Ian Shapiro. Large-scale Training of Foundation Models for Wearable Biosignals. 
+
+International Conference on Learning Representations , 2024. [2] Salar Abbaspourazad, Anshuman Mishra, Joseph Futoma, Andrew C. Miller, and Ian Shapiro. Wearable accelerometer foundation models for health via knowledge distillation. arXiv 2412.11276 , 2025. [3] Shahzad Ahmed, Dingyang Wang, Junyoung Park, and Sung Ho Cho. Uwb-gestures, a public dataset of dynamic hand gestures acquired using impulse radar sensors. Scientific Data , 2021. [4] Ahmad Akl, Chen Feng, and Shahrokh Valaee. A novel accelerometer-based gesture recognition system. IEEE Transactions on Signal Processing , 2011. [5] Asma H. Althubiti and Haneen Algethami. Dynamic gesture recognition using a transformer and mediapipe. International Journal of Advanced Computer Science and Applications , 2024. 16 [6] Manfredo Atzori, Arjan Gijsberts, Simone Heynen, Anne-Gabrielle Mittaz Hager, Olivier Deriaz, Patrick Van Der Smagt, Claudio Castellini, Barbara Caputo, and Henning Muller. Building the ninapro database: A resource for the biorobotics community. IEEE RAS & EMBS International Conference on Biomedical Robotics and Biomechatronics , 2012. [7] David Castaneda et al. A review on wearable photoplethysmography sensors and their potential future applications. Sensors , 2018. [8] Quentin De Smedt, Hazem Wannous, and Jean-Philippe Vandeborre. Skeleton-Based Dynamic Hand Gesture Recognition. Conference on Computer Vision and Pattern Recognition Workshops ,2016. [9] DemandSage. Smartwatch statistics (2026): Global users & market share, April 2026. URL 
+
+https://www.demandsage.com/smartwatch-statistics/ . Accessed: 2026. [10] Angus Dempster, Daniel F. Schmidt, and Geoffrey I. Webb. HYDRA: Competing convolutional kernels for fast and accurate time series classification. Data Mining and Knowledge Discovery ,2022. [11] Ankan Dutta, Zhenyuan Niu, Abu Musa Abdullah, Naveen Tiwari, Md Abu Sayeed Biswas, Bowen Li, Farnaz Lorestani, Yun Jing, and Huanyu Cheng. Closely Packed Stretchable Ultrasound Array Fabricated with Surface Charge Engineering for Contactless Gesture and Materials Detection. Advanced Science , 2024. [12] Marco Emporio, Amirpouya Ghasemaghaei, Joseph J. Laviola Jr., and Andrea Giachetti. Con-tinuous Hand Gesture Recognition: Benchmarks and Methods. Computer Vision and Image Understanding , 2025. [13] Eray Erturk, Fahad Kamran, Salar Abbaspourazad, Sean Jewell, Harsh Sharma, Yujie Li, Sinead Williamson, Nicholas J. Foti, and Joseph Futoma. Beyond Sensor Data: Foundation Models of Behavioral Data from Wearables Improve Health Predictions. International Conference on Machine Learning , 2025. [14] Hassan Ismail Fawaz, Benjamin Lucas, Germain Forestier, Charlotte Pelletier, Daniel F. Schmidt, Jonathan Weber, Geoffrey I. Webb, Lhassane Idoumghar, Pierre-Alain Muller, and François Petitjean. InceptionTime: Finding AlexNet for Time Series Classification. Data Mining and Knowledge Discovery , 2020. [15] Anna Filipowska, Wojciech Filipowski, Paweł Raif, Marcin Pieni ˛ a˙ zek, Julia Bodak, Piotr Ferst, Kamil Pilarski, Szymon Siecinski, Rafał Jan Doniec, Julia Mieszczanin, Emilia Skwarek, Katarzyna Bryzik, Maciej Henkel, and Marcin Grzegorzek. Machine Learning-Based Gesture Recognition Glove: Design and Implementation. Sensors , 2024. [16] Navid Mohammadi Foumani, Lynn Miller, Chang Wei Tan, Geoffrey I. Webb, Germain Forestier, and Mahsa Salehi. Deep Learning for Time Series Classification and Extrinsic Regression: A Current Survey. ACM Computing Surveys , 2024. [17] Mallika Garg, Debashis Ghosh, and Pyari Mohan Pradhan. ConvMixFormer: A Resource-efficient Convolution Mixer for Transformer-based Dynamic Hand Gesture Recognition. arXiv 2411.07118 , 2024. [18] Marcus Georgi, Christoph Amma, and Tanja Schultz. Recognizing hand and finger gestures with imu based motion and emg based muscle activity sensing. International Conference on Bio-inspired Systems and Signal Processing , 2015. [19] P. R. I. Gomes et al. Gesture recognition methods using sensors integrated in smartwatches: A systematic literature review. ACM Conference on Human-Computer Interaction , 2023. [20] Xiao Gu, Zhangdaihong Liu, Jinpei Han, Jianing Qiu, Wenfei Fang, Lei Lu, Lei Clifton, Yuan-Ting Zhang, and David A. Clifton. Transforming label-efficient decoding of healthcare wearables with self-supervised learning and domain expertise. Communications Engineering ,2025. 17 [21] Weiyu Guo, Ying Sun, Yijie Xu, Ziyue Qiao, Yongkui Yang, and Hui Xiong. SpGesture: Source-Free Domain-adaptive sEMG-based Gesture Recognition with Jaccard Attentive Spiking Neural Network. Advances in Neural Information Processing Systems , 2024. [22] Pengcheng Han, Xin He, Takafumi Matsumaru, and Vibekananda Dutta. Spatio-Temporal Transformer with Kolmogorov–Arnold Network for Skeleton-Based Hand Gesture Recognition. 
+
+Sensors , 2025. [23] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. LoRA: Low-Rank Adaptation of Large Language Models. 
+
+International Conference on Learning Representations , 2021. [24] Yasha Iravantchi, Mayank Goel, and Chris Harrison. Beamband: Hand gesture sensing with ultrasonic beamforming. Conference on Human Factors in Computing Systems , 2019. [25] Robert A. Jacobs, Michael I. Jordan, Steven J. Nowlan, and Geoffrey E. Hinton. Adaptive mixtures of local experts. Neural Computation , 1991. [26] Fazle Karim, Somshubra Majumdar, Houshang Darabi, and Samuel Chen. Lstm fully convolu-tional networks for time series classification. IEEE Access , 2018. [27] Ki Byung Kim et al. Photoplethysmography in wearable devices: A comprehensive review of technological advances, current challenges, and future directions. Electronics , 2023. [28] Minwoo Kim, Jaechan Cho, Seongjoo Lee, and Yunho Jung. Imu sensor-based hand gesture recognition for human-machine interfaces. Sensors , 2019. [29] Matej Krälik and Marek Šuppa. WaveGlove: Transformer-based hand gesture recognition using multiple inertial sensors. European Signal Processing Conference , 2021. [30] Utkarsh Kunwar et al. Robust and deployable gesture recognition for smartwatches. Interna-tional Conference on Intelligent User Interfaces , 2022. [31] Gierad Laput and Chris Harrison. Sensing fine-grained hand activity with smartwatches. 
+
+Conference on Human Factors in Computing Systems , 2019. [32] Jongshill Lee, Minseong Kim, Hoon-Ki Park, and In Young Kim. Motion artifact reduction in wearable photoplethysmography based on multi-channel sensors with multiple wavelengths. 
+
+Sensors , 2020. [33] Jiayang Liu, Lin Zhong, Jehan Wickramasuriya, and Venu Vasudevan. uwave: Accelerometer-based personalized gesture recognition and its applications. Pervasive and Mobile Computing ,2009. [34] Yunfei Luo, Yuliang Chen, Asif Salekin, and Tauhidur Rahman. Toward foundation model for multivariate wearable sensing of physiological signals. arXiv, 2412.09758 , 2025. [35] Stephen J. McKenna and Kenny Morrison. A comparison of skin history and trajectory-based representation schemes for the recognition of user-specified gestures. Pattern Recognition ,2004. [36] Mansooreh Montazerin, Soheil Zabihi, Elahe Rahimian, Arash Mohammadi, and Farnoosh Naderkhani. Vit-hgr: Vision transformer-based hand gesture recognition from high density surface emg signals. arXiv, 2201.10060 , 2022. [37] Girish Narayanswamy, Xin Liu, Kumar Ayush, Yuzhe Yang, Xuhai Xu, Shun Liao, Jake Garrison, Shyam Tailor, Jake Sunshine, Yun Liu, Tim Althoff, Shrikanth Narayanan, Pushmeet Kohli, Jiening Zhan, Mark Malhotra, Shwetak Patel, Samy Abdel-Ghaffar, and Daniel McDuff. Scaling Wearable Foundation Models. arXiv, 2410.13638 , 2024. [38] Thamer Horbylon Nascimento, Cristiane BR Ferreira, Wellington G Rodrigues, and Fabrizzio Soares. Interaction with smartwatches using gesture recognition: A systematic literature review. 
+
+IEEE Annual Computers, Software, and Applications Conference , 2020. 18 [39] Arvind Pillai, Dimitris Spathis, Fahim Kawsar, and Mohammad Malekzadeh. Papagei: Open foundation models for optical physiological signals. International Conference on Learning Representations , 2025. [40] M. Qiu, C. Weng, M. Fan, and K. Wu. Towards customizable foundation models for human activity recognition with wearable devices. ACM Conference on Interactive, Mobile, Wearable and Ubiquitous Technologies , 2025. [41] Jungpil Shin, Abu Saleh Musa Miah, Sota Konnai, Itsuki Takahashi, and Koki Hirooka. Hand gesture recognition using sEMG signals with a multi-stream time-varying feature enhancement approach. Scientific Reports , 2024. [42] Terry T. Um, Franz M. J. Pfister, Daniel Pichler, Satoshi Endo, Muriel Lang, Sandra Hirche, Urban Fietzek, and Dana Kuliˇ c. Data augmentation of wearable sensor data for Parkinson’s disease monitoring using convolutional neural networks. ACM International Conference on Multimodal Interaction , 2017. [43] Añazco E. V., Seung Ju Han, Kangil Kim, Patricio Rivera Lopez, Tae-Seong Kim, and Sangmin Lee. Hand gesture recognition using single patchable six-axis imu. Sensors , 2021. [44] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in Neural Information Processing Systems , 2017. [45] Hongyi Wen, Julian Ramos Rojas, and Anind K. Dey. Serendipity: Finger gesture recognition using an off-the-shelf smartwatch. Conference on Human Factors in Computing Systems , 2016. [46] Qingsong Wen, Tian Zhou, Chaoli Zhang, Weiqi Chen, Ziqing Ma, Junchi Yan, and Liang Sun. Transformers in Time Series: A Survey. Transactions on Machine Learning Research , 2023. [47] Jiawei Wu, Peng Ren, Boming Song, Ran Zhang, Chen Zhao, and Xiao Zhang. Data glove-based gesture recognition using CNN-BiLSTM model with attention mechanism. PLOS ONE , 2023. [48] Chao Xu, Parth H. Pathak, and Prasant Mohapatra. Finger-writing with smartwatch: A case for finger and hand gesture recognition using smartwatch. International Workshop on Mobile Computing Systems and Applications , 2015. [49] Xuhai Xu, Jun Gong, Carolina Brum, Lilian Liang, Bongsoo Suh, Kumar Gupta, Yash Agar-wal, Laurence Lindsey, Runchang Kang, Behrooz Shahsavari, Tu Nguyen, Heriberto Nieto, Scott E. Hudson, Charlie Maalouf, Seyed Mousavi, and Gierad Laput. Enabling hand gesture customization on wrist-worn devices. Conference on Human Factors in Computing Systems (CHI) , 2022. [50] Hui-Shyong Yeo, Erwin Wu, Juyoung Lee, Aaron Quigley, and Hideki Koike. Opisthenar: Hand poses and finger tapping recognition by observing back of hand using embedded wrist camera. ACM Symposium on User Interface Software and Technology , 2019. [51] Brent Yi, Vickie Ye, Maya Zheng, Yunqi Li, Lea Müller, Georgios Pavlakos, Yi Ma, Jitendra Malik, and Angjoo Kanazawa. Estimating body and hand motion in an ego-sensed world. arXiv, 2410.03665 , 2024. [52] Hang Yuan, Shing Chan, Andrew P. Creagh, Catherine Tong, Aidan Acquah, David A. Clifton, and Aiden Doherty. Self-supervised learning for human activity recognition using 700,000 person-days of wearable data. NPJ Digital Medicine , 2024. [53] Yuwei Zhang, Kumar Ayush, Siyuan Qiao, A. Ali Heydari, Girish Narayanswamy, Maxwell A. Xu, Ahmed A. Metwally, and al. Sensorlm: Learning the language of wearable sensors. arXiv, 2506.09108 , 2025. [54] T. Zhao, Y. Wang, Y. Chen, et al. Ppg-based finger-level gesture recognition leveraging wearables. IEEE Conference on Computer Communications , 2018. 19 A Dataset 
+
+A.1 Dataset Characteristics 
+
+The Table 3 summarizes the key characteristics of the proposed smartwatch gesture dataset, including participant demographics, recording conditions, and sensor modalities. The dataset comprises 50 participants with a diverse age distribution and varying recording setups (e.g., posture and wrist placement). In total, 78 sessions were collected, covering 59 gesture classes (including a negative/background class). Sensor data consist of high-frequency IMU signals (100 Hz) and photoplethysmography (PPG), enabling both motion and physiological analysis.             
+
+> Factor Information
+> Demographics
+> Total participants 50 Self-identified gender Male: 41; Female: 5; Not specified: 4 Age (years) Min: 21; Max: 51; Mean: 27.2 ±6.0 Watch wrist Left: 37; Right: 11; Not specified: 2
+> Gesture Data
+> Body posture Sitting (39); Standing (25); Arm down (10); Walking (4) Total sessions 78 sessions across 50 participants Gesture classes 59 (including labeled negative class)
+> Sensors
+> IMU sampling rate 100 Hz Physiological signal Photoplethysmography (PPG)
+
+Table 3: Summary of the Proposed Smartwatch Gesture Dataset 
+
+A.2 Gesture Taxonomy 
+
+Table 4 lists the 27 positive gesture classes (IDs 0–26) and negative classes used in the dataset. For benchmarking, the five evaluated gestures are: double_clench (ID 3), dou-ble_pinch (ID 4), pinch_up (ID 16), pinch_down (ID 13), and slide (ID 20). Video demonstra-tions of all 59 gesture classes are available at https://www.youtube.com/playlist?list= PLSQoDCloQ92WnNrkKAOZqsaCWkw3cmfLp .
+
+A.3 Dataset Collection 
+
+The Figure 8 illustrates the custom data acquisition interface used during recording, which is publicly available at https://pietrobonazzi.com/projects/huawei . Participants viewed the interface on their smartphones, which provided gesture prompts and countdown timers while leaving them free to move naturally during motion-based body postures (e.g., walking). The top panel shows the real-time interaction flow, including gesture prompts, countdown timers for the preparation and execution phases, and session progress tracking. The bottom panel presents the post-session survey used to collect demographic information, subjective feedback, and facilitate data export. The interface supported multiple parallel recording sessions: some participants shared the same on-screen instructions while up to four smartwatches recorded simultaneously, enabling efficient multi-device data collection in a single pass. 
+
+A.4 Data Preprocessing 
+
+Continuous sensor streams were segmented into gesture instances using an automatic segmentation pipeline adapted from Xu et al. [ 49 ]. The pipeline, proceeds in four stages: (a) a bandpass filter is applied to the raw 6-axis IMU signals to remove DC offset and high-frequency noise; (b) the L2 magnitude of the filtered accelerometer and gyroscope channels is computed and summed into a single total-motion envelope; (c) a moving-average kernel smooths the envelope to suppress transient fluctuations; and (d) peak detection on the smoothed signal identifies candidate gesture centres, from which fixed-length windows are extracted to define gesture boundaries. This procedure enables consistent segmentation across sessions while minimising manual intervention. 20 ID Name ID Name ID Name ID Name                                                                                                        
+
+> Positive gestures
+> 0clench 7double spread 14 pinch left 21 snap 1deviate in 8extend 15 pinch right 22 spiderman 2deviate out 9flex 16 pinch up 23 spread 3double clench 10 index pointing 17 pinky pinch 24 thumbs down 4double pinch 11 peace 18 rotate in 25 thumbs up 5double pinky pinch 12 pinch 19 rotate out 26 vulcan salute 6double snap 13 pinch down 20 slide
+> Negative gestures (background)
+> 27 grab cup 35 no waving 43 handshake 51 finger up 28 type phone 36 money sign 44 open palm 52 peace up 29 type computer 37 love fingers 45 answer phone 53 pistol gun 30 wash hands 38 waving hello 46 ok sign 54 cat grab 31 waiting bored 39 knock on wood 47 power sign 55 love hands 32 write pen 40 italian pinch 48 small amount 56 good luck 33 cheering fist 41 clapping 49 steepling 57 air 34 stop sign 42 horns 50 bill please 58 balling
+
+Table 4: Gesture taxonomy. Positive classes (IDs 0–26) include evaluated gestures in bold . Negative classes (IDs 27–58) are collapsed into the background class. 
+
+Figure 8: Data collection interface. Top: gesture selection, instruction display with countdown timer (prepare/do phases), and progress tracking. Bottom: post-session feedback survey collecting participant demographics, subjective ratings, and data export. Additional processing steps include time-drift correction and alignment between sensor streams, as well as consistency checks to verify temporal coherence across modalities. Dataset statistics, label mappings, and quality-control summaries were generated programmatically as part of the preprocessing pipeline. Multi-channel PPG values were averaged before pre-processing. 21 A.5 Subjective Gesture Evaluation 
+
+Figure 9 reports the mean usability and easiness scores collected from participants during data acqui-sition. Gestures selected for benchmarking ( double_clench , double_pinch , pinch_up , pinch_down ,
+
+slide ) consistently ranked among the highest in both dimensions. 
+
+Figure 9: Subjective evaluation of gesture quality. Top: mean usability scores per gesture. Bottom: mean easiness scores per gesture. Higher scores indicate greater user comfort and suitability for smartwatch interaction. 
+
+B Methodology 
+
+B.1 Statistical Encoder Features 
+
+The Table 5 details the statistical features used in the Transformer branch, grouped into time-domain, frequency-domain, and cross-channel descriptors. These features capture complementary aspects of the sensor signals and are aggregated into token sequences for downstream modeling.      
+
+> Feature Group Features
+> Time-domain Mean, variance, standard deviation, min, max, range, median, 25% and 75% quantiles, interquartile range, RMS, median absolute deviation, energy, zero-crossing rate, autocorrelation (lag 1, 2), skewness, kurtosis, Hjorth activity, mobility, complexity Frequency-domain Spectral centroid, spectral entropy, spectral flux, peak frequency, low-band energy, mid-band energy, high-band energy, spectral roll-off (85%), spectral flatness, top-kdominant frequencies Cross-channel Pearson correlation, Spearman correlation, cosine similarity, mutual information, PCA explained variance ratios
+
+Table 5: Statistical feature groups used in the Transformer branch. Features are computed per channel or across channels depending on the descriptor type and aggregated into a token sequence for Transformer encoding. Figure 10 evaluates the contribution of different feature groups by masking them individually. Results show that frequency-domain features provide the largest performance gain, while removing certain shape descriptors can slightly improve performance, suggesting potential redundancy. 22 - Shape 
+
+Desc 
+
+Full 
+
+Model 
+
+- Time 
+
+Stats 
+
+- Cross-
+
+Ch 
+
+CNN 
+
+Only 
+
+- Freq 
+
+Desc 
+
+0.5 
+
+0.6 
+
+0.7 
+
+0.8 
+
+0.9 
+
+1.0    
+
+> F1 Score
+> 0.768
+> 0.742
+> 0.716
+> 0.680
+> 0.727 0.714
+> 0.903
+> 0.879 0.870
+> 0.843 0.836
+> 0.807
+
+Window F1 Aggregation F1 Figure 10: Feature group masking ablation for the Mix-Token (with augmentation). Each group of bars shows window-level and clip-level macro-F1 when one component is masked from the full model (clip-level baseline: 0.879). Masking shape descriptors improves performance to 0.903; all other components contribute positively, with frequency-domain features showing the largest impact. 
+
+B.2 NormWear-LoRA architecture 
+
+Table 11 reports linear-probe performance on the UCI-HAR dataset before and after LoRA fine-tuning. A performance drop is observed after adaptation, indicating some loss of general-purpose representations. The accompanying confusion matrices reveal that this degradation is primarily concentrated in static activity classes. The row-normalized confusion matrices in Figure 12 at both window and clip levels show that aggregation at the clip level improves classification consistency and reduces misclassification noise. WALKING 
+
+> WALK_UP
+> WALK_DOWN
+> SITTING
+> STANDING
+> LAYING
+
+Predicted 
+
+WALKING 
+
+WALK_UP 
+
+WALK_DOWN 
+
+SITTING 
+
+STANDING 
+
+LAYING 
+
+> True
+
+0.96 0.01 0.02 0.00 0.00 0.00 
+
+0.03 0.91 0.05 0.00 0.00 0.00 
+
+0.04 0.02 0.94 0.00 0.00 0.01 
+
+0.00 0.00 0.00 0.54 0.30 0.16 
+
+0.00 0.00 0.00 0.17 0.74 0.09 
+
+0.00 0.00 0.00 0.22 0.10 0.67 
+
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0 WALKING
+> WALK_UP
+> WALK_DOWN
+> SITTING
+> STANDING
+> LAYING
+
+Predicted 
+
+WALKING 
+
+WALK_UP 
+
+WALK_DOWN 
+
+SITTING 
+
+STANDING 
+
+LAYING 
+
+> True
+
+0.93 0.03 0.03 0.00 0.00 0.00 
+
+0.02 0.89 0.08 0.00 0.00 0.00 
+
+0.06 0.03 0.91 0.00 0.00 0.00 
+
+0.00 0.00 0.00 0.47 0.33 0.20 
+
+0.00 0.00 0.00 0.19 0.70 0.11 
+
+0.00 0.00 0.00 0.24 0.11 0.65 
+
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+Figure 11: UCI-HAR analysis. Top: linear-probe performance before and after LoRA. Bottom: confusion matrices (left: NormWear-Base, right: NormWear-LoRA). Degradation concentrates in static postures. double_clench 
+
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+
+Predicted                                                             
+
+> double_clench
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> True
+> 0.92 0.08 0.00 0.00 0.00 0.00
+> 0.10 0.77 0.00 0.00 0.08 0.04
+> 0.00 0.03 0.78 0.17 0.00 0.03
+> 0.00 0.07 0.07 0.87 0.00 0.00
+> 0.00 0.03 0.03 0.00 0.77 0.17
+> 0.02 0.04 0.05 0.08 0.07 0.74
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0 double_clench
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> Predicted
+> double_clench
+> double_pinch
+> pinch_down
+> pinch_up
+> slide
+> Negative
+> True
+> 1.00 0.00 0.00 0.00 0.00 0.00
+> 0.00 1.00 0.00 0.00 0.00 0.00
+> 0.00 0.00 1.00 0.00 0.00 0.00
+> 0.00 0.00 0.00 1.00 0.00 0.00
+> 0.00 0.00 0.00 0.00 0.80 0.20
+> 0.01 0.04 0.07 0.05 0.07 0.77
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+Figure 12: NormWear-LoRA confusion matrices (test set, with augmentation): window-level row-normalized (left) and clip-level row-normalized after aggregation with k = 3 (right). 23
