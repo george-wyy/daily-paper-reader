@@ -1,0 +1,914 @@
+Title: Engagement Process: Rethinking the Temporal Interface of Action and Observation
+
+URL Source: https://arxiv.org/pdf/2605.11484v1
+
+Published Time: Wed, 13 May 2026 00:41:56 GMT
+
+Number of Pages: 34
+
+Markdown Content:
+# Engagement Process: Rethinking the Temporal Interface of Action and Observation 
+
+Jialian Li Yuchen Cao Junhong Liu Weiran Guo Xutao Wang Jiaming Song Jiahao Zhang Jie Chen †
+
+XPENG Robotics 
+
+{lijl42,caoyc,liujh44,guowr1,wangxt10,songjm2,zhangjh37,chenj81}@xiaopeng.com 
+
+Abstract 
+
+Task completion in digital and physical environments increasingly involves complex temporal in-teraction, where actions and observations unfold over different time scales rather than align with fixed observation–action steps. To model such interactions, we propose Engagement Process (EP), an interaction formalism that inherits the decision-theoretic structure of POMDPs while making time explicit in the action–observation interface. EP represents actions and observations as decoupled event streams along time, rather than updates paired at fixed decision steps. This interface captures single-agent timing issues such as deliberation latency, delayed feedback, and persistent actions, while supporting richer agent-side organization, multi-rate coordination, and compositional interaction among subsystems. Across toy, LLM-agent, and learning experiments, EP exposes temporal behaviors hidden by step-based interfaces and enables policies to adapt under explicit time costs. 
+
+# 1 Introduction 
+
+Recent advances in large language models[ 1, 2 ], embodied intelligence[ 3 , 4], and tool-augmented agents[ 5,6 ] have enabled agents to operate in increasingly realistic digital and physical environments. In such settings, interaction is rarely an instantaneous observe–act loop: an agent may spend time reasoning, issue tool calls whose results arrive later, execute actions that persist over time, and receive sensory or communication signals while earlier actions are still unfolding. These timing differences create a basic mismatch between the temporal structure of actions and observations. One side of this mismatch concerns actions. In step-based formalisms, an action is selected at a decision epoch and applied before the next observation. In realistic interaction, however, producing an action may take time, as in LLM reasoning or tool construction; after initiation, it may persist, as in navigation commands or pending tool calls. These issues have been studied in metareasoning and anytime computa-tion [ 7 –9 ], as well as in semi-MDPs, options, and hierarchical reinforcement learning [ 10 , 11 ]. The dual side concerns observations. Messages, tool responses, and alarms may arrive sparsely or asynchronously, while sensors such as cameras, audio streams, proprioception, and system logs may produce continuous or multi-rate feedback. Related concerns appear in continuous-time and event-triggered control [ 12 –14 ]and in active perception or sensing [ 15 , 16 ]. Together, these lines of work show that timing matters on both sides of interaction. What remains less explicit is the joint interface-level problem: actions and observations may have distinct temporal structures, while also overlapping in time. Recent work on real-time reinforcement learning and asynchronous tool-using agents further shows that computation, action execution, and observation arrival can be misaligned in deployed agents [17, 18]. 
+
+> †Corresponding author.
+
+1
+
+> arXiv:2605.11484v1 [cs.AI] 12 May 2026
+
+Figure 1: Comparison of interaction interfaces. POMDPs pair observations and actions at fixed decision epochs; options/semi-MDPs organize interaction around temporally extended high-level actions. EP instead separates agent and environment timelines, allowing computation, revision, and multi-rate feedback to be represented as decoupled action–observation events. This calls for a clean interaction interface in which coupled timing phenomena can be described explicitly. We propose Engagement Process (EP), which inherits the decision-theoretic structure of POMDPs while treating actions and observations as decoupled event streams along a shared timeline. At the interface, actions flow from the agent to the environment as timed interventions, while observations flow from the environment to the agent as information events. Actions may take time to compute or persist after initiation, and observations may arrive independently of action completion or decision boundaries. Figure 1 contrasts this interface with POMDPs and options/semi-MDPs. This decoupled interface provides three practical benefits. First, it gives a common language for timing phenomena that otherwise require separate treatments, such as deliberation latency, delayed feedback, persistent actions, interruptions, and multi-rate observations. Second, it separates the external action– observation interface from the agent’s internal organization, allowing memory, tool calls, modules, or controllers to operate at different temporal scales. Third, it supports compositional reuse: interactions among subsystems inside an agent can themselves be represented as EP-like processes, with module calls as interventions and returned messages, tool outputs, or sensor updates as observations. By making time explicit at the interface, EP makes temporal structure available to agent modeling and learning rather than leaving it as an implementation detail. We evaluate EP in three settings. Conceptual toy tasks isolate latency, interruption, and delayed feedback; LLM-based digital and embodied tasks show improved temporal responsiveness in realistic asynchronous workflows; and a training experiment shows that explicit time modeling enables policies to adapt genera-tion to real-time constraints. Overall, EP does not seek greater state-space expressivity than augmented POMDPs; its contribution is an explicit temporal interface that decouples actions and observations on a shared timeline, providing a unified substrate for heterogeneous interaction, agent-side organization, and compositional subsystem dynamics under explicit time costs. 
+
+# 2 Related Work 
+
+Decision-process interfaces and temporal abstraction. Classical MDPs and POMDPs organize interaction around decision epochs, where observations, actions, and transitions are coupled through a step-based interface [ 19 , 20 ]. SMDPs, options, and hierarchical reinforcement learning relax this structure by introducing variable-duration actions, closed-loop skills, or subtask-level policies [ 10 , 21 ,22 ]. Metareasoning and anytime computation further study the cost and value of computation before acting [ 7, 8]. These frameworks capture important temporal and hierarchical structure, but typically organize high-level interaction around decision epochs, action or option intervals, subtask boundaries, or computation policies. EP instead takes the action–observation interface as the primitive: actions and observations are separate time-indexed events, so observations can enter the interface while actions, options, computations, or subtasks are still unfolding. 2Continuous-time, event-triggered, and sensing/control systems. Continuous-time MDPs and POMDPs move from discrete-time transitions to continuous-time decision dynamics under full or partial observ-ability [ 23 , 24 ]. Event-triggered control studies state-dependent execution or update schedules [ 25 ], hybrid-system models combine continuous dynamics with discrete transitions [ 26 ], and active perception or active sensing studies how sensing actions affect information acquisition [ 15 ]. These frameworks show that timing matters for dynamics, triggers, transitions, and sensing policies. EP is complementary: it does not prescribe a continuous dynamics model, control-triggering rule, or sensing strategy, but defines the agent–environment interaction interface in which agent-initiated actions and state-generated observations appear as decoupled temporal events on a shared timeline. 
+
+Streaming, full-duplex, and asynchronous agent systems. Recent LLM-agent systems expose practi-cal limitations of strictly serialized interaction. ReAct interleaves reasoning and acting [ 27 ], Toolformer learns when and how to call external APIs [ 28 ], and Reflexion incorporates feedback through verbal reflection [ 29 ], but still largely follow a sequential action–observation loop. Full-duplex, streaming, and asynchronous agents go further by allowing input, output, tool use, and feedback to overlap, while recent benchmarks study interruptions, delayed feedback, asynchronous evidence, and overlapping sub-tasks [ 30 –35 ]. EP is motivated by these systems but differs in abstraction level: rather than proposing a new architecture or benchmark, it provides an interaction formalism where computation latency, delayed tool responses, observation-driven revision, and multi-rate feedback share the same action–observation event structure. 
+
+# 3 Engagement Process 
+
+3.1 Definition 
+
+We define an Engagement Process (EP) over a discrete sequence of ticks T = {0, 1, 2, . . . }. Ticks are used as a convenient modeling device: they specify the resolution at which state evolution, action triggering, and observation generation are represented. EP is not inherently limited to discrete time and can be naturally extended to continuous time by replacing ticks with real-valued event times. EP does not require each tick to contain a synchronized observation–action pair. 
+
+Definition. An EP is specified by E = ( S , A , Y , F, O,U),, where S is the state space, A is the atomic action space, Y is the observation space, F is the state transition kernel, O is the observation kernel, and 
+
+U is the utility function. • State. At tick t, the system state st ∈ S summarizes the environment, ongoing processes, and interface conditions relevant to future interaction. It may encode persistent action effects, state-dependent observation access, and interaction costs. • Actions. Actions in EP are represented as timed interventions rather than default controls at every tick. The agent chooses an intervention set At ∈ I , where I ⊆ 2A may include the empty set or multiple simultaneous atomic actions. • Dynamics. Given st and newly triggered interventions At , the next state evolves as st+1 ∼ F(· | st , At ).Since st may encode ongoing or pending processes, the system can continue to evolve even when no new intervention is triggered, i.e., when At = /0. • Observations. Observations are generated from the state process, rather than being tied to decision steps. Let Yt ⊆ Y denote the observation event set at tick t, and let O(· | st ) be a kernel over such event sets, so that Yt ∼ O(· | st ). The set may be empty or contain multiple observations. Because st
+
+may encode information-access conditions, O can express state-dependent access to information while remaining state-conditioned. Importantly, Yt and At need not be paired. • Utility. Instantaneous utility is generated as ut ∼ U(· | st , At ), which can represent task rewards as well as action, sensing, interruption, and deliberation-time costs. When such quantities are encoded in the 3state, this reduces to ut ∼ U(· | st ). For a per-tick discount factor γ ∈ (0, 1], the cumulative utility over horizon T is J = E
+
+h
+
+∑T −1 
+
+> t=0
+
+γt ut
+
+i
+
+.
+
+3.2 Relation to standard decision interfaces 
+
+A standard POMDP-style loop can be recovered as a synchronized case of EP. Each tick is a decision epoch, a new observation is consumed before action selection, a single instantaneous action is issued, and the system transitions to the next tick. Under this restriction, actions and observations are paired by construction, and the usual belief-state policy and value-function machinery apply. EP keeps this decision-theoretic compatibility but changes the interaction primitive. While an augmented POMDP can encode pending processes in the state, EP exposes such timing mechanisms at the interface by allowing actions and observations to appear as separate temporal events. Thus belief states, value functions, and Bellman recursions can still be defined once an information state and utility model are specified, but the interface on which they operate can include delayed computation, persistent interventions, empty ticks, asynchronous observations, and multi-rate feedback. 
+
+3.3 Information state and policy 
+
+Since the system state st may not be directly observable, the agent acts from its tick-indexed interaction history ht = ( A0,Y0, u0, . . . , At−1,Yt−1, ut−1), where each intervention set Ak and observation event set Yk
+
+may be empty. We write the agent’s information state as wt = φ (ht ,t), where φ may be a Bayesian belief state, full history, recurrent memory, learned embedding, or a richer agent-side state that tracks pending computations, tool calls, module states, or urgency. A policy over EP maps this information state to a distribution over admissible intervention sets, π(· | wt ) ∈
+
+∆(I ), At ∼ π(· | wt ), where I ⊆ 2A is the intervention-set space. Thus an EP policy may trigger no intervention, one intervention, or multiple simultaneous interventions at a tick. The environment then evolves and generates observations according to st+1 ∼ F(· | st , At ), Yt+1 ∼ O(· | st+1). The new observa-tion events are appended to the history to form wt+1. This separates the agent’s internal decision process from external observation and intervention timing. Detailed belief-state updates, value functions, Bellman recursions, and the reductions to standard POMDPs and SMDPs/options are provided in Appendix B. 
+
+# 4 Agent-Side Organization and Compositionality 
+
+EP is not an agent architecture, but its interface leaves room for richer agent-side organization than a single observe–act loop. We highlight useful consequences for complex LLM and embodied agents. 
+
+Richer agent-side state. Because actions and observations are not forced to be paired at fixed decision steps, the agent can maintain richer internal state while computations, tool calls, or pending processes unfold over time. These processes can be represented in the information state wt , which may track memory, outstanding tool calls, module states, deadlines, or urgency. For example, a computer-use assistant may continue reasoning while waiting for a browser action or tool result, and revise its next intervention when a new page state arrives. Thus EP separates the external interaction interface from the agent’s internal organization for deciding when and how to intervene. 
+
+Coordination across temporal scales. This separation is useful for agents whose components operate at different frequencies or latencies. A high-level planner may update slowly, a low-level controller may act frequently, a perception module may stream observations, and a tool call may return after an unpredictable delay. In an embodied robot, for instance, a language-level planner may reason over seconds, a controller may update at high frequency, and cameras or tactile sensors may produce continuous or 4multi-rate feedback. Under EP, these processes can be placed on the same temporal interface: external actions, tool calls, controller commands, and internal module requests are interventions, while returned tool results, module messages, controller states, and sensor updates are observation events. This view does not require every component to act at every tick; it allows heterogeneous operations to be scheduled and observed through a common event-based interface. 
+
+Compositional reuse of the interface. The same interface can also be reused inside the agent. A subsystem Mi can be viewed as an EP-like interaction process with its own local interface. Its local interventions Ait may include calls to lower-level controllers, tool invocations, module requests, or actions sent to the external environment. Its local observations Y it may include instructions from higher-level modules, messages from peer modules, sensor updates, tool results, or returns from lower-level components. For example, an embodied “cognitive” module can treat a navigation controller, manipulation controller, memory module, and perception stack as interacting subsystems, each exchanging interventions and observations through the same abstract interface. In this way, a hierarchical agent can be described by recursively applying the same action–observation event abstraction at different levels, rather than introducing a separate interface for each module boundary. In this sense, EP provides a homogeneous interface across levels: agent–environment interaction and module–module interaction can be described using the same action–observation event abstraction. This compositional view does not require a particular hierarchy or scheduler, but makes hierarchical, asyn-chronous, and multi-rate agent designs easier to specify within a single formal language. 
+
+# 5 Experiments 
+
+We evaluate EP through toy, LLM-based, and learning experiments. Toy experiments isolate deliberation latency, temporally extended execution, and interruption; the LLM-based experiments test asynchronous messages, delayed tool responses, and coordination among agent-side processes operating on a shared timeline; and the learning experiment studies policy adaptation when deliberation time is explicitly modeled. Together, these experiments test whether EP exposes temporal structure that fixed step-based formulations tend to hide or handle through external patches. 
+
+5.1 Toy Experiments 
+
+We first evaluate EP in controlled toy environments that isolate deliberation latency and temporally extended execution with asynchronous interruption. Using tabular Q-learning or hand-written patches, these experiments test whether the interface exposes temporal structure needed for appropriate decisions rather than benchmark performance. Detailed configurations and results are in Appendix C. 
+
+5.1.1 Urgency-Aware Deliberation 
+
+The first experiments study action-generation latency, framing test-time scaling [ 36 –38 ] as a decision on how much computation to allocate before acting, with EP charging this computation against deadline slack. Each task includes a deadline, reward, timeout/failure penalty, and difficulty level. The agent selects one of 5 deliberation modes prior to acting; higher modes are more accurate but slower. EP and Step 
+
+environments are identical except that EP advances global time during deliberation, whereas Step treats deliberation as instantaneous. For difficulty u, mode m succeeds with probability Pr (success | m, u) = σ (αm − β u), where αm increases with mode quality and β = 3.5 . Thus, the experiments isolate how learning changes when accuracy-improving computation consumes real time. 5Table 1: Urgency-aware deliberation under real-time EP evaluation: in both single-task and sequential settings, EP-trained policy avoids the timeout-prone overuse of slowest mode learned by step training.                                     
+
+> Setting Training →EP eval. Mean return ↑Success rate ↑Timeout rate ↓Mode 5 usage
+> Single-task EP →EP +0.800 46.7% 0.0% 21 .2% Step →EP −1.032 16 .1% 79 .0% 93 .6% Sequential-task EP →EP +10.07 50.1% 3.7% 15 .9% Step →EP −14 .98 8.4% 88 .9% 84 .0%
+
+Single-task setting. The single-task experiment is a minimal contextual decision problem where each episode contains one sampled task with urgency and difficulty as inputs. We train a tabular Q-learning agent in EP and Step environments and evaluate both policies in both settings. The single-task rows of Table 1 highlight a key failure of the step abstraction: since deeper reasoning improves accuracy without time cost during training, the step-trained agent selects mode 5 in over 93% of episodes, leading to 79 .0% timeouts and negative return under EP evaluation. In contrast, the EP-trained agent uses mode 5 only 21 .2% of the time, preserving deadline slack and achieving higher return, higher success, and no timeouts when computation consumes real time. 
+
+Sequential-task setting. The second deliberation experiment applies the same mechanism to a fixed task chain with absolute deadlines, where accumulated deliberation time can cause later tasks to expire. It evaluates the computation–urgency tradeoff under interacting deadlines. The sequential-task rows of Table 1 show that the sequential setting amplifies this effect: early over-deliberation exhausts the shared budget and causes later task failures. The step-trained policy times out in 88 .9% of EP evaluations with mean return −14 .98 , while EP learns to reserve deep modes for slack states, reducing mode 5 usage to 15 .9% and improving mean return to +10 .07. 
+
+Toy 1 summary. The deliberation experiments show that making reasoning instantaneous distorts the learned policy: the step abstraction overuses deep reasoning, while EP adapts computation depth to urgency and downstream deadlines. 
+
+5.1.2 Hierarchical Patrol with Interruptions 
+
+The second experiment studies temporally extended execution with a two-level controller: the upper level decides whether to continue a checkpoint routine or respond to an alarm, while the lower level handles navigation. Asynchronous alarms at distant checkpoints yield large rewards if resolved and penalties if missed. This setting instantiates the compositional view in Section 4, where lower-level modules act as EP-like subsystems and upper-level commands intervene, with phase progress and completion signals feeding back as observations that can override ongoing execution. 
+
+Module-level interruption. In the first patrol experiment, checkpoint handling is a single module. Both agents share the same dynamics and primitives, but EP can interrupt navigation or handling at any tick, while the Loop baseline can decide only after the current module completes. Table 2a shows that EP resolves 90 .9% of alarms, compared to 51 .5% for Loop. Although both use the same alarm-response primitive, Loop cannot interrupt checkpoint handling, causing many alarms to expire due to comparable handling times and deadlines. EP avoids this limitation by allowing interruptions during execution. 
+
+State-level interruption. This experiment splits checkpoint handling into phases with durations and interruption costs. EP learns a continue-or-interrupt policy from alarm urgency, current module or phase, remaining phase time, and distance. It is compared with a phase-boundary Loop baseline, a threshold-based Patch , and a stronger PatchPro that also considers reachability, finishability, phase progress, and 6Table 2: Hierarchical patrol with interruptions: fixed boundaries at module and state levels introduce response latency, while EP makes routines observable and interruptible, improving alarm handling and performance over loop-based and patched methods.                                                                 
+
+> (a) Module-level interruption.
+> Method Mean return ↑Resolve rate ↑Expire rate ↓Ticks per alarm ↓
+> EP +896.6 90.9% 8.0% 10.9
+> Loop −163 .551 .5% 47 .1% 14 .4(b) State-level interruption.
+> Depth Method Mean return ↑Resolve rate ↑Expire rate ↓Interrupt cost
+> 2EP +175.1 62.8% 36.5% 61 .72PatchPro +25 .153 .9% 45 .4% 28 .02Patch −156 .547 .6% 51 .6% 63 .72Loop −345 .034 .9% 64 .4% 0.03EP +143.3 62.4% 36.8% 80 .63PatchPro +68 .857 .2% 42 .0% 48 .43Patch −101 .048 .4% 50 .8% 27 .13Loop −298 .737 .5% 61 .7% 0.0
+
+interruption cost. Detailed rules appear in Appendix C. Table 2b shows the same ranking in both phase structures: EP performs best, followed by PatchPro, Patch, and Loop. Loop avoids interruption costs but misses urgent alarms due to lack of within-phase interruption. Patch reacts faster but ignores interactions among distance, deadlines, progress, and costs. PatchPro reduces the gap via hand-designed heuristics, but still underperforms EP. These results show the benefit of making interruption part of the interaction process rather than an external patch. In EP, an ongoing routine has observable state and can be evaluated or superseded, allowing the policy to learn tradeoffs among urgency, distance, phase progress, and interruption cost. Rule-based patches require more cases and retuned thresholds as the environment changes. 
+
+Toy 2 summary. The patrol experiments show that EP enables more flexible temporal execution. By making routines observable and interruptible, it allows urgent alarms to affect decisions before phase completion, improving alarm resolution and return without hand-crafted interruption rules. 
+
+5.2 LLM-based Experiments 
+
+We now move from toy environments to LLM-driven workflows. Figure 2 illustrates two case studies: a digital assistant responding to asynchronous emails while continuing a main task, and an embodied controller coordinating tutoring with evolving cooking processes. In both, generation, monitoring, feedback, and scheduling unfold on a shared timeline: generated tokens proxy elapsed ticks for LLM-side work, while environment states continue to evolve in the background.We compare EP with common agent-loop and periodic-polling interfaces, focusing on whether a decoupled action–observation interface better supports such asynchronous LLM workflows. 
+
+5.2.1 Digital Assistant with Asynchronous Emails 
+
+This experiment evaluates whether a digital assistant can make progress on a long workplace task while responding to time-sensitive asynchronous emails. Each episode starts with one main task, such as a delivery plan, root-cause analysis, or launch-readiness document. Main-task execution is realized as LLM generation and consumes simulated time. During generation, emails arrive stochastically; each email has an urgency level and a deadline. The assistant may check the inbox, open a message, handle it, set a reminder, or resume the main task. 7Figure 2: LLM-based experiments. Tasks can be interpreted as a triage and scheduling problem over a shared timeline. EP exposes ongoing work and incoming events in a way that lets the controller decide whether to interrupt, defer, or continue. Table 3: Digital assistant with asynchronous emails using DeepSeek-V3.2 as the email-triage model. 
+
+Utility is the total reward under this rescore setup; Balanced is the combined main-task/email score defined above; Timeout is the fraction of emails that miss their deadline; Latency is the average first-response delay to emails; and Main is the normalized main-task completion score.                                           
+
+> Setting Method Utility Balanced Timeout Latency Main
+> Single EP 3.023 0.792 0.315 6.92 0.984 Single Periodic Poll 2.016 0.619 0.426 10.15 0.983 Single AgentLoop 0.730 0.382 0.598 13.58 1.000
+> Milestones EP 3.113 0.818 0.305 6.91 0.995 Milestones Periodic Poll 1.775 0.606 0.444 11.33 0.998 Milestones AgentLoop 1.591 0.569 0.467 11.83 1.000
+
+The Milestones setting uses milestone-level subtasks, while the Single setting uses a single longer main-task unit. All methods use the same main-task outputs, email streams, triage model, action durations, and scoring rule. They differ in how observations are coupled to ongoing generation. AgentLoop follows a synchronized loop: new emails are observed only after the current main-task unit finishes. Periodic Poll 
+
+adds fixed-interval polling during generation, snapshots visible emails at polling points, handles them, and then resumes the main task. EP treats main-task generation as an interruptible timed action: email arrivals and reminders are delivered as events while generation is unfolding, allowing the agent to interrupt, triage, act, and later resume partially completed output. We report DeepSeek-V3.2 results in the main text, while Qwen3.5-Plus results and configuration details are provided in Appendix D. For each decomposition setting ( single or milestones ), we use 200 seeds and 5 episodes per seed, yielding 1000 episodes per method. 
+
+Results. Table 3 shows that EP obtains the highest utility and balanced score in both settings, with Periodic Poll consistently between EP and AgentLoop. The main gain comes from responsiveness. Averaged over single and milestones , EP reduces timeout rate from 0.533 for AgentLoop to 0.310, while Periodic Poll reaches 0.435. EP also reduces first-response latency from 12.71 to 6.92, compared with 8Table 4: Embodied scheduling results using DeepSeek-V3.2. Utility is the total episode score; Dish/Crit. reports dish success in the one-dish setting and critical-dish success in the multi-dish setting. Soft qual. reports soft-dish quality in multi-dish episodes.                                                            
+
+> Setting Method Utility ↑Dish/Crit. ↑Soft qual. ↑Vis. delay ↓Finish delay ↓
+> One-dish AgentLoop 3.604 0.266 –224.8 227.8 One-dish Periodic Poll 5.598 0.922 –4.7 17.2 One-dish ReflexPatch 5.254 0.938 –4.5 16.0 One-dish EP 5.731 0.938 –3.1 15.5
+> Multi-dish AgentLoop 19.671 0.745 0.833 74.1 91.7 Multi-dish Periodic Poll 18.981 0.718 0.971 18.0 37.6 Multi-dish ReflexPatch 21.202 0.913 0.952 17.9 28.6 Multi-dish EP 21.288 0.936 0.957 9.7 28.5
+
+10.74 for Periodic Poll. The aggregate scores reflect the same pattern. Relative to AgentLoop, EP improves utility by 2.293 points in single and 1.522 points in milestones ; the corresponding balanced-score gains are 0.410 and 0.249. AgentLoop attains the highest main-task score because it rarely interrupts generation, but this comes at the cost of many missed email deadlines. Polling mitigates the failure but remains tied to an external checking schedule. EP instead exposes email arrivals as events at their arrival times, producing a better tradeoff between main-task progress and time-sensitive email handling. 
+
+5.2.2 Embodied Scheduling Task 
+
+The second LLM-based experiment is an embodied scheduling task coupling timing with physical state. The controller coordinates tutoring and independently evolving cooking processes, with some actions feasible only in compatible states. A shared timeline is therefore essential for aligning generation, movement, dish evolution, and readiness signals. We evaluate one-dish and multi-dish variants: the former isolates reaction latency, while the latter adds overlapping deadlines and tutoring work. All successfully completed tutoring tasks and dishes yield an identical base reward, while elapsed ticks, task switching, and polling operations incur penalties (see Appendix E). All methods share the same dishes, tutoring streams, action space, time model, and utility; they differ only in when cooking events enter the controller context and who decides the response. AgentLoop 
+
+treats tutoring as an atomic step and surfaces cooking signals only after the current tutoring problem completes. Periodic Poll checks for newly fired signals at fixed intervals during tutoring. This bounds delay and resembles a common design in coding agents, where a long-running background shell command is monitored through periodic status checks rather than event-triggered interruption. However, visibility is still tied to a manually chosen polling cadence: a signal that fires just after a poll remains hidden until the next poll, even as the agent continues to pay checking overhead. ReflexPatch exposes signals immediately but first applies a default engine-side kitchen response before returning control. EP exposes the fired signal at the interruption point and lets the controller decide whether to react, defer, or resume tutoring. 
+
+Results. Table 4 shows one-dish failures mainly reflect delayed visibility. AgentLoop often observes readiness only after tutoring ends; Periodic Poll reduces this delay with in-tutoring checks; ReflexPatch and EP benefit from immediate signal exposure. The small ReflexPatch–EP gap suggests this low-conflict setting mostly probes signal timing rather than scheduling arbitration. Multi-dish episodes introduce overlapping deadlines and tutoring work. Periodic Poll lowers average delay, but a fixed cadence can still pay repeated checking costs while missing signals until the next poll. This is often tolerable for soft dishes with keep-warm slack, but less reliable for critical hard-window dishes. ReflexPatch also performs well via engine-side urgent responses. Thus, the distinction lies less in raw performance than in interface structure: EP unifies tutoring, evolution, signaling, and resumption within 9Table 5: Time-aware LLM training results. Budgeted Success requires both correctness and satisfying the requested token budget. We show the most urgent and least urgent budgets.                          
+
+> Model BS@1K BS@8K Acc@1K Tok@1K Tok@8K
+> Qwen3-8B 0.000 0.228 0.407 7554 8977 RLVR-16K 0.037 0.669 0.782 5120 5599 RLVR-8K 0.284 0.795 0.786 1892 2413 EP-aware 0.733 0.784 0.765 421 1409
+
+a common event timeline rather than relying on polling schedules or external reflex rules. The modest ReflexPatch–EP gap may partly reflect that current pretrained LLM policies are not yet optimized for event-driven temporal reasoning. This embodied task operationalizes the compositional framework of Section 4: generation, environment dynamics, and scheduling are unified under a common action–observation interface. With tutor tokens serving as temporal ticks, we next examine whether RL can induce time awareness through rewards for both correctness and urgency-appropriate generation length. 
+
+5.3 Time-aware LLM training 
+
+We next test whether EP can guide reasoning models to account for deliberation time. Here, gen-erating tokens consumes time, and each math problem is paired with a requested token budget B ∈{1000 , 2000 , 4000 , 8000 } and a natural-language urgency instruction. The goal is to answer correctly while adapting the amount of reasoning to the available budget. 
+
+Setup and baselines. We train three GRPO variants from the same Qwen3-8B thinking model [ 39 ]on difficult DeepMath-103K data [ 40 ]. EP-aware gives reward 1 only when the answer is correct and the generated solution stays within the requested budget. RLVR-8K uses the same 8000-token limit but rewards only correctness, while RLVR-16K uses a 16000-token limit and the same correctness-only reward. Thus EP-aware versus RLVR-8K isolates the budgeted reward, while RLVR-8K versus RLVR-16K tests whether a shorter generation cap alone induces time-aware behavior. All models are evaluated with a 32768-token decoding limit; training and evaluation details are in Appendix F. 
+
+Results. Table 5 shows that correctness-only RL improves raw accuracy but does not reliably produce budget-aware behavior. Under the 1000-token budget, RLVR-8K reaches 0.786 Accuracy but only 0.284 Budgeted Success, whereas EP-aware training reaches 0.733 Budgeted Success with much shorter generations. The full results are shown in Table 25. The comparison between RLVR-8K and RLVR-16K shows that shorter training caps have some implicit effect, but much less than directly optimizing the EP-aware budgeted objective. EP-aware training produces the shortest outputs under tight budgets and increases output length when more budget is available, indicating that the model learns a time-aware generation policy rather than merely benefiting from a shorter decoding cap. 
+
+# 6 Conclusion and Discussion 
+
+We introduced Engagement Process (EP), a formalism for representing the temporal interface between action and observation. EP models actions as timed interventions and observations as state-generated information events over a shared evolving state, making temporally decoupled interaction explicit rather than forcing it into a synchronized step loop. Across toy environments, LLM-based workflows, and time-aware training, our experiments show that this interface exposes temporal structure needed for responsive execution, interruption handling, and adaptation to explicit time costs. EP is best viewed as an interaction interface that complements standard decision-theoretic models. Its goal is not to replace augmented-state representations, but to expose timing structure that such representations 10 often hide inside state and transition design. As an interface formalism, EP leaves agent memory, subsystem scheduling, and policy learning to architectures and algorithms built on top of it. Future work includes EP-aware architectures and learning algorithms, richer continuous-time formulations, and larger-scale embodied, LLM-based, hierarchical, and multi-agent evaluations. 
+
+# References 
+
+[1] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. 
+
+arXiv preprint arXiv:2303.08774 , 2023. [2] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Peiyi Wang, Qihao Zhu, Runxin Xu, Ruoyu Zhang, Shirong Ma, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 , 2025. [3] Michael Ahn, Anthony Brohan, Noah Brown, Yevgen Chebotar, Omar Cortes, Byron David, Chelsea Finn, Chuyuan Fu, Keerthana Gopalakrishnan, Karol Hausman, et al. Do as i can, not as i say: Grounding language in robotic affordances. arXiv preprint arXiv:2204.01691 , 2022. [4] Physical Intelligence, Bo Ai, Ali Amin, Raichelle Aniceto, Ashwin Balakrishna, Greg Balke, Kevin Black, George Bokinsky, Shihao Cao, Thomas Charbonnier, et al. pi 0.7 : a steerable generalist robotic foundation model with emergent capabilities. arXiv preprint arXiv:2604.15483 , 2026. [5] OpenClaw. Openclaw: Personal ai assistant. https://github.com/openclaw/openclaw , 2026. Open-source agent framework. [6] Anthropic. Claude code: Anthropic’s agentic coding system. https://www.anthropic.com/ product/claude-code , 2025. Product page. [7] Stuart Russell and Eric Wefald. Principles of metareasoning. Artificial intelligence , 49(1-3):361–395, 1991. [8] Shlomo Zilberstein. Using anytime algorithms in intelligent systems. AI magazine , 17(3):73–73, 1996. [9] Linden J Ball and Beth H Richardson. Metareasoning: Theoretical and methodological developments, 2025. [10] Richard S. Sutton, Doina Precup, and Satinder Singh. Between MDPs and semi-MDPs: A framework for temporal abstraction in reinforcement learning. Artificial Intelligence , 112(1–2):181–211, 1999. doi: 10.1016/S0004-3702(99)00052-1. [11] Matthias Hutsebaut-Buysse, Kevin Mets, and Steven Latré. Hierarchical reinforcement learning: A survey and open research challenges. Machine Learning and Knowledge Extraction , 4(1):172–221, 2022. [12] Steven Bradtke and Michael Duff. Reinforcement learning methods for continuous-time markov decision problems. Advances in neural information processing systems , 7, 1994. [13] Wilhelmus PMH Heemels, Karl Henrik Johansson, and Paulo Tabuada. An introduction to event-triggered and self-triggered control. In 2012 ieee 51st ieee conference on decision and control (cdc) ,pages 3270–3285. IEEE, 2012. [14] Xian-Ming Zhang, Qing-Long Han, Xiaohua Ge, Derui Ding, Boda Ning, and Bao-Lin Zhang. An overview of recent advances in event-triggered control. Science China Information Sciences , 68(6): 161201, 2025. 11 [15] Ruzena Bajcsy, Yiannis Aloimonos, and John K Tsotsos. Revisiting active perception. Autonomous Robots , 42(2):177–196, 2018. [16] Julio A Placed, Jared Strader, Henry Carrillo, Nikolay Atanasov, Vadim Indelman, Luca Carlone, and José A Castellanos. A survey on active simultaneous localization and mapping: State of the art and new frontiers. IEEE Transactions on Robotics , 39(3):1686–1705, 2023. [17] Ivan Anokin, Rishav Rishav, Matthew Riemer, Stephen Chung, Irina Rish, and Samira Ebrahimi Kahou. Handling delay in real-time reinforcement learning. In International Conference on Learning Representations , 2025. [18] Antonio A Ginart, Naveen Kodali, Jason Lee, Caiming Xiong, Silvio Savarese, and John Emmons. Asynchronous tool usage for real-time agents. arXiv preprint arXiv:2410.21620 , 2024. [19] Martin L. Puterman. Markov Decision Processes: Discrete Stochastic Dynamic Programming .Wiley, New York, 1994. ISBN 9780471619772. [20] Leslie Pack Kaelbling, Michael L. Littman, and Anthony R. Cassandra. Planning and acting in partially observable stochastic domains. Artificial Intelligence , 101(1–2):99–134, 1998. doi: 10.1016/S0004-3702(98)00023-X. [21] Ronald A. Howard. Dynamic Probabilistic Systems, Volume II: Semi-Markov and Decision Processes .Wiley, New York, 1971. [22] Thomas G Dietterich. Hierarchical reinforcement learning with the maxq value function decomposi-tion. Journal of artificial intelligence research , 13:227–303, 2000. [23] Steven J. Bradtke and Michael O. Duff. Reinforcement learning methods for continuous-time markov decision problems. In G. Tesauro, D. Touretzky, and T. Leen, editors, 
+
+Advances in Neural Information Processing Systems , volume 7, pages 393–400. MIT Press, 1994. URL https://proceedings.neurips.cc/paper_files/paper/1994/file/ 07871915a8107172b3b5dc15a6574ad3-Paper.pdf .[24] Bastian Alt, Matthias Schultheis, and Heinz Koeppl. POMDPs in continuous time and dis-crete spaces. In H. Larochelle, M. Ranzato, R. Hadsell, M. F. Balcan, and H. Lin, editors, 
+
+Advances in Neural Information Processing Systems , volume 33, pages 13151–13162. Curran Associates, Inc., 2020. URL https://proceedings.neurips.cc/paper_files/paper/2020/ file/992f0fed0720dbb9d4e060d03ed531ba-Paper.pdf .[25] Paulo Tabuada. Event-triggered real-time scheduling of stabilizing control tasks. IEEE Transactions on Automatic Control , 52(9):1680–1685, 2007. doi: 10.1109/TAC.2007.904277. [26] Rafal Goebel, Ricardo G. Sanfelice, and Andrew R. Teel. Hybrid Dynamical Systems: Modeling, Stability, and Robustness . Princeton University Press, Princeton, 2012. doi: 10.23943/princeton/ 9780691153896.001.0001. [27] Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. ReAct: Synergizing reasoning and acting in language models. In The Eleventh International Conference on Learning Representations , 2023. URL https://openreview.net/forum?id=WE_ vluYUL-X .[28] Timo Schick, Jane Dwivedi-Yu, Roberto Dessi, Roberta Raileanu, Maria Lomeli, Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. Toolformer: Language models can teach themselves to use tools. In A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine, editors, Advances in Neural Information Processing Systems , volume 36, pages 68539– 68551. Curran Associates, Inc., 2023. URL https://proceedings.neurips.cc/paper_files/ paper/2023/file/d842425e4bf79ba039352da0f658a906-Paper-Conference.pdf .12 [29] Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. Reflexion: Language agents with verbal reinforcement learning. In A. Oh, T. Nau-mann, A. Globerson, K. Saenko, M. Hardt, and S. Levine, editors, Advances in Neu-ral Information Processing Systems , volume 36, pages 8634–8652. Curran Associates, Inc., 2023. URL https://proceedings.neurips.cc/paper_files/paper/2023/file/ 1b44b878bb782e6954cd888628510e90-Paper-Conference.pdf .[30] Peng Wang, Songshuo Lu, Yaohua Tang, Sijie Yan, Wei Xia, and Yuanjun Xiong. Afull-duplex speech dialogue scheme based on large language model. In A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and C. Zhang, editors, Advances in Neural Information Processing Systems , volume 37, pages 13372–13403. Curran Asso-ciates, Inc., 2024. URL https://proceedings.neurips.cc/paper_files/paper/2024/ file/180d4373aca26bd86bf45fc50d1a709f-Paper-Conference.pdf .[31] Ziyang Ma, Yakun Song, Chenpeng Du, Jian Cong, Zhuo Chen, Yuping Wang, Yuxuan Wang, and Xie Chen. Language model can listen while speaking. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 24831–24839, 2025. [32] Guan-Ting Lin, Jiachen Lian, Tingle Li, Qirui Wang, Gopala Anumanchipalli, Alexander H. Liu, and Hung yi Lee. Full-duplex-bench: A benchmark to evaluate full-duplex spoken dialogue models on turn-taking capabilities. arXiv preprint arXiv:2503.04721 , 2025. [33] Gengyuan Zhang, Tanveer Hannan, Hermine Kleiner, Beste Aydemir, Xinyu Xie, Jian Lan, Thomas Seidl, Volker Tresp, and Jindong Gu. AViLA: Asynchronous vision-language agent for streaming multimodal data interaction. arXiv preprint arXiv:2506.18472 , 2025. doi: 10.48550/arXiv.2506. 18472. [34] Gonzalo Gonzalez-Pumariega, Leong Su Yean, Neha Sunkara, and Sanjiban Choudhury. Robotouille: An asynchronous planning benchmark for LLM agents. arXiv preprint arXiv:2502.05227 , 2025. ReAct (GPT-4o): 47% sync, 11% async. [35] Junlong Tong, Zilong Wang, YuJie Ren, Peiran Yin, Hao Wu, Wei Zhang, and Xiaoyu Shen. From static inference to dynamic interaction: A survey of streaming large language models. arXiv preprint arXiv:2603.04592 , 2026. Taxonomy: output-streaming, sequential-streaming, concurrent-streaming. [36] Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, brian ichter, Fei Xia, Ed Chi, Quoc V Le, and Denny Zhou. Chain-of-thought prompting elicits reasoning in large language models. In S. Koyejo, S. Mohamed, A. Agarwal, D. Belgrave, K. Cho, and A. Oh, editors, 
+
+Advances in Neural Information Processing Systems , volume 35, pages 24824–24837. Curran Associates, Inc., 2022. URL https://proceedings.neurips.cc/paper_files/paper/2022/ file/9d5609613524ecf4f15af0f7b31abca4-Paper-Conference.pdf .[37] Charlie Snell, Jaehoon Lee, Kelvin Xu, and Aviral Kumar. Scaling llm test-time compute optimally can be more effective than scaling model parameters. arXiv preprint arXiv:2408.03314 , 2024. [38] Bradley Brown, Jordan Juravsky, Ryan Ehrlich, Ronald Clark, Quoc V. Le, Christopher Ré, and Azalia Mirhoseini. Large language monkeys: Scaling inference compute with repeated sampling, 2024. URL https://arxiv.org/abs/2407.21787 .[39] An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen Huang, Chenxu Lv, et al. Qwen3 technical report. arXiv preprint arXiv:2505.09388 ,2025. [40] Zhangwei He. Deepmath-103k. https://huggingface.co/datasets/zwhe99/ DeepMath-103K , 2025. Hugging Face dataset. 13 [41] Yule Wen, Yixin Ye, Yanzhe Zhang, Diyi Yang, and Hao Zhu. Real-time reasoning agents in evolving environments. arXiv preprint arXiv:2511.04898 , 2025. Introduces Real-Time Reasoning Gym and AgileThinker. [42] Yangqing Zheng, Shunqi Mao, Dingxin Zhang, and Weidong Cai. LLM-enhanced rapid-reflex async-reflect embodied agent for real-time decision-making in dynamically changing environments. 
+
+arXiv preprint arXiv:2506.07223 , 2025. Proposes TCM and RRARA; evaluated on HAZARD benchmark. [43] Tiago Veiga and Jennifer Renoux. From reactive to active sensing: A survey on information gathering in decision-theoretic planning. ACM Computing Surveys , 55(13s):280:1–280:22, 2023. doi: 10.1145/3583068. [44] Etash Guha, Ryan Marten, Sedrick Keh, Negin Raoof, Georgios Smyrnis, Hritik Bansal, Marianna Nezhurina, Jean Mercat, Trung Vu, Zayne Sprague, et al. Openthoughts: Data recipes for reasoning models. arXiv preprint arXiv:2506.04178 , 2025. [45] Guangming Sheng, Chi Zhang, Zilingfeng Ye, Xibin Wu, Wang Zhang, Ru Zhang, Yanghua Peng, Haibin Lin, and Chuan Wu. Hybridflow: A flexible and efficient rlhf framework. In Proceedings of the Twentieth European Conference on Computer Systems , pages 1279–1297, 2025. 14 A Extended Related Work 
+
+Streaming, full-duplex, and asynchronous agent systems. Recent agent systems increasingly expose interaction patterns that go beyond turn-based loops. Full-duplex spoken dialogue models allow agents to listen while speaking so that input and output overlap in time [ 30 –32 ]. Streaming multimodal agents extend this pattern to vision and other modalities, processing continuous sensory input alongside action generation [33]. A complementary line of work studies real-time reasoning in dynamic environments. Wen et al. [ 41 ]introduce Real-Time Reasoning Gym and AgileThinker, which combine reactive and planning-style reasoning to balance reasoning depth against response latency. Tong et al. [ 35 ] provide a broader survey of streaming LLM systems and propose a taxonomy spanning output-streaming, sequential-streaming, and concurrent-streaming architectures. Latency-awareness has also become increasingly important in embodied AI. Zheng et al. [ 42 ] propose the Time Conversion Mechanism (TCM), which converts inference latency into simulation-time delay, together with an asynchronous reflex-and-reflection architecture for real-time embodied decision making. Gonzalez-Pumariega et al. [ 34 ] introduce Robotouille, a benchmark for asynchronous long-horizon embodied planning with interruptions, overlapping subtasks, and delayed feedback. These systems collectively highlight the growing importance of latency-aware interaction and asyn-chronous feedback in modern agent systems. 
+
+Active sensing and information gathering. In many systems, the availability of observations depends on the agent’s sensing, communication, or attention state. This connects EP to active sensing and information-gathering work, where agents select sensing actions to acquire useful information [ 43 ]. EP differs in scope: rather than focusing specifically on sensing policies, it provides a general interaction formalism in which sensing actions, delayed observations, multi-rate signals, and ordinary task actions can all coexist within the same temporally decoupled interface. 
+
+# B Decision-Theoretic Details for EP 
+
+EP defines an interaction interface in which actions and observations are represented as temporally situated events. This appendix shows how standard decision-theoretic objects—history, information state, belief, value, and Bellman recursion—can be defined on top of this interface. The main change from a standard step-based formulation is that the policy chooses an intervention set At ∈ I , and the observation model returns an observation event set Yt ⊆ Y .
+
+B.1 History, information state, and policy 
+
+At tick t, the agent has access to its tick-indexed interaction history 
+
+ht = ( A0,Y1, u0, . . . , At−1,Yt , ut−1),
+
+where Ak ∈ I is the intervention set chosen at tick k, Yk+1 is the observation event set received after the transition to tick k + 1 , and uk is the utility generated at tick k. Either Ak or Yk+1 may be empty. This indexing matches the EP transition order 
+
+st+1 ∼ F(· | st , At ), Yt+1 ∼ O(· | st+1).
+
+An information state is any agent-maintained representation 
+
+wt = φ (ht ,t).
+
+15 It may be the full history, a Bayesian belief state, a recurrent memory, or a learned embedding. In richer agent systems, wt may also track pending computations, outstanding tool calls, module states, deadlines, or urgency. A policy over EP maps the information state to a distribution over admissible intervention sets: 
+
+π(· | wt ) ∈ ∆(I ), At ∼ π(· | wt ),
+
+where I ⊆ 2A is the intervention-set space. Thus an EP policy may choose no intervention, a single intervention, or multiple simultaneous interventions at a tick. 
+
+B.2 Belief update 
+
+A belief state is an idealized information state that retains the posterior over the latent system state: 
+
+bt (s) = P(st = s | ht ,t).
+
+The explicit dependence on t allows the belief to change with elapsed time, even if no new observation event arrives. Given belief bt and intervention set At , the predictive belief before observing Yt+1 is ¯bt+1(s′) = ∑
+
+> s∈S
+
+F(s′ | s, At )bt (s).
+
+After receiving the observation event set Yt+1, the posterior is 
+
+bt+1(s′) = η O(Yt+1 | s′) ¯bt+1(s′),
+
+where η normalizes over s′ ∈ S . The predictive distribution over observation event sets is 
+
+P(Yt+1 | bt , At ) = ∑
+
+> s′∈S
+
+O(Yt+1 | s′)¯bt+1(s′).
+
+This formulation also covers empty observation sets: receiving no event, Yt+1 = /0, can still be informative when event absence is state-dependent. Persistent actions, delayed effects, pending tool calls, or ongoing processes can be represented by including the relevant variables in st . Their evolution is then handled by the transition kernel F(s′ | s, At ), rather than by introducing a separate duration variable. 
+
+B.3 Value functions and Bellman recursion 
+
+Given an information state wt , the value of policy π over horizon T is 
+
+V π 
+
+> t
+
+(wt ) = Eπ
+
+"T −1
+
+# ∑
+
+> k=t
+
+γk−t uk wt
+
+#
+
+.
+
+When the belief state is sufficient for prediction and control, we write V π 
+
+> t
+
+(bt ) and π(· | bt ).Let 
+
+r(bt , At ) = E[ut | bt , At ]
+
+denote the expected immediate utility, marginalizing over the next state and observation event set under F
+
+and O. The policy value satisfies 
+
+V π 
+
+> t
+
+(bt ) = EAt ∼π(·| bt )
+
+h
+
+r(bt , At ) + γ EYt+1∼P(·| bt ,At )
+
+V π
+
+> t+1
+
+(bt+1)i
+
+,
+
+where bt+1 is obtained by the EP belief update above. The optimal value satisfies 
+
+V ∗ 
+
+> t
+
+(bt ) = max  
+
+> At∈I
+
+h
+
+r(bt , At ) + γ EYt+1∼P(·| bt ,At )
+
+V ∗
+
+> t+1
+
+(bt+1)i
+
+.
+
+Thus the Bellman structure carries over to EP, with the standard action space replaced by the intervention-set space and the standard observation model replaced by an event-set observation kernel. 16 B.4 Recovering standard POMDPs 
+
+A standard POMDP is recovered as a synchronized special case of EP. Restrict the intervention-set space so that each set contains exactly one action, At = {at }, assume that actions are instantaneous, and require each tick to produce exactly one observation event, Yt+1 = {yt+1}. If 
+
+F(s′ | s, At ) = P(s′ | s, at ), O({yt+1} | s′) = P(yt+1 | s′),
+
+then the EP belief update becomes 
+
+bt+1(s′) = η P(yt+1 | s′) ∑
+
+> s∈S
+
+P(s′ | s, at )bt (s),
+
+which is the usual POMDP belief update. Under this synchronized restriction, observations and actions are paired by construction, and standard POMDP policies, value functions, and Bellman recursions are recovered. 
+
+B.5 Encoding SMDPs and options 
+
+SMDP and option-style interaction can also be represented as restricted EPs. An option can be encoded by allowing an intervention o ∈ A to create an “active option” component in the state. While this component is active, the transition kernel F evolves both the environment and the option’s internal closed-loop execution. Termination can be represented as a state-dependent flag or event, after which the high-level policy is allowed to initiate another option. During option execution, the admissible intervention sets can be restricted so that the high-level policy either issues no new option or follows the option’s internal execution rule until termination. This recovers the standard boundary-organized structure of options and SMDPs. EP differs by not requiring termination to be the only point at which observations enter the high-level interface: observation event sets may arrive while an option, action, or other process is still unfolding, and the information state can be updated before that process terminates. Thus POMDPs, SMDPs, and options can be viewed as synchronized or structured restrictions of EP. EP keeps their decision-theoretic machinery but relaxes the requirement that actions, observations, and high-level decisions share the same boundary. 
+
+# C Toy Experiment Details and Additional Results 
+
+This appendix collects the numerical settings used in the toy experiments in Section 5.1. The main text focuses on the interaction mechanism being tested and the resulting behavior; the tables below provide the concrete values needed to reproduce each setting. Within each experiment, EP and the corresponding baselines share the same task distribution, rewards, penalties, low-level dynamics, and available primitives unless the decision interface is explicitly listed as the object of comparison. 
+
+Deliberation experiments. Tables 6 and 7 specify the two urgency-aware deliberation settings. The mode qualities αm are used in the success model described in Section 5.1.1; the associated mode durations are counted against the clock only in the EP formulation. Thus, the two formulations share the same quality profile and differ only in whether quality-improving computation consumes time. 
+
+Additional deliberation results. Tables 8 and 9 report the complete cross-evaluation results for the deliberation experiments. The step-trained policies perform best when deliberation is free, but their preference for slow high-accuracy modes produces severe timeouts when evaluated in EP. The urgency-conditioned mode distributions in Figures 3 and 4 show that EP learns to allocate deeper deliberation 17 Parameter Value 
+
+Tasks per episode 1Slack choices {0.3, 1.0, 2.0, 4.0, 8.0} seconds Difficulty u ∼ Uniform (0, 1); bin edges at 0 .33 and 0 .66 Mode durations {0.2, 0.8, 1.6, 3.0, 5.0} seconds Mode qualities αm {0.0, 0.8, 1.6, 2.4, 3.2}
+
+Task reward and penalty +4 for success; −2 for failure or timeout Training and evaluation 8,000 training episodes; 3 ,000 evaluation episodes; seed 42 
+
+Table 6: Configuration for the single-task urgency-aware deliberation experiment. Table 7: Configuration for the sequential urgency-aware deliberation experiment. 
+
+Parameter Value 
+
+Tasks per episode 10 Deadline gaps {0.4, 0.9, 1.6, 3.5, 5.5} seconds between adjacent tasks Difficulty u ∼ Uniform (0, 1); bin edges at 0 .33 and 0 .66 Mode durations {0.2, 0.8, 1.6, 3.0, 5.0} seconds Mode qualities αm {0.0, 0.8, 1.6, 2.4, 3.2}
+
+Task reward and penalty +4 for success; −2 for failure or timeout Discounting γsecond = 0.995; γtask = 0.95 Training and evaluation 8,000 training episodes; 3 ,000 evaluation episodes; seed 42 
+
+primarily to states with sufficient slack. Cells report the mean and half-width of a bootstrap 95% confidence interval. The bootstrap is computed over the 3,000 evaluation episodes for the fixed training seed 42 ; therefore the intervals quantify evaluation-set variability for the reported seed, not training-seed variability. Table 8: Complete single-task urgency-aware deliberation results with bootstrap confidence intervals. 
+
+Training → evaluation Mean return ↑ Success rate (%) ↑ Timeout rate (%) ↓ Mode 5 usage (%) 
+
+EP → EP 0.80 ± 0.11 46.7 ± 1.8 0.0 ± 0.0 21.2 ± 1.5 
+
+EP → Step 0.77 ± 0.11 46.1 ± 1.8 0.0 ± 0.0 19.3 ± 1.4 
+
+Step → Step 2.54 ± 0.09 75.6 ± 1.6 0.0 ± 0.0 93.5 ± 0.9 
+
+Step → EP -1.03 ± 0.08 16.1 ± 1.3 79.0 ± 1.5 93.6 ± 0.9 
+
+The confidence intervals make the timing mismatch visible even under a fixed training seed. In the single-task case, Step training achieves the highest return when evaluated in the Step abstraction, but the same policy times out in 79.0 ± 1.5 % of EP evaluations because it almost always selects the deepest mode. EP training gives up some free-deliberation accuracy under Step evaluation, but under EP evaluation it keeps mode-5 usage near 21.2 ± 1.5 % and avoids timeout entirely in this run. The sequential setting amplifies the same effect: Step → EP obtains -14.98 ± 0.24 return with 88.9 ± 0.5 % timeouts, while EP →
+
+EP remains positive at 10.07 ± 0.35 . Thus, the result is not a small evaluation fluctuation: when elapsed deliberation time is restored, the step-trained policy falls into a consistently timeout-prone regime. 
+
+Patrol interruption experiments. Tables 12 and 13 specify the patrol settings. The module-level experiment makes the checkpoint-handling duration and alarm deadlines comparable in scale, so waiting for module completion can create response latency. The state-level experiment decomposes handling into phases with explicit interruption costs, making the decision depend on alarm urgency, phase progress, distance, and sunk cost. 
+
+Hand-written interruption patches. The state-level experiment includes two non-learning interruption policies. Patch is intentionally simple: it decides from the current phase and the remaining alarm time, ignoring distance and phase progress. PatchPro is a stronger hand-written policy that adds several checks 18 Trained in EP + Evaluated in EP 
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=580
+> 0.5-1.5s n=606
+> 1.5-3.0s n=579
+> 3.0-6.0s n=600
+> >6.0s n=635 Urgency bin Share
+
+Trained in EP + Evaluated in Step 
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=601
+> 0.5-1.5s n=578
+> 1.5-3.0s n=611
+> 3.0-6.0s n=630
+> >6.0s n=580 Urgency bin Share
+
+Trained in Step + Evaluated in Step 
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=601
+> 0.5-1.5s n=578
+> 1.5-3.0s n=611
+> 3.0-6.0s n=630
+> >6.0s n=580 Urgency bin Share
+
+Trained in Step + Evaluated in EP 
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=610
+> 0.5-1.5s n=581
+> 1.5-3.0s n=594
+> 3.0-6.0s n=584
+> >6.0s n=631 Urgency bin Share mode_1 mode_2 mode_3 mode_4 mode_5
+
+Figure 3: Urgency-conditioned deliberation-mode distributions in the single-task setting. The EP-trained policy spreads probability mass across modes according to remaining slack, whereas the step-trained policy heavily favors the deepest mode because deliberation is free during training. Table 9: Complete sequential urgency-aware deliberation results with bootstrap confidence intervals. 
+
+Training → evaluation Mean return ↑ Success rate (%) ↑ Timeout rate (%) ↓ Mode 5 usage (%) 
+
+EP → EP 10.07 ± 0.35 50.1 ± 0.6 3.7 ± 0.2 15.8 ± 0.4 
+
+EP → Step 21.54 ± 0.31 69.2 ± 0.5 0.0 ± 0.0 55.0 ± 0.6 
+
+Step → Step 25.63 ± 0.29 76.0 ± 0.5 0.0 ± 0.0 96.5 ± 0.2 
+
+Step → EP -14.98 ± 0.24 8.4 ± 0.4 88.9 ± 0.5 83.9 ± 0.5 
+
+before interrupting. It first skips alarms that cannot be reached in time, responds immediately to very urgent feasible alarms, responds during patrol navigation because no phase progress is being abandoned, and otherwise checks whether the current handling routine can be finished before still reaching the alarm. If finishing first is not feasible, PatchPro uses phase-specific urgency thresholds, phase-progress thresholds, and a cost-value check comparing the phase interruption cost with the net value of resolving the alarm. In this experiment, the net alarm value is the resolve reward plus the avoided expiration penalty, i.e., 25 − (−20 ) = 45 . Tables 10 and 11 list these hand-written choices. These thresholds are tied to the specific deadlines, rewards, interruption costs, and phase durations used here; changing those parameters would require redesigning or retuning the patch. 
+
+Module-level interruption traces. Figures 5 and 6 visualize five consecutive ticks from the module-level experiment with seed 42 , drawn from the same evaluation distribution that produces Table 2a. Each Trained in EP + Evaluated in EP     
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=1397 0.5-1.5s n=6550 1.5-3.0s n=8159 3.0-5.0s n=6750 >5.0s n=7144 Urgency bin Share
+
+Trained in EP + Evaluated in Step     
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=607 0.5-1.5s n=1018 1.5-3.0s n=1661 3.0-5.0s n=2092 >5.0s n=24622 Urgency bin Share
+
+Trained in Step + Evaluated in Step     
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=607 0.5-1.5s n=1018 1.5-3.0s n=1661 3.0-5.0s n=2092 >5.0s n=24622 Urgency bin Share
+
+Trained in Step + Evaluated in EP     
+
+> 0.00 0.25 0.50 0.75 1.00
+> <=0.5s n=2535 0.5-1.5s n=4284 1.5-3.0s n=4256 3.0-5.0s n=3897 >5.0s n=1955 Urgency bin Share mode_1 mode_2 mode_3 mode_4 mode_5
+
+Figure 4: Urgency-conditioned deliberation-mode distributions in the sequential-task setting. EP learns a monotone slack-aware schedule, while the step-trained policy remains biased toward the deepest mode even in tight-deadline states. 19 Table 10: Decision rules used by the simple hand-written Patch baseline. 
+
+Depth Current state Patch decision 
+
+2 or 3 No active alarm, navigating to alarm, or resolving alarm Continue current action 2 or 3 Patrol navigation Respond to alarm 2 or 3 Observe phase Respond to alarm 2 Commit phase Respond only if remaining alarm time is at most 6ticks 3 Verify phase Respond only if remaining alarm time is at most 8ticks 3 Commit phase Continue checkpoint handling 
+
+Table 11: Phase-specific thresholds used by PatchPro after feasibility, very-urgent, patrol-navigation, and finish-first checks. The very-urgent override responds whenever a feasible alarm has at most 3 ticks remaining. The cost ratio requires the alarm’s net value to exceed the phase interruption cost by the listed multiplier. 
+
+Depth Phase Urgency threshold Progress cutoff Cost ratio 
+
+2 Observe 16 1.0 2.02 Commit 8 0.5 3.53 Observe 18 1.0 2.03 Verify 12 0.8 3.03 Commit 8 0.5 4.5
+
+Table 12: Configuration for the module-level interruption experiment. 
+
+Parameter Value 
+
+Grid and checkpoints 8 × 8 grid; checkpoints at (0, 0), (0, 7), (7, 7), (7, 0)
+
+Episode length 1,000 ticks Checkpoint handling 20 ticks; checkpoint reward +1Alarm generation Probability 0 .15 per tick; minimum distance 5 Alarm deadline Uniformly sampled from 14 to 22 ticks Alarm response Navigation to alarm plus 2 ticks to resolve Alarm reward and penalties +25 for resolve; −20 for expire; −0.5 per active tick Decision interface EP can interrupt at any tick; Loop decides only at module boundaries Training and evaluation 8,000 training episodes; 3 ,000 evaluation episodes; γ = 0.99; seed 42 
+
+20 panel marks the agent’s current module by color (yellow for checkpoint handling, red for alarm response), shows the remaining handling time as a small badge below the active checkpoint, and renders the active alarm as a dashed circle annotated with its remaining deadline. 
+
+Figure 5: EP interrupting an in-progress checkpoint handling. At tick 2 the agent is handling checkpoint A with 18 ticks of work remaining and no active alarm. At tick 3 an alarm appears at checkpoint D with deadline 19 ; because EP can re-decide every tick, the upper level immediately switches the agent from 
+
+> HANDLE
+
+_CKPT to NAV _ALARM (the abandoned handling work is preserved as ||18 ). Ticks 4– 6 show the agent advancing one cell per tick toward D while the alarm deadline counts down 18 → 17 → 16 ,leaving ample slack to resolve the alarm before it expires. The two traces concretize the structural latency reflected in Table 2a: EP commits to alarm response at the first available tick, keeping its mean ticks-per-alarm at 10 .9 and its expire rate at 8.0% , whereas Loop can only act at module boundaries, so any alarm that spawns mid-handling is forced to wait out the remaining handling duration, inflating ticks per alarm to 14 .4 and expiring nearly half of all alarms ( 47 .1% ). For each method, the displayed sequence is the first event in the evaluation episode that meets the corresponding criterion: an interruption of checkpoint handling for EP, and an alarm spawn during checkpoint handling for Loop. Table 13: Configuration for the state-level interruption experiment.                                       
+
+> Parameter Value
+> Grid and checkpoints 8×8 grid; checkpoints at (1,1),(1,6),(6,6),(6,1)
+> Episode length 1,000 ticks Depth-2 phases Observe: 4 ticks, cost −1; Commit: 10 ticks, cost −5Depth-3 phases Observe: 3ticks, cost −1; Verify: 5ticks, cost −4; Commit: 10 ticks, cost
+> −7Alarm generation Probability 0 .07 per tick; minimum distance 5 Alarm deadline Uniformly sampled from 7 to 12 ticks Alarm response Navigation to alarm plus 2 ticks to resolve Alarm reward and penalties +25 for resolve; −20 for expire; −0.5 per active tick Decision methods EP, Loop, Patch, and PatchPro Training and evaluation 8,000 training episodes; 3 ,000 evaluation episodes; γ=0.99; seed 42
+
+Additional patrol results. Tables 14, 15, and 16 report bootstrap confidence intervals for the patrol experiments. As above, the bootstrap resamples the 3,000 evaluation episodes generated from the fixed training seed 42 . For rates in the patrol experiments, each bootstrap sample recomputes the ratio from aggregate counts, e.g., resolved alarms divided by total alarms, rather than averaging per-episode ratios. The module-level results show a large, statistically stable separation between EP and Loop under the fixed seed-42 policy. EP resolves 90.9 ± 0.1 % of alarms and keeps the expiration rate to 8.0 ± 0.1 %, while Loop resolves only 51.5 ± 0.2 % and expires 47.1 ± 0.2 %. The narrow intervals arise because each evaluation contains many alarm events; the performance gap is much larger than the evaluation uncertainty. This supports the qualitative trace in Figures 5 and 6: the main loss for Loop is not a weaker low-level primitive, but delayed access to the high-level decision point. 21 Figure 6: Loop unable to interrupt an in-progress checkpoint handling. At tick 12 the agent is handling checkpoint A with no alarm; at tick 13 an alarm appears at C with deadline 20 . Because Loop only re-decides at module boundaries, the agent stays in HANDLE _CKPT and the handling counter keeps decrementing ( 12 → 11 → 10 → 9 ) while the alarm deadline shrinks in lockstep ( 19 → 18 → 17 ). The earliest tick at which Loop could have responded would be after the remaining 9 ticks of handling, by which point the alarm has only 11 ticks left and the agent must still cross the grid to reach C. Table 14: Module-level patrol interruption results. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Method Mean return ↑ Resolve rate (%) ↑ Expire rate (%) ↓ Ticks per alarm ↓
+
+EP 896.59 ± 4.27 90.9 ± 0.1 8.0 ± 0.1 10.94 ± 0.02 
+
+Loop -163.55 ± 5.53 51.5 ± 0.2 47.1 ± 0.2 14.39 ± 0.02 
+
+The state-level experiments add interruption costs and finer handling phases, but the same ordering remains. At depth 2, EP exceeds PatchPro by about 150 return points and resolves about 8.9 percentage points more alarms, despite paying higher interruption cost. At depth 3, PatchPro improves relative to the simple Patch by using hand-designed reachability and progress checks, but EP still has the best return and the lowest expiration rate. Loop has zero interruption cost by construction, yet this is dominated by missed alarms: waiting until phase boundaries produces the lowest return and highest expiration rate in both depth settings. Overall, the CI tables indicate that EP’s advantage comes from exposing interruption as part of the interaction process, not from noise in a particular evaluation batch. 
+
+# D Digital Assistant Experiment Configuration Details 
+
+This appendix gives the numerical configuration used for the digital assistant with asynchronous emails experiment in Section 5.2.1. The experiment evaluates whether EP’s event-driven interface improves behavior when observations arrive while an LLM-generated main-task action is still unfolding. All compared methods share the same task distribution, email stream, action primitives, action durations, and scoring rule. They differ only in the decision interface used to observe and react to asynchronous email events. 
+
+Episode and environment. Each episode lasts 90 simulated time units. At the start of an episode, the assistant receives one workplace-style main task. Main-task text generation is replayed from a cached output database, and replay consumes simulated time at a rate of 0.05 time units per generated token. During the episode, emails arrive according to a stochastic arrival process with rate 0.2. Each email has an urgency level, a deadline, and an action recommendation distribution used by the triage policy. Urgency levels are sampled with probabilities 0.4, 0.4, and 0.2 for high-, medium-, and low-urgency emails. Deadline slack is sampled from the ranges shown in Table 17. 22 Table 15: State-level patrol interruption results with two handling phases. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Method Mean return ↑ Resolve rate (%) ↑ Expire rate (%) ↓ Interrupt cost 
+
+EP 175.09 ± 5.27 62.8 ± 0.3 36.5 ± 0.3 61.70 ± 0.50 
+
+PatchPro 25.06 ± 5.47 53.9 ± 0.3 45.4 ± 0.3 27.99 ± 0.36 
+
+Patch -156.54 ± 5.65 47.6 ± 0.3 51.6 ± 0.3 63.73 ± 0.49 
+
+Loop -344.96 ± 5.38 34.9 ± 0.3 64.4 ± 0.3 0.00 ± 0.00 
+
+Table 16: State-level patrol interruption results with three handling phases. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Method Mean return ↑ Resolve rate (%) ↑ Expire rate (%) ↓ Interrupt cost 
+
+EP 143.31 ± 5.03 62.4 ± 0.2 36.8 ± 0.3 80.62 ± 0.63 
+
+PatchPro 68.84 ± 5.50 57.2 ± 0.3 42.0 ± 0.3 48.44 ± 0.53 
+
+Patch -101.05 ± 5.27 48.4 ± 0.3 50.8 ± 0.3 27.10 ± 0.32 
+
+Loop -298.66 ± 5.36 37.5 ± 0.3 61.7 ± 0.3 0.00 ± 0.00 
+
+Compared decision interfaces. The experiment compares EP, Step, and Patch. Step is a synchronized loop that does not observe new email arrivals while a main-task unit is being generated; it checks the inbox only after the current main-task unit finishes. Patch adds a fixed polling interval of 15 simulated time units during main-task generation. At each polling point it interrupts, checks the active emails, processes them, and then resumes the main task. EP treats main-task generation as an interruptible timed action: email arrivals and reminder events can occur while the main-task stream is unfolding, and the agent can interrupt the stream, triage the email, act on it, and later resume the partially completed main-task output. 
+
+Run settings. We evaluate four settings, crossing two email-triage model settings with two main-task decompositions. The milestone setting uses the milestone-level subtasks in the task definition. The single setting collapses the main task into one longer unit. Each setting uses 200 seeds and 5 episodes per seed for each method, giving 1000 episodes per method and 3000 episodes per setting. 
+
+Scoring rule. Utility combines main-task progress, main-task completion, timely email handling, timeout penalties, and small switching/interruption penalties: 
+
+U = 0.4 (main progress units ) + 0.8 ⊮{main completed } + 0.4 (emails handled before deadline )
+
+− 0.5 (timed-out emails ) − 0.005 (focus switches ) − 0.005 (main-stream interruptions ). (1) 
+
+Main and email score definitions. The balanced score uses two normalized components that are separate from the additive utility above. The main-task component is the fraction of the target main-task progress completed: Main = min 
+
+
+
+1, main progress units main target progress units 
+
+
+
+. (2) In these runs the target progress is 4 units. The main completion bonus in the utility is not added to this normalized score; it only contributes to U.The email component is an urgency-weighted on-time completion rate. Let E be the set of emails that arrive in the episode, let w(e) be the urgency weight of email e, and let ⊮on-time (e) indicate that the email was handled no later than its deadline. Then Email = ∑e∈E w(e) ⊮on-time (e)
+
+∑e∈E w(e) . (3) 23 Table 17: Environment configuration for the digital assistant with asynchronous emails experiment. 
+
+Parameter Value 
+
+Episode horizon 90 simulated time units Email arrival rate 0.2 Token time cost 0.05 simulated time units per token Main-task target steps 4Main-task selection Seeded hash over cached task outputs Email scenario Default cached email database Urgency probabilities High 0.4, medium 0.4, low 0.2 High-urgency deadline slack Uniform from 5 to 15 time units Medium-urgency deadline slack Uniform from 15 to 25 time units Low-urgency deadline slack Uniform from 25 to 35 time units Check inbox duration 0.1 Open message duration 0.1 Handle email duration 1.0 Set reminder duration 0.1 Return to main task duration 0.1 Triage stream duration 0.2 
+
+Table 18: Digital assistant with asynchronous emails. Utility, Balanced, Timeout, Latency, and Main are reported as mean ± half-width of bootstrap 95% CI (1000 resamples, seed 42). Utility, Balanced, and Main are higher-is-better; Timeout and Latency are lower-is-better. Each run contains 1000 episodes per method. 
+
+Setting Method Utility Balanced Timeout Latency Main 
+
+DeepSeek-V3.2-single EP 3.023 ± 0.102 0.792 ± 0.010 0.315 ± 0.010 6.92 ± 0.20 0.984 ± 0.008 
+
+DeepSeek-V3.2-single Periodic Poll 2.016 ± 0.119 0.619 ± 0.013 0.426 ± 0.013 10.15 ± 0.17 0.983 ± 0.008 
+
+DeepSeek-V3.2-single AgentLoop 0.730 ± 0.117 0.382 ± 0.014 0.598 ± 0.015 13.58 ± 0.27 1.000 ± 0.000 
+
+Qwen3.5-Plus-single EP 3.643 ± 0.087 0.834 ± 0.009 0.263 ± 0.010 7.28 ± 0.20 0.988 ± 0.007 
+
+Qwen3.5-Plus-single Periodic Poll 2.563 ± 0.110 0.660 ± 0.013 0.375 ± 0.012 10.47 ± 0.17 0.981 ± 0.009 
+
+Qwen3.5-Plus-single AgentLoop 0.776 ± 0.118 0.383 ± 0.014 0.593 ± 0.015 13.70 ± 0.28 1.000 ± 0.000 
+
+DeepSeek-V3.2-milestones EP 3.113 ± 0.105 0.818 ± 0.009 0.305 ± 0.011 6.91 ± 0.19 0.995 ± 0.002 
+
+DeepSeek-V3.2-milestones Periodic Poll 1.775 ± 0.115 0.606 ± 0.014 0.444 ± 0.014 11.33 ± 0.21 0.998 ± 0.002 
+
+DeepSeek-V3.2-milestones AgentLoop 1.591 ± 0.123 0.569 ± 0.014 0.467 ± 0.015 11.83 ± 0.23 1.000 ± 0.000 
+
+Qwen3.5-Plus-milestones EP 3.755 ± 0.089 0.859 ± 0.007 0.253 ± 0.010 7.47 ± 0.19 0.995 ± 0.002 
+
+Qwen3.5-Plus-milestones Periodic Poll 2.029 ± 0.108 0.632 ± 0.013 0.417 ± 0.014 11.62 ± 0.21 0.998 ± 0.001 
+
+Qwen3.5-Plus-milestones AgentLoop 1.767 ± 0.118 0.590 ± 0.014 0.446 ± 0.015 12.15 ± 0.22 1.000 ± 0.000 
+
+Emails handled after their deadline and emails that time out both contribute 0 to the numerator. The urgency weights are 1.2, 0.5, and 0.1 for high-, medium-, and low-urgency emails. If no email arrives, the email component is defined as 1.0. The final balanced score combines the normalized main-task score and the urgency-weighted email com-pletion score using complementary weights αmain and 1 − αmain before applying an additional imbalance penalty: Balanced = αmain Main + ( 1 − αmain ) Email − λ |Main − Email |. (4) In the reported configuration, αmain = 0.6, 1 − αmain = 0.4, and λ = 0.5. 
+
+Qwen3.5-Plus results. Table 18 reports the Qwen3.5-Plus results omitted from the main text for space. The ordering matches the DeepSeek-V3.2 results: EP performs best in both decompositions, Periodic Poll improves over AgentLoop but remains below EP, and AgentLoop preserves main-task completion at the cost of email responsiveness. Averaged over the two Qwen3.5-Plus settings, EP reduces timeout rate from 0.520 for AgentLoop to 0.258 and reduces first-response latency from 12.93 to 7.38. Periodic Poll reaches 0.396 timeout rate and 11.05 24 Table 19: Scoring configuration used for the reported digital assistant results.            
+
+> Scoring parameter Value
+> Main progress reward 0.4 per progress unit Main completion bonus 0.8 On-time email handling reward 0.4 per email Late email handling reward 0.0 Timeout penalty 0.5 per timed-out email Focus switch penalty 0.005 per switch Main-stream interruption penalty 0.005 per interruption High-, medium-, low-urgency weights 1.2, 0.5, 0.1 Balanced main weight 0.6 Balanced gap penalty 0.5
+
+latency. EP improves utility over AgentLoop by 2.867 points in single and 1.988 points in milestones ; the corresponding balanced-score gains are 0.451 and 0.269. These results show that the benefit of event-time email observation is not specific to the DeepSeek-V3.2 triage model. 
+
+# E Embodied Scheduling Task Details and Additional Results 
+
+This appendix gives implementation details for the embodied scheduling experiments in Section 5.2.2. The benchmark couples a kitchen process with an online tutoring process on a single simulated clock. All compared interfaces use the same dishes, tutoring problems, action vocabulary, random seeds, time model, and scoring rule. They differ only in the temporal interface exposed to the controller: when cooking signals become visible during tutoring, whether tutoring may be interrupted at the signal time, and whether the immediate kitchen reaction is chosen by the controller or by an engine-side reflex. 
+
+Shared task model and utility. Each episode places an LLM controller in a kitchen-plus-tutoring simulator. The controller must cook dishes and make progress on tutoring problems along the same timeline. Cooking actions consume simulated time and may create future cooking signals. Tutoring also consumes time, with one tick corresponding to one generated tutor token. The controller’s own completion tokens also consume simulated ticks. This shared clock makes kitchen timing, tutoring progress, and controller deliberation directly comparable. All reported embodied results use 
+
+U = ∑
+
+> d∈D
+
+5qd + 5Ntutor − 0.003 T − 0.75 Nswitch − 0.05 Ccheck ,
+
+where qd is the quality of dish d, Ntutor is the number of completed tutor problems, T is total elapsed time in ticks, Nswitch is the number of kitchen–tutor mode switches, and Ccheck is the number of explicit check actions. Critical dishes receive qd = 1 if they are finished within their ideal response window and qd = 0otherwise. For the reported one-dish and multi-dish runs, soft dishes use flat keep-warm scoring: a finish between signal onset and the keep-warm deadline receives full quality qd = 1, while a finish after the keep-warm deadline receives qd = 0. No separate judge model is used in these experiments, so tutoring contributes to utility through completed tutor problems rather than answer correctness. 
+
+Shared controller prompt template. The one-dish and multi-dish settings use the same controller prompt scaffold. The system prompt first establishes the controller’s role as an assistant embedded in a kitchen-plus-tutoring simulator, operating over a single shared timeline and a single shared interaction history. It then states the clock semantics: one tick corresponds to one generated tutor token, and the controller’s own completion tokens also consume simulated ticks. The prompt next defines the legal XML action protocol, including kitchen actions for preparing, staging, and finishing dishes; tutoring actions; waiting; and terminating the episode. 25 The prompt also specifies the semantics of tutoring segments. A <tutor/> action without an explicit 
+
+tokens attribute defaults to the remaining length of the current tutor problem, unless the interface returns control earlier. A tokens=N attribute is interpreted as a voluntary upper bound unless the variant semantics interrupt the segment sooner. After these interface-independent rules, the prompt presents the visible task state, including the currently available kitchen and tutoring tasks, followed by utility guidance describing dish rewards, tutor completion rewards, elapsed-time cost, and kitchen–tutor switch cost. Finally, the prompt reminds the controller that tutoring is online: when a tutoring segment is interrupted and later resumed, the model should continue the unfinished idea rather than restart the explanation. The prompt ends with a variant-specific rule describing when cooking signals become visible, whether tutoring may be interrupted at the signal time, and whether the immediate kitchen reaction is selected by the controller or by an engine-side reflex. The abstract shared controller template is: 
+
+> You are an assistant embedded in a kitchen + tutoring simulator. You operate on one shared timeline and one shared interaction history. 1 tick = 1 tutor token. Your own completion tokens also consume ticks. [Action protocol] <action kind="start_prep" dish="X"/> <action kind="put_on_stove" dish="X"/> <action kind="finish" dish="X"/> <tutor .../> <wait/> <done/> [Tutor segment semantics] - <tutor/> without tokens defaults to the remaining part of the targeted problem, unless the interface returns control earlier. - tokens=N is a voluntary upper bound unless the variant semantics override it. [Visible task state] - dish/task descriptors - tutor problem descriptors [Utility guidance] - finish critical dish in-window: +5 - finish soft dish: +5 * quality - complete tutor problem: +5 - world-clock cost: -0.003 per tick - switch cost: -0.75 per kitchen<->tutor switch [Online tutoring reminder] - if tutoring is interrupted and later resumed, continue the unfinished idea instead of restarting [Variant rule] - interface-specific visibility, interruption, and reaction rule
+
+The one-dish and multi-dish prompts instantiate only the visible-task-state block differently. In the one-dish setting, the prompt contains exactly one dish record and one tutor-problem record: 
+
+> Dish: - name=... - criticality=...
+
+26 - prep=... - signal=..., mean=..., std=... - ideal_window_width=... - finish=... - keep_warm=... [soft dishes only] Tutor problem: - q="Q1" - title=... - total_tokens=... 
+
+For soft one-dish cases, the visible state also includes a soft-dish note explaining that the dish keeps full quality until its keep-warm deadline. In the multi-dish setting, the same block expands the dish and tutor fields into lists and adds scheduling guidance: 
+
+> Dishes: - C1 (...) [critical] prep=..., signal=..., window=..., finish=... - S1 (...) [soft] prep=..., signal=..., window=..., finish=..., keep_warm=... - ... Tutor tasks: - q="Q1" total_tokens=... title=... - q="Q2" total_tokens=... title=... - ... Additional scheduling guidance: - compare ticks_to_window_end and ticks_to_keep_warm_end - reason about stove contention - do not tunnel on late dishes while earlier-signal dishes remain unstaged - selective reprioritization matters more than raw reflex speed
+
+Online tutor-generation subsystem. The controller prompt is separate from the prompt used to generate online tutoring text. When online tutoring is enabled, the tutor-generation prompt uses the same structure in both the one-dish and multi-dish settings: (1) a system message instructing the model to output tutoring prose only and not mention the simulator, kitchen events, XML tags, or interruption mechanics; (2) a user message containing the problem label, title, task brief, target length budget, a status flag indicating whether this is a fresh explanation or a continuation, task-specific guidance, the tail of the prior transcript, and a clipped summary of the recent shared context; and (3) a final instruction to continue the tutoring text while staying on the academic task even if recent context mentions kitchen events. The abstract online tutor template is: 
+
+> System: You are generating live tutoring text inside a kitchen-plus-tutoring benchmark. Output tutoring prose only. Do not mention the simulator, the kitchen, XML tags, or interruption mechanics. If prior transcript exists, continue the unfinished idea naturally instead of restarting. User: Problem label: ...
+
+27 Title: ... Task brief: ... Target length: about ... characters. Task status: [new task / continue previous task] Guidance: ... Prior transcript tail: ... Recent shared context: ... Continue the tutoring text now. Stay on the academic tutoring task even if the recent context mentions kitchen events. 
+
+This separation ensures that interruptions affect scheduling and state visibility without turning the tutor text itself into commentary about the simulator. 
+
+Compared interaction interfaces. The four interfaces differ only in the final variant-specific rule appended to the shared controller prompt. 
+
+AgentLoop is the synchronized tutoring-step baseline. Cooking signals are not surfaced while the controller is inside a tutoring segment. If the controller emits <tutor/> without a token bound, tutoring runs until the current tutor problem finishes or the segment otherwise returns. Any cooking signal that fires during that interval becomes visible only after the tutoring segment boundary. The controller then chooses the next kitchen or tutoring action from the delayed visible state. 
+
+Periodic Poll is the polling-based baseline. The controller may still issue a long tutor request, but the runtime checks for newly fired cooking signals at fixed polling boundaries. In the reported runs, the polling interval is 40 ticks. If a signal is detected at a polling boundary, control returns to the controller with the updated visible state. The controller, not the engine, decides whether to finish a dish, defer a soft dish, resume tutoring, wait, or take another admissible action. This interface therefore reduces boundary-only delay, but signal visibility is still quantized by the polling interval. 
+
+ReflexPatch is an engine-assisted reference. A cooking signal can interrupt tutoring immediately, but before the next controller decision the engine automatically applies a default highest-priority kitchen reaction. The controller then observes the post-reflex state and continues. This baseline measures the benefit of immediate reflexive handling, but it is not a standard agent-controlled policy because the crucial immediate reaction is hard-coded by the runtime. 
+
+EP is the event-driven controller interface. Newly fired cooking signals are surfaced at event time during tutoring, and control returns to the controller at the interruption point. The signal enters the same decision context as other observations, and the controller decides whether to finish a dish immediately, defer a soft event, resume tutoring, wait, or take another admissible action. EP therefore tests whether immediate event visibility plus agent-side control can recover the benefits of timely reaction without replacing the controller’s scheduling decision by an engine-side reflex. 
+
+One-dish setting. The one-dish-one-tutor setting contains exactly one dish, one tutor problem, and stove capacity Sstove = 1 . It isolates response latency by removing most multi-process scheduling ambiguity. We use four randomized dish families: critical_narrow , critical_medium , critical_wide , and 
+
+soft_keepwarm . Critical-narrow dishes use prep time 10 –16 , signal offset 140 – 240 , finish time 6– 9,and ideal window width 20 – 28 . Critical-medium dishes use prep time 12 –18 , signal offset 190 – 320 ,finish time 7 –10 , and ideal window width 30 –48 . Critical-wide dishes use prep time 16 – 24 , signal offset 280 – 520 , finish time 8– 12 , and ideal window width 60 – 100 . Soft keep-warm dishes use prep time 12 – 18 ,signal offset 140–280, finish time 12–18, ideal window width 16–28, and keep-warm slack 220–380. Tutor problems are drawn from four length families: xs with 80 – 100 tokens, short with 120 – 200 tokens, medium with 220 – 380 tokens, and long with 520 –900 tokens. Prompts are sampled from a 28 generic mathematics tutoring pool. The reported one-dish run uses 4 dish families × 4 tutor fami-lies × 2 randomized structures per cell × 4 seeds (7, 11 , 17 , 23 ), for a total of 128 cases. The run-time configuration uses polling_interval = 40 , no default tutor-token budget, no tutor-segment cap, 
+
+max_controller_calls = 40 , and a time budget of 8000 ticks. To avoid a fully deterministic signal boundary on synthetic whistle dishes, whistle-based signal offsets receive Gaussian jitter with standard deviation 3 .0. Table 20: One-dish-one-tutor embodied scheduling results. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Method n Utility ↑ Dish done ↑ Vis. delay ↓ Finish delay ↓ Switches 
+
+AgentLoop 128 3.604 ± 0.414 0.266 ± 0.075 224.849 ± 50.247 227.750 ± 49.467 2.000 ± 0.000 
+
+Periodic Poll 128 5.598 ± 0.335 0.922 ± 0.043 4.659 ± 1.540 17.151 ± 1.596 3.273 ± 0.192 
+
+ReflexPatch 128 5.254 ± 0.306 0.938 ± 0.043 4.468 ± 3.625 15.960 ± 3.137 3.891 ± 0.176 
+
+EP 128 5.731 ± 0.313 0.938 ± 0.043 3.057 ± 2.789 15.484 ± 3.000 3.352 ± 0.207 
+
+The aggregate one-dish results in Table 20 show three patterns. First, AgentLoop is consistently weak because its signal-to-visibility delay is dominated by tutor segment boundaries, which directly lowers dish completion. Second, Periodic Polling recovers most of the benefit of interruptibility in this low-complexity setting: with only one dish and no burner contention, polling every 40 ticks is often sufficient to surface the relevant signal before the dish is irrecoverable. Third, EP obtains the best overall one-dish utility and the lowest average visibility and finish delays, but the margin over Periodic Polling and ReflexPatch should be interpreted as modest. The stronger conclusion is that boundary-only visibility fails, while both event-time visibility and sufficiently frequent polling substantially improve embodied timing in the one-dish regime. Table 21: One-dish results by dish family. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Family Method n Utility ↑ Vis. delay ↓ Finish delay ↓
+
+critical_medium AgentLoop 32 3.463 ± 0.812 182.105 ± 93.947 194.105 ± 92.448 
+
+critical_medium Periodic Poll 32 5.871 ± 0.641 3.161 ± 2.903 15.161 ± 2.952 
+
+critical_medium ReflexPatch 32 5.203 ± 0.594 2.759 ± 4.138 14.759 ± 4.138 
+
+critical_medium EP 32 6.189 ± 0.638 2.500 ± 3.750 14.500 ± 3.750 
+
+critical_narrow AgentLoop 32 3.731 ± 0.877 232.286 ± 88.738 214.542 ± 83.980 
+
+critical_narrow Periodic Poll 32 5.123 ± 1.023 5.844 ± 3.516 17.844 ± 3.484 
+
+critical_narrow ReflexPatch 32 5.447 ± 0.383 0.000 ± 0.000 12.000 ± 0.000 
+
+critical_narrow EP 32 6.306 ± 0.595 3.161 ± 4.742 14.750 ± 5.063 
+
+critical_wide AgentLoop 32 3.339 ± 0.721 193.333 ± 122.600 205.333 ± 122.767 
+
+critical_wide Periodic Poll 32 5.605 ± 0.320 2.875 ± 1.844 14.875 ± 1.844 
+
+critical_wide ReflexPatch 32 4.917 ± 0.892 11.774 ± 13.307 21.742 ± 10.936 
+
+critical_wide EP 32 5.217 ± 0.691 6.387 ± 8.065 19.484 ± 8.742 
+
+soft_keepwarm AgentLoop 32 3.884 ± 0.836 287.556 ± 92.973 299.556 ± 93.417 
+
+soft_keepwarm Periodic Poll 32 5.791 ± 0.355 6.774 ± 3.452 20.774 ± 3.871 
+
+soft_keepwarm ReflexPatch 32 5.447 ± 0.314 3.406 ± 3.938 15.406 ± 4.078 
+
+soft_keepwarm EP 32 5.211 ± 0.449 0.000 ± 0.000 13.103 ± 1.655 
+
+Table 21 breaks down the one-dish results by dish family. AgentLoop suffers large visibility and finish delays across all families because cooking signals are surfaced only after tutoring completes. EP performs best on the critical-medium and critical-narrow families, where early visibility is most valuable. In critical-wide and soft-keepwarm cases, the differences are smaller and depend more on whether the 29 controller chooses to defer or respond immediately, because wider windows reduce the pure latency penalty. 
+
+Multi-dish setting. The multi-dish-multi-tutor setting is the main selective scheduling benchmark. It contains multiple dishes and multiple tutoring problems, with overlapping cooking signals and repeated opportunities to interrupt and resume tutoring. We sweep K ∈ { 3, 4, 5} dishes, M ∈ { 2, 3} tutor prob-lems, and stove capacity Sstove ∈ { 1, 2}, yielding 12 structural cells. For each cell, we instantiate three randomized case families and two seeds (7, 11 ), for a total of 12 × 3 × 2 = 72 cases. The three case families stress different scheduling mechanisms. soft_vs_critical_conflict places an early soft timer before a critical whistle that follows 8 –28 ticks later, together with later background dishes. staggered_criticals places two critical whistles 10 –35 ticks apart, with additional background soft or wide-critical dishes. resume_pressure places an early critical dish, then a soft dish, then a later critical dish, explicitly creating repeated interrupt–resume opportunities. Tutor families are sampled from the same generic mathematics pool as in the one-dish setting, with case-family-dependent anchors. soft_vs_critical_conflict begins from short and long tutor problems, 
+
+staggered_criticals begins from medium and long tutor problems, and resume_pressure begins from long and medium tutor problems, with additional families sampled when M = 3. The runtime configuration matches the one-dish setting except that max_controller_calls = 60 . In particular, 
+
+polling_interval = 40 , no default tutor-token budget or tutor-segment cap is imposed, and whistle dishes receive Gaussian signal jitter with standard deviation 3 .0. Table 22: Multi-dish-multi-tutor embodied scheduling results. Cells report mean ± half-width of the bootstrap 95% confidence interval.                                                                                                                 
+
+> Method nUtility ↑Critical succ. ↑Soft quality ↑Vis. delay ↓Finish delay ↓Priority Soft defer Resume delay
+> AgentLoop 72 19.671 ±1.290 0.745 ±0.068 0.833 ±0.079 74.108 ±18.466 91.691 ±18.819 0.870 ±0.131 0.119 ±0.046 146.210 ±31.160
+> Periodic Poll 72 18.981 ±1.235 0.718 ±0.076 0.971 ±0.032 17.987 ±5.877 37.625 ±8.398 0.857 ±0.215 0.084 ±0.039 83.651 ±18.810
+> ReflexPatch 72 21.202 ±1.009 0.913 ±0.051 0.952 ±0.046 17.897 ±9.010 28.568 ±8.614 –0.069 ±0.063 93.647 ±22.277
+> EP 72 21.288 ±0.852 0.936 ±0.043 0.957 ±0.040 9.693 ±6.548 28.537 ±8.157 0.722 ±0.195 0.098 ±0.044 88.605 ±15.303
+
+The aggregate multi-dish results in Table 22 show that EP obtains the highest utility and critical-dish success, while ReflexPatch is very close in utility and finish delay. This comparison should be interpreted carefully: ReflexPatch is an engine-assisted reference, because the runtime automatically applies a default cooking response before the controller can choose. EP instead tests whether the controller can use immediate event visibility to make its own scheduling decisions. The small gap between EP and ReflexPatch suggests that event-time visibility plus agent-side control can approach a hard-coded reflex reference in this setting. Table 23: Multi-dish results by case family. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Family Method n Utility ↑ Critical succ. ↑ Soft quality ↑ Soft defer Resume delay 
+
+resume_pressure AgentLoop 24 21.103 ± 2.527 0.785 ± 0.108 0.917 ± 0.104 0.111 ± 0.080 155.136 ± 55.870 
+
+resume_pressure Periodic Poll 24 19.133 ± 2.390 0.715 ± 0.116 0.958 ± 0.063 0.097 ± 0.080 96.717 ± 33.321 
+
+resume_pressure ReflexPatch 24 22.226 ± 1.489 0.965 ± 0.045 1.000 ± 0.000 0.000 ± 0.000 79.465 ± 20.468 
+
+resume_pressure EP 24 21.784 ± 1.284 0.979 ± 0.031 0.938 ± 0.084 0.146 ± 0.094 88.335 ± 25.339 
+
+soft_vs_critical_conflict AgentLoop 24 18.243 ± 1.455 0.674 ± 0.112 0.806 ± 0.122 0.172 ± 0.083 123.927 ± 43.707 
+
+soft_vs_critical_conflict Periodic Poll 24 20.351 ± 1.245 0.847 ± 0.104 0.979 ± 0.031 0.090 ± 0.066 63.421 ± 9.035 
+
+soft_vs_critical_conflict ReflexPatch 24 20.572 ± 1.815 0.944 ± 0.063 0.903 ± 0.097 0.208 ± 0.167 64.033 ± 11.049 
+
+soft_vs_critical_conflict EP 24 21.078 ± 1.591 0.958 ± 0.052 0.938 ± 0.063 0.076 ± 0.063 70.010 ± 11.129 
+
+staggered_criticals AgentLoop 24 19.668 ± 2.296 0.778 ± 0.125 0.773 ± 0.159 0.073 ± 0.063 159.567 ± 56.769 
+
+staggered_criticals Periodic Poll 24 17.460 ± 2.502 0.590 ± 0.142 0.977 ± 0.034 0.066 ± 0.059 90.815 ± 41.924 
+
+staggered_criticals ReflexPatch 24 20.809 ± 1.922 0.830 ± 0.124 0.955 ± 0.068 0.000 ± 0.000 137.442 ± 58.092 
+
+staggered_criticals EP 24 21.003 ± 1.566 0.872 ± 0.101 1.000 ± 0.000 0.073 ± 0.063 107.469 ± 34.424 
+
+30 Table 23 reports results by case family. The main separation comes from priority-sensitive cases: EP is strongest on soft_vs_critical_conflict and staggered_criticals , whereas ReflexPatch is strongest on resume_pressure . This pattern is consistent with the qualitative role of the interfaces. ReflexPatch reacts quickly by construction, but EP preserves model choice when multiple pending dishes compete for priority or when a soft-dish signal does not require an immediate switch. Periodic Poll presents an instructive tradeoff. It achieves high average soft quality, but this comes at the expense of critical-dish timing; its average critical success is substantially below EP. This indicates that periodic polling is often sufficient to preserve non-urgent soft dishes, but is less reliable when multiple urgent signals must be reprioritized inside a single shared schedule. 
+
+Tutoring continuity and representative trace. A possible concern is that event-time interruption could improve kitchen timing only by degrading the tutoring stream. We therefore evaluate whether the online tutor subsystem resumes cleanly after interruptions, and we visualize a representative resume-pressure episode. Figure 7 shows how the interfaces differ on the same episode. The difference is whether cooking signals become visible while tutoring is in progress and who decides the immediate reaction. In this trace, EP interrupts and resumes tutoring at event time, preserving both critical dishes and the soft dish. AgentLoop and ReflexPatch complete the same tutoring workload but miss the late critical dish, while Periodic polling unfortunately misses both critical dishes in this case, because the rigid check intervals happen to fall outside the critical visibility windows. Table 24: Tutoring continuity metrics. Cells report mean ± half-width of the bootstrap 95% confidence interval. 
+
+Setting Method Interrupted segments Resumed segments Resume overlap Restart rate 
+
+One-dish AgentLoop 0.000 ± 0.000 0.000 ± 0.000 – –One-dish Periodic Poll 0.312 ± 0.079 0.297 ± 0.082 0.000 ± 0.000 0.026 ± 0.040 
+
+One-dish ReflexPatch 0.297 ± 0.078 0.297 ± 0.082 0.073 ± 0.077 0.079 ± 0.092 
+
+One-dish EP 0.344 ± 0.082 0.344 ± 0.078 0.001 ± 0.001 0.000 ± 0.000 
+
+Multi-dish AgentLoop 0.000 ± 0.000 0.000 ± 0.000 – –Multi-dish Periodic Poll 2.014 ± 0.236 1.986 ± 0.236 0.018 ± 0.019 0.017 ± 0.020 
+
+Multi-dish ReflexPatch 1.903 ± 0.285 1.903 ± 0.278 0.023 ± 0.031 0.021 ± 0.028 
+
+Multi-dish EP 2.028 ± 0.257 2.028 ± 0.250 0.016 ± 0.018 0.015 ± 0.018 
+
+Table 24 summarizes tutoring continuity across interrupted and resumed segments. AgentLoop has no interrupted tutoring segments because tutoring is never interrupted mid-problem. The other three methods interrupt and resume tutoring segments. Restart rates are low overall, and EP has the lowest restart rate in both one-dish and multi-dish settings, suggesting that event-time interruption does not substantially degrade tutoring continuity when the tutor subsystem is conditioned on the prior transcript and recent shared context. 
+
+# F Time-Aware LLM Training 
+
+This appendix provides additional details and results for the time-aware LLM training experiment in Section 6.3. This experiment studies whether an LLM-based reasoning model can learn to adapt its generation behavior under different deliberation-time constraints. In EP, action generation is part of the interaction process and may consume time. For reasoning models, we use the number of generated tokens as a proxy for deliberation time. 
+
+Setup. We use Qwen3-8B as the base reasoning model and train it on a difficult subset of DeepMath-103K [ 40 ]. We first use Qwen2.5-32B to assign each problem a difficulty score from 1 to 10, using the 31 math difficulty filtering prompt from Figure 29 of OpenThoughts [ 44 ]. We keep problems scored 9 or 10 as the hard subset, yielding approximately 19K training candidates, and reserve a fixed 1K test set. We evaluate the checkpoint at step 90, where the training rewards of all three variants had approximately converged; under our training configuration, this corresponds to using about 12K training examples. For each problem, we randomly assign one of four requested token budgets: 
+
+B ∈ { 1000 , 2000 , 4000 , 8000 }. (5) Each budget is paired with a natural-language time instruction: • B = 1000: “Now time is urgent, please give me an answer immediately.” • B = 2000 : “Now there is a little time for you to think, but please think simply and give me an answer.” • B = 4000: “Now there is more time for you to think, please think carefully and give me an answer.” • B = 8000 : “Now there is a lot of time for you to think, please think carefully and give me an answer.” 
+
+Training variants. We train three variants from the same Qwen3-8B initialization on the same data for 90 GRPO steps with the same training configuration. The first variant, EP-aware , uses the EP setting: the reward is 1 only if the final answer is correct and the generated solution length does not exceed the requested budget B; otherwise the reward is 0. Its maximum generation length during training is 8000 tokens. The second variant, RLVR-8K , follows a standard RLVR setting with the same 8000-token training limit, but removes the budget constraint from the reward: the model receives reward 1 if the final answer is correct and 0 otherwise. The third variant, RLVR-16K , is identical to RLVR-8K except that the maximum generation length during training is increased to 16000 tokens. Thus, comparing EP-aware with RLVR-8K isolates the effect of the EP-aware budgeted reward, while comparing RLVR-8K with RLVR-16K tests whether the training-time generation limit itself induces implicit time-aware behavior. All three variants are trained with full-parameter GRPO from the same Qwen3-8B initialization for 90 steps. We implement full-parameter GRPO training using the open-source verl framework [ 45 ]. 1 Each training run uses 16 NVIDIA A100 GPUs with tensor parallel size 4 and pipeline parallel size 2. We use batch size 8 per device, micro-batch size 2, micro-rollout batch size 8, mini-batch size 2 per device, rollout tensor parallel size 4, rollout temperature 1.0, rollout number 10, and data shuffling enabled. All variants use the same training data, train/test split, budget assignments, and GRPO configuration. All training runs were conducted on NVIDIA A100 GPUs. Each training run used 16 A100 GPUs with 143,771 MiB of memory per GPU. Across the three training variants, the total wall-clock training time was approximately 53 hours, corresponding to roughly 848 A100 GPU-hours. 
+
+Evaluation. All models are evaluated on the same fixed 1K test set with the same decoding configuration. We use temperature 0.6, top-p 0.95, top-k 20, a maximum generation length of 32768 tokens, and thinking mode enabled. We report Budgeted Success , the fraction of examples that are both correct and within the requested token budget; Accuracy , the fraction of examples with a correct final answer regardless of length; and Average Tokens , the average generated solution length. The full results are reported in Table 25. For uncertainty estimates, we report bootstrap 95% confidence intervals over test examples within each model–budget group for Budgeted Success, Accuracy, and Average Tokens. 
+
+Discussion. Table 25 shows that RL training improves unconstrained Accuracy across all trained variants. Both RLVR-8K and RLVR-16K substantially improve over the base Qwen3-8B model, reaching around 0.77–0.81 Accuracy across budgets. However, high unconstrained Accuracy does not necessarily imply budget-aware behavior. Under the 1000-token budget, RLVR-8K achieves 0.786 Accuracy but only 0.284 Budgeted Success, while RLVR-16K achieves 0.782 Accuracy but only 0.037 Budgeted Success. In 
+
+> 1https://github.com/verl-project/verl
+
+32 Table 25: Evaluation with a 32768-token decoding limit. EP-aware training uses a budgeted reward, while RLVR-8K and RLVR-16K use correctness-only rewards with 8000-token and 16000-token training limits, respectively. We report bootstrap 95% confidence intervals over test examples for Budgeted Success, Accuracy, and Average Tokens. 
+
+## Model Budget Total Budgeted Succ. Acc. Avg. Tokens 
+
+## Qwen3-8B 1000 243 0.000 ± 0.000 0.407 ± 0.062 7554.28 ± 603.08 
+
+## Qwen3-8B 2000 246 0.049 ± 0.029 0.398 ± 0.061 6411.49 ± 535.93 
+
+## Qwen3-8B 4000 257 0.082 ± 0.035 0.346 ± 0.058 8717.73 ± 619.59 
+
+## Qwen3-8B 8000 254 0.228 ± 0.051 0.311 ± 0.059 8977.00 ± 735.46 
+
+## RLVR-16K 1000 243 0.037 ± 0.025 0.782 ± 0.054 5120.14 ± 718.85 
+
+## RLVR-16K 2000 246 0.280 ± 0.057 0.805 ± 0.049 3899.67 ± 538.11 
+
+## RLVR-16K 4000 257 0.393 ± 0.062 0.802 ± 0.051 5271.25 ± 397.51 
+
+## RLVR-16K 8000 254 0.669 ± 0.059 0.791 ± 0.051 5599.19 ± 542.45 
+
+## RLVR-8K 1000 243 0.284 ± 0.058 0.786 ± 0.054 1891.52 ± 193.18 
+
+## RLVR-8K 2000 246 0.557 ± 0.065 0.772 ± 0.053 1754.75 ± 178.40 
+
+## RLVR-8K 4000 257 0.696 ± 0.058 0.794 ± 0.051 2443.72 ± 235.46 
+
+## RLVR-8K 8000 254 0.795 ± 0.051 0.811 ± 0.051 2413.02 ± 243.22 
+
+## EP-aware 1000 243 0.733 ± 0.058 0.765 ± 0.054 471.90 ± 85.87 
+
+## EP-aware 2000 246 0.691 ± 0.057 0.691 ± 0.057 522.23 ± 84.14 
+
+## EP-aware 4000 257 0.755 ± 0.055 0.763 ± 0.055 1027.77 ± 99.36 
+
+## EP-aware 8000 254 0.783 ± 0.051 0.783 ± 0.051 1124.06 ± 124.27 
+
+contrast, EP-aware training achieves 0.733 Budgeted Success under the same 1000-token budget, showing that the model learns to satisfy tight time constraints rather than merely solve the problem correctly. The comparison between RLVR-8K and RLVR-16K also shows that the maximum generation length during training has an implicit effect on budgeted behavior. RLVR-8K produces shorter outputs than RLVR-16K and therefore obtains higher Budgeted Success under all requested budgets. This suggests that limiting the training-time generation length can act as a weak implicit time constraint. Nevertheless, this effect is much weaker than directly optimizing the EP-aware budgeted objective. EP-aware training achieves substantially higher Budgeted Success under tight budgets while maintaining competitive Accuracy. Average token counts further reveal the difference. The correctness-only RLVR models do not adapt generation length strongly to the requested budget: RLVR-8K stays around 1.8K–2.4K tokens, while RLVR-16K remains around 3.9K–5.6K tokens. EP-aware training instead produces much shorter outputs under urgent budgets and increases length as more time is available, from 420.74 tokens at the 1000-token budget to 1408.56 tokens at the 8000-token budget. This indicates that EP-aware training learns a time-adaptive generation policy, supporting the EP view that action generation time should be modeled as part of the interaction process rather than treated as an external decoding detail. 
+
+Resources and licenses. We use DeepMath-103K under the MIT License. The Qwen3-8B and Qwen2.5-32B models are released under the Apache License 2.0. DeepSeek-V3.2 is released under the MIT License. Qwen3.5-Plus is accessed as an Alibaba Cloud Model Studio API model and is governed by the Alibaba Cloud Model Studio Terms of Service. The training implementation uses the open-source verl framework described above. 33 Q1 (535t) 
+
+Q2 (344t) 
+
+Q3 (335t) 
+
+C1 critical 
+
+S1 soft 
+
+C2 critical 
+
+tutor output 
+
+cooking signals   
+
+> C1 S1 C2
+
+EP: U=21.675, critical success=1.00, tutor=3/3 
+
+Q1 (535t) 
+
+Q2 (344t) 
+
+Q3 (335t) 
+
+C1 critical 
+
+S1 soft 
+
+C2 critical 
+
+tutor output 
+
+cooking signals   
+
+> C1 S1 C2
+> +39
+> +14 late
+
+AgentLoop: U=17.734, critical success=0.50, tutor=3/3 
+
+Q1 (535t) 
+
+Q2 (344t) 
+
+Q3 (335t) 
+
+C1 critical 
+
+S1 soft 
+
+C2 critical 
+
+tutor output 
+
+cooking signals   
+
+> C1 S1 C2
+> +76
+> +51 late
+
+ReflexPatch: U=16.705, critical success=0.50, tutor=3/3 
+
+0 400 800 1200 1600 
+
+Simulated tick (1 tick = 1 tutoring token) 
+
+Q1 (535t) 
+
+Q2 (344t) 
+
+Q3 (335t) 
+
+C1 critical 
+
+S1 soft 
+
+C2 critical 
+
+tutor output 
+
+cooking signals 
+
+> C1
+> +26
+> +17 late
+> S1
+> +31
+> C2
+> +37
+> +12 late
+
+Periodic Polling: U=10.391, critical success=0.00, tutor=3/3 
+
+Resume-pressure case study: tutor progress and cooking response timing 
+
+Case: K=3 dishes, M=3 tutor problems, S=1 stove, seed=11. All methods complete Q1-Q3; differences come from signal visibility and response timing. 
+
+tutor segment 
+
+critical response window 
+
+soft ideal window 
+
+soft keep-warm 
+
+signal onset 
+
+visible to controller 
+
+finish: on time 
+
+finish: late 
+
+visibility delay Figure 7: Representative episode from the resume_pressure family with three dishes, three tutor problems, and one stove slot. The upper lanes show generated tutor segments for Q1–Q3, while the lower lanes show cooking signals, valid response windows, and finish actions. 34
