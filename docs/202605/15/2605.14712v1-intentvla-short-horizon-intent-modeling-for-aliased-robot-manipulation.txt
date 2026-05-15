@@ -1,0 +1,482 @@
+Title: IntentVLA: Short-Horizon Intent Modeling for Aliased Robot Manipulation
+
+URL Source: https://arxiv.org/pdf/2605.14712v1
+
+Published Time: Fri, 15 May 2026 01:01:01 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+2026-05-15 Work in progress. 
+
+# IntentVLA: Short-Horizon Intent Modeling for Aliased Robot Manipulation 
+
+Shijie Lian 1,2 * Bin Yu 2,4 * Xiaopeng Lin 5,2 * Zhaolong Shen 2,6 * Laurence Tianruo Yang 1,7, †
+
+Yurun Jin 3,9 Haishan Liu 2 Changti Wu 2,8 Hang Yuan 2,8 Cong Huang 2,3 Kai Chen 2,3,10, †
+
+> 1
+
+HUST 2ZGCA 3ZGCI 
+
+> 4
+
+HIT 5HKUST(GZ) 6BUAA 7ZZU 8ECNU 9USTC 10 DeepCybo 
+
+§ https://github.com/ZGC-EmbodyAI/IntentVLA 
+
+Abstract 
+
+Robot imitation data are often multimodal: similar visual-language observations may be followed by different action chunks because human demonstrators act with different short-horizon intents, task phases, or recent context. Existing frame-conditioned VLA policies infer each chunk from the current observation and instruction alone, so under partial ob-servability they may resample different intents across adjacent replanning steps, leading to inter-chunk conflict and unstable execution. We introduce IntentVLA, a history-conditioned VLA framework that encodes recent visual observations into a compact short-horizon intent representation and uses it to condition chunk generation. We further introduce AliasBench, a 12-task ambiguity-aware benchmark on RoboTwin2 with matched training data and evalu-ation environments that isolate short-horizon observation aliasing. Across AliasBench, Sim-plerEnv, LIBERO, and RoboCasa, IntentVLA improves rollout stability and outperforms strong VLA baselines. 
+
+1 Introduction 
+
+Vision-language-action (VLA) models provide a direct interface from perception and instruction to con-trol: given visual observations and a language command, the policy outputs robot actions [2, 3, 15, 27]. Recent large-model-based VLAs scale this paradigm with transformer backbones, large robot datasets, and vision-language pretraining, enabling more generalist manipulation policies across tasks and em-bodiments [1, 10, 12, 26, 47]. Training VLA models typically relies on large-scale human-collected robot trajectories [4, 13, 31, 39], and these datasets often faithfully reflect the underlying multimodality of manipulation behavior. For in-stance, an environment may admit multiple valid goals, and even a fixed goal can often be achieved through multiple feasible paths [44]. This diversity is not itself the problem. Human demonstrations are naturally multimodal across episodes, but they are locally committed within each episode: once a demonstrator follows a particular task phase, path, or completion strategy, adjacent action chunks usu-ally remain consistent with that choice. The difficulty arises because current VLA policies generally infer actions from only the current frame image and the language instruction. Under partial observability, the same frame-level observation can correspond to different short-horizon intents, but a frame-conditioned VLA does not observe the episode-level commitment that selected one of them. Repeated chunk gener-ation can then switch among intents across adjacent decision steps, producing contradictory chunks and unstable execution. Thus, the goal is not to eliminate multimodality, but to condition generation on the commitment already expressed by the current episode. Figure 1 illustrates this ambiguity in a bread-cooking trajectory: the robot reaches similar bread-holding states under the same instruction, but the intended next chunk differs between the skillet-
+
+> *Equal contribution
+> †Corresponding authors Work done at Zhongguancun Academy (Beijing).
+
+1                
+
+> arXiv:2605.14712v1 [cs.RO] 14 May 2026 Should I put the brown
+> bread in the skillet or in
+> the plate ?
+> Inference
+> Intent 1: Put it into
+> the cooking skillet
+> Intent 2: P ut it into
+> the greenish plate
+> Move the brown bread loaf to the smooth cooking skillet,
+> then back to the greenish plate.
+> Training Dataset
+> 12345
+> 678910
+
+Figure 1: An illustrative example of short-horizon intent ambiguity under frame-only conditioning. The task is ordinary: the robot puts a piece of bread into a skillet for cooking and then returns it to the plate. The ambiguity appears because similar bread-in-gripper observations occur before two different continuations: placing the bread into the skillet and returning it to the plate. A frame-conditioned chunk policy that sees only the current image and instruction may therefore be uncertain about whether the active continuation is cooking or plating. 
+
+placement phase and plate-return phase. To identify and measure this failure mode directly, we build AliasBench on top of RoboTwin2 [6], with matched simulation training data and evaluation environ-ments designed specifically around short-horizon observation aliasing. Unlike standard manipulation benchmarks that mainly report task success, AliasBench stresses whether a policy can preserve a consis-tent local continuation in explicitly constructed ambiguous scenarios, where the same current observation can arise in different episodes or phases but require different next chunks. It covers four such ambiguity scenarios: back-and-forth, crossing-path, bimanual, and multi-goal ambiguity. Representative bench-mark cases are shown in Figure 2. AliasBench provides a controlled way to test whether this is a genuine evaluation failure mode of frame-conditioned chunk policies rather than a purely conceptual concern. To address the failure mode validated by AliasBench, we propose IntentVLA, a history-conditioned imitation learning framework for chunked VLA control. The core idea is to preserve the local com-mitment already expressed in the episode by conditioning action generation on recent visual evidence, rather than inferring every chunk from the current frame alone. Concretely, IntentVLA encodes recent observations with a frozen VGGT-based history encoder, keeps compact camera and register tokens as history evidence, and fuses them with the current Qwen3-VL visual-language context through gated cross-attention. The fused current context, together with an appended history-evidence token, forms a condition-dependent short-horizon intent representation that conditions a standard DiT-based flow-matching action head. In the experiments, we first report results on AliasBench, and then evaluate In-tentVLA on SimplerEnv, LIBERO, and RoboCasa. Across all settings, IntentVLA improves both success rate and execution stability over strong VLA baselines. Our contributions are fourfold: • We identify a failure mode of frame-conditioned chunk policies under partial observability: demon-strations are multimodal across episodes but locally committed within an episode, while frame-only conditioning can break this commitment at test time. • We construct AliasBench, a 12-task benchmark on RoboTwin2 for evaluating VLA behavior under short-horizon observation aliasing, together with matched simulation training data and evaluation environments. • We propose IntentVLA, a history-conditioned imitation learning framework that learns a compact short-horizon intent representation from recent visual observations and uses it to condition chunk generation. • We implement and validate IntentVLA extensively across AliasBench, SimplerEnv, LIBERO, and RoboCasa, including ambiguous-intent tasks that directly test short-horizon intent consistency. 
+
+22 Related Work 
+
+2.1 Vision-Language-Action Models 
+
+Recent progress in robotic manipulation has been driven by Vision-Language-Action (VLA) models, which connect large-scale vision-language pre-training with low-level robot control. Early works such as RT-2 [51] and OpenVLA [15] showed that adapting Vision-Language Models (VLMs) to action gener-ation can transfer web-scale semantic priors to robotics. FAST [32] improves training efficiency through frequency-space compression. To model continuous multi-step control, methods such as Octo [38], 
+
+π0 [3], and RDT-1B [27] adopt generative action heads based on diffusion or flow matching. Building on π0, π0.5 [12] further scales training with heterogeneous data sources and multimodal supervision, improving open-world generalization through knowledge transfer across robots, web data, and semantic subtask annotations. To alleviate robot-data scarcity, GR00T [2] and UniVLA [5] leverage synthetic data and unlabeled human videos, while H-RDT [1] and X-VLA [47] use prompt-based adaptation to stabilize cross-embodiment pre-training. Other works enhance spatial grounding with 3D-aware rep-resentations [16–18, 23, 33, 46], and some recent models incorporate world-model-style objectives or latent future prediction to improve action generalization and long-horizon reasoning [35, 37]. Recent memory-centric approaches like MemoryVLA [36] and Mem-0 [7] further extend temporal horizons by integrating historical context through specialized memory banks or task-aware mechanisms. 
+
+2.2 Intent-based VLA Models 
+
+Recent advancements in VLA models have increasingly pivoted toward intent-driven decision-making to bridge the fundamental semantic-kinematic gap. DIAL [8] introduces a differentiable latent intent bottleneck that synthesizes visual foresight to structurally anchor motor commands to high-level rea-soning. Similarly, ACoT-VLA [49] materializes the Action Chain-of-Thought paradigm by formulating reasoning as a structured sequence of kinematically grounded action intents. To enhance generalizabil-ity, MINT [11] employs a spectrally disentangled action tokenizer that isolates low-frequency global intent from high-frequency execution residuals. MAIN-VLA [50] further optimizes efficiency by refin-ing instructions into compact semantic primitives while projecting visual streams into structured affor-dance representations. DeepVision-VLA [29] enhances visual grounding in deeper model layers through action-guided visual pruning to identify task-relevant regions. VFP [45] introduces a variational latent prior for mode-aware action generation to ensure coherent behavior modes in multimodal expert dis-tributions. However, these methods primarily rely on the current observation frame, often struggling to resolve short-horizon ambiguity under partial observability where visually similar states require different immediate continuations that can only be disambiguated by recent task history. 
+
+3 AliasBench: Ambiguity-Aware Benchmark Design 
+
+To evaluate whether a policy can resolve aliased observations from recent context, we build AliasBench on top of RoboTwin2 [6]. AliasBench contains 12 manipulation tasks together with matched simulation training data and held-out evaluation environments. The benchmark targets an underexplored gap in cur-rent VLA evaluation: most standard benchmarks measure whether a policy can complete a manipulation task, but they rarely isolate whether the policy can maintain a consistent decision when the current ob-servation is aliased. AliasBench is therefore designed as a tool for testing whether VLAs can preserve decision consistency across adjacent action chunks. Concretely, we seek task configurations in which two episode states produce nearly identical current observations, 
+
+o(1)  
+
+> t
+
+≈ o(2)  
+
+> t
+
+, (1) but require different next actions, 
+
+a(1) 
+
+> t
+
+̸ = a(2)  
+
+> t
+
+. (2) The difference should arise from latent context that is not identifiable from the current frame alone but is still recoverable from recent observations. This is the failure mode we want the benchmark to expose.                      
+
+> 3Hand Over Pill Bottle Hand Over Roller
+> Inspect Label and Place Block Pick Flashed Cans in Order
+> Pick Flashed Blocks in Order
+> Move Block tothe Other Grid Move Block tothe Other Grid Move Block tothe Other Grid
+> Use Staplerand Return It Store Shoeand Take It Back
+> Move BlockOut and Back Cook Breadand Plate It
+
+Figure 2: Representative observation aliasing patterns in AliasBench. The quantitative observation-aliasing diagnostic is shown in Figure 3, and policy results are reported in Section 5.1. 
+
+We organize tasks by the latent factor that causes aliasing. These four families are intended to capture common manipulation patterns rather than synthetic edge cases. Back-and-forth ambiguity covers repeated local routines in which nearly identical carrying or staging states reappear in different phases, as in everyday procedures that use an object and then return it to its original place. Crossing-path ambiguity covers source-dependent routing, where similar in-flight transport states arise from different recent origins and the correct destination depends on where the object came from. Bimanual ambiguity 
+
+captures dual-arm settings in which center or handoff configurations can look nearly symmetric, but the continuation depends on the recent transfer direction. Multi-goal ambiguity covers scenes with multiple plausible objects or destinations, where the active local target is specified by a transient cue or a recently revealed property that may disappear before the final grasp or placement. In total, AliasBench contains 4 back-and-forth tasks, 3 crossing-path tasks, 2 bimanual tasks, and 3 multi-goal tasks. Detailed definitions of all 12 tasks are provided in Appendix B. Figure 2 provides several visual examples from AliasBench. In Move Phone Between Stand and Pad ,a natural everyday command is something like “hey, put the phone on the other stand.” However, in the third frame, when the robot arm is already holding the phone in mid-air, once one action chunk has finished and the policy must generate the next chunk, the current observation alone no longer reveals which phone stand is the starting point and which one is the target. In Cook Bread and Plate It , the first frame, where the robot picks up the bread, and the fifth frame, where it puts the bread down, look similar; likewise, the second frame, where the bread is placed onto the skillet for cooking, and the fourth frame, where it is taken back out and moved for plating, are also visually similar, even though they correspond to different intents. Similarly, in the third frame of Hand Over Roller , transferring the roller from left to right and transferring it from right to left can produce similar observations, but the subsequent intents are fundamentally different. These are exactly the kinds of short-horizon aliases that a frame-conditioned chunk policy cannot reliably resolve from the current frame alone. 
+
+Observation-aliasing diagnostic. We further verify that these examples correspond to measurable vi-sual aliasing rather than only qualitative similarity. For each task, we encode every current image inside 
+
+40 10 20 30 40 50 60 70           
+
+> Different-intent neighbors in top-k (%)
+> Cook Bread and Plate It
+> Move Block Out and Back
+> Use Stapler and Return It
+> Store Shoe and Take It Back
+> Move Block to Opposite Grid
+> Move Block to Other Grid
+> Move Phone Between Stand and Pad
+> Hand Over Roller
+> Hand Over Pill Bottle
+> Pick Flashed Blocks
+> Pick Flashed Cans
+> Inspect Label and Place Block
+> 50%
+> (a) Top-k intent mixing
+> 0123456
+> Median NN cosine distance (×10 3)
+> (b) Same vs. different-intent proximity
+> same intent
+> different intent
+> Back-and-Forth Crossing-Path Bimanual Multi-Goal
+
+Figure 3: Quantitative observation-aliasing diagnostic on AliasBench. Back-and-Forth uses intra-episode re-trieval with a 20-frame temporal gap; all other families use cross-episode retrieval. The diagnostic is not a policy success metric. Instead, it measures whether visually nearby states in the ambiguity window can correspond to different next intents. Left: roughly half of the top-k neighbors ( k = 5 ) come from a different intent. Right: open circles and filled diamonds show median nearest-neighbor cosine distances to same-intent and different-intent states, respectively, with distances scaled by 10 3 for readability. Although a few tasks appear to have larger dis-tance gaps visually, the actual cosine-distance differences remain on the order of 10 −3.
+
+the ambiguity window into a visual embedding and run nearest-neighbor retrieval within the task, using cosine distance in the embedding space. For back-and-forth tasks, the relevant ambiguity occurs within the same trajectory because different phases revisit similar local states; we therefore use intra-episode retrieval with a temporal gap of 20 frames. For the other families, the hidden source, handoff direction, or active target differs across episodes, so we use cross-episode retrieval. For each query frame, we retrieve the nearest same-intent and different-intent neighbors, record their median cosine distances, and compute the fraction of top-k neighbors ( k = 5 ) that come from a different intent. Figure 3 shows that the four task families indeed contain strong current-frame aliasing. Under the task-appropriate retrieval protocol, the average different-intent neighbor ratio is 49 .7% across all 12 tasks, with high mixing in every family. The paired-distance diagnostic provides a complementary view: in several back-and-forth and multi-goal tasks, the nearest different-intent state is almost as close as the nearest same-intent state. For the tasks with larger visible gaps, the separation is still small in absolute terms: the largest median gap is below 3 × 10 −3 in cosine distance. These results support the intended role of AliasBench: it isolates states where the current frame alone provides weak evidence about the active short-horizon intent, while the recent trajectory still contains the missing context. 
+
+4 Method 
+
+4.1 Motivation and Problem Formulation 
+
+We model manipulation as a partially observable decision process with latent state st ∈ S , observation 
+
+ot ∈ O , and action at ∈ A . This viewpoint is used only to motivate why recent observations can disambiguate the current frame. At time step t, the robot observes ot, receives a language instruction ℓ,
+
+5Recent Visual History (𝑶 𝒕 −𝑲 :𝒕 −𝟏 )
+
+…   
+
+> 𝑂 𝑡 −𝐾 𝑂 𝑡 −𝐾 +1𝑂 𝑡 −1
+> Current Observation (𝑶 𝒕 )
+> Language Instruction ( 𝓵 )
+> Move the brown bread loaf
+> to the smooth cooking
+> skillet, then back to the
+> greenish plate.
+> Intent -based Action Generation
+> Qwen3VL -4B
+> Short -Horizon Intent Encoder
+> VGGT
+> …
+> …
+> History Intent Tokens
+
+Pooling      
+
+> Intent Token 𝑚 𝑡 ∈ℝ𝒅
+> Intent Information Fusion
+> History Intent Tokens
+> Image 𝑂 𝑡
+> Language ℓ
+> Diffusion
+> Transformer ( DiT )
+> Noise Action Chunk
+> denoise
+> Predicted Action Chunk
+
+…  
+
+> Current Tokens Fusion Token
+> Current Tokens
+> Cross Attention
+> QK,V
+> Residual
+> Camera Tokens Extracted by VGGT
+> Register Tokens Extracted by VGGT
+> Current Observation /Instruction Flow
+> History Flow
+> Intent Token Flow
+> Information Fusion
+
+Figure 4: Overview of IntentVLA. A Qwen3-VL backbone encodes the current image and language instruction, while a frozen VGGT-1B history encoder extracts recent visual evidence. IntentVLA fuses the history tokens with the current visual-language context through gated cross-attention, appends a compact short-horizon intent token, and conditions a DiT-based flow-matching action head for chunk generation. 
+
+and predicts a future action chunk 
+
+τt = ( at, a t+1 , . . . , a t+H−1) ∈ RH×da , (3) where H is the chunk horizon and da is the action dimension. Instead of using the complete interaction history Ht = ( o1: t, a 1: t−1), IntentVLA uses a finite visual history window hKt = ot−K:t−1 as compact evidence about the recent episode context. To formalize the ambiguity, let zt denote a latent short-horizon intent, such as a local continuation mode, task phase, or committed path. A standard frame-conditioned chunk policy models pθ(τt | ot, ℓ ), whose imitation target can be written conceptually as 
+
+pθ(τt | ot, ℓ ) = 
+
+Z
+
+pθ(τt | ot, ℓ, z t) p(zt | ot, ℓ ) dz t. (4) The issue is not multimodality itself, but uncommitted multimodality under aliased conditioning : the current frame and instruction may not reveal which continuation has already been selected within the episode. This motivates conditioning chunk generation on recent visual history, 
+
+pθ(τt | ot, ℓ, h t) = 
+
+Z
+
+pθ(τt | ot, ℓ, h t, z t) p(zt | ot, ℓ, h t) dz t, (5) where ht denotes the recent history available at time t. Rather than explicitly inferring zt or supervising intent labels, IntentVLA learns a deterministic short-horizon intent representation 
+
+mt = fϕ(ot, ℓ, h Kt ), (6) which serves as a compact embedding of history-conditioned intent evidence for chunk generation. Throughout the main formulation, hKt refers only to recent visual history. Based on this formulation, we instantiate IntentVLA as shown in Figure 4: a frozen visual-history encoder extracts recent intent evidence, a gated fusion module combines this evidence with the current VLA context, and a standard DiT-based flow-matching head generates action chunks. We describe these components below. 
+
+4.2 Short-Horizon Intent from Recent Visual History 
+
+IntentVLA separates the current visual-language context from recent visual history. In our implementa-tion, the current image and language instruction are processed by a Qwen3-VL 4B backbone qψ, and we use the last hidden layer as the current-condition representation Ft:
+
+Ft = qψ(ot, ℓ ) ∈ RN ×d, (7) 
+
+6where N is the number of current-context tokens and d is the hidden dimension. Ft is the last hidden feature of the visual-language backbone and serves as the conditioning source for the action model. In parallel, a visual history encoder processes the finite observation history window and produces both history evidence tokens and a summary representation: 
+
+Ut = gϕ(hKt ) ∈ RM ×dh , ¯et = Pool( Ut) ∈ Rdh . (8) Here gϕ is the history encoder and operates on image observations. In our method, we instantiate gϕ
+
+with a frozen VGGT-1B encoder [40]. When each robot observation contains multiple camera views, the recent-history branch uses only the head-camera frames; the current visual-language backbone can still receive the standard current observation used by the base VLA. Specifically, we do not use all VGGT output tokens. Instead, for each input frame, we retain only this one camera token and these four register tokens. The camera token is used by VGGT for camera-parameter prediction, while the register tokens capture global geometric information and inter-frame relations. We use these tokens because they represent recent viewpoint changes and frame-to-frame structure that are particularly useful for inferring the currently active short-horizon intent. The resulting history features are then projected into the action-model hidden space: ˜Ut = LN( WhUt), et = We ¯et, (9) where Wh and We are learned projections and et ∈ Rd is a compact history-evidence token. Accordingly, the method uses two complementary forms of history information: a sequence of fine-grained history tokens ˜Ut for token-level fusion, and a single compact token et that summarizes recent visual evidence. The compact token is not meant to be a standalone latent intent variable. It provides history evidence, while the condition-dependent intent representation is formed only after this evidence is combined with the current image-language context. All components are learned jointly with the policy objective and require no explicit supervision on intent labels. 
+
+4.3 Intent-based Action Generation and Training Objective 
+
+We fuse the current visual-language context Ft with the history tokens using gated cross-attention. Specifically, 
+
+F ′ 
+
+> t
+
+= Ft + σ(α) MHA( Q = LN( Ft), K = ˜Ut, V = ˜Ut), (10) where α is a learned scalar gate and MHA denotes multi-head attention. The resulting tokens F ′ 
+
+> t
+
+rep-resent the current observation after it has been enriched with recent history that indicates the active short-horizon continuation. We also append the projected history-evidence summary as a single context token: 
+
+etok  
+
+> t
+
+= reshape( et) ∈ R1×d, Ct = [ F ′ 
+
+> t
+
+; etok  
+
+> t
+
+]. (11) Conceptually, the condition-dependent information represented by Ct is the learned short-horizon intent representation mt = fϕ(ot, ℓ, h Kt ) introduced in Section 4.1. In implementation, this representation is realized by the current tokens after gated history fusion together with the appended history-evidence token. Following the DiT-based conditional flow-matching action heads used in [2, 9, 12], we use Ct
+
+as the conditioning context for chunk generation. At inference time, Ct is fixed for the current decision step, and the action chunk is obtained by starting from Gaussian noise and integrating the predicted conditional velocity field with the same Euler-style solver used in GR00T. Training follows the standard conditional flow-matching objective. Given a target action chunk τt,Gaussian noise ϵ ∼ N (0 , I ), and a sampled flow time s ∼ p(s), we define the interpolated chunk 
+
+Xs = (1 − s)ϵ + sτ t and train the conditional velocity field ˆVθ(Xs, s | Ct) to match the ground-truth displacement τt − ϵ:
+
+Lflow = E(ot,ℓ,h Kt ,τ t), ϵ, s 
+
+
+
+ˆVθ(Xs, s | Ct) − (τt − ϵ) 22
+
+
+
+. (12)                                      
+
+> 7Table 1: Results on AliasBench. We compare IntentVLA against strong VLA baselines Qwen3VL-GR00T [9] and direct history-as-context baselines. ‘OOM’ means the corresponding training configuration runs out of GPU memory when past frames are fed directly into the Qwen backbone as extra context.
+> Method Back-and-Forth Crossing-Path Bimanual Multi-Goal Avg.
+> Qwen3VL-GR00T [9] 6.0 15.7 5.5 8.7 9.0 + last 16 history frames OOM OOM OOM OOM OOM + last 8 history frames OOM OOM OOM OOM OOM + last 4 history frames 7.3 19.3 2.5 11.0 10.4 + 4 frames uniformly sampled from last 16 31.8 47.3 6.0 18.7 28.1 IntentVLA 49.3 74.7 17.0 31.3 45.8
+
+5 Experiment 
+
+We begin with AliasBench, which directly tests the failure mode identified in the introduction. On this benchmark, we compare against Qwen-GR00T and several history-as-extra-context baselines that feed multiple past frames directly into the Qwen backbone. We then evaluate on SimplerEnv [21], LIBERO [25], RoboCasa-GR1 Tabletop Tasks [2, 30] to test whether the same design transfers beyond the controlled ambiguity benchmark. Across all experiments, we focus on partially observed scenarios where one-frame conditioning is insufficient and analyze both success rate and rollout stability. 
+
+5.1 Results on AliasBench 
+
+For AliasBench, we sample 100 demonstration trajectories for each task. All methods in Table 1 are trained or attempted under the same compute budget: 30K training steps on 16 NVIDIA H100 GPUs, with batch size 16 per GPU and total batch size 256. Table 1 evaluates whether policies can act reli-ably under this ambiguity. Directly feeding long visual histories into the Qwen backbone is costly: the 8-frame and 16-frame variants run out of memory. Shorter raw-history baselines help, especially when uniformly sampling four frames from the last 16, but the best feasible variant reaches only 28.1% av-erage success. IntentVLA improves the average success rate from 9.0% to 45.8%, outperforming the strongest feasible history-as-context baseline by 17.7 points. The largest gains appear on crossing-path and back-and-forth tasks, where recent visual history directly reveals the object source or local phase. This indicates that compact intent-conditioned history is more effective than simply appending raw his-tory frames to the VLM context. Still, AliasBench remains far from solved: average success is below 50%, and bimanual and multi-goal tasks remain challenging. The remaining gap likely reflects both limited temporal coverage, since IntentVLA uses only 16 previous frames, and closed-loop history shift, where execution errors make the test-time history deviate from demonstrated intent patterns. 
+
+Inter-chunk consistency in ambiguous windows. We further evaluate whether the policy preserves the same local intent across adjacent replanning steps. Consider a chunk ˆτ (t) = (ˆ a(t) 
+
+> t
+
+, . . . , ˆa(t)
+
+> t+H−1
+
+)
+
+generated at decision time t, and another chunk ˆτ (t+r) generated after replanning at time t + r. These two chunks overlap on future time steps t + r, . . . , t + H − 1. We define the inter-chunk consistency error with an L2 action distance: 
+
+ICC t = 1
+
+H − r
+
+> H−1
+
+X
+
+> j=r
+
+ˆa(t) 
+
+> t+j
+
+− ˆa(t+r) 
+
+> t+j
+> 22
+
+. (13) Here ˆa(t) 
+
+> t+j
+
+denotes the action for absolute time t + j predicted by the chunk sampled at time t, while 
+
+ˆa(t+r) 
+
+> t+j
+
+denotes the prediction for the same absolute time made by the next replanning step. We refer to this metric as ICC-L2. It is computed only inside annotated ambiguity windows in AliasBench, where the current observation alone does not identify the correct continuation. Lower ICC-L2 is better: it means that adjacent chunks agree more strongly on their overlapping future segment, which is the expected action-level signature of preserved short-horizon intent.        
+
+> 80.16 0.18 0.20 0.22 0.24 0.26
+> Mean ICC-L2 (lower is better)
+> Use Stapler and Return It
+> Cook Bread and Plate It
+> Move Block Out and Back
+> Store Shoe and Take It Back
+> Move Block to Opposite Grid
+> Move Block to Other Grid
+> Move Phone Between Stand and Pad
+> Hand Over Roller
+> Hand Over Pill Bottle
+> Pick Flashed Blocks
+> Inspect Label and Place Block
+> Pick Flashed Cans
+> (a) Task-level inter-chunk consistency
+> Back&Forth Crossing
+> Path
+> Bimanual Multi
+> Goal
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> 0.30
+> 0.35
+> 0.40
+> P90 ICC-L2 (lower is better)  -23%
+> -26%
+> -18%
+> -19%
+> (b) Tail inconsistency by family
+> Qwen3VL-GR00T + sampled frames
+> IntentVLA
+> Back&Forth
+> Crossing-Path
+> Bimanual
+> Multi-Goal
+
+Figure 5: Inter-chunk consistency in AliasBench ambiguity windows. We compare IntentVLA against the strongest feasible history-as-context baseline in Table 1, Qwen3VL-GR00T with four frames uniformly sampled from the last 16 frames. ICC-L2 is the squared L2 overlap error defined in Eq. (13); lower values indicate more consistent local intent. Left: task-level mean ICC-L2. Right: family-level 90th-percentile ICC-L2, where the 90th percentile measures tail inconsistency among the harder ambiguity windows. In the right panel, gray bars show the results of Qwen3VL-GR00T with sampled frames. 
+
+Figure 5 shows that IntentVLA reduces inter-chunk inconsistency across all 12 tasks. Averaged over tasks, mean ICC-L2 decreases from 0.219 to 0.181 , a 17 .6% relative reduction. The family-level view also shows lower tail inconsistency across all ambiguity families. These results indicate that recent visual history makes adjacent replanned action chunks more consistent in the ambiguous regions where frame-conditioned chunk policies are likely to change intent. 
+
+5.2 Results on Standard Benchmarks 
+
+To evaluate whether the advantage of IntentVLA transfers beyond the controlled aliases in Alias-Bench, we further conduct extensive experiments on three standard simulation benchmarks: SimplerEnv, LIBERO, and RoboCasa. Unless otherwise specified, all experiments in this subsection are built on the StarVLA training pipeline [9] and run on 16 NVIDIA H100 GPUs. We follow the default StarVLA training protocol for fair comparison, and use AdamW [28] with an initial learning rate of 1 × 10 −5
+
+and a cosine annealing schedule. System-level optimizations include DeepSpeed ZeRO-2 [34], gradient clipping with maximum norm 1.0, and no gradient accumulation. 
+
+Results on SimplerEnv. For SimplerEnv, we use the BridgeDataV2 [39] subset of Open X-Embodiment [31] and fine-tune the model for 30K steps on 16 GPUs with batch size 16 per device. We evaluate the policy with the official SimplerEnv evaluation scripts [21] on four WidowX manipu-lation tasks: Put Spoon on Towel , Put Carrot on Plate , Stack Green Block on Yellow Block , and Put Eggplant in Yellow Basket . The results are reported in Table 2. IntentVLA achieves the best overall aver-age success rate of 72.9%, outperforming the Qwen3-VL-GR00T baseline by 7.6 points and exceeding the strongest previously reported average, 68.2% from 3D-Mix, by 4.7 points. The gains are especially large on Put Carrot on Plate , Stack Green Block on Yellow Block , and Put Eggplant in Yellow Basket .Although performance on Put Spoon on Towel is lower than the baseline, the overall result shows that recent visual history substantially improves robustness on partially observed chunked manipulation. 
+
+9Table 2: Results of evaluating the VLA models with the WidowX robot in the SimplerEnv simulation envi-ronment [21] . We highlight the best results in bold and the second-best results with underline. 
+
+Method Put Spoon on Towel Put Carrot on Plate Stack Green Block on Yellow Block Put Eggplant in Yellow Basket Average 
+
+RT-1-X [31] 0.0 4.2 0.0 0.0 1.1 Octo-Base [38] 15.8 12.5 0.0 41.7 17.5 Octo-Small [38] 41.7 8.2 0.0 56.7 26.7 OpenVLA-OFT [14] 34.2 30.0 30.0 72.5 41.8 RoboVLM [20] 50.0 37.5 0.0 83.3 42.7 Magma [41] 37.5 29.2 20.8 91.7 44.8 CogACT [19] 71.7 50.8 15.0 67.5 51.3 SpatialVLA [33] 20.8 20.8 25.0 70.8 34.4 TraceVLA [48] 12.5 16.6 16.6 65.0 27.7 VideoVLA [35] 75.0 20.8 45.8 70.8 53.1 
+
+π0 [3] 29.2 62.5 29.2 91.6 53.1 
+
+π0.5 [12] 49.3 64.7 44.7 69.7 57.1 Isaac-GR00T-N1.6-Bridge [10] 64.5 65.5 5.5 93.0 57.1 LangForce [22] 89.6 63.8 33.3 79.2 66.5 PhysBrain [24] 90.3 58.3 34.7 80.6 65.9 3D-Mix [42] 86.5 61.5 30.2 94.8 68.2 TwinBrainVLA [43] 87.5 58.3 33.3 79.1 64.5 MemoryVLA [36] 75.0 75.0 37.5 100.0 71.9 Qwen3-VL-GR00T [9] 83.0 59.4 18.8 100.0 65.3 
+
+IntentVLA 70.8 66.7 54.2 100.0 72.9 
+
+Results on LIBERO. For LIBERO [25], we train a single policy jointly across the four suites and report Avg@500 success rates on Spatial, Object, Goal, and Long. As shown in Table 3, LIBERO is already close to saturation for strong recent VLAs, especially on the Spatial, Object, and Goal suites where several methods exceed 98%. Therefore, these suites leave limited room to diagnose the effect of short-horizon history. We mainly focus on LIBERO-Long, which is the most relevant suite for our setting because it contains longer, multi-stage manipulation routines where adjacent local continuations must remain consistent. On LIBERO-Long, IntentVLA reaches 97.4%, compared with 92.0% for the Qwen3-VL-GR00T baseline and 92.4% for π0.5. Although IntentVLA does not introduce an explicit long-horizon planner, recent visual history helps it infer the currently active local continuation inside a longer routine, which reduces inconsistent chunk generation across sub-steps. 
+
+Table 3: Comparison on the LIBERO benchmark. We train one policy for all 4 suites. Avg@500 success rates (%) across four task suites: Spatial, Object, Goal, and Long.                                                
+
+> Method Spatial Object Goal Long Avg
+> OpenVLA [15] 87.4 88.4 79.2 53.7 76.5 OpenVLA-OFT [14] 97.6 98.4 97.9 94.5 97.1
+> π0[3] 96.8 98.8 95.8 85.2 94.1
+> π0.5[12] 98.8 98.2 98.0 92.4 96.9 VLA-JEPA [37] 94.8 99.6 95.8 94.0 96.1 TwinBrainVLA [43] 99.2 99.0 96.8 95.4 97.6 Qwen3-VL-GR00T [9] 97.8 98.8 97.4 92.0 96.5
+> IntentVLA 99.3 99.7 98.1 97.4 98.6
+
+Results on RoboCasa. We evaluate IntentVLA on the RoboCasa GR1 Tabletop Manipulation Bench-mark [2, 30], which contains 24 diverse manipulation tasks with articulated objects and varied object geometries. The benchmark includes tasks such as PnPBottleToCabinetClose and PnPCanToDrawer-
+
+10 Table 4: Results of evaluating the VLA models with the GR1 robot in the RoboCasa-GR1 Tabletop simula-tion environment . The results for Isaac-GR00T N1.5 and Isaac-GR00T N1.6 are sourced from the official Isaac-GR00T GitHub repository [2]. We highlight the best results in bold and the second-best results with underline. 
+
+Task GR00T N1.5 GR00T N1.6 VP-VLA TwinBrainVLA PhysBrain LangForce IntentVLA 
+
+PnP Bottle To Cabinet Close 54.0 51.5 54.0 74.0 74.0 72.0 76.0 PnP Can To Drawer Close 50.0 13.0 72.0 72.0 68.0 78.0 88.0 PnP Cup To Drawer Close 38.0 8.5 44.0 52.0 42.0 46.0 46.0 PnP Milk To Microwave Close 60.0 14.0 74.0 60.0 54.0 56.0 48.0 PnP Potato To Microwave Close 32.0 41.5 34.0 36.0 24.0 36.0 44.0 PnP Wine To Cabinet Close 38.0 16.5 48.0 46.0 54.0 46.0 56.0 
+
+PnP * to * Close (Avg) 45.3 24.2 54.3 56.7 52.7 55.7 59.7 
+
+PnP Novel From Cuttingboard To Basket 38.0 58.0 66.0 62.0 62.0 66.0 66.0 PnP Novel From Cuttingboard To Cardboardbox 46.0 46.5 54.0 46.0 44.0 40.0 52.0 PnP Novel From Cuttingboard To Pan 58.0 68.5 74.0 70.0 56.0 68.0 56.0 PnP Novel From Cuttingboard To Pot 62.0 65.0 54.0 66.0 58.0 48.0 54.0 PnP Novel From Cuttingboard To Tieredbasket 28.0 46.5 56.0 52.0 40.0 44.0 46.0 
+
+PnP Novel From Cuttingboard To * (Avg) 46.4 56.9 60.8 59.2 52.0 53.2 54.8 PnP Novel From Placemat To Basket 30.0 58.5 48.0 30.0 42.0 54.0 56.0 PnP Novel From Placemat To Bowl 60.0 57.5 74.0 54.0 56.0 62.0 76.0 PnP Novel From Placemat To Plate 56.0 63.0 70.0 64.0 80.0 52.0 58.0 PnP Novel From Placemat To Tieredshelf 36.0 28.5 26.0 38.0 14.0 24.0 32.0 
+
+PnP Novel From Placemat To * (Avg) 45.5 51.9 54.5 46.5 48.0 48.0 55.5 
+
+PnP Novel From Tray To Cardboardbox 52.0 51.5 44.0 46.0 40.0 50.0 52.0 PnP Novel From Tray To Plate 48.0 71.0 66.0 72.0 66.0 58.0 68.0 PnP Novel From Tray To Pot 60.0 64.5 38.0 56.0 52.0 62.0 66.0 PnP Novel From Tray To Tieredbasket 52.0 57.0 58.0 46.0 50.0 44.0 42.0 PnP Novel From Tray To Tieredshelf 32.0 31.5 24.0 28.0 22.0 22.0 20.0 
+
+PnP Novel From Tray To * (Avg) 48.8 55.1 46.0 49.6 46.0 47.2 49.6 PnP Novel From Plate To Bowl 58.0 57.0 52.0 60.0 54.0 54.0 60.0 PnP Novel From Plate To Cardboardbox 44.0 43.5 44.0 46.0 50.0 48.0 64.0 PnP Novel From Plate To Pan 60.0 51.0 56.0 56.0 68.0 54.0 66.0 PnP Novel From Plate To Plate 64.0 78.7 62.0 66.0 78.0 78.0 76.0 
+
+PnP Novel From Plate To * (Avg) 56.5 57.6 53.5 57.0 62.5 58.5 66.5 Average 48.2 47.6 53.8 54.6 50.0 52.6 57.0 
+
+Close , as well as scenarios involving appliances such as microwaves and toasters. For training, we use the Humanoid Robot Tabletop Manipulation subset of PhysicalAI Robotics-GR00T-X-Embodiment-Sim [2]. All other settings follow the setup above. We evaluate each task with 50 independent trials and re-port the average success rate (Avg@50). As shown in Table 4, IntentVLA achieves the best overall average success rate of 57.0%, outperforming TwinBrainVLA (54.6%), VP-VLA (53.8%), and Lang-Force (52.6%). The gains are particularly visible on several close-placement tasks, including PnP Bottle To Cabinet Close , PnP Can To Drawer Close , and PnP Wine To Cabinet Close , as well as on a number of novel transfer settings. Overall, these results indicate that the short-horizon history signal remains useful even in a broader benchmark with articulated objects and more varied interaction patterns. 
+
+11 Table 5: Ablation study on SimplerEnv. We ablate the history encoder, temporal history, history fusion, and the compact intent-evidence token. Results are success rates on the four WidowX tasks.                       
+
+> Variant Put Spoon on Towel Put Carrot on Plate Stack Green Block on Yellow Block Put Eggplant in Yellow Basket Avg.
+> Frame-only Qwen3-VL-GR00T 83.0 59.4 18.8 100.0 65.3 VGGT, current frame only 72.5 61.5 30.2 94.8 64.8 History fusion only, no intent token 67.7 65.6 49.0 95.8 69.5 IntentVLA 70.8 66.7 54.2 100.0 72.9
+
+5.3 Ablation Studies Component ablations on SimplerEnv. Table 5 studies which components drive the gains on Sim-plerEnv. Removing VGGT and temporal history gives the frame-only Qwen3-VL-GR00T baseline. Adding VGGT on only the current frame does not improve the average score, indicating that VGGT is not useful merely as another single-frame encoder; its value comes from extracting geometric and inter-frame evidence from a recent window. Consistently, history fusion improves the average from 65.3% to 69.5%, and adding the compact intent-evidence token further raises it to 72.9%. This shows that both history fusion and an explicit compact history summary are useful for chunk generation. The per-task results clarify where history helps. Put Spoon on Towel drops relative to the frame-only baseline because it has little short-horizon intent ambiguity: once the spoon and towel are visible, the current frame already provides most of the needed information, and the history pathway may dilute at-tention to the fine appearance of the small, thin spoon. In contrast, Stack Green Block on Yellow Block 
+
+improves substantially, from 18.8% to 54.2%. Stacking depends more on relative 3D geometry, align-ment, and the grasp-to-placement transition, where recent visual history and VGGT geometry tokens provide useful motion and approach cues. 
+
+6 Conclusion 
+
+We presented IntentVLA, a history-conditioned imitation learning framework for chunked VLA con-trol. The final method uses short-horizon intent evidence extracted from recent visual history to infer which local continuation is currently active and to stabilize chunk generation under partial observability. The key idea is not to eliminate multimodality in robot demonstrations, but to condition generation on the local commitment already expressed within the episode. We also introduced AliasBench, a 12-task benchmark that isolates short-horizon observation aliasing through matched simulation training data and evaluation environments. Across AliasBench and standard simulation benchmarks, our results show that this simple short-memory design improves both rollout success and inter-chunk consistency. These find-ings suggest that compact recent-history conditioning is a practical way to strengthen frame-conditioned VLAs in aliased manipulation settings. 
+
+7 Limitations and Future Work 
+
+IntentVLA focuses on recovering short-horizon intent from recent visual history. This design is sim-ple and effective, but it is not a complete solution to all forms of temporal partial observability: tasks that require remembering sparse events outside the recent window or recovering from large closed-loop deviations may need longer-term memory, explicit recovery mechanisms, or planning modules. Our current evaluation is also simulation-based. Future work will test IntentVLA on physical robot platforms and use AliasBench to evaluate a broader set of VLA backbones and memory-centric models, such as MemoryVLA [36] and Mem-0 [7]. We also plan to study more interpretable intent probes and adaptive history selection, so that the policy can recognize when the current observation is still ambiguous and request or preserve more temporal evidence. 
+
+> 12
+
+References 
+
+[1] Hongzhe Bi, Lingxuan Wu, Tianwei Lin, Hengkai Tan, Zhizhong Su, Hang Su, and Jun Zhu. 2025. H-RDT: Human manipulation enhanced bimanual robotic manipulation. arXiv preprint arXiv:2507.23523 .[2] Johan Bjorck, Fernando Castañeda, Nikita Cherniadev, Xingye Da, Runyu Ding, Linxi Fan, Yu Fang, Dieter Fox, Fengyuan Hu, Spencer Huang, and 1 others. 2025. GR00T N1: An open foundation model for generalist humanoid robots. arXiv preprint arXiv:2503.14734 .[3] Kevin Black, Noah Brown, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Lachy Groom, Karol Hausman, Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Sergey Levine, Adrian Li-Bell, Mohith Mothukuri, Suraj Nair, Karl Pertsch, Lucy Xiaoyang Shi, and 5 others. 2024. π0: A vision-language-action flow model for general robot control. arXiv preprint arXiv:2410.24164 .[4] Qingwen Bu, Jisong Cai, Li Chen, Xiuqi Cui, Yan Ding, Siyuan Feng, Shenyuan Gao, Xindong He, Xu Huang, Shu Jiang, and 1 others. 2025. Agibot world colosseo: A large-scale manipulation platform for scalable and intelligent embodied systems. arXiv preprint arXiv:2503.06669 .[5] Qingwen Bu, Yanting Yang, Jisong Cai, Shenyuan Gao, Guanghui Ren, Maoqing Yao, Ping Luo, and Hongyang Li. 2025. Univla: Learning to act anywhere with task-centric latent actions. arXiv preprint arXiv:2505.06111 .[6] Tianxing Chen, Zanxin Chen, Baijun Chen, Zijian Cai, Yibin Liu, Zixuan Li, Qiwei Liang, Xianliang Lin, Yiheng Ge, Zhenyu Gu, and 1 others. 2025. Robotwin 2.0: A scalable data generator and benchmark with strong domain randomization for robust bimanual robotic manipulation. arXiv preprint arXiv:2506.18088 .[7] Tianxing Chen, Yuran Wang, Mingleyang Li, Yan Qin, Hao Shi, Zixuan Li, Yifan Hu, Yingsheng Zhang, Kaixuan Wang, Yue Chen, and 1 others. 2026. Rmbench: Memory-dependent robotic manipulation benchmark with insights into policy design. arXiv preprint arXiv:2603.01229 .[8] Yi Chen, Yuying Ge, Hui Zhou, Mingyu Ding, Yixiao Ge, and Xihui Liu. 2026. Dial: Decoupling intent and action via latent world modeling for end-to-end vla. arXiv preprint arXiv:2603.29844 .[9] StarVLA Community. 2026. Starvla: A lego-like codebase for vision-language-action model developing. arXiv preprint arXiv:2604.05014 .[10] GEAR-Team, Allison Azzolini, Johan Bjorck, Valts Blukis, Fernando Castañeda, Rahul Chand, and 1 others. 2025. Gr00t n1.6: An improved open foundation model for generalist humanoid robots. https://research. nvidia.com/labs/gear/gr00t-n1_6/ .[11] Renming Huang, Chendong Zeng, Wenjing Tang, Jintian Cai, Cewu Lu, and Panpan Cai. 2026. Mimic intent, not just trajectories. arXiv preprint arXiv:2602.08602 .[12] Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Manuel Y. Galliker, Dibya Ghosh, Lachy Groom, Karol Hausman, Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Devin LeBlanc, and 17 others. 2025. π0.5:a vision-language-action model with open-world generalization. arXiv preprint arXiv:2504.16054 .[13] Alexander Khazatsky, Karl Pertsch, Suraj Nair, Ashwin Balakrishna, Sudeep Dasari, Siddharth Karamcheti, Soroush Nasiriany, Mohan Kumar Srirama, Lawrence Yunliang Chen, Kirsty Ellis, and 1 others. 2024. Droid: A large-scale in-the-wild robot manipulation dataset. arXiv preprint arXiv:2403.12945 .[14] Moo Jin Kim, Chelsea Finn, and Percy Liang. 2025. Fine-tuning vision-language-action models: Optimizing speed and success. arXiv preprint arXiv:2502.19645 .[15] Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov, Ethan P Foster, Pannag R Sanketi, Quan Vuong, Thomas Kollar, Benjamin Burchfiel, Russ Tedrake, Dorsa Sadigh, Sergey Levine, Percy Liang, and Chelsea Finn. 2024. OpenVLA: An open-source vision-language-action model. In Conference on Robot Learning (CoRL) .[16] Chengmeng Li, Junjie Wen, Yaxin Peng, Yan Peng, and Yichen Zhu. 2026. Pointvla: Injecting the 3d world into vision-language-action models. IEEE Robotics and Automation Letters , 11(3):2506–2513. [17] Fuhao Li, Wenxuan Song, Han Zhao, Jingbo Wang, Pengxiang Ding, Donglin Wang, Long Zeng, and Haoang Li. 2025. Spatial forcing: Implicit spatial representation alignment for vision-language-action model. arXiv preprint arXiv:2510.12276 .13 [18] Peiyan Li, Yixiang Chen, Hongtao Wu, Xiao Ma, Xiangnan Wu, Yan Huang, Liang Wang, Tao Kong, and Tie-niu Tan. 2025. Bridgevla: Input-output alignment for efficient 3d manipulation learning with vision-language models. In Advances in neural information processing systems (NeurIPS) .[19] Qixiu Li, Yaobo Liang, Zeyu Wang, Lin Luo, Xi Chen, Mozheng Liao, Fangyun Wei, Yu Deng, Sicheng Xu, Yizhong Zhang, and 1 others. 2024. CogACT: A foundational vision-language-action model for synergizing cognition and action in robotic manipulation. arXiv preprint arXiv:2411.19650 .[20] Xinghang Li, Peiyan Li, Minghuan Liu, Dong Wang, Jirong Liu, Bingyi Kang, Xiao Ma, Tao Kong, Hanbo Zhang, and Huaping Liu. 2024. Towards generalist robot policies: What matters in building vision-language-action models. arXiv preprint arXiv:2412.14058 .[21] Xuanlin Li, Kyle Hsu, Jiayuan Gu, Oier Mees, Karl Pertsch, Homer Rich Walke, Chuyuan Fu, Ishikaa Lu-nawat, Isabel Sieh, Sean Kirmani, Sergey Levine, Jiajun Wu, Chelsea Finn, Hao Su, Quan Vuong, and Ted Xiao. 2024. SimplerEnv: Evaluating real-world robot manipulation policies in simulation. In Conference on Robot Learning (CoRL) .[22] Shijie Lian, Bin Yu, Xiaopeng Lin, Laurence T Yang, Zhaolong Shen, Changti Wu, Yuzhuo Miao, Cong Huang, and Kai Chen. 2026. Langforce: Bayesian decomposition of vision language action models via latent action queries. arXiv e-prints , pages arXiv–2601. [23] Tao Lin, Gen Li, Yilei Zhong, Yanwen Zou, Yuxin Du, Jiting Liu, Encheng Gu, and Bo Zhao. 2025. Evo-0: Vision-language-action model with implicit spatial understanding. arXiv preprint arXiv:2507.00416 .[24] Xiaopeng Lin, Shijie Lian, Bin Yu, Ruoqi Yang, Changti Wu, Yuzhuo Miao, Yurun Jin, Yukun Shi, Cong Huang, Bojun Cheng, and 1 others. 2025. PhysBrain: Human egocentric data as a bridge from vision language models to physical intelligence. arXiv preprint arXiv:2512.16793 .[25] Bo Liu, Yifeng Zhu, Chongkai Gao, Yihao Feng, Qiang Liu, Yuke Zhu, and Peter Stone. 2023. LIBERO: Benchmarking knowledge transfer for lifelong robot learning. Advances in neural information processing sys-tems (NeurIPS) , 36:44776–44791. [26] Songming Liu, Bangguo Li, Kai Ma, Lingxuan Wu, Hengkai Tan, Xiao Ouyang, Hang Su, and Jun Zhu. 2026. Rdt2: Exploring the scaling limit of umi data towards zero-shot cross-embodiment generalization. arXiv preprint arXiv:2602.03310 .[27] Songming Liu, Lingxuan Wu, Bangguo Li, Hengkai Tan, Huayu Chen, Zhengyi Wang, Ke Xu, Hang Su, and Jun Zhu. 2025. RDT-1b: a diffusion foundation model for bimanual manipulation. In International Conference on Learning Representations (ICLR) .[28] Ilya Loshchilov and Frank Hutter. 2017. Decoupled weight decay regularization. In International Conference on Learning Representations (ICLR) .[29] Yulin Luo, Hao Chen, Zhuangzhe Wu, Bowen Sui, Jiaming Liu, Chenyang Gu, Zhuoyang Liu, Qiuxuan Feng, Jiale Yu, Shuo Gu, and 1 others. 2026. Look before acting: Enhancing vision foundation representations for vision-language-action models. arXiv preprint arXiv:2603.15618 .[30] Soroush Nasiriany, Abhiram Maddukuri, Lance Zhang, Adeet Parikh, Aaron Lo, Abhishek Joshi, Ajay Man-dlekar, and Yuke Zhu. 2024. RoboCasa: Large-scale simulation of everyday tasks for generalist robots. In 
+
+Robotics: Science and Systems .[31] Abby O’Neill, Abdul Rehman, Abhiram Maddukuri, Abhishek Gupta, Abhishek Padalkar, Abraham Lee, Acorn Pooley, Agrim Gupta, Ajay Mandlekar, Ajinkya Jain, and 1 others. 2024. Open x-embodiment: Robotic learning datasets and rt-x models: Open x-embodiment collaboration. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 6892–6903. IEEE. [32] Karl Pertsch, Kyle Stachowicz, Brian Ichter, Danny Driess, Suraj Nair, Quan Vuong, Oier Mees, Chelsea Finn, and Sergey Levine. 2025. FAST: Efficient action tokenization for vision-language-action models. arXiv preprint arXiv:2501.09747 .[33] Delin Qu, Haoming Song, Qizhi Chen, Yuanqi Yao, Xinyi Ye, Yan Ding, Zhigang Wang, JiaYuan Gu, Bin Zhao, Dong Wang, and 1 others. 2025. Spatialvla: Exploring spatial representations for visual-language-action model. arXiv preprint arXiv:2501.15830 .[34] Jeff Rasley, Samyam Rajbhandari, Olatunji Ruwase, and Yuxiong He. 2020. Deepspeed: System optimiza-tions enable training deep learning models with over 100 billion parameters. In Proceedings of the 26th ACM SIGKDD international conference on knowledge discovery & data mining , pages 3505–3506. 14 [35] Yichao Shen, Fangyun Wei, Zhiying Du, Yaobo Liang, Yan Lu, Jiaolong Yang, Nanning Zheng, and Baining Guo. 2025. VideoVLA: Video generators can be generalizable robot manipulators. In Advances in neural information processing systems (NeurIPS) .[36] Hao Shi, Bin Xie, Yingfei Liu, Lin Sun, Fengrong Liu, Tiancai Wang, Erjin Zhou, Haoqiang Fan, Xiangyu Zhang, and Gao Huang. 2026. Memoryvla: Perceptual-cognitive memory in vision-language-action models for robotic manipulation. In International Conference on Learning Representations (ICLR) .[37] Jingwen Sun, Wenyao Zhang, Zekun Qi, Shaojie Ren, Zezhi Liu, Hanxin Zhu, Guangzhong Sun, Xin Jin, and Zhibo Chen. 2026. Vla-jepa: Enhancing vision-language-action model with latent world model. arXiv preprint arXiv:2602.10098 .[38] Octo Model Team, Dibya Ghosh, Homer Walke, Karl Pertsch, Kevin Black, Oier Mees, Sudeep Dasari, Joey Hejna, Tobias Kreiman, Charles Xu, and 1 others. 2024. Octo: An open-source generalist robot policy. arXiv preprint arXiv:2405.12213 .[39] Homer Rich Walke, Kevin Black, Tony Z Zhao, Quan Vuong, Chongyi Zheng, Philippe Hansen-Estruch, Andre Wang He, Vivek Myers, Moo Jin Kim, Max Du, and 1 others. 2023. Bridgedata v2: A dataset for robot learning at scale. In Conference on Robot Learning (CoRL) , pages 1723–1736. PMLR. [40] Jianyuan Wang, Minghao Chen, Nikita Karaev, Andrea Vedaldi, Christian Rupprecht, and David Novotny. 2025. Vggt: Visual geometry grounded transformer. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) .[41] Jianwei Yang, Reuben Tan, Qianhui Wu, Ruijie Zheng, Baolin Peng, Yongyuan Liang, Yu Gu, Mu Cai, Seonghyeon Ye, Joel Jang, and 1 others. 2025. Magma: A foundation model for multimodal ai agents. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 14203– 14214. [42] Bin Yu, Shijie Lian, Xiaopeng Lin, Zhaolong Shen, Yuliang Wei, Haishan Liu, Changti Wu, Hang Yuan, Bailing Wang, Cong Huang, and 1 others. 2026. 3d-mix for vla: A plug-and-play module for integrating vggt-based 3d information into vision-language-action models. arXiv preprint arXiv:2603.24393 .[43] Bin Yu, Shijie Lian, Xiaopeng Lin, Yuliang Wei, Zhaolong Shen, Changti Wu, Yuzhuo Miao, Xinming Wang, Bailing Wang, Cong Huang, and 1 others. 2026. Twinbrainvla: Unleashing the potential of generalist vlms for embodied tasks via asymmetric mixture-of-transformers. arXiv preprint arXiv:2601.14133 .[44] Xuanran Zhai, Qianyou Zhao, Qiaojun Yu, and Ce Hao. 2025. Vfp: Variational flow-matching policy for multi-modal robot manipulation. arXiv preprint arXiv:2508.01622 .[45] Xuanran Zhai, Qianyou Zhao, Qiaojun Yu, and Ce Hao. 2025. Vfp: Variational flow-matching policy for multi-modal robot manipulation. arXiv preprint arXiv:2508.01622 .[46] Haoyu Zhen, Xiaowen Qiu, Peihao Chen, Jincheng Yang, Xin Yan, Yilun Du, Yining Hong, and Chuang Gan. 2024. 3D-VLA: A 3D vision-language-action generative world model. In International conference on machine learning (ICML) , pages 61229–61245. [47] Jinliang Zheng, Jianxiong Li, Zhihao Wang, Dongxiu Liu, Xirui Kang, Yuchun Feng, Yinan Zheng, Jiayin Zou, Yilun Chen, Jia Zeng, and 1 others. 2025. X-VLA: Soft-prompted transformer as scalable cross-embodiment vision-language-action model. arXiv preprint arXiv:2510.10274 .[48] Ruijie Zheng, Yongyuan Liang, Shuaiyi Huang, Jianfeng Gao, Hal Daumé III, Andrey Kolobov, Furong Huang, and Jianwei Yang. 2025. TraceVLA: Visual trace prompting enhances spatial-temporal awareness for generalist robotic policies. arXiv preprint arXiv:2412.10345 .[49] Linqing Zhong, Yi Liu, Yifei Wei, Ziyu Xiong, Maoqing Yao, Si Liu, and Guanghui Ren. 2026. Acot-vla: Action chain-of-thought for vision-language-action models. arXiv preprint arXiv:2601.11404 .[50] Zheyuan Zhou, Liang Du, Zixun Sun, Xiaoyu Zhou, Ruimin Ye, Qihao Chen, Yinda Chen, and Lemiao Qiu. 2026. Main-vla: Modeling abstraction of intention and environment for vision-language-action models. arXiv preprint arXiv:2602.02212 .[51] Brianna Zitkovich, Tianhe Yu, Sichun Xu, Peng Xu, Ted Xiao, Fei Xia, Jialin Wu, Paul Wohlhart, Stefan Welker, Ayzaan Wahid, and 1 others. 2023. Rt-2: Vision-language-action models transfer web knowledge to robotic control. In Conference on Robot Learning (CoRL) , pages 2165–2183. 15 A Additional Analysis on Intent Consistency and Mode Switching 
+
+A.1 Mode Switching Under Receding-Horizon Sampling 
+
+The failure mode studied in this paper is not that a policy can represent multiple valid behaviors. The problem is that, under an aliased current observation, the policy may remain uncommitted about which local continuation is active. Receding-horizon execution then turns this uncommitted multimodality into a temporal consistency problem: two adjacent action chunks may each be plausible in isolation, but they can correspond to different short-horizon intents. To make this point explicit, suppose the policy replans every r environment steps. Let pt(z) and 
+
+pt+r(z) denote conceptual intent distributions at two adjacent decision steps, where z ∈ Z indexes local continuations such as task phase, source-conditioned destination, or handoff direction. These distribu-tions are only used for analysis; IntentVLA does not explicitly infer a discrete intent label. If the two chunks are sampled independently from these intent distributions, the probability that they correspond to different intents is 
+
+Pswitch (t, r ) = 1 − X
+
+> z∈Z
+
+pt(z) pt+r(z). (14) This quantity is a diagnostic, not an additional training objective. In an aliased region, the current frame may leave several continuations plausible. If pt(z) = pt+r(z) is uniform over M plausible intents, then Pswitch (t, r ) = 1 − 1/M : adjacent chunks are likely to switch intent even though neither chunk is individually invalid. By contrast, if recent history concentrates both distributions around the same com-mitted intent z⋆, then the switch probability approaches zero. Thus, the role of history is not to remove multimodality across episodes, but to preserve within-episode commitment during local replanning. The latent intent z is not observed for a learned policy, so we evaluate the consequence of mode switching in action space. When two adjacent chunks predict actions for overlapping absolute timesteps, a switch in short-horizon intent should appear as disagreement between the two predictions. The ICC-L2 metric in Eq. (13) measures exactly this overlap disagreement inside annotated ambiguity windows. A large ICC-L2 therefore indicates a possible action-level manifestation of mode switching, while a small ICC-L2 indicates that adjacent chunks remain aligned with the same continuation. This makes ICC-L2 an observable proxy for the consistency effect implied by Pswitch (t, r ).The full ICC statistics in Figure 5 support this interpretation. Beyond the mean reduction reported in the main text, the task-averaged 90th-percentile ICC-L2 decreases from 0.298 to 0.233 , a 21 .7% 
+
+relative reduction, and the standard deviation across ambiguity windows drops from 0.093 to 0.046 . This indicates that IntentVLA reduces both average overlap disagreement and unstable high-error windows. At the family level, the 90th-percentile ICC-L2 improves consistently across back-and-forth, crossing-path, bimanual, and multi-goal ambiguity, with relative reductions of 22 .8% , 25 .7% , 17 .5% , and 19 .2% ,respectively. These results match the mode-switching analysis: recent visual history makes the effective short-horizon intent conditioning more committed, and adjacent sampled chunks become less likely to follow different continuations in aliased states. 
+
+B AliasBench Task Definitions 
+
+AliasBench is designed to isolate short-horizon observation aliasing rather than generic long-horizon memory demands. All 12 tasks follow the same core principle: the current frame alone is insufficient to determine the correct continuation, but the missing information is still available in the recent episode context. We summarize the benchmark families in Table 6 and then list the task-level definitions used in our evaluation. 
+
+> 16
+
+Family # Tasks Core latent factor Definition Back-and-forth ambiguity 4 Current local phase Repeated local states recur in different phases of a short routine, but the required next action changes with phase. Crossing-path ambiguity 3 Recent source / origin Similar transport states arise after different pickup origins, and the correct target depends on that recent source. Bimanual ambiguity 2 Handoff direction / side of origin Similar center or handoff states arise in dual-arm transfer, but the next hand and continuation depend on transfer direction. Multi-goal ambiguity 3 Transient cue / hidden property Multiple local candidates coexist, and a brief cue or recently observed property selects the correct target. 
+
+Table 6: Overview of the four task families in AliasBench. 
+
+Task Task definition Core latent factor Why the current frame is insufficient Move Block Out and Back One arm moves a red block from grid A to grid B and then back to A. Current phase Similar carrying states appear in both halves, but the next placement differs between the outbound and return phases. Cook Bread and Plate It A bread slice is moved from a plate to a skillet and then back to the plate. Current phase Holding the bread near the workspace can mean placing it on the skillet or returning it to the plate. Use Stapler and Return It A stapler is moved from pad A to pad B and then back from B to A. Current phase Similar transport states recur across two short phases, but the next destination changes with phase. Store Shoe and Take It Back A shoe is placed into a shoebox and later moved back out to an external target area. Current phase Holding the shoe near the box can mean inserting it or taking it back out. 
+
+Table 7: Back-and-forth ambiguity tasks in AliasBench. 
+
+Task Task definition Core latent factor Why the current frame is insufficient Move Block to the Other Grid A red block starts on one of two grids and must be moved to the other grid. Recent source Once the block is in hand, the transport state looks similar for both start grids, but the correct destination is the opposite source grid. Move Block to the Opposite Grid A red block starts on one of four grids in a 2 ×2 layout and must be moved to the diagonally opposite grid. Recent source Similar mid-transport states occur for different start grids, but the correct diagonal target depends on the pickup origin. Move Phone Between Stand and Pad A phone begins either on a flat area or on a stand and must be moved to the other location. Recent source Carrying the phone looks similar in both cases, while the correct target depends on whether it came from the stand or the flat area. 
+
+Table 8: Crossing-path ambiguity tasks in AliasBench. 17 Task Task definition Core latent factor Why the current frame is insufficient Hand Over Pill Bottle A pill bottle starts on the left or right outer pad, moves to the center pad, and is then sent to the opposite outer pad by the other hand. Handoff continuation At the center pad, both hands and the bottle can look similar, but the correct next hand depends on which side the bottle came from. Hand Over Roller A long roller starts on one side, is moved to the centerline, handed over, and then placed on the opposite side. Handoff direction Near the centerline, the handoff state is nearly symmetric, yet the continuation depends on transfer direction. 
+
+Table 9: Bimanual ambiguity tasks in AliasBench. 
+
+Task Task definition Core latent factor Why the current frame is insufficient Pick Flashed Blocks in Order Three blocks are available, and the object to be picked briefly flashes underneath before being placed onto the current target pad. Active-target cue After the flash disappears, several candidate blocks remain, but the frame no longer reveals which one is active. Pick Flashed Cans in Order Two cans are presented, and the can to be picked briefly flashes underneath before being placed onto the current target pad. Active-target cue Once the flash vanishes, multiple candidate picks remain plausible in the current frame. Inspect Label and Place Block The robot inspects a hidden label on a block and then places it onto the matching target area instead of a distractor area. Hidden property During final transport and placement, the label may no longer be visible, so the target depends on the recent inspection result. 
+
+Table 10: Multi-goal ambiguity tasks in AliasBench. 18

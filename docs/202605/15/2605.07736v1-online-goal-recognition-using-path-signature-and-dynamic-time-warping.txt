@@ -1,0 +1,1159 @@
+Title: Online Goal Recognition using Path Signature and Dynamic Time Warping
+
+URL Source: https://arxiv.org/pdf/2605.07736v1
+
+Published Time: Mon, 11 May 2026 01:33:27 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Online Goal Recognition using Path Signature and Dynamic Time Warping 
+
+Douglas Tesch 1∗ , Nathan Gavenski 2∗ , Leonardo Amado 3 , Odinaldo Rodrigues 2 and Felipe Meneguzzi 1,31Pontif´ ıcia Universidade Cat´ olica do Rio Grande do Sul , 2King’s College London and 
+
+> 3
+
+University of Aberdeen douglas.tesch@edu.pucrs.br, {nathan.schneider gavenski, odinaldo.rodrigues }@kcl.ac.uk, 
+
+{leonardo.amado, felipe.meneguzzi }@abdn.ac.uk 
+
+Abstract 
+
+Online goal recognition in continuous domains poses two central challenges: efficiently encoding large trajectories and effectively comparing them. Recent work addresses these challenges by us-ing custom state-space representations and met-rics to compare observations against hypotheses. However, these approaches often overlook well-established encoding techniques used in other do-mains that offer substantial advantages. This paper introduces a novel method for online goal recogni-tion that leverages path signatures, a compact, ex-pressive representation of rough path theory that ef-ficiently captures key semantic features of trajec-tories, enabling more meaningful comparisons be-tween them. Experiments show that our method consistently outperforms the state of the art in pre-dictive accuracy and online planning efficiency, while remaining competitive offline. 
+
+1 Introduction 
+
+Goal recognition aims to infer the goal of an agent solely based on sparse observations along with knowledge of the environment [Sukthankar et al. , 2014]. While research on goal recognition focuses on environments with discrete rep-resentations [Meneguzzi and Pereira, 2021], continuous on-line goal recognition [Kaminka et al. , 2018a] aims to support real-time inference in continuous domains while maintaining reliable goal inference. Such approaches often compute the probability of each possible goal by building complete plans that conform to observations as they become available. How-ever, these methods require multiple planner calls that scale linearly with the number of goals and observations [Kaminka 
+
+et al. , 2018b], resulting in substantial computational over-head. This overhead is impractical in applications that re-quire fast results. Recent approaches focus on reducing the computational cost. Vered and Kaminka [2017] used a ge-ometric heuristic to cut unfeasible goals, whereas Tesch et al. [2024] used a light approximation of the complete trajec-tories to avoid real-time (online) plan computation. 
+
+> ∗These authors contributed equally to the work.
+
+The current trend in goal recognition research in continu-ous domains focuses on inferring goals directly from the en-vironment’s state-space [Kaminka et al. , 2018b; Fitzpatrick 
+
+et al. , 2021; Tesch et al. , 2024]. These approaches often rely on raw state information (e.g., position, velocity, accelera-tion, and relative distances), which may not capture the un-derlying behavioral patterns necessary for robust goal infer-ence. Existing state encodings [Slotine et al. , 1991] often fail to capture the temporal structures or semantics of an agent’s trajectory (information that is often critical for distinguish-ing among goals). We address this gap by using path signa-ture [Lyons, 1998] representations. Path signatures encode key semantic characteristics of arbitrarily sized sequences of data, such as agents’ trajectories, into unique, fixed-length ar-rays. They yield compact representations that are invariant to reparametrization and naturally capture multi-scale depen-dencies, enabling more meaningful comparison between tra-jectories of varying lengths [Gavenski et al. , 2024]. Identifying trajectory differences is also a challenging task for goal recognition [Tao et al. , 2021]. These difficulties be-come especially pronounced in robotic applications, where agents are fast moving [Fitzpatrick et al. , 2021]. One possible approach is to use similarity measures tailored to noise, vary-ing path lengths, and non-Euclidean distances. Goal recogni-tion approaches often overlook these measures, despite their close affinity with goal recognition problems. We overcome this challenge by pairing path signatures with Dynamic Time Warping (DTW) [Berndt and Clifford, 1994]. This paper develops Goal Recognition with Path Signa-tures (GRPS), an approach that leverages path signatures to encode geometric and temporal properties of agents’ trajecto-ries. GRPS can be integrated with DTW to provide enhanced predictive performance in settings with noisy or incomplete observations. Our contributions are: (i) an online goal recog-nition approach using path signatures; and (ii) an enhanced inference step using DTW that further improves predictive accuracy, albeit at an increased inference time. GRPS works in continuous and discrete domains, achieving state-of-the-art results in the former and remaining competitive in the latter. 
+
+2 Background 
+
+Online Goal Recognition We adopt and generalise the goal recognition problem definition of Meneguzzi and Pereira, [2021] to accommodate both continuous and discrete do-
+
+> arXiv:2605.07736v1 [cs.AI] 8 May 2026
+
+mains. A goal recognition problem F is a tuple ⟨D , G, I, O ⟩
+
+with the following elements. The domain D comprises the state space S, the action space A, the observation space O,a transition function T , and a projection function f . States 
+
+st ∈ S are vectors describing the domain at time t, and can be continuous or discrete. Similarly, actions a ∈ A are vec-tors that can be continuous or discrete. A transition function 
+
+T defines how actions transform the environment and need not be Markovian, but in these cases T : S × A → S . A projection function f : S → O maps an underlying state into an observation ot ∈ O . The sequence of observations 
+
+O then contains state information projected by f . Thus, an observation sequence is a finite sequence of state projections 
+
+O = [ f (s0), · · · , f (sn)] , where s0 = I and sn ∈ G. The set of goal hypotheses G ⊂ S enumerates the potential goals of the observed agent, with each goal hypothesis g ∈ G being the final state after a successful plan. A solution to F is a probability distribution PG over the goal hypotheses G explaining the observations. Similarly, the initial state I ∈ S defines the starting state. In discrete goal recognition problems, the state space S is finite and is often described using STRIPS-style Planning Domain Definition Language (PDDL) representations [Fikes and Nilsson, 1971]. In contrast, in continuous goal recognition problems, the state space lies in the infinite set of real-valued vectors, i.e., Rn.To ensure feasibility within our problem formulation, we re-quire a transformation of states in discrete (STRIPS-style) goal recognition problems into a vectorial representation. We address this conversion in Sec. 4.2. To extend the classic def-inition to online problems, one must only consider that any given sequence of observations O may not be complete O0: t
+
+since the agent is still interacting with the environment. Early goal recognition methods assume that agents act op-timally, following least-cost paths toward their goal [Ramırez and Geffner, 2009]. Under this assumption, goal hypothe-ses can be ranked by comparing the cost of optimal plans with observed behavior [Ram´ ırez and Geffner, 2010; Masters and Sardina, 2017]. Specifically, Ram´ ırez and Geffner [2010] compute goal probabilities from the difference in plan costs between plans that must explain the observations and un-constrained optimal plans reaching the same goal. How-ever, these plan-based approaches require repeated calls to a planner, i.e., one for each goal hypothesis and often for each new observation, making them computationally ex-pensive. To reduce computational costs, recent work rea-sons over precomputed trajectories (state sequences from I
+
+to goals) rather than invoking a planner for each new ob-servation [Vered and Kaminka, 2017; Vered et al. , 2018; Masters and Sardina, 2017; Tesch et al. , 2024]. The resulting path-based goal recognition problem R = ⟨S , G, I, T , O ⟩
+
+has an implicit (and potentially infinite) set of all possible trajectories T from I to G. However, comparing observation sequences against trajectories remains challenging, as trajec-tories may differ in length, observations may be partial (or noisy), and different state representations may emphasize dif-ferent structural properties. 
+
+Path Signatures Path Signatures [Lyons, 1998] are fixed-length feature vectors that represent multidimensional time series (i.e., trajectories). To compute a path signature β1: n,where n ∈ N, we take a trajectory τ of length belonging to {1, . . . , n }, where each state is a vector in Rd with di-mensions indexed by a collection of indices i1, . . . , i k ∈{1, . . . , d }. For example, in the Moving-AI [Sturtevant, 2012] dataset, each trajectory consists of n states from one point to another, and each state has 3 dimensions. Thus, the recursively computed path signature P S for the trajectory τ
+
+for any k ≥ 1 and time t (1 ≤ t ≤ n) as: 
+
+P S (τ )i1,...,i k 
+
+> 1: t
+
+=
+
+Z
+
+> 1<s ≤t
+
+P S (τ )i1,...,i k−1 
+
+> 1: s
+
+dτ ik 
+
+> s
+
+. (1) Therefore, the signature β of a trajectory τ : [1 , n ] → Rd is the collection of all the iterated integrals of τ :
+
+β(τ )k 
+
+> 1: n
+
+=
+
+h
+
+1, P S (τ )11: n, · · · , P S (τ )i1,i 2,··· ,i k
+
+> 1: n
+
+i
+
+, (2) where the first term is conventionally 1, and k defines the k-th level of the signature, which defines the finite collection of all terms P S (τ )i1,··· ,i k 
+
+> 1: n
+
+for the multi-index of length k. For example, when k = d, the last term would be P S (τ )d,d, ··· ,d  
+
+> 1: n
+
+.Finally, path signatures are unique: no two path signatures are equal unless the trajectories that generate them are iden-tical. By leveraging this property, it is possible to construct a trajectory tree T T that encodes a set of all trajectories T
+
+by storing all partial path signatures along each branch. The value for the jth node of branch i in the tree corresponds to the path signature of the first j steps of trajectory τ i ∈ T ,defined by T T i,j = β(τ i 
+
+> 1: j
+
+), where 1 ≤ i ≤ |T | , and 
+
+1 ≤ j ≤ | τ i|. This property is useful in our setting because it guarantees a one-to-one correspondence between trajectory prefixes and their encoded signatures, enabling efficient and unambiguous representation of the trajectory space. The sup-plement explains path signatures in further detail. 
+
+Dynamic Time Warping [Berndt and Clifford, 1994] aligns two trajectories by stretching or compressing them in the time dimension to find the best match, i.e., the times-tamps with the minimum distance between the trajectories. Berndt and Clifford provide a formal definition of DTW in their work: given two trajectories τ = [ s1, s 2, · · · , s n] and 
+
+τ ′ = [ s′
+
+> 1
+
+, s ′
+
+> 2
+
+, · · · , s ′
+
+> m
+
+], the algorithm creates a cost matrix 
+
+n × m between each pair of sample trajectories si and s′ 
+
+> j
+
+.Then, with all matrix costs computed, the algorithm searches for a minimum-cost path that links the lower-left and upper-right corner elements. Fig. 1 shows the cost matrix between                         
+
+> 0123456789
+> 0
+> 1
+> 2
+> 3
+> 4
+> s1
+> s2
+> s3
+> s′
+> 1
+> s′
+> 2
+> s′
+> 3
+> s′
+> 4
+> Squared Distances
+> s′
+> 1s′
+> 2s′
+> 3s′
+> 4
+> s345 50 10 4
+> s216 541 65
+> s18913 37
+> Figure 1: Dynamic Time Warping example.
+
+trajectories τ and τ ′ considering the squared Euclidean dis-tance ( || si − s′ 
+
+> j
+
+|| 2). Note that the orange cells represent the sequence with the minimum cost ( 27 ). The output of the DTW algorithm is a vector combining the indices of the el-ements that best align the sequences. Thus, the output is 
+
+δ = [(1 , 1) ; (2 , 2) ; (3 , 3) ; (3 , 4)] , knows as warping path. Algorithm 1 Goal Recognition with PS and DTW                                                                                                
+
+> Require: D, G, I from goal recognition problem
+> Require: Knumber of top trajectories
+> Require: MT, P T, k to build trajectory tree
+> Goal Recognition with Path Signatures ▷Offline 1: ˆT ← [ ˆTg7→SAMPLE KT RAJ (D, I, g, K )|g∈G]
+> 2: T T ←TRAJECTORY TREE ( ˆT, M T, P T, k )▷Algorithm 2
+> Dynamic Time Warping ▷Online 3: O←[ ] ,βO←[ ]
+> 4: when receives otand ot/∈Gdo
+> 5: O←O∪ot
+> 6: βO←βO∪β(O)k
+> 1: t▷Compute observations signature 7: PG← { g7→0|g∈G}▷Initialize probabilities 8: for br ∈T T do
+> 9: δ←DT W (βO,br )
+> 10: g←leaf node of br
+> 11: p←1−exp
+> −1/∥βO t −br j∥2
+> t,j ∈δ
+> 
+> 12: PG[g]←max( p, PG[g])
+> 13: broadcast PG
+
+3 Goal Recognition with Path Signatures 
+
+GRPS has two key innovations: (i) tree structures from set of trajectories ˆT based on path signatures, further improved by applying merging and pruning operations to identify relevant states across trajectories; and (ii) integrating DTW as a sim-ilarity measure to compare path signatures even when they are not temporally aligned. Alg. 1 provides an overview of GRPS+DTW. Importantly, DTW is optional and can be by-passed when computational efficiency is critical, such as in real-time applications. The offline stage begins by computing the top-K approximate trajectories for each goal hypothesis in the problem. This is analogous to recent planning-based goal and plan recognition approaches [Ram´ ırez and Geffner, 2010; Sohrabi et al. , 2016]. For that, we use a trajectory sam-pling function S AMPLE KT RAJ that yields ˆTg approximately optimal trajectories, given the domain D, the initial configu-ration I, a goal g ∈ G and a pre-defined number of trajecto-ries K (Alg. 1, Ln. 3). 1 The algorithm then uses the set ˆT of all top-K trajectories to all goals G, to build the trajectory tree 
+
+T T (Alg. 2). T RAJECTORY TREE builds this tree by includ-ing all partial trajectories from ˆT . It performs both merging and pruning operations using predefined merging and pruning thresholds ( MT , PT , explained in 3.1) to reduce redundancy. The online stage of GRPS takes new observations o from the agent at time t and computes the partial path signature 
+
+β(O)k 
+
+> 1: t
+
+given the depth k and all observations received up to that moment (Ln. 17). GRPS can recognize goals under partial observability, i.e., O is not complete, so β(O)k 
+
+> 1: t
+
+may lack the information for some (missing) time steps t. Af-ter computing the path signature βO , GRPS compares it to all branches under T T (Ln. 19-23). GRPS can use DTW to align O with the current branch (Ln. 20). We leverage the FastDTW implementation [Salvador and Chan, 2007], which typically produces warping paths whose length is close     
+
+> 1We omit Ifor simplicity, as all trajectories share the same initial state, but keep gsince it varies across trajectory sets.
+
+to max (|βO |, |br |). However, this implementation does not guarantee an exact length, and may exceed this value depend-ing on the signal structure and approximation behavior. When 
+
+|δ| is greater than max (|βO |, |br |), multiple indices of br 
+
+may map to a single observation index of βO . In such cases, we select the first occurrence of t in δ. For real-time infer-ence, GRPS can bypass the alignment considering that all t in 
+
+O align perfectly. Then, it retrieves the branch’s goal by look-ing at the leaf node (Ln. 21), and computes the likelihood of that goal g being the goal of the agent (Ln. 22). Finally, GRPS returns the probability distribution over the goal hypotheses (Ln. 13) from which we can extract the most likely goal up to the current time step. For details about the complexity of our method, please refer to the supplementary material. 
+
+3.1 Trajectory Tree, Prune and Merge 
+
+We introduce pruning and merging operations on trees of path signatures. By computing path signatures at discretely sam-pled intervals across multiple trajectories, we obtain a tree rooted at the initial position I, where nodes represent path signatures at each timestep t. As trajectories are added, those sharing states produce identical path signatures until diver-gence, meaning trajectories with common prefixes share par-tial path signatures up to their final common point. This en-ables arranging multiple trajectories in a tree where equal par-tial trajectories share subtrees. A step-by-step numerical ex-ample of trajectory tree construction, including path signa-ture computation at each node and the shared-branch struc-ture arising from the uniqueness property, is provided in the supplementary material (Appendix 2.3–2.5). However, path signatures differ even with slight path diver-gence, yielding a trajectory tree with width between |G| and 
+
+|T | . While this sensitivity is vital in rough path theory, it is problematic for matching semantically equivalent trajectories with minor variations: without intervention, trees may share only their root (see supplementary material for the motiva-tion). To address this, we perform merge and prune opera-tions, enabling node sharing across different trajectories. Ide-ally, any T T built from distinct top-K trajectories ˆT achieves width K · | G|, verifiable by counting leaves post-processing. Alg.2 (Ln.6-10) describes the merge operation, which compares all nodes at the same level sharing the same par-ent and merges those with Euclidean distance below thresh-old MT . Merging proceeds by selecting the rightmost node, removing it, assigning its children to the leftmost node, and computing their averaged path signature. This operation eliminates slightly different yet closely related nodes, thus merging semantically similar trajectories. By keeping tree levels thin, merging reduces the number of comparisons dur-ing goal recognition. However, MT must be chosen carefully: too high a threshold can reduce tree width below |G|. There-fore, it is vital to ensure at least as many leaves as goals. The prune operation in Alg.2, Ln.11-14, occurs after all merge operations and reduces tree depth by removing nodes within a Euclidean distance PT of their parent, with the par-ent inheriting the pruned node’s children. Since merge oper-ations preserve level comparisons (all siblings share timestep 
+
+t), performing operations in reverse order would incorrectly compare different timesteps across trajectories. Pruning elim-Initial state I Goal 1 Goal 2 Goal 3 Goal 4 Goal 5 Goal 6 Goal 7                  
+
+> 0· · · 204 225
+> 217
+> 226
+> 246
+> 236 262 · · · 598
+> 267 · · · 342 354 · · · 563
+> 350 · · · 562
+> · · · 289 310
+> 314 · · · 455
+> · · · 363
+> 504 · · ·
+
+(a) Trajectory tree after merge and prune. (b) Example landmark (node 204 ) as the black line. Figure 2: Example of trajectory tree for the Aftershock map. 
+
+inates semantically insignificant observations, for example, when an agent takes many small steps toward a goal, creating unnecessary nodes that do not alter the trajectory’s meaning. Yet, pruning can reduce tree width below |G|, requiring care-ful selection of PT .Removing closely related nodes improves efficiency by re-ducing comparisons with new observations. Goals with sim-ilar trajectories correspond to similar branches, reducing re-dundancy (Fig. 2a). The trajectory tree compactly represents top-K trajectories in continuous space, with nodes analogous to planning landmarks [Pereira et al. , 2019]. After merg-ing and pruning, similar goals (Fig. 2b) remain in the same branch until the final bifurcation. For example, goals 4 and 
+
+11 share trajectories and split last at node 342 .
+
+3.2 Online Goal Recognition with Path Signature 
+
+With a fully constructed trajectory tree T T derived from a subset of approximated trajectories ˆT ⊆ T , GRPS infers the potential goal of an observed agent (see supplementary mate-rial for further discussion). We note that to compare the par-tial path signatures from T T to observations from the agent, either: (i) GRPS has access to the projection function f , al-lowing it to construct a trajectory tree over observations, i.e., 
+
+f ( ˆT ); or (ii) observations and states are identical, meaning the projection function is the identity, i.e., f (s) = s.
+
+Algorithm 2 Merge and Prune Operations in Trajectory Tree 
+
+Require: ˆT , M T and PT resp. merge and prune thresholds 
+
+Require: k a path signature depth 1: T T ← new trajectory tree with a single node with value 1
+
+2: for each trajectory τ ∈ ˆT do ▷ Trajectory Tree Creation 3: n ← root of T T 
+
+4: for t ← 2 . . . |τ | do 
+
+5: Add new node c with value β(τ )k 
+
+> 1: t
+
+as child of n; n ← c
+
+6: for each node n in T T do ▷ Merge Operation 7: for each distinct pair (nz , n j ) of children of n do 
+
+8: if ∥nβz − nβj ∥2 < M T then 
+
+9: Add all of nj ’s children to nz ; Delete nj
+
+10: nβz ← (nβz +nβj )/2
+
+11: for each node n in T T do ▷ Prune Operation 12: for each child node nj of ni do 
+
+13: if ∥nβ − nβj ∥2 < P T then 
+
+14: Add all of nj ’s children to n; Delete nj
+
+15: return Updated trajectory tree T T 
+
+Initially, GRPS computes the likelihood of a branch br ∈
+
+T T being the current sequence of observations βO :
+
+P(br | βO ) = ρ P(βO | br ) P(br | g)P(g), (3) where ρ is a normalizing term, g is the goal for that branch, and the final term is a prior probability that an agent might choose each goal [Ram´ ırez and Geffner, 2010]. This might express a known preference over goals, but is often sim-ply a uniform probability distribution. Here, the probabil-ity P(br | g) is always one, since each br can only have one possible goal (leaf), and a uniform prior P(g) avoids biases towards any specific, i.e., all goals are equally likely. Since GRPS does not use DTW, we assume that time steps are perfectly synchronized, i.e., the observed agent’s step size is equivalent to the approximated trajectories’ step. Therefore, the key part from Eq. 3 is how to compute P(βO | br ) since we know all other terms. For this we use Eq. 4, which is similar to equation from Line 22 from Alg. 1. 
+
+P(βO |br ) = 1 − exp ( −1/∥βO t −br t∥2) , (4) GRPS remains efficient in iterations of Eq 4 over path signa-tures by computing the distance between βO t and br t once instead of all o ∈ O as in Fitzpatrick et al. .Rather than averaging probabilities across branches, GRPS uses the maximum likelihood to avoid diluting high probabil-ities from paths close to the observations with lower proba-bilities from distant ones. This becomes important when the trajectory tree is built from a large or diverse set of trajecto-ries (as produced by S AMPLE KT RAJ in Alg. 1 Ln. 3), which results in many branches per goal–up to K · | G|. In these cases, averaging probabilities across all branches that lead to the same goal can dilute high-confidence signals, especially when many branches yield low scores due to suboptimal tra-jectories from I to G. Since path signatures encode rich geo-metric and temporal structures, even beyond what is captured by the projection function f , their scores can vary substan-tially between branches. 
+
+3.3 Dynamic Time Warping Integration 
+
+Assuming that the sequence of observations O is perfectly synchronized with all trajectories in T T might not be real-istic. Therefore, GRPS integrates DTW to solve two main related issues: (i) trajectories and observations that do not share the same characteristics, and (ii) potentially missing time steps from observations. The first issue concerns how the synchronicity assumption in GRPS can be easily vio-lated when trajectories are sampled from agents with differ-ent characteristics, such as agents with different velocities or movement patterns from the observed agent (dynamic model error). Since GRPS makes no assumptions about the sam-pling process, it relies on the information encoded in path signatures to correctly synchronize observations and trajec-tories. However, merging and pruning also reduce the num-ber of available steps for comparison across each trajectory. Thus, having a function that best aligns indices between one sequence of observations and another sequence of states is crucial for improving performance. The second issue re-lates to GRPS’s online step, which infers a goal only upon receiving a new observation from the agent. Under partial observability, observations may have arbitrary gaps in time, resulting in an incomplete sequence of observations, such as 
+
+O = [ o0, o 1, o 3], where o2 is missing. We address the limitation of signature-only comparisons using Dynamic Time Warping (DTW) in Alg. 1 as a similarity measure to better align observations with trajectory branches. This effectively replaces Eq. 4 with Eq. 5. 
+
+P(βO |br ) = 1 − exp  −1/∥βO t −br j ∥2
+
+> t,j ∈δ
+
+ , (5) where δ is the alignment path computed by DTW, consist-ing of index pairs (i, j ) that optimally align each observa-tion index i with a corresponding index j in the trajectory 
+
+br . However, DTW introduces a non-negligible computa-tional overhead. For each br ∈ T T , DTW has a time com-plexity of O(|O| · | br |), leading to an overall complexity of 
+
+O(|T T | · | O| · ⌊ T T ⌉) (Alg. 1, Ln. 19–23). When combined with the cost of computing path signatures— O(|O|· dk) – the resulting inference process becomes relatively expensive for real-time applications. We note that for partial observability settings, GRPS+DTW first interpolate all observations to cre-ate an approximated sequence of observations of size t (O1: t). That is, if the initial observations were [I, o 2] for t = 2 , the approximated observations would be [I, ˆo1, o 2], where ˆo1 is the interpolated observation. We provide a detailed version of Alg. 1 in the supplementary material. 
+
+4 Experiments 
+
+We benchmark using accuracy (ACC), the spread of goals in the output (SPR), the number of planner calls (PC) required to infer each goal, Positive Predictive Value (PPV), and the runtime. ACC is the proportion of instances a method in-fers the goal correctly. SPR is the average number of distinct goals predicted across all instances, indicating how concen-trated or diffuse the method’s predictions are over the space of goal hypotheses (with a minimum value of 1). PC de-notes the number of external planner calls required during inference, serving as a proxy for the computational overhead of planner-based methods. PPV measures the proportion of correctly inferred goals among all inferred predictions, i.e., PPV = T P /T P +F P , where T P and F P denote true and false positives, respectively. Runtime comprises two components: the offline stage , which includes all preprocessing steps, and the online stage , which captures the time required for goal inference per observation sequence. 
+
+4.1 Continuous Domains 
+
+The experiments use the dataset from Moving-AI [Sturte-vant, 2012], which features a simulated yet realistic bench-mark comprising 28 scenarios from StarCraft. We select this dataset to ensure a fair comparison between GRPS and previ-ous work, and elaborate on it and how we create trajectories in the supplement. Our experiments use the trajectory sampling procedure from Tesch et al. , [2024] as the S AMPLE KT RAJ 
+
+function. We evaluate both GRPS and GRPS+DTW by vary-ing the trajectory tree parameters, the merge threshold MT ,the prune threshold PT , and the number of sampled trajecto-ries per goal K for the sampling function. To identify the most effective parameter combinations, we conduct a grid search across 10 scenarios, ranging threshold values from 0
+
+to 2 in increments of 0.2, and K values in {1, 5, 10 , 15 }. The experiments use a depth of k = 2 for the path signature, with an ablation provided in the supplement. 
+
+Parameter Search Fig. 3a and 3b show the average PPV among the scenarios for the whole grid search space using 
+
+K of 1 and 15 , respectively. This indicates that the merge variable has a limited influence on recognition process accu-racy (rather than efficiency), since the merge process com-bines similar trajectories. Thus, when the number of trajec-tories is K = 1 , there are no additional trajectories avail-able for merging. By contrast, Figure 3b shows the impact of the merge and prune variables when K = 15 , indicating that some level of merging and pruning benefits GRPS, while higher thresholds decrease its performance, which is to be expected. Importantly, it shows that increasing merging has a limited impact on performance, whereas increasing pruning substantially degrades PPV. This suggests that GRPS is more sensitive to reductions in trajectory depth than to reductions in width. In particular, pruning removes deeper prefixes from the trajectory tree, which are often essential for distinguish-ing between goals, especially when observations are partial or early in the trajectory. On the other hand, merging only collapses similar branches, which tends to preserve overall structure unless applied too aggressively. As a result, while some merging can help reduce redundancy without harming performance, even moderate levels of pruning can lead to un-derfitting and suppressing informative variations. Fig. 3c and 3d depict the average grid search results for both inference modes for K = 1 and K = 15 . These re-sults show that increasing the prune threshold harms infer-ence quality, as measured by PPV. However, small pruning values in the range of 0.0 to 0.2 offer a distinct advantage by modestly reducing tree depth without significantly harming predictive performance. This balance is especially relevant in online inference, where shallower branches lead to faster traversal and lower computational overhead. Thus, selecting appropriate thresholds is not only a matter of accuracy but also efficiency. Based on these experiments, we adopt prun-ing and merging values of 0.2 when using GRPS, and 0.6 for pruning and 0.2 for merging when using GRPS+DTW, strik-ing a balance between preserving informative structure and maintaining inference efficiency. 
+
+Continuous Results Tab. 1a compares the results of our two inference modes with recent work: Vector [Tesch et (a) Continuous Domains (b) Discrete Domains                                                                                                                                                                                                            
+
+> Metrics Mirr. R+P Vector GRPS + DTW Mirr. Land. GM+L Vector GRPS + DTW PPV (%) 38 .742 .147 .950 .753.6 47 .344 .848 .249 .252.0 51 .9
+> ±7.0±5.7±9.0±9.4±8.5±13 .6±11 .2±11 .5±8.9±10.5 ±10 .4
+> ACC (%) 84 .685 .486 .485 .986 .781 .882 .784 .784 .285.3 85.3
+> ±1.8±1.4±2.1±2.7±2.4±8.1±5.2±5.0±5.7±6.0 ±6.0
+> SPR 1.01.11.01.01.02.51.61.3 1.71.61.6
+> ±0.0±0.02 ±0.0±0.0±0.0±1.2±0.51 ±0.47 ±0.44 ±0.47 ±0.47
+> PC 49 .030 .17.07.07.0124 .80.0 29 .98.28.28.2
+> ±0.0±1.6±0.0±0.0±0.0±57 .4±0±7.9±3.9±3.9±3.9
+> Online (s) 1.2e45.9e33.9e-23.0e-220 .580 .45.7e-112 .56.4e-2 10 .197 .6
+> ±6.2e3±3.2e3±7.0e-4±2.1e-3±6.6±117 .6±6.1e-1±12 .5±1.3e-1 ±27 .4±253 .8
+> Offline (s) 2.9e32.8e31.7e23.3e22.8e24.61.3e-1 4.833 .66 60 .662 .9
+> ±1.8e3±1.7e3±38 .8±70 .7±55 .7±5.3±2.6e-1 ±5.8±63 .7±76 .9±80 .1
+
+Table 1: Comparison of methods across (a) continuous and (b) discrete domains. 
+
+al. , 2024], Mirroring [Kaminka et al. , 2018b], and Recom-pute plus Prune (R+P) [Vered and Kaminka, 2017]. Tab. 1a shows the average values across all scenarios in the Moving-AI dataset, excluding the 10 scenarios used for ablation. We report the mean of each metric (and its standard deviation) across all experiments (see supplement for details). GRPS+DTW achieves the highest PPV ( 53 .6% ) and ACC (86 .7% ) across all evaluated method, with GRPS closely fol-lowing at 50 .7% PPV and 85 .9% ACC, both surpassing the current state-of-the-art (Vector). This improvement in PPV is particularly significant, as it reflects the method’s ability to generate correct predictions. Unlike ACC, which is affected by class imbalance and rewards methods that often predict the majority class, PPV penalizes false positives and better reflects precision at early or ambiguous nodes, where goal recognition is most challenging. Notably, GRPS achieves this improvement in PPV while also reducing Online infer-ence time (from 3.9e-2s to 3.0e-2s). Both inference modes maintain perfect prediction focus (SPR = 1.0) and require the fewest planner calls (PC = 7 .0), indicating that they remain computationally efficient as predictive quality improves. These results reinforce the central motivation behind GRPS: the need for more meaningful and coherent compar-isons between agent behavior and candidate trajectories in goal recognition tasks. By leveraging path signatures, GRPS 0.0 
+
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Merge
+> 0.0
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Prune
+> 53
+> 55
+> 57
+> 59
+> PPV(%)
+> 53.9
+> 54.9
+> 56.0
+> 57.0
+> 58.0
+
+(a) GRPS with K = 1 .0.0  
+
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Merge
+> 0.0
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Prune
+> 53
+> 55
+> 57
+> 59
+> 61
+> PPV(%)
+> 53.8
+> 55.4
+> 57.1
+> 58.7
+> 60.4
+
+(b) GRPS with K = 15 .0.0 
+
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Merge
+> 0.0
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Prune
+> 53
+> 54
+> 55
+> 56
+> 57
+> 58
+> 59
+> 60
+> 61
+> PPV(%)
+> 54.0
+> 55.6
+> 57.2
+> 58.8
+> 60.4
+
+(c) Average for GRPS. 0.0  
+
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Merge
+> 0.0
+> 0.4
+> 0.8
+> 1.2
+> 1.6
+> 2.0
+> Prune
+> 48
+> 50
+> 52
+> 54
+> 56
+> 58
+> 60
+> 62
+> PPV(%)
+> 49.7
+> 52.7
+> 55.6
+> 58.6
+> 61.6
+
+(d) Average for GRPS+DTW. Figure 3: Grid search results. 
+
+captures rich geometric and temporal dynamics while remain-ing robust to suboptimal behavior. Importantly, this added expressiveness does not compromise runtime performance; GRPS remains lightweight and fast enough for real-time ap-plications, with an average inference time of just 30 ms. Al-though GRPS incurs slightly higher Offline times, this is pri-marily due to its use of Vector’s sampling function for gen-erating top-K trajectories. This component, while effective, is not intrinsic to our method. For example, adopting a more efficient sampling strategy or using a dataset of past trajec-tories could reduce the offline cost of GRPS without affect-ing its inference (further discussed in supplement). More-over, GRPS+DTW builds upon this strength by introducing dynamic temporal alignment, enabling even more accurate trajectory-observation comparisons. While it incurs a higher online cost ( 20 .5s), the resulting improvements in both PPV and ACC make it ideal for use in offline or high-precision inference settings. Together, both modes offer a versatile framework that adapts to diverse constraints. This dual capa-bility demonstrates that our approach not only advances the state-of-the-art but also provides a practical and generalizable solution to goal recognition. Fig. 4a compares the approaches by their PPV (and its mar-gin of error with a confidence level of 95% ), at observation fractions of 1/7 to 6/7 of the full observation length. GRPS is competitive at initial observability stages ( 1/7, 2/7) and out-performs the other methods at mid-end stages of observabil-ity. GRPS+DTW outperforms the other methods at almost all stages of observability, except at the initial stage ( 1/7), where the available information is insufficient to provide a reliable path signature representation. 
+
+4.2 Discrete Domains 
+
+The discrete-domain experiments use the goal and plan recog-nition dataset [de A. Santos et al. , 2021]. We select this dataset to ensure a fair comparison with previous work. The dataset comprises thousands of goal-recognition problems across large, non-trivial planning instances in the STRIPS fragment of PDDL. It incorporates domains and problems from established benchmark datasets, including those pro-posed by Ramırez and Geffner, [2009]. Tab. 1b compares our two inference methods with recent work on goal recog-nition: Vector [Tesch et al. , 2024], Mirroring [Kaminka et al. , 2018b], and Goal Recognition with Landmarks and Goal Mirroring with Landmarks both from Vered et al. , [2018]. We 1/7 2/7 3/7 4/7 5/7 6/7        
+
+> Fraction of Observations
+> 0
+> 20
+> 40
+> 60
+> PPV(%)
+> (a) Continuous Domains
+> Mirroring R+P Vector GRPS GRPS+DTW 30% 50% 70% 100%
+> Percentage of Observation
+> 0
+> 20
+> 40
+> 60
+> 80
+> PPV(%)
+> (b) Discrete Domains
+> Mirroring
+> Landmarks
+> Mirroring with Landmarks
+> Vector
+> GRPS
+> GRPS+DTW
+
+Figure 4: Observation fraction results for both domains. 
+
+use SymK [Speck et al. , 2020] as the sampler. There are two important details to consider when apply-ing our goal recognition formulation to discrete-domain prob-lems. First, a direct implementation in discrete STRIPS en-vironments is infeasible, as our formulation assumes vector-and numeric-based representations rather than symbolic de-scriptions. To overcome this limitation, we use a vector-ization of the STRIPS representation [Asai and Fukunaga, 2018], that encode states as fixed-size binary vectors over the complete grounding of predicates. Second, our experi-ments show that binary vector representations are insufficient to discriminate among trajectories. This limitation persists even when enhanced with signature representation. In the absence of a more meaningful vector representation, we di-minish this problem by changing the Ln. 23 of Alg. 1 to 
+
+PG[g] ← PG[g] + p−PG[g]  
+
+> ng+1
+
+, n g ← ng + 1 , where ng is a counter to keep in track the incremental mean computation. The mean of the Top-k signatures favors the hypothesis with the greatest number of similarities to the observations. We follow the same empirical grid search presented in Sec. 4 on 5 of 12 environments to find optimal merge and prune thresholds. In it, we observe that the best values for merge and prune remain zero (see supplementary material for full ablation test results). Unlike continuous environ-ments, results for the discrete environments deteriorated as values exceeded 0. We hypothesize that this behavior comes from the fact that path signatures use geometrical informa-tion to semantically encode different trajectories. Yet, dis-crete environments states are either: (i) encode information in a non-geometrical manner (e.g., one-hot encoding where val-ues represent categorical states without any inherent spatial or geometric relationships), or (ii) represent transitions that are abrupt and lack continuity, making it difficult for path sig-natures to capture meaningful patterns. Consequently, path signatures in discrete spaces produce highly dissimilar rep-resentations for each state transition, reducing the effective-ness of pruning operations. Furthermore, discrete state spaces are finite, which increases the probability of shared trajectory prefixes, limiting the constraint on possible paths and, thus, reducing merging operations. Nevertheless, the performance reported in Tab. 1b is com-petitive with other goal recognition approaches in discrete settings, underscoring the robustness and versatility of GRPS. Fig. 4b compares the approaches by their PPV (and its margin of error with a confidence level of 95 %), at 30% , 50% , 70% ,and 100% of their respective full observation. Unlike the con-tinuous relative, GRPS and GRPS +DTW slightly outperform other methods across all stages of observability. However, the differences between both are not statistically significant, given the previously mentioned vectorization issues. 
+
+5 Related Work 
+
+Recent approaches to online goal recognition infer goals by measuring the error between a reference trajectory and the observed state using Euclidean distance. Fitzpatrick et al. 
+
+extend the previous state-of-the-art [Kaminka et al. , 2018b], which relies on consecutive planner calls for each new ob-servation in a scenario while ignoring obstacles. Such ap-proaches are unsuitable for real-time robot applications since relying on calls to a motion planner incurs an unacceptable computational cost [Jain et al. , 2021]. Tesch et al. show that a representative number of suboptimal trajectories is sufficient to execute the goal inference without relying on consecutive planner call at each new observation. Amado et al. ; Amado and Meneguzzi; Amado et al. ; Fang et al. ; Amado et al. ; Wen and Amado; Serina et al. ; Elhadad et al. , [2019; 2020; 2023; 2023; 2022; 2025; 2025; 2026] leverage Machine Learning to avoid using planner calls, allowing real-time inference in goal recognition. Unlike our approach, they require pre-existing datasets to train the model. 
+
+6 Conclusion 
+
+In this paper, we introduced GRPS, a novel data-driven framework for recognizing goals from observation sequences. Unlike traditional approaches, GRPS does not rely on opti-mality assumptions or costly planner interactions. It lever-ages path signatures, a compact and expressive representation of trajectories, to compare observed behavior against sampled trajectories in a principled and efficient way. Extensive evaluation on standard benchmarks shows that GRPS outperforms existing state-of-the-art methods in both precision and planning efficiency, while maintaining strong generalization across scenarios and parameter settings. While better sampling strategies can be easily incorporated to im-prove recognition accuracy, key future work consists of de-veloping more efficient ways to find the merge and prune hy-perparameters. Similarly, improvement in discrete domains requires better vector encoding techniques. GRPS assumes access to accurate projection functions for trajectory comparison. In real-world settings, where noise or high dimensional observations (e.g., raw sensor data or images) are more prevalent, dynamic time warping becomes necessary. GRPS+DTW does achieve state-of-the-art accu-racy, but DTW’s added computational cost limits its applica-bility. In future work, we plan to explore approximate or dif-ferentiable variants of DTW that preserve alignment quality while reducing runtime, making it more accessible for real-time goal recognition. Acknowledgments 
+
+This work was partially supported by UK Research and Inno-vation [grant number EP/S023356/1], in the UKRI Centre for Doctoral Training in Safe and Trusted Artificial Intelligence (www.safeandtrustedai.org). This study was financed in part by the Coordenac ¸ ˜ ao de Aperfeic ¸oamento de Pessoal de N´ ıvel Superior Brasil (CAPES) - Finance Code 001. 
+
+References 
+
+[Amado and Meneguzzi, 2020] Leonardo Amado and Felipe Meneguzzi. Latrec - recognizing goals in latent space (stu-dent abstract). In Proceedings of the 34th AAAI Confer-ence on Artificial Intelligence , 2020. [Amado et al. , 2019] Leonardo Amado, Jo˜ ao Paulo Aires, Ramon F Pereira, Maur´ ıcio C Magnaguagno, Roger Granada, Gabriel Paludo Licks, and Felipe Meneguzzi. Latrec: Recognizing goals in latent space (demo). In 
+
+29th International Conference on Automated Planning and Scheduling (ICAPS) . AAAI Press, 2019. [Amado et al. , 2022] Leonardo Amado, Reuth Mirsky, and Felipe Meneguzzi. Goal recognition as reinforcement learning. In Thirty-Sixth AAAI Conference on Artificial Intelligence , pages 9644–9651. AAAI Press, 2022. [Amado et al. , 2023] Leonardo R. Amado, Ramon F. Pereira, and Felipe Meneguzzi. Robust Neuro-Symbolic Goal and Plan Recognition. In Proceedings of the AAAI Conference on Artificial Intelligence . AAAI Press, 2023. [Asai and Fukunaga, 2018] Masataro Asai and Alex Fuku-naga. Classical planning in deep latent space: Bridging the subsymbolic-symbolic boundary. In Proceedings of the aaai conference on artificial intelligence , volume 32, 2018. [Berndt and Clifford, 1994] Donald J Berndt and James Clif-ford. Using dynamic time warping to find patterns in time series. In Proceedings of the 3rd international conference on knowledge discovery and data mining , pages 359–370, 1994. [Chen et al. , 2020] Ting Chen, Simon Kornblith, Moham-mad Norouzi, and Geoffrey Hinton. A simple framework for contrastive learning of visual representations. In In-ternational conference on machine learning , pages 1597– 1607. PmLR, 2020. [Chevyrev and Kormilitzin, 2016] Ilya Chevyrev and An-drey Kormilitzin. A primer on the signature method in machine learning. arXiv:1603.03788 , 2016. [de A. Santos et al. , 2021] Lu´ ısa R. de A. Santos, Felipe Meneguzzi, Ramon F. Pereira, and Andr´ e Pereira. An LP-Based Approach for Goal Recognition as Planning. In 
+
+Proceedings of the 35th AAAI Conference on Artificial In-telligence (AAAI) . AAAI Press, 2021. [Elhadad et al. , 2026] Osher Elhadad, Felipe Meneguzzi, and Reuth Mirsky. GRAIL: Goal Recognition Alignment through Imitation Learning. In 25th International Confer-ence on Autonomous Agents and Multiagent Systems (AA-MAS) . IFAAMAS, 2026. [Fang et al. , 2023] Zihao Fang, Dejun Chen, Yunxiu Zeng, Tao Wang, and Kai Xu. Real-time online goal recogni-tion in continuous domains via deep reinforcement learn-ing. Entropy , 25(10):1415, 2023. [Fikes and Nilsson, 1971] Richard E Fikes and Nils J Nils-son. STRIPS: A new approach to the application of the-orem proving to problem solving. Artificial intelligence ,2(3-4):189–208, 1971. [Fitzpatrick et al. , 2021] Grady Fitzpatrick, Nir Lipovetzky, Michael Papasimeon, Miquel Ramirez, and Mor Vered. Behaviour recognition with kinodynamic planning over continuous domains. Frontiers in Artificial Intelligence ,4, 2021. [Gavenski et al. , 2024] Nathan Gavenski, Juarez Monteiro, Felipe Meneguzzi, Michael Luck, and Odinaldo Ro-drigues. Explorative imitation learning: A path signature approach for continuous environments. In 27th European Conference on Artificial Intelligence , volume 392, pages 1551–1558, 2024. [Hinton and Salakhutdinov, 2006] Geoffrey E Hinton and Ruslan R Salakhutdinov. Reducing the dimensionality of data with neural networks. science , 313(5786):504–507, 2006. [Jain et al. , 2021] Avik Jain, Lawrence Chan, Daniel SBrown, and Anca D Dragan. Optimal cost design for model predictive control. In Learning for Dynamics and Control , pages 1205–1217. Proceedings of Machine Learning Research, 2021. [Kaminka et al. , 2018a] Gal A Kaminka, Mor Vered, and Noa Agmon. Plan recognition in continuous domains. In 
+
+AAAI Conference on Artificial Intelligence , 2018. [Kaminka et al. , 2018b] Gal A Kaminka, Mor Vered, and Noa Agmon. Plan recognition in continuous domains. In Twenty-Seventh AAAI Conference on Artificial Intelli-gence , 2018. [Kidger and Lyons, 2021] Patrick Kidger and Terry Lyons. Signatory: differentiable computations of the signature and logsignature transforms, on both CPU and GPU. In 
+
+International Conference on Learning Representations ,2021. https://github.com/patrick-kidger/signatory. [Lyons, 1998] Terry J Lyons. Differential equations driven by rough signals. Revista Matem´ atica Iberoamericana ,14(2):215–310, 1998. [Masters and Sardina, 2017] Peta Masters and Sebastian Sardina. Cost-based goal recognition for path-planning. In Sixteenth Conference on Autonomous Agents and Mul-tiAgent Systems , pages 750–758, 2017. [Meneguzzi and Pereira, 2021] Felipe Meneguzzi and Ra-mon Pereira. A survey on goal recognition as planning. In 
+
+Thirtieth AAAI Conference on Artificial Intelligence , 2021. [Pathak et al. , 2017] Deepak Pathak, Pulkit Agrawal, Alexei A Efros, and Trevor Darrell. Curiosity-driven exploration by self-supervised prediction. In International conference on machine learning , pages 2778–2787. PMLR, 2017. [Pereira et al. , 2019] Ramon Pereira, Nir Oren, and Felipe Meneguzzi. Landmark-based approaches for goal recog-nition as planning. Artificial Intelligence , 279:103217, 12 2019. [Ramırez and Geffner, 2009] Miquel Ramırez and Hector Geffner. Plan recognition as planning. In Twenty-First International Joint Conference on Artificial Intelligence ,pages 1778–1783. Citeseer, 2009. [Ram´ ırez and Geffner, 2010] Miguel Ram´ ırez and Hector Geffner. Probabilistic plan recognition using off-the-shelf classical planners. In Twenty-Fourth AAAI Conference on Artificial Intelligence , 2010. [Salvador and Chan, 2007] Stan Salvador and Philip Chan. Toward accurate dynamic time warping in linear time and space. Intelligent data analysis , 11(5):561–580, 2007. [Serina et al. , 2025] Lorenzo Serina, Mattia Chiari, Al-fonso Emilio Gerevini, Luca Putelli, and Ivan Serina. To-wards efficient online goal recognition through deep learn-ing. In Proceedings of the 24th International Conference on Autonomous Agents and Multiagent Systems , pages 1895–1903. International Foundation for Autonomous Agents and Multiagent Systems, 2025. [Slotine et al. , 1991] Jean-Jacques E Slotine, Weiping Li, et al. Applied nonlinear control , volume 199. Prentice hall Englewood Cliffs, NJ, 1991. [Sohrabi et al. , 2016] S Sohrabi, A V Riabov, and O Udrea. Plan recognition as planning revisited. In Twenty-Fifth International Joint Conference on Artificial Intelligence ,pages 3258–3264, 2016. [Speck et al. , 2020] David Speck, Robert Mattm¨ uller, and Bernhard Nebel. Symbolic top-k planning. In Thirty-Fourth AAAI Conference on Artificial Intelligence , pages 9967–9974, 2020. [Sturtevant, 2012] Nathan R Sturtevant. Benchmarks for grid-based pathfinding. IEEE Transactions on Computa-tional Intelligence and AI in Games , 4(2):144–148, 2012. [Sukthankar et al. , 2014] Gita Sukthankar, Christopher Geib, Hung Hai Bui, David Pynadath, and Robert P Goldman. Plan, activity, and intent recognition: Theory and practice . Elsevier, 2014. [Tao et al. , 2021] Yaguang Tao, Alan Both, Rodrigo I Sil-veira, Kevin Buchin, Stef Sijben, Ross S Purves, Patrick Laube, Dongliang Peng, Kevin Toohey, and Matt Duck-ham. A comparative analysis of trajectory similarity mea-sures. GIScience & Remote Sensing , 58(5):643–669, 2021. [Tesch et al. , 2024] Douglas Tesch, Leonardo Rosa Amado, and Felipe Meneguzzi. Real-time goal recognition us-ing approximations in euclidean space. In 27th European Conference on Artificial Intelligence , volume 392, pages 3589–3596, 2024. [Vered and Kaminka, 2017] Mor Vered and Gal A Kaminka. Heuristic online goal recognition in continuous domains. In Twenty-Sixth AAAI Conference on Artificial Intelli-gence , pages 4447–4454, 2017. [Vered et al. , 2018] Mor Vered, Ramon Fraga Pereira, Gal Kaminka, and Felipe Meneguzzi. Towards online goal recognition combining goal mirroring and landmarks. In Seventeenth International Conference on Autonomous Agents and MultiAgent Systems , pages 10–15, 2018. [Wen and Amado, 2025] Jiaqi Wen and Leonardo Amado. Goal recognition via variational causality. In Proceed-ings of the 24th International Conference on Autonomous Agents and Multiagent Systems , pages 2162–2170. Inter-national Foundation for Autonomous Agents and Multia-gent Systems, 2025. A Complexity of GRPS +DTW 
+
+Regarding complexity, the lookup process in T T is O(1) and computing βO is O(|O|· dk), where |O| is the number of time steps in O, d is the number of dimensions in the agent’s ob-servations, and k is the depth of the path signature required by GRPS. Therefore, the online inference without DTW is 
+
+O(|T T | · | O| · dk), where |T T | is the width of T T . Thus, it is vital to keep T T thin by merging its nodes, and finding the right trade-off between expressiveness of higher values of 
+
+k and efficiency with lower values of k since the sizes t and 
+
+d are constants. Yet, DTW’s complexity is O(|O|·⌊ T T ⌉),where ⌊T T ⌉ is the size of the longest branch in T T . By using DTW in the inference method, GRPS’s complexity increases to O  |O| ·  dk + |T T | · ⌊ T T ⌉ , making it vital to also re-duce the number of nodes per branch. 
+
+B Path Signatures 
+
+In the main work, we briefly defined a trajectory τ , in which each state is a vector #» v in Rd, and how to compute the path signature β(τ )i1,··· .i k 
+
+> 1,n
+
+, where n is the length of the trajectory, and i1, · · · , i k ∈ { 1, · · · , d } (k > 1) are indices to elements in #» v . We now briefly explain path signatures and provide some additional information on the process of computing a path signature, its trajectory tree T T , and the intuition behind it. For a more in-depth examination on this topic, we refer the reader to Chevyrev and Kormilitzin [2016]. 
+
+B.1 Computing the Path Signature 
+
+Given a trajectory τ and a function f that interpolates τ into a continuous map f : R → R, the integral of the trajectory against f can be defined as: 
+
+Z n
+
+> 1
+
+f (τt)dτ t =
+
+Z n
+
+> 1
+
+f (τt) ˙ τtdt, (6) where ˙(τ )t = dτ dt for any time t ∈ [1 , n ]. It is important to note that f (τt) is a real-valued path defined on [1 , n ], which can be considered the integral of a trajectory τ . Moreover, if we consider that f (τt) = 1 for all t ∈ [1 , n ], then the path integral of f against any trajectory τ : [1 , n ] → R is simply the increment of τ :
+
+Z n
+
+> 1
+
+dτ t =
+
+Z n
+
+> 1
+
+˙τ dt = τn − τ1. (7) Therefore, by assuming that β is a function of real-valued paths, we can define the signature for any single index ik ∈{1, · · · , d } as: 
+
+β(τ )ik 
+
+> 1,n
+
+=
+
+Z
+
+> 1<s ⩽n
+
+dτ ik 
+
+> s
+
+= τ ik 
+
+> n
+
+− τ ik 
+
+> 1
+
+, (8) which is the increment of the ik-th dimension of the path. If we move to any pair of indexes ik, j k ∈ { 1, · · · , d }, we have to consider the double-iterated integral: 
+
+β(τ )ik ,j k 
+
+> 1,n
+
+=
+
+Z
+
+> 1<s ⩽n
+
+β(τ )ik
+
+> 1,s
+
+dτ jk 
+
+> s
+
+=
+
+Z
+
+> 1<r ⩽s⩽n
+
+dτ ik 
+
+> t
+
+dτ jk 
+
+> s
+
+,
+
+(9) where β(τ )ik 
+
+> 1,s
+
+is given by Eq 8. Considering that β(τ )ik ,j k
+
+> 1,n
+
+continues to be a real-valued path, then we can define recur-sively the signature function for any number of indexes k ⩾ 1
+
+in the collection of indexes i1, · · · , i k, ∈ { 1, · · · , d } as: 
+
+β(τ )i1,··· ,i k 
+
+> 1,n
+
+=
+
+Z
+
+> 1<s ⩽n
+
+β(τ )i1,··· ,i k−1 
+
+> 1,s
+
+dτ ik 
+
+> s
+
+, (10) which in the main work is Equation 1. We want to highlight that k is the depth of the signature up to which the signature is generated (not its length). At each level i ⩽ k, features of length i are generated from the dimensions D according to Eq 10 to produce the terms of the signature. Figure 5 shows all possible terms for a trajectory τ : [1 , n ] → Rd for different levels. For example, a signature with depth 2 will have all the terms in the levels i = 0 , 1, 2. In a vector with d features, we can construct one feature of length 0, d features of length 1,and d2 features of length 2, giving 1 + d + d2 features in total (i.e., the number of terms in the signature). The length of a signature with a vector size d and depth k is: 
+
+> k
+
+X
+
+> i=0
+
+di = dk+1 − 1
+
+d − 1 . (11) We observe that signatures can be computed for any depth k,and are not restricted to k ⩽ d.1 β(τ )11,n β(τ )1,11,n β(τ )1,1,11,n · · · β(τ )1,1,··· ,11,n                                                           
+
+> β(τ)21,n β(τ)1,21,n β(τ)1,1,21,n · · · β(τ)1,1,··· ,21,n
+> ............
+> β(τ)d
+> 1,n β(τ)1,d
+> 1,n β(τ)1,1,d
+> 1,n · · · β(τ)1,1··· ,d
+> 1,n
+> β(τ)2,11,n β(τ)1,2,11,n · · · β(τ)i1,i 2,··· ,i k
+> 1,n
+> .........
+> β(τ)d, 11,n β(τ)d,d, 11,n · · · β(τ)d,d, ··· ,11,n
+> β(τ)d, 21,n β(τ)d,d, 21,n · · · β(τ)d,d, ··· ,21,n
+> .........
+> β(τ)d,d
+> 1,n β(τ)d,d,d
+> 1,n · · · β(τ)d,d, ··· ,d
+> 1,n
+> 0123· · · k
+> di items
+> i
+> depth
+
+Figure 5: collection of signatures for τ , where k ∈ [0 , ∞).
+
+B.2 Path Signatures Numerical Example 
+
+We now consider a trajectory τ with two two-dimensional states {τ 1 
+
+> t
+
+, τ 2 
+
+> t
+
+}, and the set of multi-indexes W =
+
+{ (i1, · · · , i k) | k ⩾ 1, i 1, · · · , i k ∈ { 1, 2} } , which is the set of all finite sequences of 1’s and 2’s. Given the trajec-tory τ : [1 , 10] → R2 illustrated in Figure 6, where the path function for τ follows: 
+
+τt = {τ 1 
+
+> t
+
+, τ 2 
+
+> t
+
+} = {5 + t, (5 + t)2 | t ∈ [1 , 10] } (12) 6 8 10 12 14 16 18 
+
+0
+
+100 
+
+200 
+
+300 
+
+τ 1
+
+> τ 2
+
+Figure 6: Trajectory τ : [1 , 10] → R2.
+
+For the depth k desired, the computation of the signature is as shown in Figure 7. For example, given states in τ are two-dimensional ( d = 2 ), the path signature for τ width depth 
+
+k = 2 will have the dk+1 −1 
+
+> d−1
+
+= 23−11 = 7 terms in the vector 
+
+β(τ )1,10 = [ 1 , 9, 189 , 40 .5, 970 .5, 730 .5, 17860 .5 ] .                                                                         
+
+> β(τ)1,1,11,10 =
+> ZZZ
+> 1<t 1⩽t2⩽t3⩽10
+> dτ 1
+> t1dτ 1
+> t2dτ 1
+> t3=
+> Zt1
+> 1
+> Z t2
+> 1
+> Z t3
+> 1
+> dt 1
+> 
+> dt 2
+> 
+> dt 3= 121 .5
+> ...
+> β(τ)1,11,10 =
+> ZZ
+> 1<t 1⩽t2⩽10
+> dτ 1
+> t1, dτ 1
+> t2=
+> Z10 1
+> Z t2
+> 1
+> dt 1
+> 
+> dt 2= 40 .5
+> β(τ)1,21,10 =
+> ZZ
+> 1<t 1⩽t2⩽10
+> dτ 1
+> t1, dτ 2
+> t2=
+> Z10 1
+> Z t2
+> 1
+> dt 1
+> 
+> 2(5 + t2)dt 2= 970 .5
+> β(τ)2,11,10 =
+> ZZ
+> 1<t 1⩽t2⩽10
+> dτ 2
+> t1, dτ 1
+> t2=
+> Z10 1
+> Z t2
+> 1
+> 2(5 + t)dt 1
+> 
+> dt 2= 730 .5
+> β(τ)2,21,10 =
+> ZZ
+> 1<t 1⩽t2⩽10
+> dτ 2
+> t1, dτ 2
+> t2=
+> Z10 1
+> Z t2
+> 1
+> 2(5 + t)dt 1
+> 
+> 2(5 + t)dt 1= 17 ,860 .5
+> β(τ)11,10 =
+> Z
+> 1<t ⩽10
+> dt =τ110 −τ11= 9
+> β(τ)11,10 =
+> Z
+> 1<t ⩽10
+> dt =τ210 −τ21= 189
+> β(τ)ø1,n = 1
+> k = 0 k = 1  – Eq. 3 k = 2  – Eq. 4 k ⩾ 3 – Eq. 5
+
+Figure 7: Step-by-step computation of a path signature 
+
+B.3 Path Signature Trees 
+
+Path signatures have a uniqueness property: no two trajecto-ries τ and τ ′ of bounded variation have the same signature unless the trajectories are identical. Leveraging this property, we can represent a trajectory as a tree T T constructed from the path signatures of its partial trajectories. Consider a tra-jectory τ ; by computing the path signature for each partial trajectory τ1,t (i.e., the trajectory from the first state up to time t), we obtain a sequence of path signatures that form a linear tree. Each node in this branch corresponds to a path signature that encodes the trajectory of increasing length. We remind the reader that path signatures are of fixed lengths due to their invariance to the trajectory size. For a trajectory of length n, we compute n − 1 path sig-natures up to depth k, one for each partial trajectory. This sequence is represented as: 
+
+h
+
+1, β (τ )1,k  
+
+> 1,2
+
+, β (τ )1,k  
+
+> 1,3
+
+, · · · , β (τ )1,k 
+
+> 1,n
+
+i
+
+, (13) where the first entry (the zeroth term) is always 1 since no path signatures exist for a trajectory of length 1, and the final term corresponds to the path signature of the whole trajectory (displayed in Figure 7). For any single trajectory, the path sig-nature tree would be a single branch with the root node being the zeroth term and the leaf being the complete trajectory τ1,n 
+
+path signature (Figure 8). 
+
+1 β(τ )1,k  
+
+> 1,2
+
+β(τ )1,k  
+
+> 1,3
+
+· · · β(τ )1,k 
+
+> 1,n
+
+Figure 8: Trajectory tree for a single trajectory. 
+
+Now consider any set of trajectories T with |T | > 1. Due to the uniqueness property of path signatures, in this case, two trajectories share a node if and only if their partial trajectories are identical up to that point – that is, τ1,t = τ ′ 
+
+> 1,t
+
+for all t such that τt = τ ′ 
+
+> t
+
+). Thus, given a set of trajectories T , it is possible to build a trajectory tree, where the maximum height is the size of the longest trajectory max τ ∈T |τ |, and the maximum 
+
+width is the number of trajectories |T | if each trajectory is unique. 
+
+B.4 Trajectory Tree Numerical Example 
+
+We now illustrate this with three example trajectories τ , τ ′,and τ ′′ , all defined over the same time interval with two-dimensional states and path signatures depth k = 2 . The trajectories, shown in Figure 9, are defined as follows: 
+
+τ = {τ 1 
+
+> t
+
+, τ 2 
+
+> t
+
+} = {t, 2 | t ∈ [1 , 4] }
+
+τ ′ = {τ ′1 
+
+> t
+
+, τ ′2 
+
+> t
+
+} = {t, max( t, 2) | t ∈ [1 , 4] }
+
+τ ′′ = {τ ′′ 1 
+
+> t
+
+, τ ′′ 2 
+
+> t
+
+} = {t, min(2 , t − 1) | t ∈ [1 , 4] }
+
+(14) Building the trajectory tree for these three trajectories yields the structure shown in Figure 10. In this example, the colored dots represent each trajectory, e.g., the zeroth node has all three trajectories (all three col-ored dots). It is essential to observe that given the uniqueness property from path signatures, even if τ and τ ′′ finish in the            
+
+> 0.511.522.533.544.5
+> 0
+> 1
+> 2
+> 3
+> 4
+> τ1
+> τ 2
+> τ
+> τ′
+> τ′′
+
+Figure 9: Trajectories for τ, τ ′, and τ ′′ .1                                         
+
+> [1 .0,0.0,0.5,0.0,0.0,0.0,]
+> [2 .0,0.0,2., 0.0,0.0,0.0]
+> [3 .0,0.0,4.5,0.0,0.0,0.0]
+> [2 .0,1.0,2.0,1.5,0.5., 0.5]
+> [3 .0,2.0,4.5,4.0,2.0,2.0]
+> [1 .0,1.0,0.5,0.5,0.5,0.5]
+> [2 .0,2.0,2.0,2.0,2.0., 2.0]
+> [3 .0,2.0,4.5,2.0,4.0,2.0]
+
+Figure 10: Trajectories tree for τ, τ ′, and τ ′′ .
+
+exact location (in our main work, we refer to this as the same goal g ∈ G), they diverge immediately after the root node since their trajectories are distinct. This illustrates how the path signature tree distinguishes between trajectories even if their endpoints coincide. In contrast, τ and τ ′ share identical states for the first two time steps and therefore follow a com-mon branch beyond the root. This shared structure is captured by the path signature tree, reflecting the underlying similarity in the early portions of their trajectories. 
+
+B.5 Pruning and Merging Motivation 
+
+We now introduce a fourth trajectory τ ′′′ , following the same setting from the previous examples, displayed in Figure 11 and defined as: 
+
+τ ′′′ = {τ ′′′ 1 
+
+> t
+
+, τ ′′′ 2 
+
+> t
+
+} = {t, 0.1 · exp 
+
+
+
+− (t − 2) 2
+
+2·0.158 2
+
+
+
++ 2 } (15) Adding this new trajectory to the trajectory tree, despite its only slight variation from τ at t = 2 , results in the updated structure shown in Figure 12. Although τ ′′′ closely resembles τ for most of its duration, it exhibits a slight deviation at t = 2 . Due to the uniqueness property of path signatures, this slight variation results in an entirely new branch in the tree – highlighting how path sig-nature trees encode fine-grained differences between trajec-tories. Apart from the shared root node, τ ′′′ does not overlap with any of the previously defined trajectories. This example underscores how even subtle variation, such as the deviation             
+
+> 0.511.522.533.544.5
+> 0
+> 1
+> 2
+> 3
+> 4
+> τ1
+> τ 2
+> τ
+> τ′
+> τ′′
+> τ′′′
+
+Figure 11: Trajectories for τ, τ ′, τ ′′ , and τ ′′′ .                                                       
+
+> 1
+> [1 .0,0.0,0.5,0.0,0.0,0.0]
+> [2 .0,0.0,2.0,0.0,0.0,0.0]
+> [3 .0,0.0,4.5,0.0,0.0,0.0]
+> [2 .0,1.0,2.0,1.5,0.5,0.5]
+> [3 .0,2.0,4.5,4.0,2.0,2.0]
+> [1 .0,1.0,0.5,0.5,0.5,0.5]
+> [2 .0,2.0,2.0,2.0,2.0,2.0]
+> [3 .0,2.0,4.5,2.0,4.0,2.0]
+> [1 .000 ,0.100 ,0.500 ,0.050 ,0.050 ,0.005]
+> [2 .000 ,0.000 ,2.000 ,−0.100 ,0.100 ,0.000]
+> [3 .000 ,0.000 ,4.500 ,−0.100 ,0.100 ,0.000]
+
+Figure 12: Trajectory tree for τ, τ ′, τ ′′ , and τ ′′′ .
+
+of τ ′′′ from τ at t = 2 , can produce entirely new branches in the trajectory tree due to the sensitivity of path signatures. While this property is valuable for distinguishing trajectory structures, it also results in unnecessarily complex trees with redundant or overly fine-trained branches. In the context of goal recognition, such complexity can hinder both inter-pretability and computation efficiency. To address this, our main work introduces pruning and merging mechanisms that simplify the trajectory tree by removing insignificant struc-tural differences while retaining the distinctions critical for goal inference. Notably, after applying these operations, the resulting tree often contains stable intermediate nodes that consistently appear across different trajectories. These nodes serve as functional analogues to landmarks , informative sub-goals or waypoints that offer strong cues about the agent’s eventual objective. This connection allows us to reason about goals not only based on endpoints but also by leveraging these shared structural checkpoints. 
+
+C Experimental Details 
+
+We conducted the experiments using a 2.2GHz 24 -core CPU with 24 GB RAM, running Ubuntu 20 .04 . We use the ‘signa-tory’ package to compute each path signature [Kidger and Lyons, 2021], and the sample function from Tesch et al. ,[2024]. The path signatures are all with depth 2, i.e., k = 2 .The code for all experiments is available at: https://github. com/douglasat/GRPS. 
+
+D Dataset 
+
+The dataset simulates a robot with a two-wheeled motor and one unidirectional wheel traveling between an initial and a goal point. Each map in the dataset contains eight randomly sampled points, p1 to p8, that can be used as initial and goal points. Each point contains x and y coordinates, as well as an orientation in radians. For each map, the dataset con-tains 56 problems, which comprise all pairs of initial and goal states. For example, each map will have one problem where the ground truth is a trajectory from p1 to p2 (whose 
+
+x, y coordinates we call g2), with p2 to p8 being goal hy-potheses, another one with p8 to p7 (q.v. g7) with p1 to p7
+
+as goal hypotheses, and so on. We use the scenario map Af-tershock as a working example in Figure 13a. White rep-resents traversable space, and marked colored points repre-sent potential initial and goal position points. Here, we see the randomly selected points in the map, as well as poten-tial trajectories between points pn from Figure 13a. The dataset provides the observations for each recognition prob-lem, assuming the robot travels optimally, i.e., the robot (a) Aftershock map example. (b) Approximated trajectory ˆτ g2
+
+> p1
+
+and the observation Og2 
+
+> p1
+
+.Figure 13: Working dataset examples. 
+
+moves while minimizing travel time as a cost function. Fig-ure 13b shows an example of optimal observations (orange) and their approximated trajectory (green). Although both trajectories look quite similar, there are points where the approximated trajectories are not identical and may display more drastic differences. We used the dataset available at: https://github.com/douglasat/Vectorial-Goal-Recognition 
+
+E Partial Observability Algorithm 
+
+We provide a more detailed version of Algorithm 1 from the main work here. In it, we detail GRPS+DTW procedures for the partial observability setting. Algorithm assumes that some observations might not reach GRPS+DTW during the online process for some reason, e.g., faulty systems. Therefore, GRPS+DTW first checks if the new observation ot is a direct sequence from the last obser-vation olast t (Line 11). If the sequence of observations is indeed incomplete ( last t̸ = t − 1), then GRPS+DTW uses an interpolation function I NTERPOLATE to approximate the se-quence of observations. For example, if the current sequence of observation is [I, o 1, o 3] for t = 3 , than I NTERPOLATE 
+
+returns [I, o 1, ˆo2, o 3], where ˆo2 is the approximated obseva-tion from the interpolation function. For these experiments, we use Scipy’s interpolation function. 2 With the new com-plete sequence of observations up to t, GRPS+DTW has to retrieve all partial signatures from last t to t − 1 (Lines 13-15). That is, for the example [I, o 1, ˆo2, o 3], GRPS+DTW re-trieves the path signature β(O)k
+
+> 0:2
+
+, so the set βO would be 1, β (O)k
+
+> 0:1
+
+, β (O)k 
+
+> 0:2
+
+. Afterwards GRPS+DTW stores the last known timestep at last t and continues the algorithm. 
+
+F On the Projection Function Assumption 
+
+In our main work, we acknowledge a key limitation: either (i) GRPS has access to the projection function f , enabling it to construct a trajectory tree over observations, i.e., f ( ˆT ); or (ii) observations and states are assumed to be identical, such that the projection function is the identity, i.e., f (s) = s. This constraint arises because the trajectory tree path signatures 
+
+> 2
+
+https://docs.scipy.org/doc/scipy/reference/generated/scipy. interpolate.interp1d.html 
+
+Algorithm 3 Partial Observability GRPS+DTW           
+
+> Require: D, G, I from goal recognition problem
+> Require: Knumber of top trajectories
+> Require: MT, P T, k to build trajectory tree
+> Goal Recognition with Path Signatures ▷Offline
+
+1: ˆT ← [ ] 
+
+2: for all g ∈ G do 
+
+3: ˆTg ← SAMPLE KT RAJ (D, I, g, K )
+
+4: ˆT ← ˆT ∪ ˆTg
+
+5: T T ← TRAJECTORY TREE ( ˆT , M T , P T , k ) ▷ Algorithm 2   
+
+> Dynamic Time Warping ▷Online
+
+6: O ← [ ] 
+
+7: βO ← [ ] 
+
+8: last t ← 0
+
+9: when receives ot and ot /∈ G do 
+
+10: O ← O ∪ ot
+
+11: if t − 1̸ = last t then 
+
+12: O ← INTERPOLATE (O, t, last t)
+
+13: for z ∈ t − last t − 1 do 
+
+14: z ← z + last t
+
+15: βO ← βO ∪ β(O)k
+
+> 0: z
+
+16: last t ← t
+
+17: βO ← βO ∪ β(O)k  
+
+> 1: t▷Compute observations signature
+
+18: PG ← { g 7 → 0 | g ∈ G} ▷ Initialize probabilities 
+
+19: for branch ∈ T T do 
+
+20: δ ← DT W (βO , branch )
+
+21: g ← leaf node of branch 
+
+22: p ← 1 − exp( −1/ 1  
+
+> |O|
+> P
+> i,j ∈δ∥βO i −branch j∥2)
+
+23: PG[g] ← max( p, PG[g]) 
+
+24: return argmax 
+
+> g∈G
+> PG[g]
+
+are computed over ˆT , which are sequences of states rather than raw observations. A promising direction to overcome this limitation is to learn the projection function f directly from data. In many machine learning contexts, particularly those involving high-dimensional sensory inputs such as im-ages, audio, or text, it is standard to employ representation learning techniques that map observations into a latent space capturing the underlying state dynamics. This learned rep-resentation can then serve as a proxy for the proper projec-tion function, allowing for the construction of trajectory trees based on observations. Approaches such as autoencoders [Hinton and Salakhutdi-nov, 2006], contrastive learning [Chen et al. , 2020], and in-verse dynamics modeling [Pathak et al. , 2017] have demon-strated strong performance in learning such mappings in both supervised and self-supervised settings. Consequently, while GRPS currently assumes access to f or an identity mapping between states and observations, future work could incorpo-rate a learned projection function to extend the method to more realistic scenarios where the state is not directly observ-able. In summary, while our method currently assumes access to a projection function f or an identity mapping between states and observations, this limitation is often not prohibitive in practice. Many environments (particularly in simulation, control, and structured domains) do not distinguish between states and observations, effectively rendering f trivial. More-over, in cases where such a distinction exists, robust and well-established solutions already exist for inferring or approxi-mating the latent state space. As such, the reliance on f does not significantly constrain the applicability of our approach and can be addressed through either learned or engineered al-ternatives, depending on the context. 
+
+G Path Signature Depth Selection 
+
+To investigate the impact of varying path signature depths on the performance of GRPS and GRPS+DTW, we conduct experiments using four different depth values: [2 , 3, 4, 5] .As discussed in Section B.1, increasing the depth of a path signature expands the representational space by incorporat-ing higher-order interactions among input features, poten-tially yielding more informative representations. However, excessively deep signatures may introduce spurious or non-ideal relationships between state features. It is also important to note that the computational complexity of both inference modes scales with dk, where d denotes the number of in-put dimensions and k the signature depth. Thus, if shallower signatures prove sufficient, GRPS can benefit from improved computational efficiency. Table 2 displays the results for these experiments. For GRPS, both PPV and ACC exhibit a slight downward trend as 
+
+k increases, with PPV decreasing from 54 .1% to 52 .8% and ACC from 86 .9% to 86 .5% . Online Time increases modestly from 0.017 to 0.021 seconds, while Offline Time remains rel-atively stable around 631 seconds. Similarly, GRPS+DTW exhibits a slight decline in PPV (from 56 .3% to 56 .0% ) and ACC (from 87 .5% to 87 .4% ) as depth increases. However, Online Time grows more substantially, rising from 11 .552 to 
+
+15 .805 seconds, whereas Offline Time remains nearly con-stant, fluctuating slightly around 630 seconds. These trends suggest that increasing signature depth introduces marginal performance degradation and higher online computational costs, while offline processing remains largely unaffected.                                        
+
+> Method Metric 2345GRPS PPV (%) 54.1 53.9 53.4 52.8 ACC (%) 86.9 86.8 86.7 86.5 Online Time 0.017 0.017 0.019 0.021 Offline Time 631.006 631.210 631.346 631.598 GRPS+DTW PPV (%) 56.3 56.2 56.2 56.0 ACC (%) 87.5 87.5 87.5 87.4 Online Time 11.552 14.540 15.303 15.805 Offline Time 630.313 630.439 630.538 630.838
+> Table 2: Results for different kvalues
+
+H Grid Search Results 
+
+Tables 3 and 4 show the grid search results over 10 scenar-ios from the Tesch et al. [2024] dataset. The table displays the results with the maximum PPV for each merge and prune variable, along with the respective K value. 
+
+I Experiment Results 
+
+Tables 7 and 8 show the experiments results for the whole dataset of Tesch et al. [2024] using Top-K value of K = 15 .The GRPS method experiments are executed using merge and prune of 0.2 for both variables. The GRPS+DTW method uses the values of 0.2 and 0.6 for merge and prune variables respectively. 
+
+J Sampler Quality Evaluation 
+
+We conduct an experimental evaluation to analyze how the trajectory sampler quality influences the performance of our goal recognition approach. Tables 5 and 6 show the results for the GRPS and GRPS+DTW approaches, respectively, con-sidering the first ten scenarios. We conducted further experi-ments with a degraded sampling method, running RRT ∗ with a shorter running limit of 5 seconds, instead of 20 seconds used by Tesch et al. , [2024]. A comparing between Tables 5 and 6 with Tables 7 and 8, reveal a clear and directly propor-tional relationship between trajectory sampling quality and goal inference performance: the closer a sampled trajectory lies to the optimal one, the more accurate the resulting goal inference. 
+
+K Discrete Domains Experiments 
+
+Tables 9 and 10 show GRPS and GRPS+DTW results for the validation split, respectively. Recall, that we use a 5 problems from each environment to find the best thresholds for merge and prune before applying it to the full set. In it, we observe that the best values for merge and prune remain zero. Differ-ent than the findings from the main work, where merge and prune values remained approximately 0.6 and 0.4, respec-tively, results for the discrete environments deteriorated with any values greater than 0. We hypothesize that this behavior is inherited from the fact that path signatures use geometrical information to semantically encode different trajectories. Yet, discrete environments states either: (i) encode information in a non geometrical manner (e.g., one-hot encodings where values represent categorical states without any inherent spa-tial or geometric relationships), or (ii) represent transitions that are abrupt and lack continuity, making it difficult for path signatures to capture meaningful patterns. Consequently, the deterioration in performance with non-zero merge and prune thresholds suggests that the semantic structure captured by path signatures is disrupted when applied to discrete state representations. Table 11 display the results for GRPS and GRPS+DTW to the whole problem set using merge and prune thresholds 0.0. Notably, the performance reported in Table 11 remains competitive with other goal recognition approaches in discrete settings (when compared to results from Tesch et al. , [2024]), underscoring the robustness and versatility of GRPS. GRPS K=1 K=5 K=10 K=15 Maps PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune Aftershock 59.2 0 0.0 65.8 0.00 0.0 72.2 1.0 0.0 63.4 0.0 0.0 Archipelago 55.7 0 0.0 57.1 0.40 0.6 59.2 0.4 0.0 59.2 0.2 0.2 BigGameHunters 53.0 0 1.0 59.2 0.60 0.0 58.3 0.2 0.2 58.0 1.2 1.2 Caldera 64.6 0 0.2 69.6 0.20 0.4 66.7 2.0 0.4 65.5 1.6 1.6 Circle 80.1 0 0.4 88.1 2.00 0.0 87.2 0.2 0.0 86.3 0.2 0.0 CrescentMoon 52.1 0 0.2 58.0 0.60 0.4 54.8 0.0 0.0 56.8 0.6 0.0 Desolation 56.3 0 0.4 62.2 0.00 0.2 60.7 0.8 0.0 62.5 2.0 0.2 EbonLakes 53.6 0 0.2 57.4 1.20 0.4 54.8 0.6 0.2 56.5 0.8 0.2 Entanglement 62.8 0 0.0 66.4 0.40 0.2 65.8 0.4 0.0 64.6 0.4 0.2 Eruption 49.7 0 0.4 55.1 0.20 2.0 52.7 0.4 1.4 53.3 0.6 2.0 Average 58.7 0 0.3 63.9 0.56 0.4 63.2 0.6 0.2 62.6 0.8 0.6 
+
+Table 3: GRPS grid search results for 10 scenarios on the dataset. 
+
+GRPS+DTW K=1 K=5 K=10 K=15 Maps PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune Aftershock 62.5 0.0 0.6 64.6 1.0 0.6 65.8 0.0 0.0 65.5 1.0 0.0 Archipelago 55.1 0.0 0.0 58.9 0.6 0.2 57.7 2.0 0.0 57.4 1.0 0.6 BigGameHunters 58.6 0.0 2.0 61.0 0.0 2.0 61.3 1.6 1.6 61.6 0.0 1.8 Caldera 67.9 0.0 0.8 71.4 0.0 1.0 72.6 0.0 0.8 72.6 0.0 0.8 Circle 79.8 0.0 0.6 88.4 1.8 0.0 88.4 0.0 0.6 88.4 0.4 0.0 CrescentMoon 53.6 0.0 1.4 57.4 0.2 1.4 58.3 1.2 0.6 56.8 0.0 1.4 Desolation 57.7 0.0 0.6 62.8 1.2 0.0 62.5 1.8 0.8 63.1 0.4 0.8 EbonLakes 54.5 0.0 0.8 60.4 0.8 0.6 58.6 2.0 0.0 56.8 0.6 0.2 Entanglement 67.3 0.0 0.6 68.5 0.2 0.6 68.5 0.0 0.6 67.9 2.0 0.0 Eruption 52.1 1.8 0.0 55.7 1.4 0.8 56.0 0.2 0.6 53.9 1.6 0.6 Average 60.9 0.2 0.7 64.9 0.7 0.7 65.0 0.9 0.6 64.4 0.6 0.6 
+
+Table 4: GRPS+DTW grid search results for 10 scenarios on the dataset. 
+
+GRPS Maps PPV (%) ACC (%) SPR PC Online Time (s) Offline Time(s) Aftershock 54.8 87.0 1.0 7.0 0.023 267.9 Archipelago 50.0 85.7 1.0 7.0 0.021 385.0 BigGameHunters 44.6 84.1 1.0 7.0 0.025 510.2 Caldera 53.3 86.6 1.0 7.0 0.025 504.5 Circle 73.2 92.3 1.0 7.0 0.020 289.6 CrescentMoon 45.8 84.5 1.0 7.0 0.024 332.3 Desolation 48.8 85.4 1.0 7.0 0.017 258.2 EbonLakes 35.9 81.3 1.1 7.0 0.017 325.6 Entanglement 44.6 84.2 1.0 7.0 0.016 273.5 Eruption 40.2 82.6 1.1 7.0 0.016 185.8 
+
+Table 5: GRPS method experiments results for sampler quality evaluation. 
+
+GRPS Maps PPV (%) ACC (%) SPR PC Online Time (s) Offline Time(s) Aftershock 54.5 87.0 1.0 7.0 3.5 248.1 Archipelago 44.6 84.2 1.0 7.0 5.8 366.5 BigGameHunters 46.1 84.6 1.0 7.0 10.8 537.3 Caldera 60.1 88.6 1.0 7.0 6.2 496.3 Circle 75.9 93.1 1.0 7.0 3.4 238.7 CrescentMoon 48.5 85.3 1.0 7.0 5.5 345.9 Desolation 54.2 86.9 1.0 7.0 3.7 268.9 EbonLakes 44.0 83.8 1.1 7.0 5.4 329.2 Entanglement 45.2 84.4 1.0 7.0 4.0 332.1 Eruption 45.6 84.4 1.0 7.0 3.7 194.4 
+
+Table 6: GRPS+DTW method experiments results for sampler quality evaluation. GRPS Maps PPV (%) ACC (%) SPR PC Online Time (s) Offline Time(s) Aftershock 63.1 89.5 1 7 0.029 310 Archipelago 56.8 87.7 1 7 0.028 300 BigGameHunters 54.5 87.0 1 7 0.032 390 Caldera 68.8 91.1 1 7 0.030 340 Circle 85.7 95.9 1 7 0.029 260 CrescentMoon 54.8 87.1 1 7 0.029 310 Desolation 56.5 87.6 1 7 0.027 250 EbonLakes 50.6 85.9 1 7 0.029 310 Entanglement 64.0 89.7 1 7 0.026 220 Eruption 48.8 85.4 1 7 0.031 300 HotZone 61.9 89.1 1 7 0.031 300 Isolation 61.3 88.9 1 7 0.029 320 Legacy 36.0 81.7 1 7 0.028 230 OrbitalGully 54.8 87.1 1 7 0.029 320 Predators 59.8 88.5 1 7 0.027 230 Ramparts 43.5 83.8 1 7 0.031 430 RedCanyons 58.0 88.0 1 7 0.028 290 Rosewood 50.6 85.9 1 7 0.031 340 Sanctuary 44.0 84.0 1 7 0.033 400 ShroudPlatform 45.8 84.5 1 7 0.034 370 SpaceAtoll 38.7 82.5 1 7 0.030 340 SpaceDebris 45.8 84.5 1 7 0.031 330 SteppingStones 73.8 92.5 1 7 0.027 200 Triskelion 48.8 85.4 1 7 0.032 390 WarpGates 48.5 85.3 1 7 0.028 320 WatersEdge 43.7 83.9 1 7 0.032 450 WaypointJunction 51.5 86.1 1 7 0.028 250 WinterConquest 46.7 84.8 1 7 0.032 380 Average 54.2 86.9 1 7 0.030 320 
+
+Table 7: GRPS method experiments results for the whole scenarios on the dataset. 
+
+GRPS+DTW Maps PPV (%) ACC (%) SPR PC Online Time (s) Offline Time (s) Aftershock 60.7 88.8 1 7 18.0 260 Archipelago 56.0 87.4 1 7 18.0 260 BigGameHunters 59.5 88.4 1 7 25.0 330 Caldera 65.8 90.2 1 7 21.0 280 Circle 84.8 95.7 1 7 13.0 220 CrescentMoon 56.3 87.5 1 7 18.0 260 Desolation 61.9 89.1 1 7 12.0 220 EbonLakes 53.0 86.6 1 7 19.0 260 Entanglement 61.9 89.1 1 7 10.0 200 Eruption 53.9 86.8 1 7 18.0 250 HotZone 57.4 87.8 1 7 17.0 250 Isolation 63.4 89.5 1 7 18.0 270 Legacy 43.5 83.8 1 7 12.0 200 OrbitalGully 58.9 88.3 1 7 19.0 270 Predators 61.0 88.9 1 7 11.0 200 Ramparts 43.8 83.9 1 7 30.0 350 RedCanyons 60.1 88.6 1 7 16.0 250 Rosewood 53.6 86.7 1 7 22.0 290 Sanctuary 45.5 84.4 1 7 26.0 340 ShroudPlatform 49.7 85.6 1 7 28.0 320 SpaceAtoll 42.9 83.7 1 7 25.0 310 SpaceDebris 45.8 84.5 1 7 22.0 280 SteppingStones 76.2 93.2 1 7 8.3 170 Triskelion 52.7 86.5 1 7 25.0 310 WarpGates 53.3 86.6 1 7 19.0 270 WatersEdge 49.4 85.5 1 7 30.0 370 WaypointJunction 53.6 86.7 1 7 14.0 230 WinterConquest 54.2 86.9 1 7 27.0 330 Average 56.4 87.5 1 7 19.0 270 
+
+Table 8: GRPS+DTW method experiments results for the whole scenarios on the dataset. GRPS K=1 K=5 K=10 K=15 Scenario PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune blocks-world 5.0 0.0 0.0 36.0 0.0 0.0 38.4 0.0 0.0 39.0 0.0 0.0 depots 55.7 0.0 0.0 43.4 0.0 0.0 43.9 0.0 0.0 41.0 0.0 0.0 driverlog 15.3 0.0 0.0 38.4 0.0 0.0 45.9 0.0 0.0 46.0 0.0 0.0 dwr 15.3 0.0 0.0 40.8 0.0 0.0 39.8 0.0 0.0 40.3 0.0 0.0 ferry 16.4 0.0 0.0 57.8 0.0 0.0 65.7 0.0 0.0 70.4 0.0 0.0 Average 12.9 0.0 0.0 43.3 0.0 0.0 46.7 0.0 0.0 47.3 0.0 0.0 
+
+Table 9: GRPS grid search results for 5 scenarios on the discrete domain dataset. 
+
+GRPS+DTW K=1 K=5 K=10 K=15 Scenario PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune PPV (%) Merge Prune blocks-world 5.0 0.0 0.0 36.0 0.0 0.0 38.4 0.0 0.0 39.0 0.0 0.0 depots 55.7 0.0 0.0 43.4 0.0 0.0 43.9 0.0 0.0 41.0 0.0 0.0 driverlog 15.3 0.0 0.0 38.4 0.0 0.0 45.9 0.0 0.0 46.0 0.0 0.0 dwr 15.3 0.0 0.0 40.8 0.0 0.0 39.8 0.0 0.0 40.3 0.0 0.0 ferry 16.4 0.0 0.0 59.0 0.0 0.0 66.4 0.0 0.0 69.8 0.0 0.0 Average 12.9 0.0 0.0 43.5 0.0 0.0 46.9 0.0 0.0 47.2 0.0 0.0 
+
+Table 10: GRPS+DTW grid search results for 5 scenarios on the discrete domain dataset. 
+
+GRPS K=15 GRPS+DTW K=15 Scenario |O| |G| PPV Acc Spread PC Online Offline PPV Acc Spread PC Online Offline blocks-world 8.8 20.0 39.0 91.1 2.1 20.0 1.5 49.5 39.0 91.1 2.1 20.0 11.5 52.3 depots 9.5 8.0 41.0 81.3 2.0 8.0 0.3 12.6 41.0 81.3 1.9 8.0 2.9 14.1 driverlog 12.2 6.7 46.0 83.4 1.2 6.7 0.2 11.5 46.0 83.4 1.2 6.6 2.4 12.5 dwr 22.0 6.7 40.3 77.4 2.2 6.7 7.1 20.9 40.3 77.4 2.2 6.7 122.7 21.6 easy-ipc-grid 11.9 7.5 61.6 89.4 1.3 7.5 13.9 52.0 61.6 89.4 1.3 7.5 107.6 39.8 ferry 18.8 6.3 70.4 90.4 1.0 6.3 0.2 7.4 69.8 90.3 1.0 6.3 4.2 7.9 logistics 18.2 10.0 61.2 92.2 1.3 10.0 1.2 19.1 61.2 92.2 1.3 10.0 19.1 18.7 miconic 16.3 6.0 61.6 87.3 1.2 6.0 0.1 10.2 61.6 87.3 1.2 6.0 2.5 10.2 rovers 10.8 6.0 53.0 83.4 1.4 6.0 0.2 211.2 53.0 83.4 1.4 6.0 2.6 227.6 satellite 10.8 6.0 41.0 72.7 2.4 6.0 0.1 8.6 41.0 72.7 2.4 6.0 1.5 10.3 small-sokoban 26.0 9.0 53.7 90.2 1.6 9.0 96.1 204.2 53.7 90.2 1.6 9.0 891.9 207.2 zeno-travel 12.0 6.0 55.2 85.0 1.2 6.0 0.2 132.2 55.2 85.0 1.2 6.0 1.7 132.7 Average 14.8 8.2 52.0 85.3 1.6 8.2 10.1 60.6 51.9 85.3 1.6 8.2 97.6 62.9 
+
+Table 11: Discrete domains experiments results of goal recognition using path signature method.
