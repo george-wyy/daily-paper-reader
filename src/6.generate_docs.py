@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Tuple
 
 import fitz  # PyMuPDF
 import requests
-from llm import BltClient
+from llm import DeepSeekClient
 
 SCRIPT_DIR = os.path.dirname(__file__)
 ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
@@ -26,26 +26,31 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
 try:
-    from paper_figures import ensure_paper_figures
+    from paper_figures import ensure_paper_media
 except Exception:  # pragma: no cover
-    from src.paper_figures import ensure_paper_figures
+    from src.paper_figures import ensure_paper_media
 
 CONFIG_FILE = os.path.join(ROOT_DIR, "config.yaml")
 TODAY_STR = str(os.getenv("DPR_RUN_DATE") or "").strip() or datetime.now(timezone.utc).strftime("%Y%m%d")
 RANGE_DATE_RE = re.compile(r"^(\d{8})-(\d{8})$")
 
-# LLM 配置（使用 llm.py 内的 BLT 客户端）
-BLT_API_KEY = os.getenv("BLT_API_KEY")
-BLT_MODEL = os.getenv("BLT_SUMMARY_MODEL", "gemini-3-flash-preview")
+# LLM 配置（使用 llm.py 内的 DeepSeek 客户端）
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY") or os.getenv("SUMMARY_API_KEY")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL") or os.getenv("SUMMARY_BASE_URL") or "https://api.deepseek.com"
+DEEPSEEK_MODEL = os.getenv("SUMMARY_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-v4-flash"
 LLM_CLIENT = None
-if BLT_API_KEY:
-    LLM_CLIENT = BltClient(api_key=BLT_API_KEY, model=BLT_MODEL)
+if DEEPSEEK_API_KEY:
+    LLM_CLIENT = DeepSeekClient(
+        api_key=DEEPSEEK_API_KEY,
+        model=DEEPSEEK_MODEL,
+        base_url=DEEPSEEK_BASE_URL,
+    )
 
 DEFAULT_DOCS_CONCURRENCY = 4
 
 
-def call_blt_text(
-    client: BltClient,
+def call_llm_text(
+    client: DeepSeekClient,
     messages: List[Dict[str, str]],
     temperature: float,
     max_tokens: int,
@@ -61,8 +66,8 @@ def call_blt_text(
     return (resp.get("content") or "").strip()
 
 
-def call_blt_structured_json(
-    client: BltClient,
+def call_llm_structured_json(
+    client: DeepSeekClient,
     messages: List[Dict[str, str]],
     schema_name: str,
     schema: Dict[str, Any],
@@ -313,7 +318,7 @@ def translate_title_and_abstract_to_zh(title: str, abstract: str) -> Tuple[str, 
             "required": ["title_zh", "abstract_zh"],
             "additionalProperties": False,
         }
-        parsed = call_blt_structured_json(
+        parsed = call_llm_structured_json(
             LLM_CLIENT,
             messages,
             schema_name="translate_zh",
@@ -518,7 +523,7 @@ def upsert_glance_block_in_text(md_text: str, glance: str) -> str:
 
 def generate_deep_summary(md_file_path: str, txt_file_path: str, max_retries: int = 3) -> str | None:
     if LLM_CLIENT is None:
-        log("[WARN] 未配置 BLT_API_KEY，跳过精读总结。")
+        log("[WARN] 未配置 DEEPSEEK_API_KEY 或 SUMMARY_API_KEY，跳过精读总结。")
         return None
     if not os.path.exists(md_file_path):
         return None
@@ -558,7 +563,7 @@ def generate_deep_summary(md_file_path: str, txt_file_path: str, max_retries: in
     last = ""
     for attempt in range(1, max_retries + 1):
         try:
-            summary = call_blt_text(LLM_CLIENT, messages, temperature=0.3, max_tokens=4096)
+            summary = call_llm_text(LLM_CLIENT, messages, temperature=0.3, max_tokens=4096)
             summary = (summary or "").strip()
             if not summary:
                 continue
@@ -573,7 +578,7 @@ def generate_deep_summary(md_file_path: str, txt_file_path: str, max_retries: in
                 {"role": "user", "content": "你上一次的总结可能被截断了，请从中断处继续补全，不要重复已输出内容。"},
                 {"role": "user", "content": f"上一次输出如下：\n\n{summary}\n\n请继续补全，最后以一行“（完）”结束。"},
             ]
-            cont = call_blt_text(LLM_CLIENT, cont_messages, temperature=0.3, max_tokens=2048)
+            cont = call_llm_text(LLM_CLIENT, cont_messages, temperature=0.3, max_tokens=2048)
             cont = (cont or "").strip()
             merged = f"{summary}\n\n{cont}".strip()
             if os.getenv("DPR_DEBUG_STEP6") == "1":
@@ -595,15 +600,16 @@ def generate_glance_overview(title: str, abstract: str, max_retries: int = 3) ->
         log("[WARN] 未配置 LLM_CLIENT，跳过速览生成。")
         return None
 
-    system_prompt = "你是论文速览助手，请用中文简洁地总结论文的关键信息。"
+    system_prompt = "你是论文速览助手，请用中文生成信息密度高、但不冗长的论文速览。"
     payload = {"title": title, "abstract": abstract}
     user_text = json.dumps(payload, ensure_ascii=False)
     user_prompt = (
         "请基于上面的 JSON 中的 title 和 abstract，输出一个中文速览摘要，严格返回 JSON（不要输出任何其它文字）：\n"
         "{\"tldr\":\"...\",\"motivation\":\"...\",\"method\":\"...\",\"result\":\"...\",\"conclusion\":\"...\"}\n"
         "要求：\n"
-        "- tldr：100字左右的完整概述，涵盖研究背景、方法和主要贡献\n"
-        "- motivation/method/result/conclusion：每个字段一句话概括，简洁明了\n"
+        "- tldr：150-220个中文字符，不是一句话口号；通常写成3-4个短句，按“问题背景→核心方法→关键结果→贡献意义”的顺序组织\n"
+        "- motivation/method/result/conclusion：每个字段30-70个中文字符，通常一句话；对标论文页速览卡片，简洁但必须包含具体信息\n"
+        "- 不要把英文句子放进中文字段；可保留必要英文术语或模型名\n"
         "Output must be strict JSON only, no markdown, no fences, no extra text."
     )
 
@@ -628,7 +634,7 @@ def generate_glance_overview(title: str, abstract: str, max_retries: int = 3) ->
 
     for attempt in range(1, max_retries + 1):
         try:
-            parsed = call_blt_structured_json(
+            parsed = call_llm_structured_json(
                 LLM_CLIENT,
                 messages,
                 schema_name="glance_overview",
@@ -952,7 +958,7 @@ def build_daily_brief_summary(
         "直接输出 1-3 行文本，不要 Markdown 标题，也不要 JSON。"
     )
     try:
-        content = call_blt_text(
+        content = call_llm_text(
             LLM_CLIENT,
             [
                 {"role": "system", "content": system_prompt},
@@ -1213,23 +1219,39 @@ def maybe_generate_paper_figures(
     paper_id: str,
     pdf_url: str,
 ) -> List[Dict[str, Any]]:
+    figures, _tables = maybe_generate_paper_media(
+        paper,
+        docs_dir=docs_dir,
+        paper_id=paper_id,
+        pdf_url=pdf_url,
+    )
+    return figures
+
+
+def maybe_generate_paper_media(
+    paper: Dict[str, Any],
+    *,
+    docs_dir: str,
+    paper_id: str,
+    pdf_url: str,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     source_key = str(paper.get("source") or "").strip().lower()
     if source_key not in {"arxiv", "biorxiv"}:
-        return []
+        return [], []
     if not str(pdf_url or "").strip():
-        return []
+        return [], []
 
     asset_key = str(paper.get("id") or paper_id.replace("/", "-")).strip()
     try:
-        return ensure_paper_figures(
+        return ensure_paper_media(
             pdf_url=pdf_url,
             docs_dir=docs_dir,
             source_key=source_key,
             asset_key=asset_key,
         )
     except Exception as e:
-        log(f"[WARN] 论文插图提取失败：{asset_key}: {e}")
-        return []
+        log(f"[WARN] 论文图表提取失败：{asset_key}: {e}")
+        return [], []
 
 
 def upsert_front_matter_field(md_text: str, key: str, value: str) -> Tuple[str, bool]:
@@ -1288,6 +1310,7 @@ def build_markdown_content(
     paper_source = str(paper.get("source") or "").strip()
     selection_source = str(paper.get("selection_source") or "").strip()
     figure_assets = paper.get("_figure_assets") if isinstance(paper.get("_figure_assets"), list) else []
+    table_assets = paper.get("_table_assets") if isinstance(paper.get("_table_assets"), list) else []
 
     # 解析速览内容
     glance = paper.get("_glance_overview", "").strip()
@@ -1339,6 +1362,8 @@ def build_markdown_content(
         lines.append(f"selection_source: {yaml_escape_value(selection_source)}")
     if figure_assets:
         lines.append(f"figures_json: {yaml_escape_value(json.dumps(figure_assets, ensure_ascii=False))}")
+    if table_assets:
+        lines.append(f"tables_json: {yaml_escape_value(json.dumps(table_assets, ensure_ascii=False))}")
 
     # 速览字段
     if glance_motivation:
@@ -1422,19 +1447,31 @@ def process_paper(
 
         existing_meta = _parse_front_matter(existing)
         has_figures_json = bool(str(existing_meta.get("figures_json") or "").strip()) if existing_meta else False
-        if not has_figures_json:
-            figures = maybe_generate_paper_figures(
+        has_tables_json = bool(str(existing_meta.get("tables_json") or "").strip()) if existing_meta else False
+        if not has_figures_json or not has_tables_json:
+            figures, tables = maybe_generate_paper_media(
                 paper,
                 docs_dir=docs_dir,
                 paper_id=paper_id,
                 pdf_url=pdf_url,
             )
-            if figures:
+            if figures and not has_figures_json:
                 paper["_figure_assets"] = figures
                 updated, changed = upsert_front_matter_field(
                     existing,
                     "figures_json",
                     yaml_escape_value(json.dumps(figures, ensure_ascii=False)),
+                )
+                if changed:
+                    with open(md_path, "w", encoding="utf-8") as f:
+                        f.write(updated + ("\n" if not updated.endswith("\n") else ""))
+                    existing = updated
+            if tables and not has_tables_json:
+                paper["_table_assets"] = tables
+                updated, changed = upsert_front_matter_field(
+                    existing,
+                    "tables_json",
+                    yaml_escape_value(json.dumps(tables, ensure_ascii=False)),
                 )
                 if changed:
                     with open(md_path, "w", encoding="utf-8") as f:
@@ -1582,7 +1619,7 @@ def process_paper(
                 ensure_text_content(pdf_url, txt_path)
             except Exception:
                 pass
-        figures = maybe_generate_paper_figures(
+        figures, tables = maybe_generate_paper_media(
             paper,
             docs_dir=docs_dir,
             paper_id=paper_id,
@@ -1590,6 +1627,8 @@ def process_paper(
         )
         if figures:
             paper["_figure_assets"] = figures
+        if tables:
+            paper["_table_assets"] = tables
         glance = generate_glance_overview(title, abstract_en) or build_glance_fallback(paper)
         if glance:
             paper["_glance_overview"] = glance
@@ -1603,7 +1642,7 @@ def process_paper(
     # 新文件：生成完整内容
     pdf_url = str(paper.get("link") or paper.get("pdf_url") or "").strip()
     ensure_text_content(pdf_url, txt_path)
-    figures = maybe_generate_paper_figures(
+    figures, tables = maybe_generate_paper_media(
         paper,
         docs_dir=docs_dir,
         paper_id=paper_id,
@@ -1611,6 +1650,8 @@ def process_paper(
     )
     if figures:
         paper["_figure_assets"] = figures
+    if tables:
+        paper["_table_assets"] = tables
 
     zh_title, zh_abstract = translate_title_and_abstract_to_zh(title, abstract_en)
     tags_list = build_tags_list(section, paper.get("llm_tags") or [])

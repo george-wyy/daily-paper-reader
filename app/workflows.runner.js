@@ -24,6 +24,19 @@ window.DPRWorkflowRunner = (function () {
       name: '重置 content（docs + archive）',
       desc: '将 docs 恢复为 docs_init 基线，并清空 archive。该操作为危险操作。',
     },
+    {
+      key: 'conference-retrieval',
+      id: 'conference-paper-retrieval.yml',
+      name: '会议论文检索',
+      desc: '按会议和年份触发 Supabase BM25/Embedding 候选召回与 RRF 融合。',
+      dispatchInputs: {
+        top_k: '50',
+        rrf_top_n: '200',
+        run_rerank: 'true',
+        reranker_profile: 'public-zwwen-rerank',
+        run_llm_refine: 'true',
+      },
+    },
   ];
 
   const QUICK_FETCH_PRESETS = {
@@ -99,6 +112,18 @@ window.DPRWorkflowRunner = (function () {
       return String((obj && obj.token) || '').trim();
     } catch {
       return '';
+    }
+  };
+  const loadRerankerProfile = () => {
+    try {
+      const secret = window.decoded_secret_private || {};
+      const reranker = secret.rerankerLLM || {};
+      const profile = String(reranker.profile || '').trim();
+      if (profile) return profile;
+      if (isLocalDebugPage()) return 'public-zwwen-rerank';
+      return '';
+    } catch {
+      return isLocalDebugPage() ? 'public-zwwen-rerank' : '';
     }
   };
 
@@ -178,6 +203,161 @@ window.DPRWorkflowRunner = (function () {
       },
     });
     return res;
+  };
+
+  const isLocalDebugPage = () => {
+    if (window.DPR_LOCAL_API_BASE) return true;
+    const host = String((window.location && window.location.hostname) || '').toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+    return false;
+  };
+
+  const getLocalApiUrl = (path) => {
+    const base = String(window.DPR_LOCAL_API_BASE || '').trim().replace(/\/$/, '');
+    if (!base && isLocalDebugPage()) {
+      const protocol = String((window.location && window.location.protocol) || 'http:');
+      const hostname = String((window.location && window.location.hostname) || '127.0.0.1');
+      return `${protocol}//${hostname}:8567${path}`;
+    }
+    if (!base) return path;
+    return `${base}${path}`;
+  };
+
+  const localApiFetch = async (path, init) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const res = await fetch(getLocalApiUrl(path), {
+        ...(init || {}),
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(init && init.headers ? init.headers : {}),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error((data && data.error) || `本地调试后端请求失败：HTTP ${res.status}`);
+      }
+      return data;
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        throw new Error('本地调试后端请求超时，请确认 8567 端口服务正在运行。');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const isWorkflowLogNearBottom = (logEl) => {
+    if (!logEl) return true;
+    const distance =
+      Number(logEl.scrollHeight || 0) -
+      Number(logEl.scrollTop || 0) -
+      Number(logEl.clientHeight || 0);
+    return distance <= 24;
+  };
+
+  const scrollWorkflowLogToBottom = (shouldScroll) => {
+    if (!runsEl || !shouldScroll) return;
+    requestAnimationFrame(() => {
+      const logEl = runsEl.querySelector('[data-dpr-workflow-log]');
+      if (logEl) {
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    });
+  };
+
+  const renderLocalRun = (run, logText) => {
+    if (!runsEl || !run) return;
+    const previousLogEl = runsEl.querySelector('[data-dpr-workflow-log]');
+    const shouldFollowLog = isWorkflowLogNearBottom(previousLogEl);
+    const status = run.status || '';
+    const conclusion = run.conclusion || '';
+    const badgeColor =
+      conclusion === 'success'
+        ? '#2e7d32'
+        : conclusion === 'failure'
+          ? '#c00'
+          : status === 'in_progress'
+            ? '#1565c0'
+            : '#666';
+    const command = Array.isArray(run.command) ? run.command.join(' ') : '';
+    const logHtml = logText
+      ? `<pre data-dpr-workflow-log="1" style="white-space:pre-wrap; max-height:360px; overflow:auto; background:#111; color:#ddd; padding:10px; border-radius:6px; font-size:12px;">${escapeHtml(logText)}</pre>`
+      : '<div style="color:#999;">暂无日志。</div>';
+    runsEl.innerHTML = `
+      <div style="margin-bottom:8px;">
+        <div style="font-weight:600;">本地运行 #${escapeHtml(run.run_number || run.id)}</div>
+        <div style="color:#666; margin-top:2px;">
+          <span style="display:inline-block; padding:1px 6px; border-radius:999px; background:rgba(0,0,0,0.06); color:${badgeColor};">
+            ${escapeHtml(formatRunBadgeText(status, conclusion))}
+          </span>
+          <span style="margin-left:8px;">${escapeHtml(formatRunTime(run.created_at))}</span>
+        </div>
+      </div>
+      <div style="font-size:12px; color:#666; margin-bottom:8px;">${escapeHtml(command)}</div>
+      ${logHtml}
+    `;
+    scrollWorkflowLogToBottom(shouldFollowLog);
+  };
+
+  const refreshLocalRun = async (runId) => {
+    try {
+      const data = await localApiFetch(`/api/local/runs/${encodeURIComponent(runId)}/log`);
+      const run = data.run || {};
+      renderLocalRun(run, data.log || '');
+      if (run.status === 'completed') {
+        stopPolling();
+        setStatus(
+          `本地运行已结束：${run.conclusion || 'completed'}`,
+          run.conclusion === 'success' ? '#080' : '#c00',
+        );
+      } else {
+        setStatus('本地运行中：每 5 秒自动刷新...', '#1565c0', { waiting: true });
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus(`刷新本地运行失败：${e.message || e}`, '#c00');
+    }
+  };
+
+  const dispatchLocalAndMonitor = async (wf, workflowFile, dispatchInputs) => {
+    stopPolling();
+    activeRun = null;
+    setStatus(`正在触发本地调试任务：${wf.name || workflowFile} ...`, '#666', { waiting: true });
+    runsEl.innerHTML = '<div style="color:#999;">正在请求本地后端，请稍候...</div>';
+    const localConfigOverride = window.SubscriptionsGithubToken &&
+      typeof window.SubscriptionsGithubToken.loadLocalConfigOverride === 'function'
+      ? window.SubscriptionsGithubToken.loadLocalConfigOverride()
+      : null;
+    const localSecret = window.decoded_secret_private && typeof window.decoded_secret_private === 'object'
+      ? window.decoded_secret_private
+      : null;
+    const data = await localApiFetch('/api/local/workflows/dispatch', {
+      method: 'POST',
+      body: JSON.stringify({
+        workflowKey: wf.key || '',
+        workflowFile,
+        inputs: dispatchInputs || {},
+        config: localConfigOverride && localConfigOverride.config ? localConfigOverride.config : null,
+        secret: localSecret,
+      }),
+    });
+    const run = data.run || {};
+    activeRun = { local: true, runId: run.id };
+    selectedRun = activeRun;
+    setStatus(`本地运行已创建：run_id=${run.id}`, '#080', { waiting: true });
+    await refreshLocalRun(run.id);
+    refreshTimer = setInterval(() => {
+      const r = selectedRun || activeRun;
+      if (!r || !r.local) return;
+      refreshLocalRun(r.runId);
+    }, 5000);
   };
 
   const resolveWorkflowRunInputs = async (owner, repo, token, runId) => {
@@ -266,7 +446,9 @@ window.DPRWorkflowRunner = (function () {
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
         const r = selectedRun || activeRun;
-        if (r && r.owner && r.repo && r.runId) {
+        if (r && r.local && r.runId) {
+          refreshLocalRun(r.runId);
+        } else if (r && r.owner && r.repo && r.runId) {
           refreshRun(r.owner, r.repo, r.runId);
         } else {
           setStatus('暂无可刷新的运行记录。', '#666');
@@ -521,6 +703,27 @@ window.DPRWorkflowRunner = (function () {
       setStatus('工作流配置缺失，无法触发。', '#c00');
       return;
     }
+    const dynamicInputs = { ...(wf.dispatchInputs || {}) };
+    const rerankerProfile = loadRerankerProfile();
+    if (
+      rerankerProfile &&
+      (workflowFile === 'daily-paper-reader.yml' ||
+        workflowFile === 'conference-paper-retrieval.yml')
+    ) {
+      dynamicInputs.reranker_profile = rerankerProfile;
+    }
+    const dispatchInputs = combineInputs(dynamicInputs, extraInputs);
+    if (isLocalDebugPage()) {
+      try {
+        return await dispatchLocalAndMonitor(wf, workflowFile, dispatchInputs);
+      } catch (e) {
+        console.error(e);
+        const msg = e.message || String(e);
+        setStatus(`本地触发失败：${msg}`, '#c00');
+        runsEl.innerHTML = `<div style="color:#c00;">${escapeHtml(msg)}<br/>请确认本地后端已启动：<code>scripts/local_debug.sh</code> 或 <code>python src/local_debug_server.py --port 8567</code></div>`;
+        return;
+      }
+    }
     const token = loadGithubToken();
     if (!token) {
       setStatus('未检测到 GitHub Token：请在“密钥配置”或“GitHub Token”处完成配置。', '#c00');
@@ -581,7 +784,6 @@ window.DPRWorkflowRunner = (function () {
       const dispatchUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(
         workflowFile,
       )}/dispatches`;
-      const dispatchInputs = combineInputs(wf.dispatchInputs, extraInputs);
       const dispatchBody = {
         ref: String(repoContext.defaultBranch || 'main'),
       };
@@ -815,9 +1017,54 @@ window.DPRWorkflowRunner = (function () {
     return runWorkflowByKey(preset.key, mergedInputs);
   };
 
+  const normalizeConferenceName = (value) => {
+    const text = String(value || '').trim();
+    const lower = text.toLowerCase();
+    if (lower === 'nips' || lower === 'neurips') return 'NeurIPS';
+    if (lower === 'icml') return 'ICML';
+    return '';
+  };
+
+  const normalizeConferenceYears = (values) => {
+    const raw = Array.isArray(values) ? values : [values];
+    const out = [];
+    const seen = new Set();
+    raw.forEach((item) => {
+      const year = parseInt(item, 10);
+      if (!Number.isFinite(year) || year <= 0 || seen.has(year)) return;
+      seen.add(year);
+      out.push(String(year));
+    });
+    return out;
+  };
+
+  const runConferenceRetrieval = async (conference, years, options = {}) => {
+    const normalizedConference = normalizeConferenceName(conference);
+    const normalizedYears = normalizeConferenceYears(years);
+    if (!normalizedConference || !normalizedYears.length) {
+      open();
+      setStatus('请先选择支持的会议和年份。', '#c00');
+      return false;
+    }
+    const extraInputs =
+      options && typeof options === 'object' && options.dispatchInputs
+        ? options.dispatchInputs
+        : {};
+    return runWorkflowByKey('conference-retrieval', {
+      conference: normalizedConference,
+      years: normalizedYears.join(','),
+      ...extraInputs,
+    });
+  };
+
+  const runConferenceMaintain = async (conference, years) =>
+    runConferenceRetrieval(conference, years);
+
   return {
     open,
     runWorkflowByKey,
     runQuickFetchByDays,
+    runConferenceRetrieval,
+    runConferenceMaintain,
   };
 })();

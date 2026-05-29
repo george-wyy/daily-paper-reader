@@ -21,6 +21,10 @@ on:
         description: "仅运行指定词条 tag；留空表示全量运行"
         required: false
         default: ""
+      reranker_profile:
+        description: "Reranker：默认 public-zwwen-rerank；可改 local-qwen3-0.6b / siliconflow-qwen3-0.6b"
+        required: false
+        default: "public-zwwen-rerank"
 
 permissions:
   contents: write
@@ -34,14 +38,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      BLT_API_KEY: ${{ secrets.BLT_API_KEY }}
-      BLT_REWRITE_MODEL: ${{ secrets.BLT_REWRITE_MODEL }}
-      BLT_RERANK_MODEL: qwen3-reranker-4b
-      BLT_FILTER_MODEL: ${{ secrets.BLT_FILTER_MODEL }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      DEEPSEEK_BASE_URL: ${{ secrets.DEEPSEEK_BASE_URL }}
+      DEEPSEEK_MODEL: ${{ secrets.DEEPSEEK_MODEL }}
+      RERANK_PROFILE: ${{ secrets.RERANK_PROFILE }}
+      RERANK_PROVIDER: ${{ secrets.RERANK_PROVIDER }}
+      RERANK_MODEL: ${{ secrets.RERANK_MODEL }}
+      RERANK_API_KEY: ${{ secrets.RERANK_API_KEY }}
+      RERANK_API_BASE_URL: ${{ secrets.RERANK_API_BASE_URL }}
+      PUBLIC_RERANK_API_KEY: ${{ secrets.PUBLIC_RERANK_API_KEY }}
+      PUBLIC_RERANK_API_BASE_URL: ${{ secrets.PUBLIC_RERANK_API_BASE_URL || 'https://zwwen.online/rerank' }}
+      SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+      SILICONFLOW_RERANK_URL: ${{ secrets.SILICONFLOW_RERANK_URL }}
+      SILICONFLOW_RERANK_MIN_INTERVAL_SECONDS: ${{ secrets.SILICONFLOW_RERANK_MIN_INTERVAL_SECONDS || '8' }}
+      LOCAL_RERANK_MODEL: ${{ secrets.LOCAL_RERANK_MODEL || 'Qwen/Qwen3-Reranker-0.6B' }}
+      LOCAL_RERANK_DEVICE: cpu
+      LOCAL_RERANK_BATCH_SIZE: "4"
+      MKL_THREADING_LAYER: GNU
+      DPR_RERANK_GLOBAL_POOL_LIMIT: "120"
+      DPR_RERANK_GUARANTEED_PER_LANE: "2"
       DPR_EMBED_API_TIMEOUT: "60"
+      DPR_EMBED_API_URL: ${{ secrets.DPR_EMBED_API_URL || 'https://zwwen.online/embed' }}
+      DPR_EMBED_API_KEY: ${{ secrets.DPR_EMBED_API_KEY }}
       LLM_PRIMARY_BASE_URL: ${{ secrets.LLM_PRIMARY_BASE_URL }}
-      BLT_PRIMARY_BASE_URL: ${{ secrets.BLT_PRIMARY_BASE_URL }}
-      BLT_API_BASE: ${{ secrets.BLT_PRIMARY_BASE_URL }}
       SUMMARY_API_KEY: ${{ secrets.SUMMARY_API_KEY }}
       SUMMARY_BASE_URL: ${{ secrets.SUMMARY_BASE_URL }}
       SUMMARY_MODEL: ${{ secrets.SUMMARY_MODEL }}
@@ -65,12 +84,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
       - name: Cache Python deps
         uses: actions/cache@v5
         with:
@@ -78,10 +91,7 @@ jobs:
             ~/.cache/pip
             ~/.cache/uv
             ~/.cache/torch
-            ~/.cache/dpr-tools/pdffigures2
-            ~/.cache/coursier
-            ~/.ivy2/cache
-            ~/.sbt
+            ~/.cache/dpr-tools/papercropper
           key: ${{ runner.os }}-dpr-embed-deps-v1-${{ hashFiles('requirements.txt') }}
 
       - name: Install deps (skip sqlite3)
@@ -94,28 +104,69 @@ jobs:
           PY
           python -m pip install --upgrade pip
           python -m pip install uv
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1+cpu"
           uv pip install --system -r /tmp/req.txt
 
-      - name: Prepare pdffigures2
+      - name: Prepare PaperCropper (optional)
+        continue-on-error: true
         run: |
           set -euo pipefail
 
-          TOOL_DIR="$HOME/.cache/dpr-tools/pdffigures2"
-          SRC_DIR="$TOOL_DIR/src"
-          JAR_PATH="$TOOL_DIR/pdffigures2.jar"
+          TOOL_DIR="$HOME/.cache/dpr-tools/papercropper"
+          SRC_DIR="$TOOL_DIR/PaperCropper"
+          MODEL_DIR="$TOOL_DIR/models"
+          MODEL_PATH="$MODEL_DIR/doclayout_yolo_docstructbench_imgsz1280_2501.pt"
 
-          mkdir -p "$TOOL_DIR"
-          if [ ! -f "$JAR_PATH" ]; then
+          mkdir -p "$TOOL_DIR" "$MODEL_DIR"
+          if [ ! -f "$SRC_DIR/extract.py" ]; then
             rm -rf "$SRC_DIR"
-            git clone --depth 1 https://github.com/allenai/pdffigures2 "$SRC_DIR"
-            cd "$SRC_DIR"
-            curl -fsSL -o sbt.tgz https://github.com/sbt/sbt/releases/download/v1.10.1/sbt-1.10.1.tgz
-            tar -xzf sbt.tgz
-            ./sbt/bin/sbt assembly
-            cp pdffigures2.jar "$JAR_PATH"
+            git clone --depth 1 https://github.com/fake-learn/PaperCropper "$SRC_DIR"
           fi
 
-          echo "PDFFIGURES2_JAR=$JAR_PATH" >> "$GITHUB_ENV"
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu "torchvision==0.20.1+cpu"
+          python -m pip install -r requirements-paper-media.txt
+          python -m pip install --no-deps "doclayout-yolo==0.0.4"
+          if [ ! -f "$MODEL_PATH" ]; then
+            MODEL_DIR="$MODEL_DIR" python - <<'PY'
+          import os
+          from huggingface_hub import hf_hub_download
+
+          filename = "doclayout_yolo_docstructbench_imgsz1280_2501.pt"
+          path = hf_hub_download(
+              repo_id="juliozhao/DocLayout-YOLO-DocStructBench-imgsz1280-2501",
+              filename=filename,
+              local_dir=os.environ["MODEL_DIR"],
+              local_dir_use_symlinks=False,
+          )
+          print(path)
+          PY
+          fi
+
+          PAPERCROPPER_MODEL="$MODEL_PATH" python - <<'PY'
+          import os
+          import cv2
+          import fitz
+          import torch
+          import torchvision
+          from doclayout_yolo import YOLOv10
+
+          model_path = os.environ["PAPERCROPPER_MODEL"]
+          if not os.path.exists(model_path):
+              raise FileNotFoundError(model_path)
+          print(
+              "PaperCropper smoke OK:",
+              {
+                  "torch": torch.__version__,
+                  "torchvision": torchvision.__version__,
+                  "cv2": cv2.__version__,
+                  "fitz": getattr(fitz, "__doc__", "")[:20],
+                  "YOLOv10": YOLOv10.__name__,
+              },
+          )
+          PY
+
+          echo "PAPERCROPPER_SCRIPT=$SRC_DIR/extract.py" >> "$GITHUB_ENV"
+          echo "PAPERCROPPER_MODEL=$MODEL_PATH" >> "$GITHUB_ENV"
 
       - name: Run Retrieval and Embedding
         env:
@@ -180,6 +231,10 @@ jobs:
           FETCH_DAYS="${{ github.event.inputs.fetch_days }}"
           FETCH_MODE="${{ github.event.inputs.fetch_mode }}"
           PROFILE_TAG="${{ github.event.inputs.profile_tag }}"
+          RERANKER_PROFILE_INPUT="${{ github.event.inputs.reranker_profile }}"
+          if [ -n "$RERANKER_PROFILE_INPUT" ]; then
+            export RERANK_PROFILE="$RERANKER_PROFILE_INPUT"
+          fi
           ARGS=()
           if [ "$RUN_ENRICH" = "true" ]; then
             ARGS+=(--run-enrich)
@@ -227,6 +282,7 @@ jobs:
           done
 
           git add "${paths[@]}"
+          git add -u archive
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
@@ -234,6 +290,8 @@ jobs:
 
           git commit -m "[chore] daily pipeline"
 
+          git status --short
+          git reset --hard HEAD
           git fetch origin "$branch"
           git rebase -X theirs "origin/$branch"
           git push origin HEAD:"$branch"

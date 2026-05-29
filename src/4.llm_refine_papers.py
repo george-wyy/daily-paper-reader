@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List
 
-from llm import BltClient
+from llm import DeepSeekClient, resolve_max_output_tokens
 from subscription_plan import build_pipeline_inputs
 
 SCRIPT_DIR = os.path.dirname(__file__)
@@ -18,11 +18,21 @@ ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 TODAY_STR = str(os.getenv("DPR_RUN_DATE") or "").strip() or datetime.now(timezone.utc).strftime("%Y%m%d")
 ARCHIVE_DIR = os.path.join(ROOT_DIR, "archive", TODAY_STR)
 RANKED_DIR = os.path.join(ARCHIVE_DIR, "rank")
-CONFIG_FILE = os.path.join(ROOT_DIR, "config.yaml")
+CONFIG_FILE = os.getenv("DPR_CONFIG_FILE") or os.path.join(ROOT_DIR, "config.yaml")
 
-DEFAULT_FILTER_MODEL = os.getenv("BLT_FILTER_MODEL") or "gemini-3-flash-preview-nothinking"
+DEFAULT_FILTER_MODEL = (
+    os.getenv("DEEPSEEK_FILTER_MODEL")
+    or os.getenv("SUMMARY_MODEL")
+    or os.getenv("DEEPSEEK_MODEL")
+    or "deepseek-v4-flash"
+)
+DEFAULT_DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL") or os.getenv("SUMMARY_BASE_URL") or "https://api.deepseek.com"
 DEFAULT_FILTER_CONCURRENCY = 4
 MAX_FILTER_RETRIES = 3
+
+
+class FilterOutputTruncatedError(ValueError):
+    """LLM 输出被截断时触发，优先拆小批次而不是重复请求同一批。"""
 
 
 def log(message: str) -> None:
@@ -50,8 +60,9 @@ def save_json(data: Dict[str, Any], path: str) -> None:
     log(f"[INFO] saved: {path}")
 
 
-def load_config() -> Dict[str, Any]:
-    if not os.path.exists(CONFIG_FILE):
+def load_config(config_path: str | None = None) -> Dict[str, Any]:
+    path = str(config_path or CONFIG_FILE).strip() or CONFIG_FILE
+    if not os.path.exists(path):
         return {}
     try:
         import yaml  # type: ignore
@@ -59,7 +70,7 @@ def load_config() -> Dict[str, Any]:
         log("[WARN] PyYAML not installed, skip config.yaml.")
         return {}
     try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
             return data if isinstance(data, dict) else {}
     except Exception as exc:
@@ -309,7 +320,7 @@ def build_repeated_user_prompt(query: str) -> str:
 
 
 def call_filter(
-    client: BltClient,
+    client: DeepSeekClient,
     all_requirements: List[Dict[str, str]],
     docs: List[Dict[str, str]],
     debug_dir: str,
@@ -330,6 +341,11 @@ def call_filter(
                         "evidence_cn": {"type": "string"},
                         "tldr_en": {"type": "string"},
                         "tldr_cn": {"type": "string"},
+                        "title_zh": {"type": "string"},
+                        "motivation_cn": {"type": "string"},
+                        "method_cn": {"type": "string"},
+                        "result_cn": {"type": "string"},
+                        "conclusion_cn": {"type": "string"},
                         "score": {"type": "number"},
                     },
                     "required": [
@@ -339,6 +355,11 @@ def call_filter(
                         "evidence_cn",
                         "tldr_en",
                         "tldr_cn",
+                        "title_zh",
+                        "motivation_cn",
+                        "method_cn",
+                        "result_cn",
+                        "conclusion_cn",
                         "score",
                     ],
                     "additionalProperties": False,
@@ -388,7 +409,7 @@ def call_filter(
         "Papers:\n"
         f"{json.dumps(docs, ensure_ascii=False)}\n\n"
         "Output JSON format example:\n"
-        "{\"results\": [{\"id\": \"paper_id\", \"matched_requirement_index\": 1, \"evidence_en\": \"short English phrase\", \"evidence_cn\": \"简短中文短语\", \"tldr_en\": \"one-sentence TLDR\", \"tldr_cn\": \"一句话 TLDR\", \"score\": 7}]}\n\n"
+        "{\"results\": [{\"id\": \"paper_id\", \"matched_requirement_index\": 1, \"evidence_en\": \"short English phrase\", \"evidence_cn\": \"简短中文短语\", \"tldr_en\": \"one-sentence TLDR\", \"tldr_cn\": \"中文摘要式 TLDR\", \"title_zh\": \"中文论文标题\", \"motivation_cn\": \"中文研究动机\", \"method_cn\": \"中文方法概括\", \"result_cn\": \"中文结果概括\", \"conclusion_cn\": \"中文结论\", \"score\": 7}]}\n\n"
         "Requirement: You MUST return exactly one result for every input paper. "
         "The results length must match the papers length, and every input id must appear once.\n\n"
         "Output must be a single-line JSON string. "
@@ -403,11 +424,24 @@ def call_filter(
         "They should be short phrases linking the paper to the matched requirement; "
         "they do NOT need to be direct quotes. "
         "Also generate TLDR in both languages: tldr_en and tldr_cn. "
-        "TLDR should be one sentence summarizing what the paper does and why it matters. "
-        "Keep TLDR concise: <= 120 characters in English and <= 60 Chinese characters. "
+        "tldr_cn is not a one-line slogan; write it in the same style as a paper-page TLDR abstract. "
+        "For relevant papers with score > 0, tldr_cn should target 150-220 Chinese characters, usually 3-4 short Chinese sentences, "
+        "covering the problem setting, core method, key result, and why the result matters. "
+        "Reference style: first say what limitation/problem the paper addresses; then say what method it proposes; then say what experiments/results show; finally mention the broader contribution. "
+        "Keep tldr_en concise but informative: 160-240 English characters. "
+        "Also generate title_zh as a concise Chinese translation of the paper title. "
+        "title_zh must always be a real translated title based on the input title, even when the paper is unrelated. "
+        "Also generate four Chinese-only overview fields: motivation_cn, method_cn, result_cn, conclusion_cn. "
+        "For relevant papers with score > 0, each overview field should target 30-70 Chinese characters, normally one concrete Chinese sentence. "
+        "Match the style of a paper page overview: concise but not a bare phrase; include concrete content from the title/abstract. "
+        "These length targets are guidance, not a reason to omit a paper; if the title/abstract is sparse, return the best faithful concise summary you can. "
+        "Do not put English sentences in these Chinese fields. "
+        "method_cn should summarize the method from the title and abstract, not copy the English abstract. "
         "Then give a score (0-10). "
         "If unrelated, use evidence_en=\"not relevant\", evidence_cn=\"不相关\", "
-        "tldr_en=\"not relevant\", tldr_cn=\"不相关\", score 0, matched_requirement_index=0."
+        "tldr_en=\"not relevant\", tldr_cn=\"不相关\", "
+        "motivation_cn=\"不相关\", method_cn=\"不相关\", result_cn=\"不相关\", conclusion_cn=\"不相关\", "
+        "score 0, matched_requirement_index=0, while keeping title_zh as the translated paper title."
     )
     if retry_note:
         user_prompt += f"\n\nRetry correction note:\n{retry_note}"
@@ -433,7 +467,10 @@ def call_filter(
         if resp.get("refusal"):
             raise ValueError(f"structured output refusal: {resp.get('refusal')}")
         if resp.get("finish_reason") not in (None, "stop"):
-            raise ValueError(f"unexpected finish_reason: {resp.get('finish_reason')}")
+            msg = f"unexpected finish_reason: {resp.get('finish_reason')}"
+            if resp.get("finish_reason") == "length":
+                raise FilterOutputTruncatedError(msg)
+            raise ValueError(msg)
         if resp.get("parse_error") is not None:
             raise resp["parse_error"]
         payload = resp.get("parsed")
@@ -482,6 +519,11 @@ def _normalize_filter_result_item(item: Dict[str, Any]) -> Dict[str, Any]:
     score = _coerce_score(item.get("score"))
     tldr_en = _norm_text(item.get("tldr_en")) or ("not relevant" if score <= 0 else evidence_en)
     tldr_cn = _norm_text(item.get("tldr_cn")) or ("不相关" if score <= 0 else (evidence_cn or tldr_en))
+    title_zh = _norm_text(item.get("title_zh"))
+    motivation_cn = _norm_text(item.get("motivation_cn")) or ("不相关" if score <= 0 else evidence_cn)
+    method_cn = _norm_text(item.get("method_cn")) or ("不相关" if score <= 0 else "方法细节请参考摘要与原文")
+    result_cn = _norm_text(item.get("result_cn")) or ("不相关" if score <= 0 else tldr_cn)
+    conclusion_cn = _norm_text(item.get("conclusion_cn")) or ("不相关" if score <= 0 else tldr_cn)
     return {
         "id": _norm_text(item.get("id")),
         "matched_requirement_index": _coerce_int(item.get("matched_requirement_index"), 0),
@@ -489,6 +531,11 @@ def _normalize_filter_result_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "evidence_cn": evidence_cn,
         "tldr_en": tldr_en,
         "tldr_cn": tldr_cn,
+        "title_zh": title_zh,
+        "motivation_cn": motivation_cn,
+        "method_cn": method_cn,
+        "result_cn": result_cn,
+        "conclusion_cn": conclusion_cn,
         "score": score,
     }
 
@@ -545,7 +592,8 @@ def build_filter_retry_note(
         f"Retry attempt {attempt}. The previous output was invalid: {previous_error}. "
         f"You must return exactly {len(expected_ids)} results for these ids only: {', '.join(expected_ids)}. "
         "Every id must appear once. Do not omit ids. Do not repeat ids. "
-        "Keep matched_requirement_index as an integer and score within 0-10."
+        "Keep matched_requirement_index as an integer and score within 0-10. "
+        "Keep summaries faithful and concise; do not pad unsupported details just to satisfy a length target."
     )
 
 
@@ -567,6 +615,8 @@ def recover_filter_results(
         except Exception as exc:
             last_error = exc
             log(f"[WARN] filter {debug_tag} attempt {attempt}/{max_attempts} invalid: {exc}")
+            if isinstance(exc, FilterOutputTruncatedError) and len(batch_docs) > 1:
+                break
 
     if len(batch_docs) == 1:
         raise ValueError(f"{debug_tag} failed after {max_attempts} attempts: {last_error}")
@@ -591,14 +641,14 @@ def recover_filter_results(
     )
 
 
-def _make_filter_client(api_key: str, model: str, max_output_tokens: int) -> BltClient:
-    client = BltClient(api_key=api_key, model=model)
+def _make_filter_client(api_key: str, model: str, max_output_tokens: int) -> DeepSeekClient:
+    client = DeepSeekClient(api_key=api_key, model=model, base_url=DEFAULT_DEEPSEEK_BASE_URL)
     client.kwargs.update({"temperature": 0.1, "max_tokens": max_output_tokens})
     return client
 
 
 def _make_filter_runner(
-    client: BltClient,
+    client: DeepSeekClient,
     all_requirements: List[Dict[str, str]],
     debug_dir: str,
     base_tag: str,
@@ -634,6 +684,11 @@ def merge_filter_result(
     evidence_cn = _norm_text(item.get("evidence_cn"))
     tldr_en = _norm_text(item.get("tldr_en"))
     tldr_cn = _norm_text(item.get("tldr_cn"))
+    title_zh = _norm_text(item.get("title_zh"))
+    motivation_cn = _norm_text(item.get("motivation_cn"))
+    method_cn = _norm_text(item.get("method_cn"))
+    result_cn = _norm_text(item.get("result_cn"))
+    conclusion_cn = _norm_text(item.get("conclusion_cn"))
     legacy = _norm_text(item.get("evidence"))
     if not evidence_en:
         evidence_en = legacy
@@ -643,6 +698,14 @@ def merge_filter_result(
         tldr_en = "not relevant" if score <= 0 else evidence_en
     if not tldr_cn:
         tldr_cn = "不相关" if score <= 0 else (evidence_cn or tldr_en)
+    if not motivation_cn:
+        motivation_cn = "不相关" if score <= 0 else evidence_cn
+    if not method_cn:
+        method_cn = "不相关" if score <= 0 else "方法细节请参考摘要与原文"
+    if not result_cn:
+        result_cn = "不相关" if score <= 0 else tldr_cn
+    if not conclusion_cn:
+        conclusion_cn = "不相关" if score <= 0 else tldr_cn
 
     matched_idx = _coerce_int(item.get("matched_requirement_index"), 0)
     matched_req = requirement_by_index.get(matched_idx) if matched_idx > 0 else None
@@ -660,6 +723,11 @@ def merge_filter_result(
             "canonical_evidence": evidence_cn or evidence_en or legacy,
             "tldr_en": tldr_en,
             "tldr_cn": tldr_cn,
+            "title_zh": title_zh,
+            "motivation_cn": motivation_cn,
+            "method_cn": method_cn,
+            "result_cn": result_cn,
+            "conclusion_cn": conclusion_cn,
             "matched_requirement_id": matched_id,
             "matched_query_tag": matched_tag,
             "matched_query_text": matched_query,
@@ -697,6 +765,7 @@ def _filter_batch(
 def process_file(
     input_path: str,
     output_path: str,
+    config_path: str | None,
     min_star: int,
     batch_size: int,
     max_chars: int,
@@ -716,7 +785,7 @@ def process_file(
         log("[WARN] missing papers or queries, skip.")
         return
 
-    config = load_config()
+    config = load_config(config_path)
     user_requirements = build_user_requirements(config, queries)
     if not user_requirements:
         log("[WARN] no user requirements built from config/queries, skip.")
@@ -724,9 +793,9 @@ def process_file(
         return
     paper_map = build_paper_map(papers)
 
-    api_key = os.getenv("BLT_API_KEY")
+    api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("SUMMARY_API_KEY")
     if not api_key:
-        raise RuntimeError("missing BLT_API_KEY")
+        raise RuntimeError("missing DEEPSEEK_API_KEY or SUMMARY_API_KEY")
 
     group_start(f"Step 4 - llm refine {os.path.basename(input_path)}")
     log(
@@ -872,6 +941,12 @@ def main() -> None:
         help="output JSON path.",
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        default=CONFIG_FILE,
+        help="config YAML path for user requirements.",
+    )
+    parser.add_argument(
         "--min-star",
         type=int,
         default=4,
@@ -898,8 +973,8 @@ def main() -> None:
     parser.add_argument(
         "--max-output-tokens",
         type=int,
-        default=4096,
-        help="max tokens for model output (clamped to 4096 in llm.py).",
+        default=resolve_max_output_tokens(),
+        help="max tokens for model output.",
     )
     parser.add_argument(
         "--filter-concurrency",
@@ -918,9 +993,14 @@ def main() -> None:
     if not os.path.isabs(output_path):
         output_path = os.path.abspath(os.path.join(ROOT_DIR, output_path))
 
+    config_path = args.config
+    if not os.path.isabs(config_path):
+        config_path = os.path.abspath(os.path.join(ROOT_DIR, config_path))
+
     process_file(
         input_path=input_path,
         output_path=output_path,
+        config_path=config_path,
         min_star=args.min_star,
         batch_size=args.batch_size,
         max_chars=args.max_chars,
