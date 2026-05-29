@@ -1,0 +1,555 @@
+Title: MambaGaze: Bidirectional Mamba with Explicit Missing Data Modeling for Cognitive Load Assessment from Eye-Gaze Tracking Data
+
+URL Source: https://arxiv.org/pdf/2605.22775v1
+
+Published Time: Fri, 22 May 2026 01:36:00 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# MambaGaze: Bidirectional Mamba with Explicit Missing Data Modeling for Cognitive Load Assessment from Eye-Gaze Tracking Data 
+
+## Amir Mousavi 1 , Mohammad Sadegh Sirjani 1 , Erfan Nourbakhsh 1 , Mimi Xie 1 and Rocky Slavin 1 , Leslie Neely 3 , John Davis 2 , John Quarles 11Department of Computer Science, College of AI, Cyber and Computing, The University of Texas at San Antonio 
+
+> 2
+
+## Department of Educational Psychology, College of Education and Human Development, The University of Texas at San Antonio 
+
+> 3
+
+## Department of Neuroscience, Developmental and Regenerative Biology, College of Sciences, The University of Texas at San Antonio {seyedamir.mousavi, mohammadsadegh.sirjani, erfan.nourbakhsh, mimi.xie, rocky.slavin, john.quarles}@utsa.edu, {leslie.neely, john.davis2}@utsa.edu 
+
+## Abstract 
+
+Real-time cognitive load assessment from eye-tracking signals could potentially enable adap-tive human-centered-AI such as safety-critical ap-plications such as driver vigilance monitoring or automated flight deck assistance, yet two chal-lenges persist: handling frequent data missing-ness from blinks and tracking failures, and effi-ciently modeling long-range temporal dependen-cies. We propose MambaGaze, a framework that addresses these challenges through 1) XMD en-coding, which augments raw features with observa-tion masks and time-deltas to explicitly model data uncertainty, and 2) bidirectional Mamba-2, which captures temporal dependencies with linear com-putational complexity. Experiments on CLARE and CL-Drive datasets under leave-one-subject-out evaluation show that MambaGaze achieves 76.8% and 73.1% accuracy, respectively, outperforming CNN, Transformer, ResNet, and VGG baselines by 4–12 percentage points. Edge deployment bench-marks on NVIDIA Jetson platforms demonstrate real-time inference at 43–68 FPS with power con-sumption below 7.5W, confirming feasibility for wearable cognitive load monitoring. 
+
+## 1 Introduction 
+
+Cognitive load assessment from physiological signals has emerged as a critical research direction with applications in adaptive interfaces, educational technology, and safety-critical systems [Appel et al. , 2018; Wang et al. , 2013]. Among various physiological indicators, eye-tracking sig-nals, such as pupil diameter, gaze dynamics, fixations, and saccades, provide rich temporal cues that correlate with cog-nitive states [Jin et al. , 2025; Ekin et al. , 2025]. However, ef-fective assessment from such signals via deep learning-based classification requires addressing two key challenges: (1) rep-
+
+> Figure 1: Key Challenges in Real-Time Cognitive Load Assessment from Eye-Tracking Data.
+
+resenting incomplete observations arising from blinks, occlu-sions, and tracking failures, and (2) capturing long-range tem-poral dependencies efficiently under strict latency constraints for edge deployment (see Figure 1). Existing deep learning approaches typically treat miss-ing data as a preprocessing problem, applying interpola-tion, forward-fill, or deletion before model input [Sarkar and Etemad, 2023; Little and Rubin, 2020]. Addition-ally, window-based aggregation over fixed intervals [Bhatti and others, 2024] reduces temporal granularity. These strategies distort important fine-grained dynamics for cogni-tive state inference or discard "informative missingness"— 
+
+> arXiv:2605.22775v1 [cs.LG] 21 May 2026
+
+patterns where the extended gaps of data itself may indicate specific gaze behaviors or disengagement. Moreover, conventional approaches lose valuable informa-tion about observation reliability and introduce systematic bias, or become heavily reliant on manual feature engineer-ing. while these methods report strong offline validation per-formance, they have not been validated for edge deployment or real-time processing constraints that practical cognitive monitoring systems require. For temporal modeling, recurrent architectures suffer from vanishing gradients, while Transformer-based approaches have quadratic complexity that limits scalability [Bozkir et al. , 2019] for high-frequency physiological streams and pre-vents efficient edge implementation. Recent state space mod-els such as Mamba-2 [Dao and Gu, 2024], achieve linear complexity while maintaining strong long-range modeling capabilities. However, adapting these models for classifica-tion tasks with incomplete data remains unexplored. In this paper, we propose a novel architecture combining 
+
+Timeseries-Masks-Deltas (XMD) input encoding [Che et al. , 2018] with bidirectional Mamba-2 model to enhance cognitive load classification for practical deployment with low-latency requirements. We address the challenge of asyn-chronous sensor and processing sampling by constructing a tensor that augments resampled feature values (X) with bi-nary masks (M) indicating the arrival of fresh data observa-tion, and time deltas (D) that quantify the temporal gap since the last observed value. This representation is processed by a bidirectional Mamba-2 model, which aggregates temporal context from both forward and reverse directions. This frame-work allows the model to distinguish between genuine signal updates and artifacts, maintain the linear complexity of State Space Models (SSMs), and utilize future context to stabilize physiological state inference, even when input data is sparse or irregular. Our main contributions can be summarized as follows: • We present an integration of explicit missingness rep-resentations (XMD) with selective State Space Models for eye-tracking data. By embedding observation masks and time intervals directly into the input, we enable the model to learn from missingness patterns rather than treating them as noise to be removed. • We introduce a bidirectional formulation of Mamba-2 that captures global temporal context—incorporating both past history and retrospective future informa-tion—without the quadratic cost of Transformers. This provides the computational efficiency required for pro-cessing extended recordings on edge devices. • Extensive experiments demonstrate that our approach achieves 76.8% accuracy on the CLARE dataset and 73.1% on CL-Drive using Leave-one-Subject-out cross validation for personalization and to avoid relying on op-timal performance that K-fold may produce. The model outperforms baseline CNN and Transformer architec-tures while maintaining real-time inference latencies of 14.8–23.8 ms 
+
+## 2 Related Works 
+
+2.1 Eye-Tracking Signals for Cognitive Load Assessment 
+
+Eye-tracking measurements provide temporal indicators of cognitive demand across multiple timescales. Relevant biomarkers include pupil diameter dynamics and eye move-ment behaviors including fixation patterns and saccadic char-acteristics [Jin et al. , 2025; Ekin et al. , 2025]. While these signals enable non-invasive cognitive state monitor-ing, they are vulnerable to environmental and technical ar-tifacts. Specifically, pupil measurements demonstrate high sensitivity to surrounding light variations and calibration er-rors, whereas gaze sequences frequently contain gaps result-ing from physiological events (blinks) and tracking failures (occlusions, signal dropout) [Little and Rubin, 2020]. Conventional cognitive load pipelines address these chal-lenges through extensive preprocessing and feature aggre-gation procedures, which necessarily suppress rapid tempo-ral dynamics and systematically exclude missing segments as measurement noise. The present work adopts an alter-native approach: direct classification from raw eye-tracking sequences while explicitly preserving observation reliability metadata, thereby enabling the model to leverage missingness patterns as informative signals rather than artifacts requiring elimination. 
+
+2.2 Deep Learning Architectures in Cognitive Load Benchmarks 
+
+Contemporary benchmark datasets have established deep neural networks as standard baselines for cognitive load recognition from physiological and eye-tracking measure-ments. The CLARE dataset employs convolutional and Transformer-based architectures as representative sequence modeling baselines, and demonstrates competitive classifi-cation performance under cross-validation evaluation pro-tocols [Bhatti and others, 2024]. Similarly, the CL-Drive benchmark evaluates visual recognition backbones including VGG and ResNet architectures for modeling cognitive load in vehicular driving tasks [Angkan et al. , 2024b]. Despite demonstrating effective representation learning ca-pabilities, these investigations share a common limitation in missing data handling. Specifically, existing approaches em-ploy: 1. Complete-case deletion, removing time windows containing gaps 2. Deterministic imputation methods (lin-ear interpolation, forward-fill propagation) 3. Preprocess-ing pipelines that execute prior to model input [Sarkar and Etemad, 2023; Little and Rubin, 2020] This design paradigm prevent distinction between ob-served measurements and imputed estimates, so the learning system may not be able to identify associations between cog-nitive states and observation gap patterns. Our methodology maintains explicit differentiation through XMD encoding and validates performance under leave-one-subject-out(LOSO) in additon to K-fold cross-validation to also reflect deployment scenarios where held-out subjects exhibit distinct personal-ized characteristics. 2.3 Missingness-Aware Modeling and Efficient Long-Range Sequence Processing 
+
+Parallel research developments have investigated learning frameworks for incomplete temporal sequences. GRU-D and related recurrent architectures incorporate binary mask-ing indicators and temporal decay functions (time-since-last-observation) into hidden state updates which understand dif-ferentiation between observed values and model-generated imputations [Che et al. , 2018]. However, standard recur-rent neural networks exhibit fundamental limitations in long-context modeling and computational parallelization [Good-fellow et al. , 2016]. Transformer architectures address these constraints through self-attention mechanisms, though their quadratic computational complexity (O(T 2)) limits scalability for high-frequency data streams [Vaswani et al. , 2017]. Structured state space models (SSMs) provide an alter-native framework with linear time complexity. Recent SSM families including S4 and Mamba have demon-strated effective long-range dependency modeling while maintaining computational efficiency [Gu et al. , 2022; Gu and Dao, 2023]. The Mamba-2 architecture further advances selective state-space parameterization, enabling input-dependent filtering operations at scale [Dao and Gu, 2024]. Despite these methodological advances, existing cog-nitive load classification frameworks have not integrated: (1) explicit missingness representations encompassing ob-served values, binary indicators, and temporal decay sig-nals with (2) bidirectional structured state space architec-tures for eye-tracking sequence processing. While GRU-D [Che et al. , 2018] and related approaches employ mask-delta formulations with fixed exponential decay, our inte-gration with Mamba-2’s selective parameterization enables input-dependent filtering that adapts to the heterogeneous temporal dynamics of eye-tracking signals. 
+
+## 3 Methodology 
+
+3.1 Overview 
+
+This section presents MambaGaze for cognitive load classifi-cation from eye-tracking data. The framework processes eye-tracking sequences through four stages: • Data Processing Pipeline: Signal preprocessing, tem-poral resampling, segmentation, and baseline normal-ization that preserves observation reliability information (Figure 2, Section 3.2); • XMD Input Encoding: Augments raw features with observation masks and time-deltas for explicit missing data modeling (Figure 3a, Section 3.2); • Bidirectional Mamba-2 Processing: Enables efficient long-range temporal modeling with linear complexity using separate forward and backward state space mod-els (Figure 3b, Section 3.3); • Attention-based Pooling: Adaptively aggregates tem-poral information through learned attention weights for sequence classification (Figure 3c, Section 3.4). 
+
+3.2 Problem Formulation 
+
+We frame cognitive load assessment as a time-series clas-sification task with inherent missing data challenges. Let 
+
+X ∈ RF ×T denote eye-tracking signals with F features and length T , and Y = {0, 1} represent the binary label space for low or high cognitive load. 
+
+Missing Data Challenge. Unlike clinical signals with controlled acquisition, eye-tracking data exhibits frequent missingness due to blinks, gaze aversion, and tracking fail-ures. Standard approaches—deletion or simple imputation— discard valuable reliability information. The missing pattern itself carries signal: frequent blinks may indicate fatigue, while tracking losses correlate with rapid eye movements dur-ing high cognitive load. 
+
+Solution Strategy. Our goal is to learn a mapping Φ : 
+
+RF ×T → Y that explicitly models observation uncertainty. We address this through: (1) a data processing pipeline that preserves missingness information rather than discarding it, (2) XMD encoding that augments features with observation masks and time-deltas, and (3) a bidirectional state space model that efficiently captures long-range temporal depen-dencies. 
+
+Data Processing Pipeline 
+
+The data processing pipeline transforms raw asynchronous eye-tracking recordings into fixed-length, normalized win-dows suitable for sequence modeling while preserving obser-vation reliability information. 
+
+Signal Preprocessing. Raw eye-tracking data arrives asynchronously, with multiple sensor channels updating at different times. We extract F = 10 canonical features: pupil diameter (left/right), gaze coordinates (x, y ), velocity, accel-eration, fixation indicator, saccade indicator, blink events, and distance. Duplicate timestamps are coalesced per-column us-ing the last valid observation, preventing incorrect merging of asynchronous channel updates. 
+
+Temporal Resampling. We resample all signals to a uniform grid at fs = 50 Hz using forward-fill interpola-tion, yielding T = 500 timesteps per 10-second window. Critically, we compute observation masks from the original 
+
+source timestamps via per-channel change detection before resampling—this preserves the true observation pattern rather than the interpolated values. 
+
+Temporal Segmentation and Label Assignment. We segment continuous recordings into fixed-length windows 
+
+xk ∈ RF ×T of duration w = 10 seconds. Cognitive load labels are provided at ∆ = 10 -second intervals (NASA-TLX scores 1–9, binarized at threshold 5). For each window 
+
+Wk = [ tk, t k + w), we assign the label corresponding to the interval covering the window’s midpoint: 
+
+y(Wk) = yi⋆ , i⋆ =
+
+ tk + w/ 2∆
+
+
+
+(1) This midpoint rule ensures unambiguous label assignments at interval boundaries. 
+
+Baseline Normalization. Within each participant, we compute baseline statistics (μbase  
+
+> f
+
+, σ base  
+
+> f
+
+) from a dedicated resting-state recording. All features are z-score normalized Figure 2: Data processing pipeline. Raw eye-tracking data from experiment, baseline, and label CSVs undergoes time synchronization, deduplication, and canonical mapping during ingestion. The signal path performs 50Hz grid resampling and forward-backward fill imputation, while structural metadata tracks observation masks (M) and time-deltas (D) via source change detection. Z-score normalization uses baseline statistics ( μ, σ), and windowing produces fixed-length tensors ( Ximputed , Mgrid , Dgrid ) with aligned binary labels for participant-based K-Fold/LOSO splitting. 
+
+relative to these baseline statistics: 
+
+˜xt,f = xt,f − μbase 
+
+> f
+
+σbase  
+
+> f
+
++ ϵ (2) This participant-specific normalization accounts for inter-individual variability in pupil size, gaze patterns, and sensor calibration. 
+
+XMD Input Encoding 
+
+To explicitly model observation uncertainty, we adopt Values-Masks-Deltas (XMD) encoding [Che et al. , 2018] that repre-sents missing data within the model input, enabling the net-work to learn different behaviors for observed versus imputed values. 
+
+Values. For each feature f , missing values are imputed using forward-fill with baseline initialization: 
+
+˜xt,f =
+
+
+
+xt,f if mt,f = 1 ˜xt−1,f if mt,f = 0 and t > 1
+
+μbase  
+
+> f
+
+if mt,f = 0 and t = 1 
+
+(3) 
+
+Masks. Binary observation masks M ∈ { 0, 1}T ×F indi-cate data reliability. The mask is computed via change detec-tion on the original (pre-resampling) data: mt,f = 1 when feature f receives a genuinely new observation at time t, dis-tinguishing true measurements from interpolated values. 
+
+Deltas. Time deltas D ∈ RT ×F 
+
+> ≥0
+
+encode elapsed time since the last valid observation: 
+
+δt,f =
+
+0 if mt,f = 1 
+
+δt−1,f + ∆ t if mt,f = 0 (4) where ∆t = 1 /f s. We apply log-scaling ¯δt,f = log(1 + δt,f )
+
+to compress the dynamic range. The complete XMD representation concatenates these components: 
+
+Zt = [˜ xt∥mt∥¯δt] ∈ R3F (5) This tripling of input dimensionality ( F ′ = 3 F = 30 ) pro-vides explicit uncertainty quantification without architectural modifications. 
+
+3.3 Architecture 
+
+We employ Mamba-2 [Dao and Gu, 2024], a selective state space model achieving linear complexity O(T ) compared to the quadratic complexity O(T 2) of Transformer-based at-tention. For eye-tracking sequences spanning hundreds of timesteps ( T = 500 at 50 Hz), this efficiency is essential. Mamba-2 introduces selective state spaces where transition parameters depend on the input content, computing input-dependent parameters Bt, Ct, and step size ∆t from each in-put xt. This selectivity enables content-aware filtering, allow-ing the model to learn to retain or forget information based on input relevance. For eye-tracking data, transient events like saccades and blinks require different temporal dynamics than sustained states like fixations (see Appendix C for SSM background). Figure 3: MambaGaze architecture. (a) XMD encoding augments eye-tracking features with observation masks and time-deltas for explicit missing data modeling. (b) Bidirectional Mamba-2 processes sequences in both temporal directions with separate parameter sets. (c) Attention pooling aggregates temporal information for binary cognitive load classification. 
+
+Bidirectional Mamba-2 Processing 
+
+Cognitive load assessment benefits from bidirectional con-text, as pupil dilation may reflect anticipation of upcom-ing cognitive demands or reaction to recent mental effort. Standard Mamba processes sequences causally (left-to-right), limiting access to future context. We extend Mamba-2 to bidi-rectional processing using two separate branches with inde-pendent parameters. 
+
+Forward Mamba. Processes the sequence in causal order: 
+
+Hfwd = Mamba (Z1: T ; θfwd ) (6) 
+
+Backward Mamba. Processes the time-reversed se-quence: 
+
+Hbwd = flip (Mamba (flip (Z1: T ); θbwd )) (7) where flip (·) reverses the temporal dimension. Each branch consists of L stacked Mamba-2 layers with pre-normalization and residual connections: 
+
+hl = hl−1 + Dropout (Mamba (LayerNorm (hl−1))) (8) An input projection layer maps the XMD features to the model dimension: h0 = Win Z + bin , where Win ∈ RD×3F .Unlike bidirectional RNNs that concatenate hidden states at each timestep, we maintain separate forward and back-ward representations throughout processing. This design al-lows each branch to specialize in its temporal direction—the forward Mamba learns to anticipate future patterns while the backward Mamba captures historical context. predictions re-quire complete 10-second segments, matching the labeling granularity where ground-truth annotations reflect integrated cognitive state rather than instantaneous measurements. 
+
+End-to-End Computation 
+
+For each XMD-encoded window Zk ∈ RT ×3F , the complete forward pass proceeds as: 
+
+Hfwd  
+
+> k
+
+= Mamba (Zk; θfwd ) (9) 
+
+Hbwd  
+
+> k
+
+= flip (Mamba (flip (Zk); θbwd )) (10) 
+
+cfwd  
+
+> k
+
+= AttnPool (Hfwd  
+
+> k
+
+) ∈ RD (11) 
+
+cbwd  
+
+> k
+
+= AttnPool (Hbwd  
+
+> k
+
+) ∈ RD (12) 
+
+ck = [ cfwd  
+
+> k
+
+∥cbwd  
+
+> k
+
+] ∈ R2D (13) 
+
+ˆyk = σ(gψ (ck)) (14) where AttnPool (·) denotes the attention pooling mechanism (Section 3.4) and gψ is the classification head. 
+
+3.4 Attention Pooling and Classification 
+
+Sequence classification requires aggregating temporal repre-sentations into a fixed-size vector. Rather than using the fi-nal hidden state (which biases toward recent information) or simple averaging (which weights all timesteps equally), we employ learned attention pooling that adaptively weights timesteps based on their relevance to the classification task. Attention Pooling 
+
+For each direction, we compute attention scores using an ad-ditive attention mechanism with a learned query: 
+
+et = w⊤ tanh( Waht + ba) (15) 
+
+αt = softmax t(et) = exp( et)
+
+PTt′=1 exp( et′ ) (16) 
+
+cdir =
+
+> T
+
+X
+
+> t=1
+
+αthdir  
+
+> t
+
+(17) where Wa ∈ RD×D, ba ∈ RD , and w ∈ RD are learnable parameters. Separate attention modules are used for forward and backward directions, yielding context vectors cfwd and 
+
+cbwd that are concatenated to form the final sequence repre-sentation c ∈ R2D .The attention weights αt provide interpretability by iden-tifying which temporal regions drive the classification deci-sion. 
+
+Classification Head Architecture 
+
+The classification head gψ is a lightweight module that maps the pooled representation to a binary prediction: 
+
+ˆy = σ(w⊤ 
+
+> c
+
+LayerNorm (c) + bc) (18) where σ(·) is the sigmoid function, wc ∈ R2D , and bc ∈ R
+
+are learnable parameters. The layer normalization stabilizes the activations before the final projection, improving training stability. 
+
+3.5 Training Objective 
+
+Loss Function with Automatic Class Rebalancing 
+
+Let yk ∈ { 0, 1} and ˆyk ∈ [0 , 1] denote the window label and predicted probability. To address class imbalance in cogni-tive load distributions, we minimize a weighted binary cross-entropy loss: 
+
+L = − 1
+
+N
+
+> N
+
+X
+
+> k=1
+
+[w+yk log(ˆ yk) + (1 − yk) log(1 − ˆyk)] (19) 
+
+Automatic Class Weighting. The positive class weight 
+
+w+ is computed automatically per fold from training label counts (n0, n 1):
+
+w+ = n+
+
+n−
+
+(20) This inverse-frequency weighting gives the minority class higher effective weight. We monitor macro-F1 on the vali-dation set to detect majority-class collapse and for early stop-ping. Training uses AdamW [Loshchilov and Hutter, 2019] op-timization with early stopping based on validation AUC. See Appendix E for complete hyperparameter settings. 
+
+## 4 Experiments 
+
+4.1 Experimental Setup 
+
+Datasets. We evaluate on two public cognitive load datasets: CLARE (20 subjects performing cognitive                                 
+
+> LOSO K-fold
+> Dataset Model Acc F1 Macro Acc F1 Macro
+> CLARE CNN [Bhatti and others, 2024] 70.3 55.5 66.9 56.0 Transformer [Bhatti and others, 2024] 65.0 52.1 60.4 50.8
+> MambaGaze (Ours) 76.8 55.4 73.3 54.4
+> CL-Drive ResNet [Angkan et al. , 2024a] 69.0 60.6 64.9 57.1 VGG [Angkan et al. , 2024a] 68.5 62.8 64.2 59.7
+> MambaGaze (Ours) 73.1 47.8 68.8 47.0
+
+Table 1: Comparison with baseline methods (%). MambaGaze achieves higher accuracy on both datasets under both evaluation pro-tocols. 
+
+tasks) [Bhatti and others, 2024] and CL-Drive (15 subjects in simulated driving) [Angkan et al. , 2024a]. Both provide eye-tracking data with self-reported cognitive load labels at 10-second intervals (1-9 scale), binarized into low (1-4) ver-sus high (5-9) classes. 
+
+Preprocessing. Raw eye-tracking data is resampled to 50 Hz and segmented into non-overlapping windows of T = 500 
+
+timesteps (10 seconds), aligned with labeling intervals. We extract F = 10 features including pupil diameter, gaze posi-tion, velocity, acceleration, fixation/saccade/blink indicators, and screen distance. With XMD encoding, each feature is augmented with observation mask and time-delta channels, yielding F ′ = 30 input dimensions. Details are in Ap-pendix D. 
+
+Evaluation Protocol. We use two cross-validation strate-gies: (i) Leave-One-Subject-Out (LOSO) to assess general-ization to unseen individuals, and (ii) participant-based K-fold cross-validation. To address class imbalance, we ap-ply dynamic positive class weighting, threshold optimization, and post-hoc calibration (see Appendix E for details). 
+
+Baseline Methods. We compare against dataset-specific baselines: CNN and Transformer models for CLARE [Bhatti and others, 2024], and ResNet and VGG architectures for CL-Drive [Angkan et al. , 2024a]. All baselines use identical preprocessing and evaluation protocols to isolate architectural differences. 
+
+4.2 Experiment Analysis 
+
+To validate MambaGaze’s effectiveness, we compare it against CNN and Transformer baselines trained from scratch, as shown in Table 1. Notably, MambaGaze substantially outperforms all base-lines on subject-independent LOSO evaluation, achieving ac-curacy improvements of +6.5pp on CLARE and +4.1pp on CL-Drive over the best baselines. On CLARE, MambaGaze reaches 76.8% accuracy, outperforming CNN (70.3%) and Transformer (65.0%) by 6.5 and 11.8 percentage points, re-spectively. On CL-Drive, MambaGaze achieves 73.1% accu-racy, surpassing ResNet (69.0%) and VGG (68.5%). These results demonstrate that Mamba’s selective state space mod-eling effectively addresses the temporal dynamics in eye-tracking signals, with consistent improvements across both datasets and evaluation protocols. 
+
+4.3 Ablation Study 
+
+Class Imbalance Optimization Analysis. We analyze the contribution of each optimization technique for han-dling class imbalance, as shown in Figure 4. We de-note: MambaGaze-Raw as the baseline without optimiza-tion (standard BCE loss, threshold 0.5, no calibration), and MambaGaze-P, MambaGaze-T, MambaGaze-C as variants with positive class weighting, threshold optimization, and post-hoc calibration respectively. The ablation reveals a clear performance progression across configurations. MambaGaze-T (threshold optimiza-tion) provides the largest individual gain, improving accu-racy by +10.7pp on CLARE and +16.7pp on CL-Drive over the raw baseline. This indicates that the default 0.5 thresh-old is suboptimal for imbalanced cognitive load distributions. Threshold selection uses validation data within each fold to avoid test leakage. The accuracy gains with stable AUC con-firm that improvements stem from calibrated decision bound-aries rather than enhanced separability alone. MambaGaze-PTC combines all three techniques to achieve the best overall performance: 77.9% accuracy on CLARE-LOSO and 77.8% on CL-Drive-LOSO, with F1 improvements of +7.6pp and +15.5pp, respectively, over the raw baseline.                                                              
+
+> LOSO K-fold Model Latency FPS Power Latency FPS Power
+> AGX Orin
+> CNN/ResNet 4.2/5.0 241/201 3.7/3.7 4.5/4.9 226/203 3.9/3.7 Trans./VGG 4.2/4.1 236/247 3.7/3.8 4.3/4.0 231/248 3.7/3.8 MambaGaze 14.8/14.7 67/68 3.8/3.8 14.8/14.8 68/68 3.8/3.8
+> Orin NX
+> CNN/ResNet 5.2/6.6 193/155 6.5/6.2 6.1/6.4 169/156 6.5/6.1 Trans./VGG 7.5/5.3 144/188 6.7/6.4 6.0/5.4 172/187 6.1/6.7 MambaGaze 23.8/19.3 43/52 7.5/6.5 20.3/19.5 50/51 6.7/6.4
+> Orin Nano
+> CNN/ResNet 4.6/5.6 215/177 6.1/5.9 4.8/5.8 221/173 6.2/5.9 Trans./VGG 4.9/4.3 204/233 5.7/6.4 4.8/4.3 209/234 5.7/6.3 MambaGaze 18.2/18.1 55/55 6.4/6.4 18.2/18.2 55/55 6.4/6.4
+> Table 2: Edge deployment benchmarks across NVIDIA Jetson plat-forms using MambaGaze-PTC. Latency is reported in milliseconds (ms) and power in watts (W). Values are shown as CLARE / CL-Drive.
+
+Edge Deployment Analysis. To evaluate real-time applica-bility, we benchmark trained models on three NVIDIA Jetson platforms, as shown in Table 2. All models achieve real-time performance across all Jetson platforms, with consistent results between LOSO and K-fold trained models. MambaGaze operates at 43–68 FPS, suffi-cient for 10-second prediction windows in cognitive load as-sessment. While CNN/Transformer baselines achieve higher throughput (140–248 FPS), MambaGaze’s superior accuracy justifies the latency trade-off. Power consumption remains within 3.7–7.5W, enabling deployment in power-constrained environments such as vehicles or wearable systems. Even on the resource-constrained Orin Nano (8GB RAM, 40 TOPS), MambaGaze maintains 55 FPS, well above the 0.1 Hz sam-pling requirement for real-time cognitive load monitoring. 
+
+## 5 Conclusion 
+
+We propose MambaGaze, a framework for cognitive load classification from eye-tracking data with inherent missing observations. MambaGaze addresses two key challenges through XMD encoding, which augments raw features with observation masks and time-deltas to explicitly model data uncertainty, and bidirectional Mamba-2, which captures long-range temporal dependencies with linear computational com-plexity. Experiments on CLARE and CL-Drive datasets un-der leave-one-subject-out evaluation show that MambaGaze substantially outperforms CNN, Transformer, ResNet, and VGG baselines, achieving accuracies of 76.8% and 73.1%, respectively. Our results demonstrate that explicit missing data modeling combined with efficient state space architec-tures can effectively address the observation uncertainty and temporal complexity challenges in wearable cognitive load assessment. Edge deployment benchmarks confirm real-time feasibility at 55–68 FPS with power consumption be-low 7.5W. Future work will explore extending this approach to multimodal physiological signals and investigating online adaptation for personalized cognitive load thresholds. Figure 4: Ablation study on class imbalance optimization techniques across CLARE (top) and CL-Drive (bottom) datasets. Raw: baseline without optimization; P: positive class weighting; T: threshold optimization; C: post-hoc calibration; PTC: all three techniques combined. Each subplot shows performance for a specific metric under LOSO and K-fold evaluation protocols. MambaGaze-PTC consistently achieves the best performance, with threshold optimization (T) providing the largest individual improvement. References 
+
+[Angkan et al. , 2024a] Prithila Angkan, Behnam Behinaein, Zunayed Mahmud, Anubhav Bhatti, Dirk Rodenburg, Paul Hungler, and Ali Etemad. Multimodal brain–computer in-terface for in-vehicle driver cognitive load measurement: Dataset and baselines. IEEE Transactions on Intelligent Transportation Systems , 25(6):5949–5964, 2024. [Angkan et al. , 2024b] Prithila Angkan, Behnam Behinaein, Zunayed Mahmud, Anubhav Bhatti, Dirk Rodenburg, Paul Hungler, and Ali Etemad. Multimodal brain-computer in-terface for in-vehicle driver cognitive load measurement: Dataset and baselines. IEEE Transactions on Intelligent Transportation Systems , 25:5949–5964, 2024. [Appel et al. , 2018] Tobias Appel, Christian Scharinger, Pe-ter Gerjets, and Enkelejda Kasneci. Cross-subject work-load classification using pupil-related measures. In Pro-ceedings of the 2018 ACM Symposium on Eye Tracking Research & Applications , ETRA ’18, New York, NY, USA, 2018. Association for Computing Machinery. [Bhatti and others, 2024] Umer Asgher Bhatti et al. Clare: A dataset for cognitive load assessment in realtime. arXiv preprint , 2024. [Bozkir et al. , 2019] Efe Bozkir, David Geisler, and Enkele-jda Kasneci. Person independent, privacy preserving, and real time assessment of cognitive load using eye tracking in a virtual reality setup. In 2019 IEEE Conference on Virtual Reality and 3D User Interfaces (VR) , pages 1834– 1837, 2019. [Che et al. , 2018] Zhengping Che, Sanjay Purushotham, Kyunghyun Cho, David Sontag, and Yan Liu. Recurrent neural networks for multivariate time series with missing values. Scientific Reports , 8(1):6085, 2018. Nature Scien-tific Reports - GRU-D. [Dao and Gu, 2024] Tri Dao and Albert Gu. Transformers are ssms: Generalized models and efficient algorithms through structured state space duality. In International Conference on Machine Learning , 2024. ICML 2024. [Ekin et al. , 2025] Merve Ekin, Krzysztof Krejtz, Carlos Duarte, Andrew Duchowski, and Izabela Krejtz. Pre-diction of intrinsic and extraneous cognitive load with oculometric and biometric indicators. Scientific Reports ,15:89336, 2025. Nature Scientific Reports. [Goodfellow et al. , 2016] Ian Goodfellow, Yoshua Bengio, and Aaron Courville. Deep learning . MIT Press, 2016. [Gu and Dao, 2023] Albert Gu and Tri Dao. Mamba: Linear-time sequence modeling with selective state spaces. arXiv preprint arXiv:2312.00752 , 2023. ICLR 2024 submission. [Gu et al. , 2022] Albert Gu, Ankit Gupta, Karan Goel, and Christopher Ré. On the parameterization and initializa-tion of diagonal state space models. Advances in Neural Information Processing Systems , 35:35971–35983, 2022. NeurIPS 2022. [Jin et al. , 2025] Xiaofu Jin, Yunpeng Bai, Lina Xu, Shuai Ma, Danqing Shi, Luwen Yu, and Mingming Fan. De-coding cognitive load: eye-tracking insights into working memory and visual attention. In Proceedings of the 2025 Symposium on Eye Tracking Research and Applications .ACM, 2025. ACM ETRA - Premier eye tracking venue. [Little and Rubin, 2020] Roderick JA Little and Donald B Rubin. Statistical analysis with missing data . Wiley, 3rd edition, 2020. [Loshchilov and Hutter, 2019] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. In 
+
+7th International Conference on Learning Representations (ICLR 2019) , 2019. [Sarkar and Etemad, 2023] Platon Sarkar and Ali Etemad. Deep imputation of missing values in time series health data: A review with benchmarking. Journal of Biomedical Informatics , 144:104440, 2023. [Vaswani et al. , 2017] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in Neural Information Processing Sys-tems , 30, 2017. NeurIPS 2017 - Foundational Transformer paper. [Wang et al. , 2013] Weihong Wang, Zhidong Li, Yang Wang, and Fang Chen. Indexing cognitive workload based on pupillary response under luminance and emo-tional changes. In Proceedings of the 2013 International Conference on Intelligent User Interfaces , IUI ’13, page 247–256, New York, NY, USA, 2013. Association for Computing Machinery. Appendix A Baseline Methods 
+
+We compare MambaGaze against baseline methods for cog-nitive load classification from eye-tracking signals: 
+
+CNN [Bhatti and others, 2024] represents the family of convolutional architectures for end-to-end eye-tracking anal-ysis. This baseline uses a shallow CNN with multiple convo-lutional and max-pooling layers, followed by fully connected layers for binary classification. The model learns features di-rectly from aggregated eye-tracking statistics without explicit missing data handling. 
+
+Transformer [Bhatti and others, 2024] uses multi-head self-attention mechanisms to model temporal dependencies in eye-tracking sequences. The model applies positional en-coding to input windows and processes them through stacked transformer encoder blocks. This architecture has quadratic complexity O(T 2) in sequence length. 
+
+ResNet [Angkan et al. , 2024a] applies residual network architectures originally designed for image classification to eye-tracking time series. Features are extracted from raw sig-nals using 1D convolutions with skip connections. 
+
+VGG [Angkan et al. , 2024a] uses VGG-style deep convo-lutional networks adapted for time-series classification. Mul-tiple convolutional blocks with small kernels extract hierar-chical features. All baselines are evaluated using identical LOSO cross-validation protocols to ensure fair comparison of subject-independent generalization performance. 
+
+## B Dataset Characteristics 
+
+This section provides comprehensive analysis of the cognitive load datasets used for evaluation. 
+
+B.1 Datasets Used in This Work 
+
+We evaluate on two publicly available cognitive load datasets that provide fine-grained, time-aligned labels suitable for real-time assessment. 
+
+CLARE (Cognitive Load Assessment in REaltime). 
+
+CLARE contains multimodal physiological signals (ECG, EDA, EEG, and eye gaze) from 24 participants performing MATB-II multitasking protocols [Bhatti and others, 2024]. Participants provide in-situ verbal ratings of perceived cog-nitive load every 10 seconds on a 9-point Likert scale (1-9). Each participant completed four 9-minute sessions with nine complexity levels. The public release contains 20 subjects with eye-tracking data recorded at varying rates, resampled to 50 Hz. The MATB-II (Multi-Attribute Task Battery II) protocol requires participants to simultaneously manage four subtasks: system monitoring (detecting indicator changes), tracking (controlling a cursor), communications (responding to radio calls), and resource management (maintaining fuel levels). Task difficulty is manipulated by varying subtask demands across blocks. 
+
+CL-Drive (Cognitive Load in Driving). CL-Drive cap-tures multimodal signals (EEG, ECG, EDA, and eye tracking) from 21 participants in a driving simulator under scenarios of varying complexity [Angkan et al. , 2024a]. Drivers verbal-ize their perceived workload at 10-second intervals using a 9-point PAAS scale. Each participant performed driving tasks across 9 complexity levels, each lasting 3 minutes. Driving scenarios range from simple highway cruising (low load) to complex urban navigation with pedestrians, traffic lights, and lane changes (high load). 
+
+B.2 Missing Data Characteristics 
+
+Eye-tracking data exhibits frequent missingness due to blinks, gaze aversion, and tracking failures. Analysis of the CLARE dataset reveals: • Basic features (pupil diameter, gaze position): ∼80% completeness • Derived features (saccades, fixations): ∼16% com-pleteness This motivates our XMD encoding approach, which pre-serves observation reliability information rather than discard-ing it through simple imputation. 
+
+B.3 Dataset Access 
+
+Both datasets are publicly available: • CLARE : https://borealisdata.ca/dataset.xhtml? persistentId=doi:10.5683/SP3/H0AELT • CL-Drive : https://borealisdata.ca/dataset.xhtml? persistentId=doi:10.5683/SP3/JJ2YZZ 
+
+## C State Space Model Background 
+
+State space models (SSMs) parameterize sequence-to-sequence transformations through continuous-time linear dy-namical systems. The standard formulation maps an in-put signal u(t) ∈ R to output y(t) ∈ R via latent state 
+
+h(t) ∈ RN :
+
+h′(t) = Ah(t) + Bu(t) (21) 
+
+y(t) = Ch(t) + Du (t) (22) where A ∈ RN ×N , B ∈ RN ×1, C ∈ R1×N , and D ∈ R are learnable parameters. 
+
+C.1 Discretization 
+
+For discrete sequences sampled at intervals ∆, these continu-ous dynamics are discretized using the zero-order hold (ZOH) method: 
+
+¯A = exp(∆ A) (23) 
+
+¯B = (∆ A)−1(exp(∆ A) − I) · ∆B (24) This yields the discrete recurrence relation: 
+
+ht = ¯Aht−1 + ¯But (25) 
+
+yt = Cht (26) C.2 Selective State Spaces (Mamba) 
+
+Standard SSMs use fixed parameters independent of input content. Mamba [Gu and Dao, 2023] introduces selective 
+
+state spaces where parameters depend on the input: 
+
+Bt = Linear B (xt) (27) 
+
+Ct = Linear C (xt) (28) 
+
+∆t = softplus (Linear ∆(xt)) (29) This input-dependent selectivity enables content-aware filter-ing, crucial for eye-tracking where transient events (saccades, blinks) require different temporal dynamics than sustained states (fixations). 
+
+C.3 Structured State Space Duality (Mamba-2) 
+
+Mamba-2 [Dao and Gu, 2024] establishes a theoretical con-nection between selective SSMs and linear attention, enabling 2-8 × speedup over Mamba-1 on modern GPUs through opti-mized kernels. 
+
+## D Preprocessing Pipeline 
+
+D.1 Preprocessing Hyperparameters 
+
+Parameter Value 
+
+Resampling 
+
+Target sampling rate 50 Hz Window duration 10.0 s Samples per window 500 Window stride Non-overlapping 
+
+Normalization 
+
+Baseline source Per-participant baseline session Normalization method Z-score (per feature) Missing value fill Forward-fill, then baseline 
+
+Labeling 
+
+Label source NASA-TLX self-report Label granularity 10-second bins Binarization threshold ≥ 5 (high load) 
+
+XMD Output Tensors 
+
+Values shape (N, 500 , 10) 
+
+Masks shape (N, 500 , 10) 
+
+Deltas shape (N, 500 , 10) 
+
+XMD concatenated (N, 500 , 30) 
+
+Table 3: Preprocessing hyperparameters. 
+
+D.2 Feature Extraction 
+
+We extract F = 10 features from raw eye-tracking data: 1. Pupil diameter (left and right): Direct measure of cog-nitive load 2. Gaze position (x, y): Screen coordinates in normalized units 3. Gaze velocity : Computed from position derivatives 4. Gaze acceleration : Second derivative of position 5. Blink indicator : Binary flag for detected blinks 6. Fixation flag : Binary indicator during fixation events 7. Saccade flag : Binary indicator during saccade events 8. Distance : Eye-to-screen distance 
+
+D.3 Baseline Normalization 
+
+Baseline pupil diameter varies significantly between partici-pants. We estimate robust baselines using percentile filtering: 
+
+˜pbase = median ({pt : pt ∈ [Q10 , Q 90 ]}) (30) Features are z-scored relative to participant-specific base-lines: 
+
+ˆxt,f = xt,f − μbase 
+
+> f
+
+σbase  
+
+> f
+
++ ϵ (31) 
+
+D.4 XMD Encoding Details 
+
+For each feature f and timestep t:• Mask mt,f = 1 if a new observation arrived at time t; 0 otherwise • Delta δt,f : Seconds since last valid observation: 
+
+δt,f =
+
+0 if mt,f = 1 
+
+δt−1,f + ∆ t otherwise (32) • Log-scaling : ¯δt,f = log(1 + δt,f ) compresses dynamic range 
+
+## E Implementation Details 
+
+E.1 Model Architecture 
+
+Parameter Value 
+
+Input Configuration 
+
+Input features (XMD: 3 × F ) 30 Sequence length T 500 
+
+Mamba-2 Block 
+
+Hidden dimension ( d_model ) 128 SSM state dimension ( d_state ) 16 Convolution kernel ( d_conv ) 4Expansion factor ( expand ) 2
+
+Architecture 
+
+Layers per direction 4Bidirectional Yes Total Mamba layers 8Attention pooling Additive (learned query) Dropout 0.1 
+
+Output 
+
+Pooled dimension 2 × 128 = 256 
+
+Classification head LayerNorm → Linear(1) Table 4: Model architecture hyperparameters. E.2 Training Configuration                    
+
+> Parameter Value
+> Optimizer AdamW Learning rate 1×10 −4
+> Weight decay 0.0 Batch size 128 Max epochs 100 Gradient clipping 0.5 Dropout 0.0 Early stopping patience 15 epochs Early stopping metric Validation ACC Validation split 5% of training data Loss function BCEWithLogitsLoss Positive class weight w+=n−/n +(dynamic) Mixed precision (AMP) Enabled Table 5: Training hyperparameters.
+
+E.3 Class Imbalance Handling 
+
+To address class imbalance, we apply three optimization tech-niques: 
+
+Dynamic Positive Class Weighting. The positive class weight is computed per fold from training label counts: 
+
+w+ = n+
+
+n−
+
+(33) 
+
+Threshold Optimization. We search for the optimal clas-sification threshold by maximizing accuracy on the validation set, rather than using the default 0.5 threshold. 
+
+Post-hoc Calibration. For folds where the model predicts inversely (majority class predictions flipped), we apply cali-bration to correct the decision boundary. 
+
+## F Evaluation Metrics 
+
+Accuracy (ACC). 
+
+ACC = TP + TN TP + TN + FP + FN (34) 
+
+Area Under ROC Curve (AUC). 
+
+AUC =
+
+Z 10
+
+TPR (t) dFPR (t) (35) 
+
+F1 Score. 
+
+F1 = 2 · Precision · Recall Precision + Recall (36) 
+
+Macro F1. 
+
+F1 macro = 12 (F1 low + F1 high ) (37) 
+
+## G Edge Deployment Details 
+
+G.1 Target Devices 
+
+We evaluate on three NVIDIA Jetson Orin platforms span-ning high-performance to entry-level tiers, as shown in Fig-ure 5. All devices utilize a Unified Memory Architecture (UMA) where CPU and GPU share a single LPDDR5 mem-ory pool, making efficient memory management critical for deployment.                  
+
+> Figure 5: NVIDIA Jetson Orin edge devices used for deployment benchmarks. From left to right: AGX Orin (high-performance), Orin NX (mid-range), and Orin Nano (entry-level).
+> Spec AGX Orin Orin NX Orin Nano
+> GPU Cores 2048 CUDA 1024 CUDA 1024 CUDA Memory 64 GB 16 GB 8 GB AI Performance 275 TOPS 100 TOPS 40 TOPS Max TDP 60W 25W 15W Table 6: NVIDIA Jetson edge device specifications.
+
+G.2 Benchmark Protocol        
+
+> Parameter Value
+> Batch size 1 (real-time constraint) Sequence length 500 timesteps Input dimensions 30 (XMD encoding) Warmup iterations 20 Benchmark iterations 100 Power monitoring interval 50 ms Table 7: Edge benchmark configuration.
+
+G.3 Memory Optimization 
+
+For memory-constrained devices (Orin Nano, 8 GB), we im-plement: • Inference Mode: torch.inference_mode() dis-ables gradient tracking • Cache Management: Explicit GPU cache clearing be-tween iterations • Memory Pinning: Page-locked memory for CPU-GPU transfers 
+
+G.4 Real-time Feasibility 
+
+All models achieve real-time performance across all Jetson platforms. MambaGaze operates at 55–68 FPS, well above the 0.1 Hz requirement for 10-second cognitive load predic-tion windows. Power consumption remains within 3.7–7.5W, enabling deployment in power-constrained systems.
