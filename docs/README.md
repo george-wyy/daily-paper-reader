@@ -6,45 +6,44 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-29
-- 运行时间：2026-05-29 21:08:22 UTC
+- 最新运行日期：2026-05-30
+- 运行时间：2026-05-30 20:09:20 UTC
 - 运行状态：成功
 - 本次总论文数：7
-- 精读区：3
-- 速读区：4
+- 精读区：0
+- 速读区：7
 
 ### 今日简报（AI）
-今日聚焦人机交互意图理解与预测反馈，精读两篇高分论文，速读三篇相关研究。
-
-最值得关注的是满分论文《Gaze2Act》提出的视线引导机器人操作策略，以及8分论文《Intent Signal Theory》的意图状态控制框架。
-
-建议后续关注意图驱动的主动任务调度（如ProActor）和程序性错误预测反馈（如TRAFA），这两篇速读论文具有实用价值。
-- 详情：[/202605/29/README](/202605/29/README)
+今日速读7篇推荐论文，重点关注眼动信息在钢琴技能迁移中的增强效果及Transformer模型在事件驱动显著性预测中的应用。  
+其中《Gaze information enhances remote skill transfer of piano performance》值得优先阅读，结论表明眼动追踪可显著提升远程技能迁移效率。  
+建议后续可结合眼动数据与多轮对话个性化建模进行交叉实验。
+- 详情：[/202605/30/README](/202605/30/README)
 
 ### 精读区论文标签
-1. [Gaze2Act: Gaze-Conditioned Vision-Language-Action Policies for Interactive Robot Manipulation](/202605/29/2605.30282v1-gaze2act-gaze-conditioned-vision-language-action-policies-for-interactive-robot-manipulation)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：利用人类凝视作为动态意图信号进行机器人操作，直接解决多模态意图预测
-2. [Intent Signal Theory: A Computational Framework for Intent-State Control in Human-AI Interaction](/202605/29/2605.25058v1-intent-signal-theory-a-computational-framework-for-intent-state-control-in-human-ai-interaction)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：人机交互中意图状态控制的计算框架
-3. [Attentional selection is a neuroeconomic decision](/202605/29/biorxiv-10-64898-2026-05-22-727072-v1-attentional-selection-is-a-neuroeconomic-decision)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：将扫视选择建模为神经经济决策，链接眼动与目标驱动选择
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [ProActor: Timing-Aware Reinforcement Learning for Proactive Task Scheduling Agents](/202605/29/2605.24900v1-proactor-timing-aware-reinforcement-learning-for-proactive-task-scheduling-agents)  
+1. [Gaze information enhances remote skill transfer of piano performance](/202605/30/biorxiv-10-64898-2026-05-27-728118-v1-gaze-information-enhances-remote-skill-transfer-of-piano-performance)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：使用强化学习预测用户需求的前瞻性代理，可迁移至基于视线的人机交互
-2. [IntentionNav: A Benchmark for Intent-Driven Object Navigation from Implicit Human Instruction](/202605/29/2605.23187v1-intentionnav-a-benchmark-for-intent-driven-object-navigation-from-implicit-human-instruction)  
+   evidence：注视共享增强了远程技能转移中的人机交互
+2. [Exploring deep learning for Event-Based Saliency Prediction with a Transformer-based model](/202605/30/2605.23790v1-exploring-deep-learning-for-event-based-saliency-prediction-with-a-transformer-based-model)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：从隐含人类指令进行意图驱动的物体导航，涉及多模态意图预测
-3. [TRAFA: Anticipating User Actions to Reduce Errors in Procedural Tasks with Predictive Feedback](/202605/29/2605.24526v1-trafa-anticipating-user-actions-to-reduce-errors-in-procedural-tasks-with-predictive-feedback)  
+   evidence：显著性预测作为视觉注意计算模型，支持基于注视的人机交互
+3. [Know You Before You Speak: User-State Modeling for LLM Personalization in Multi-Turn Conversation](/202605/30/2605.24647v1-know-you-before-you-speak-user-state-modeling-for-llm-personalization-in-multi-turn-conversation)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：实时预测反馈系统，通过预测用户动作预防错误，类似实时意图识别
-4. [Anticipate and Learn: Unleashing Idle-Time Compute in Proactive Agents](/202605/29/2605.25971v2-anticipate-and-learn-unleashing-idle-time-compute-in-proactive-agents)  
+   evidence：面向主动个性化的概率用户状态建模
+4. [Data-driven Head Motion Generation through Natural Gaze-Head Coordination](/202605/30/2605.25810v1-data-driven-head-motion-generation-through-natural-gaze-head-coordination)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：提出前瞻性智能体实时预测用户需求，与实时意图识别算法相关
+   evidence：数据驱动的视线-头部协调模型用于自然的人机交互
+5. [Can Segmentation Models Understand the World? Towards Proactive Affordance Reasoning via Visual Chain-of-Thought](/202605/30/2605.27764v1-can-segmentation-models-understand-the-world-towards-proactive-affordance-reasoning-via-visual-chain-of-thought)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：前瞻性功能性推理用于意图级指令，与前瞻性系统响应相关
+6. [Hippocampal mechanisms resolve competition in memory and perception](/202605/30/biorxiv-10-1101-2023-10-09-561548-v4-hippocampal-mechanisms-resolve-competition-in-memory-and-perception)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：在记忆引导的视觉搜索中使用眼动追踪
+7. [Attentional selection is a neuroeconomic decision](/202605/30/biorxiv-10-64898-2026-05-22-727072-v2-attentional-selection-is-a-neuroeconomic-decision)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：将眼动选择建模为成本-收益决策过程
 
 
 <div class="dpr-home-promo-card">

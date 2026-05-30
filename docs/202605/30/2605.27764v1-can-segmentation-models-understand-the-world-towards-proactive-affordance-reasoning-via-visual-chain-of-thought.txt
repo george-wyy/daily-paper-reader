@@ -1,0 +1,518 @@
+Title: Can Segmentation Models Understand the World? Towards Proactive Affordance Reasoning via Visual Chain-of-Thought
+
+URL Source: https://arxiv.org/pdf/2605.27764v1
+
+Published Time: Thu, 28 May 2026 00:28:30 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+## Can Segmentation Models Understand the World? Towards Proactive Affordance Reasoning via Visual Chain-of-Thought 
+
+Yuchen Guo 1, Junli Gong 2, Hongmin Cai 3, Yiu-ming Cheung 4, Weifeng Su 5
+
+> 1
+
+Northwestern University 2Northeastern University 3South China University of Technology 
+
+> 4
+
+Hong Kong Baptist University 5Beijing Normal - Hong Kong Baptist University  
+
+> Correspondence: yuchenguo2027@u.northwestern.edu, wfsu@bnbu.edu.cn
+
+Abstract 
+
+Recent segmentation models couple large lan-guage models (LLMs) with mask decoders to ground complex language expressions into masks, yet their instructions remain target-referential: they describe, constrain, or imply the region to be segmented. However, in real-world embodied interaction, human instruc-tions are often at the intent-level, which in-cludes the desired outcome without naming the region that enables it. To bridge this gap, we introduce SegWorld , where the model reasons about the scene through a multi-level visual chain-of-thought (CoT) before committing to a mask. Before receiving any instructions, it proactively observes the scene, describing visi-ble objects and inferring plausible events they may support. Given an instruction, it contin-ues the chain: from the object relevant to the intent, through the action that satisfies it, to the physical interaction site, the object part that affords the action. We formalize SegWorld as probabilistic inference, in which proactive ob-servation supplies a linguistic scene context that improves mask prediction when instruc-tions are given at the level of intent. We con-struct an intent-to-part benchmark for evaluat-ing affordance-bearing part segmentation from high-level goals. Experiments show SegWorld matches instruction-driven baselines on target-referential instructions and improves substan-tially on intent-level ones. 
+
+1 Introduction 
+
+Language-driven segmentation has expanded the role of segmentation from category recognition to instruction following. Recent models inte-grate LLMs or multimodal LLMs with mask de-coders, enabling them to ground complex natural-language expressions, including spatial relations, object attributes, and implicit reasoning cues, into masks (Lai et al., 2024; Lu et al., 2025; Liu et al., 2026; Li et al., 2025; Gong et al., 2025). These instructions are commonly studied as explicit re-ferring expressions (Kazemzadeh et al., 2014; Yu et al., 2016; Liu et al., 2023) or implicit reasoning instructions (Lai et al., 2024; Jang et al., 2025; Wan et al., 2025). Recent works further intro-duce visual chain-of-thought reasoning into seg-mentation, using textual rationales, point or region cues, or positional priors to connect reasoning with grounding (Kao et al., 2026; Yuan et al., 2025). De-spite this progress, the dominant paradigm remains query-conditioned: the model is given an instruc-tion and is expected to return the corresponding region. The visual scene becomes relevant only af-ter a question is asked, and the instruction is treated as a specification of the target. But this is not how human instructions work in the real world (Sperber and Wilson, 1986). Human-centric instructions are pragmatic and underspec-ified, requiring the listener or agent to infer the intended goal from context (Shridhar et al., 2020; Tellex et al., 2011; Misra et al., 2016). Models shouldn’t view scenes through the narrow aperture of current instructions. Before being asked any-thing, it can already take in what is present, what could happen, and how things can be used. The instruction then serves not as a full description of the target, but as a way of selecting one actionable possibility from this prior understanding. This distinction becomes critical when instruc-tions are expressed at the level of intent. Consider a tabletop scene with a mug, a kettle, and a plate, and the instruction “I want to drink water.” The desired mask is not named by the instruction at all. A query-conditioned model may ground it to the mug or the kettle, both semantically related to drinking, yet neither specifies the physical site through which the intended action should be exe-cuted. Reaching the right region requires several steps of everyday reasoning, and the region it ar-rives at is often not a whole object but a part. This is consistent with affordance and part-level grounding 1         
+
+> arXiv:2605.27764v1 [cs.CV] 26 May 2026 Relevant Object
+> wine glass
+> Action
+> pick up
+> Intent
+> Grounding
+> handle
+> (grasping point)
+> Interaction Site
+> Interaction
+> Reasoning Affordance
+> Reasoning
+> Affordance Part
+> the handle of
+> the wine glass
+> affords being
+> picked up .Scene Understanding
+> person wine glass wine bottle
+> table cabinet
+> . . .
+> . . .
+> Plausible Events
+> Proactive
+> Observation Human -centric
+> conversational
+> intent
+> I just want one of
+> those quiet evenings,
+> you know, settle in, sip
+> something chilled, and
+> let the day melt off.
+> Intent to Interaction Part
+
+Figure 1: Given a human-centric conversational intent that does not name the target region, SegWorld first proactively observes the scene, then grounds the intent to a relevant object and action, reasons about the physical interaction site, and finally segments the affordance-bearing part that enables the intended action. 
+
+studies, where interaction is localized to functional regions rather than entire objects (Do et al., 2018; Nagarajan et al., 2019; Deng et al., 2021; Mo et al., 2021; Wan et al., 2025; Tang et al., 2025). We call this setting intent-level segmentation : recov-ering an affordance-bearing part that lies several reasoning steps below a high-level goal. We introduce SegWorld , which replaces query-conditioned mapping with a proactive, multi-level reasoning process. Rather than waiting for an in-struction, SegWorld first reads the scene on its own: it describes the visible objects and the events they could plausibly support, producing a linguistic scene context before any instruction arrives. When the instruction is given, SegWorld does not search the image from scratch; it traverses this context through an eight-level visual chain-of-thought or-ganized into three stages. The first stage performs proactive observation. The second identifies the object implicated by the intent and the action that would fulfill it. The third resolves the object part that affords this action and the affordance it carries. Each level is expressed in language and remains explicit and inspectable, turning a single opaque mapping from instruction to pixels into a traceable reasoning process. This design is principled, not merely procedu-ral. We formalize SegWorld as probabilistic infer-ence: the proactive stage draws a scene context, and the instruction-conditioned stages estimate the mask conditioned on both the instruction and that context. The scene context acts as an informative prior. When an instruction is target-referential, this prior matters little, since the instruction already localizes the answer. But when the instruction is intent-level, the answer is underdetermined by the instruction alone, and the scene context is what makes the posterior tractable. Proactive observa-tion, in other words, is most valuable exactly where query-conditioned models are weakest. To study this setting, we construct Intent2Part , a benchmark for intent-level segmentation in which instructions name a high-level goal and the target is an affordance-bearing object part. On Intent2Part ,
+
+SegWorld matches strong query-conditioned base-lines when instructions directly specify their target, and improves over them substantially when the target must be recovered from intent. Beyond ac-curacy, its visual chain-of-thought exposes where a prediction comes from, making both correct and incorrect masks interpretable. Our contributions are summarized as follows: • We identify intent segmentation , a setting where instructions name a goal rather than a target, and where the answer is an affordance-bearing object part lying several reasoning steps below the instruction. • We propose SegWorld , a proactive segmen-tation framework that performs a eight-level visual chain-of-thought, and formalize it as probabilistic inference in which a proactive scene context serves as a prior for mask pre-diction. • We construct Intent2Part , a benchmark for evaluating intent-level segmentation, and show that SegWorld matches query-conditioned baselines on direct instructions while improving substantially on intent-level ones. 2OBJECT                             
+
+> wine glass
+> ACTION
+> hold
+> PART
+> stem
+> AFFORDANCE
+> hold
+> User intent Honestly, today was rough ,back -to -back
+> meetings and a stressful commute. I just want to flop on
+> the couch with a chilled glass of wine and forget about
+> everything for an hour.
+> Referring expression Segment the stem of the wine glass .
+> Reasoning expr ession Segment t he thin vertical piece between the cup and the base
+> that lets you lift the glass without warming the wine inside .
+> OBJECT
+> trash can
+> ACTION
+> open
+> PART
+> lid
+> AFFORDANCE
+> lift
+> User intent .Ugh, the kitchen smells terrible, it seems like
+> I forgot to clear out the takeout containers from last
+> night. I should toss them before the whole apartment
+> starts to reek.
+> Referring expression Segment the lid of the trash can .
+> Reasoning expr ession Segment t he top piece on the trash can that you would lift to
+> drop garbage into the bin .
+> OBJECT
+> win dow
+> ACTION
+> open
+> PART
+> handle
+> AFFORDANCE
+> twist
+> User intent Wow, it's getting really stuffy in this
+> room —I've been sitting here all afternoon and the air
+> feels stale. I'd love to crack things open and let some
+> fresh air in .
+> Referring expression Segment the handle on the window .
+> Reasoning expr ession Segment t he metal lever attached to the window frame that you rotate to unlatch
+> and swing the window open .
+> OBJECT
+> light switch
+> ACTION
+> turn off
+> PART
+> toggle
+> AFFORDANCE
+> press
+> User intent Alright, I'm officially calling it a night, and
+> my eyes are heavy and the day finally caught up with
+> me. I just want to crawl under the covers and have it
+> pitch dark in here.
+> Referring expression Segment the toggle of the light switch .
+> Reasoning expr ession Segment the small rocker on the wall plate that you flip to turn the room lights
+> off.
+
+Figure 2: Examples from Intent2Part . Each sample pairs a human-centric intent-level instruction with the latent reasoning chain needed to recover the target: object, action, part, and affordance. The benchmark also retains target-referential referring and reasoning expressions, allowing models to be evaluated under both direct target descriptions and high-level intents. 
+
+2 Related Work 
+
+Language-driven segmentation. With the rapid development of LLMs, recent studies integrate LLMs into segmentation models (Lu et al., 2025; Liu et al., 2026; Lai et al., 2024), enabling them to segment objects from natural-language instructions rather than single-word category labels (Li et al., 2025; Gong et al., 2025). Such instructions are broadly categorized into explicit referring expres-sions (Kazemzadeh et al., 2014; Yu et al., 2016; Liu et al., 2023) and implicit reasoning instruc-tions (Lai et al., 2024; Jang et al., 2025; Wan et al., 2025). To strengthen reasoning, some works intro-duce a visual chain-of-thought into the segmenta-tion pipeline, using intermediate textual rationales, region or point annotations, or positional priors that couple reasoning with grounding (Kao et al., 2026; Yuan et al., 2025). However, both referring segmen-tation and reasoning segmentation rely on language expressions that explicitly or implicitly describe the target region to be segmented. In contrast, our intent-level segmentation is human-centric, aiming to better serve real-world embodied agents. 
+
+Affordance and part-level grounding. In real-world embodied interaction, the target of an action is often not a whole object but the part through which the action is executed (Wan et al., 2025). Prior work grounds affordances in images, videos, and 3D scenes (Tang et al., 2025), from dense af-fordance segmentation and graspable-region pre-diction to interaction hotspots and part-level affor-dance (Do et al., 2018; Nagarajan et al., 2019; Deng et al., 2021; Mo et al., 2021), with recent methods using vision-language models for open-vocabulary affordances (Qian et al., 2024; Chu et al., 2025). These methods take an action or interaction query as input and localize where it applies. Our setting asks the reverse: given only a high-level intent, the model infers the object, the action, and the affordance-bearing part in turn. Affordance is thus not the input query but the terminal semantics of intent-level segmentation. 
+
+3 Intent Segmentation 
+
+We address a segmentation task defined over an im-age I and a natural-language instruction q, where the goal is to predict a binary mask M . This setup is shared with referring and reasoning segmenta-tion; the distinction lies in the nature of q and the semantics of M .In query-conditioned segmentation, q is target-referential : it identifies the target region by naming it, describing its attributes, or specifying a relation that singles it out. The target is therefore deter-mined by I and q together. In intent-level seg-mentation , q instead specifies a desired outcome, or intent , without referring to any image region. Because fulfilling an intent requires acting on the scene, and physical action is localized to a specific object part, the target M is an affordance-bearing part : the part whose affordance enables the action that satisfies the intent. Satisfying q in scene I implicitly involves four latent quantities: an object o relevant to the in-3Inputs   
+
+> Image
+> I
+> Instruction
+> q
+> I just want one of
+> those quiet evenings,
+> you know, settle in,
+> sip something chilled,
+> and let the day melt
+> off .I’d love to enjoy
+> a relaxing evening
+> sipping a chilled drink.
+
+Stage 0: Proactive Observation (instruction -free) 
+
+> First forward pass (image only)
+
+Vision –Language Backbone        
+
+> Eight -level visual chain -of -thought (Levels 1–4)
+> 2OBJECTS
+> o_list
+> List objects in the scene .
+> e.g., “wine glass, wine bottle, table,
+> cabinet, chair. …”
+
+Stage 1: Instruction -Conditioned Reasoning  
+
+> Second forward pass (image + instruction + context)
+> Image
+> IInstruction
+> q
+> …
+> Context
+> c
+> …
+
+Vision –Language Backbon e   
+
+> </s>
+> Eigh t-level visual chain -of -thought (Levels 5–8)
+> Identify the
+> object relevant
+> to the intent.
+> e.g., “wine glass”
+> Identify the
+> action that
+> fulfills the
+> intent.
+> e.g., “hold the glass
+> to sip without
+> warming the wine”
+> Identify the part
+> whose affordance
+> supports the
+> action.
+> e.g., “stem of the
+> wine glass”
+> Name the affordance
+> of that part.
+> e.g., “grip while keeping
+> fingers off the bowl”
+
+Segmentation Module                           
+
+> SAM2 Decoder
+> SAM2
+> Vision Encoder
+> (frozen) ❄
+> …
+> Image features
+> SAM2
+> Mask Decoder
+> (trainable) 🔥
+> Predicted Mask
+> M
+> Scene Context
+> c= (
+> s, o_list, r, e)
+> 🔥 Trainable
+> ❄Frozen
+> Learnable ([SEG]
+> token)
+> …
+> OBJECT
+> oACTION
+> aPART
+> pAFFORDANCE
+> f5678
+> 1SCENE
+> s
+> Describe the scene generally .
+> e.g., “A wine glass with rosé and a
+> labeled wine bottle sit on a wooden
+> dining table in a dim room.”
+> ℎ["#$ ]∈ℝ&
+> (hidden state)
+> LoRA
+> (trainable) 🔥
+> . . . </s>
+> 3RELATIONS
+> r
+> Describe the salient spatial
+> relations.
+> e.g., “wine glass next to bottle on
+> table, bottle standing upright,
+> cabinet behind table.”
+> 4EVENTS
+> e
+> Plausible interactions the
+> scene affords.
+> e.g., “Pouring, sipping, holding the
+> stemware, setting down, toasting
+> …”
+> </s> . . .
+> …
+> LoRA
+> (trainable) 🔥
+> Image
+> I
+
+Figure 3: Overview of SegWorld . Stage 0 performs instruction-free proactive observation, producing a scene context from the image alone. Stage 1 conditions on this context and the instruction to reason through object, action, part, and affordance. The final [SEG] hidden state prompts a SAM2 mask decoder to produce the affordance part mask. 
+
+tent, an action a on o that fulfills it, a part p of 
+
+o that supports the action, and the corresponding affordance f . The ground-truth mask M ⋆ is the segmentation of this part. Intent-level segmenta-tion therefore requires recovering the latent chain 
+
+q → o → a → (p, f ) → M ⋆, whose intermediate terms are not given at inference time. This structure makes intent-level segmentation harder than the query-conditioned case. When q is target-referential, the target can often be identified by matching the instruction against image regions. When q is an intent, the model must infer which object can realize the goal, which action should be taken, and which object part affords that action before producing a mask. This motivates the proac-tive reasoning approach introduced in Section 4. 
+
+4 The SegWorld Method 
+
+4.1 Overview 
+
+SegWorld replaces the direct mapping q → M
+
+with a two-pass, three-stage reasoning process over a shared vision-language backbone. In the first pass, the model observes the image I without ac-cess to the instruction and emits a linguistic scene context c. In the second pass, the model takes the instruction q together with this context, resolves the intent into an object and action, grounds the action to an affordance-bearing part, and predicts the target mask M . Together, the stages form an eight-level visual chain-of-thought spanning proac-tive observation, intent resolution, and part-level grounding. The chain terminates in a special [SEG] 
+
+token whose contextual hidden state drives a SAM2 mask decoder (Ravi et al., 2025). Probabilistically, SegWorld approximates direct estimation of Pθ(M | I, q ) by marginalizing over an instruction-independent scene context: 
+
+Pθ(M | I, q ) ≈ Ec∼Pθ (c|I)
+
+Pθ(M | I, q, c ). (1) The first pass models Pθ(c | I) and the second models Pθ(M | I, q, c ). In practice, we instantiate the expectation with one decoded context from the observation pass and predict the mask conditioned on that context. 
+
+4.2 Proactive Observation 
+
+The first stage models the instruction-free distri-bution Pθ(c | I). The instruction q is withheld entirely: the observation pass receives only the im-age and an observation prompt, ensuring that the resulting context is a property of the scene rather than of the query. We decompose the context into four levels, 
+
+c = ( s, o list , r, e ). The S CENE level gives a one-sentence description s of the overall setting. The OBJECTS level enumerates salient visible objects 
+
+olist . The R ELATIONS level captures spatial and functional relations r among them. The E VENTS 
+
+level predicts a small set of plausible interactions 
+
+e supported by the scene, independent of any par-ticular instruction. These levels summarize what is present, how it is arranged, and what actions the scene could plausibly afford before any goal is specified. 
+
+4.3 Instruction-Conditioned Reasoning 
+
+Given the image I, instruction q, and scene context 
+
+c, the second pass models Pθ(M | I, q, c ) through two further stages. The intent-resolution stage identifies the object o relevant to the intent and 4the action a that would satisfy it. The affordance-grounding stage identifies the part p of o that sup-ports the action and names its affordance f . These four levels recover the latent chain introduced in Section 3, q → o → a → (p, f ) → M ⋆, mak-ing the intermediate reasoning explicit rather than collapsing the instruction directly into a mask. The final token of the chain is [SEG] , added to the backbone vocabulary. Its contextual hid-den state h[SEG] ∈ Rd is linearly projected into a prompt embedding for the SAM2 mask decoder. The decoder fuses this prompt with image features from a frozen SAM2 vision encoder to produce the binary mask M . Thus, the mask decoder re-ceives a learned language prompt that encodes the full reasoning chain, rather than the raw instruction alone. 
+
+Why the scene context helps. Equation 1 clar-ifies when proactive observation is useful. For target-referential instructions, q already identifies the target, so additional scene context has lim-ited effect. For intent-level instructions, however, 
+
+Pθ(M | I, q ) is diffuse: multiple objects and parts may be semantically related to the intent, but only some are actionable in the observed scene. Condi-tioning on c restricts prediction to candidates con-sistent with the scene structure and plausible events, sharpening the posterior. We treat Equation 1 as a modeling approximation and validate its utility empirically in Section 6. 
+
+4.4 Training Objective. SegWorld is jointly trained with mask and language-modeling objectives: 
+
+L = λmask Lmask (M, M ⋆) + λ0L(0) 
+
+> LM
+
+(c)+ λ1L(1) 
+
+> LM
+
+(o, a, p, f ),
+
+(2) where Lmask is binary cross-entropy plus dice loss, and L(0)  
+
+> LM
+
+and L(1)  
+
+> LM
+
+supervise the observation chain 
+
+c = ( s, o list , r, e ) and the instruction-conditioned chain (o, a, p, f ), respectively. We use λmask =1.0, λ0 = 0 .5, and λ1 = 1 .0. The mask loss back-propagates through the [SEG] hidden state into the second pass, while the observation pass is super-vised by its language-modeling loss. 
+
+Supervision. The instruction-conditioned levels 
+
+(o, a, p, f ) are taken from the ground-truth anno-tations of Intent2Part (Section 5). The obser-vation levels (s, o list , r, e ) are synthesized offline with a vision-language model using an image-only prompt, so they describe the scene without refer-ence to any instruction. During training, the instruc-tion q is sampled from a pool containing the target-referential instructions inherited from InstructPart and our intent-level instruction, exposing the model to both direct and intent-level query distributions. 
+
+Scheduled sampling. At inference, the second pass conditions on the context generated by the first pass. During early training, this context is noisy, so we first condition on the synthesized observation context and gradually replace it with self-generated contexts after a warmup of Swarmup 
+
+steps. The replacement probability increases lin-early up to pmax = 0 .5. Self-generated contexts are detached before entering the second pass, while the observation pass is always supervised by its language-modeling loss. This curriculum reduces the train-test gap while preserving early optimiza-tion stability. 
+
+Parameterization. The vision-language back-bone is fine-tuned with LoRA adapters applied to attention and MLP projections. The SAM2 vision encoder is frozen, and the SAM2 mask decoder is trained. Full implementation details and hyperpa-rameters are reported in Appendix A. 
+
+5 The Intent2Part Benchmark 
+
+To evaluate intent-level segmentation, we con-struct Intent2Part , a benchmark in which instruc-tions express high-level intents and the target is an affordance-bearing object part. Intent2Part builds on InstructPart (Wan et al., 2025), which provides images, object and part labels, part affor-dances, high-level actions, part masks, and target-referential instructions. We retain these annotations and add one intent-level instruction for each image-annotation pair. 
+
+5.1 Construction Intent-level instructions. For each sample, we author an instruction that names only the desired outcome, without mentioning the target object, tar-get part, action, or affordance. To reduce lan-guage and stylistic bias from any single genera-tor, we generate candidate instructions indepen-dently with three frontier vision-language models: 
+
+Claude Opus 4.7 , GPT-5.5 , and Gemini 3.1 Pro .Each model is prompted in a first-person voice with the image and a brief description of a plausible user scenario. We then filter candidates with an 5Input Ground Truth SAM 3 Agent SAM3 -I LISA -finetune Sa2VA -finetune Affordance -R1 SegWorld (Ours) User intent 
+
+> "I'd love to enjoy a
+> relaxing evening
+> sipping a chilled
+> drink ."
+> "I'm hungry and ready
+> to dig into this grilled
+> steak ."
+> "I'd love to people -
+> watch in this park for
+> a while ."
+> "I want to unwind
+> comfortably after this
+> exhausting workday ."
+> "I'd like to check on
+> my cookies baking
+> inside there ."
+> "I want to curl up
+> under the covers and
+> forget the world ."
+> "I want to head to
+> the airport for my
+> flight today ."
+
+Figure 4: Qualitative comparison on intent-level instructions. Existing methods often ground the intent to a semantically related whole object or broad region, while SegWorld localizes the affordance-bearing part needed to realize the intent, such as a bottle body for pouring, a bench seat for sitting, an oven handle for opening, or a suitcase handle for carrying. 
+
+automatic validator that enforces first-person intent form, length constraints, and exclusion of target-revealing terms and their variants. Candidates that fail validation are rewritten manually. The full generation prompt, validator, and quality-control procedure are given in Appendix B. 
+
+Observation-level annotations. To supervise SegWorld’s proactive observation stage, we ad-ditionally synthesize image-level scene contexts for training images. Given an image without any instruction, a vision-language model produces a scene description, salient objects, spatial and func-tional relations, and plausible events. These annota-tions supervise the observation pass during training and are never used for evaluation. 
+
+5.2 Statistics and Splits 
+
+Intent2Part contains 1,800 training and 600 test image-annotation pairs, following the splits of In-structPart, and adds intent-level instructions to both training and test samples. We evaluate on two test splits: test_official , the original 600-sample In-structPart test split, and test_clean , a 232-sample subset whose base images do not appear in training. Since test_official contains repeated base images with different part annotations, test_clean serves as our primary split for measuring image-level gen-eralization. Each sample is evaluated under both the inherited target-referential instruction and the newly authored intent-level instruction. 
+
+6 Experiments 
+
+6.1 Setup Datasets and metrics. All experiments are con-ducted on Intent2Part (Section 5). Models are trained on the 1,800-sample training split and eval-uated under two instruction conditions: target-referential instructions inherited from InstructPart and our newly authored intent-level instructions. Intent-level evaluation is reported on test_clean 
+
+(232 source-disjoint samples; primary split) and 
+
+test_official (600 samples). We report mean Intersection-over-Union (mIoU), cumulative IoU (cIoU), and the [SEG] emission rate, defined as the fraction of samples for which the model produces a valid segmentation token. 
+
+Baselines. We compare with representative rea-soning and affordance segmentation baselines: LISA (Lai et al., 2024), Sa2VA (Yuan et al., 2025), Affordance-R1 (Wang et al., 2026), and SAM3-I (Li et al., 2025). We also include a frozen SAM3 Agent cascade that uses Qwen-VL (Bai et al., 2025) to translate the instruction into a target description and SAM3 (Carion et al., 2025) to predict the mask. 6Referring Reasoning Intent-level Per-Action mIoU                                                                                                                             
+
+> InstructPart InstructPart test_clean test_official Intent, test_official
+> Method mIoU cIoU mIoU cIoU mIoU cIoU mIoU cIoU hold cut sit [SEG]%
+> vanilla Sa2VA 0.510 0.367 0.498 0.359 0.151 0.099 0.141 0.093 0.178 0.073 0.075 57.0 SAM3 Agent 0.592 0.426 0.580 0.418 0.387 0.252 0.366 0.238 0.150 0.502 0.548 98.0 LISA-finetune 0.583 0.420 0.572 0.412 0.221 0.144 0.205 0.133 0.155 0.205 0.265 100.0
+> UniPixel-finetune 0.627 0.451 0.615 0.443 0.253 0.164 0.241 0.157 0.162 0.290 0.335 100.0
+> Affordance-R1 0.685 0.493 0.672 0.484 0.480 0.313 0.420 0.273 0.175 0.610 0.660 99.0 SAM3-I 0.701 0.505 0.689 0.496 0.342 0.222 0.318 0.207 0.165 0.445 0.498 100.0
+> Sa2VA-finetune 0.712 0.513 0.703 0.506 0.305 0.198 0.283 0.184 0.170 0.390 0.410 92.0 SegWorld v1 0.782 0.563 0.770 0.554 0.514 0.345 0.446 0.310 0.184 0.655 0.729 100.0 SegWorld v2 0.783 0.564 0.772 0.556 0.612 0.411 0.495 0.345 0.253 0.734 0.775 100.0
+
+Table 1: Main results on Intent2Part . We report mIoU/cIoU across target-referential and intent-level instructions, with test_clean as the primary intent-level split. Per-action mIoU covers three representative actions, and [SEG]% 
+
+denotes valid mask-token emission. Best results are in bold .
+
+Trainable baselines are fine-tuned on Intent2Part 
+
+with the same data and training budget as SegWorld. We additionally report off-the-shelf Sa2VA without task-specific fine-tuning. 
+
+SegWorld variants. SegWorld v1 is trained only with target-referential instructions and is evaluated zero-shot on intent-level instructions. SegWorld v2 adds our intent-level instructions to the training pool with 20% sampling probability. Implementa-tion details are provided in Appendix A. 
+
+6.2 Qualitative Examples 
+
+Figure 4 compares SegWorld with representative baselines on intent-level instructions. Existing methods often identify objects that are semanti-cally related to the intent but fail to isolate the actionable part: bottles instead of pourable regions, whole benches or couches instead of seats, and entire appliances or luggage instead of handles. SegWorld more consistently grounds the intent to the affordance-bearing part, reflecting the benefit of explicitly reasoning through object, action, part, and affordance before emitting the segmentation token. 
+
+6.3 Main Results 
+
+Table 1 quantifies the trends shown in Figure 4, comparing SegWorld with existing segmentation systems across target-referential and intent-level instructions. 
+
+SegWorld preserves target-referential segmen-tation. On the standard referring and reasoning conditions, SegWorld v1 already improves over the strongest fine-tuned baseline, and v2 maintains this performance after adding intent-level supervi-sion. This shows that proactive observation and multi-level reasoning do not trade off against con-ventional instruction-driven segmentation. 
+
+Proactive reasoning transfers to intent-level in-structions. Without seeing intent-level instruc-tions during training, SegWorld v1 achieves 0.514 mIoU on intent-level test_clean , outperforming the strongest baseline, Affordance-R1, by 3.4 points. Since v1 is trained only on target-referential instruc-tions, this gain indicates that the two-pass reason-ing structure learns a reusable intent-to-part infer-ence pattern rather than merely memorizing intent templates. 
+
+Intent supervision further improves intent-to-part grounding. Adding intent-level instructions in SegWorld v2 raises mIoU on test_clean from 0.514 to 0.612, while leaving target-referential per-formance essentially unchanged. Compared with Affordance-R1, which applies MLLM-based af-fordance reasoning to this setting, SegWorld v2 improves intent-level mIoU on test_clean from 0.253 to 0.612. Although test_clean is source-disjoint from training, it yields higher scores than test_official ; Section 6.4 shows that the overlapping-image subset of test_official contains conflicting part annotations and is empirically harder. 
+
+6.4 Analysis Reasoning aligns with actionable parts. Fig-ure 5 visualizes SegWorld’s grounding behavior. The grounding heatmaps concentrate on the part that realizes the intent before the final mask is pro-duced, such as a chair seat, sofa cushion, or bed surface. The intent-region similarity matrix shows 7Input Ground truth Attention map Predicted mask User intent  
+
+> "Let me settle in
+> here and review my
+> notes for a while ."
+> "I want to unwind
+> comfortably after
+> this exhausting
+> workday ."
+> "It's been a long day
+> —I just want to
+> crawl into bed ."
+
+Figure 5: Reasoning visualization for SegWorld. Left: attention maps focus on the actionable part before mask prediction, and the predicted masks align with the affordance-bearing regions required by the intent. Right: intent-region similarity scores form a bright diagonal, showing that matched intent-region pairs align in the learned joint space. 
+
+a bright diagonal, indicating that matched intent-image pairs align in the learned joint space. These visualizations suggest that SegWorld’s gains come from reasoning toward affordance-bearing parts rather than merely selecting semantically related objects. 
+
+Two-pass training induces mask commitment. 
+
+On intent-level test_official , off-the-shelf Sa2VA fails to emit [SEG] on 43.0% of samples, often re-sponding conversationally instead of producing a mask. Both SegWorld variants emit valid [SEG] to-kens on all samples. This suggests that the two-pass training procedure changes the model’s behavior from answering an intent in language to commit-ting the intent to a segmentation output. 
+
+Image overlap introduces part conflict. Al-though test_clean is source-disjoint from training, it yields higher intent-level scores than test_official .The latter includes 368 overlapping-image sam-ples whose base images appear in training with dif-ferent object-part annotations. These samples are harder: their implied mIoU is 0.403 for SegWorld v1 and 0.422 for v2, both below the correspond-ing test_clean scores. The gap therefore reflects part-level conflict, not image memorization. 
+
+Per-action behavior. Per-action results, reported in Appendix C, show that intent supervision is es-pecially helpful for small interaction parts such as handles, knobs, and straps, where the intended ob-ject is easy to identify but the actionable part is spatially small. 
+
+Ablation. Table 2 isolates the contribution of SegWorld’s reasoning components. Removing the event level weakens performance, indicating that 
+
+Variant test_clean test_official 
+
+mIoU cIoU mIoU cIoU SegWorld v2 0.612 0.411 0.495 0.345 
+
+w/o intent supervision (v1) 0.514 0.345 0.446 0.310 w/o event level 0.573 0.386 0.472 0.329 w/o proactive context 0.438 0.294 0.382 0.266 w/o Stage-1 CoT 0.402 0.270 0.358 0.249 
+
+Table 2: Ablation on intent-level segmentation. We report mIoU/cIoU on both intent-level splits. Removing either proactive observation or instruction-conditioned reasoning degrades intent-to-part grounding. 
+
+plausible scene interactions provide useful priors beyond static scene description. Removing the proactive context causes a larger drop, showing that instruction-free observation is a key source of intent-level grounding. The largest degrada-tion comes from removing the Stage-1 chain, con-firming that explicit object-action-part-affordance reasoning is not merely explanatory text but con-tributes directly to mask prediction. 
+
+7 Conclusion 
+
+We introduced SegWorld , a proactive framework for intent-level segmentation. SegWorld first ob-serves the scene without an instruction, then rea-sons from a high-level intent to an object, action, affordance-bearing part, and mask through a vi-sual chain-of-thought. We also introduced In-tent2Part , a benchmark for evaluating part segmen-tation from high-level goals. Experiments show that SegWorld maintains strong target-referential performance while substantially improving intent-level grounding, suggesting a step toward segmen-tation systems that reason about what a scene af-fords rather than only following instructions. 8Limitations 
+
+SegWorld studies intent-level segmentation in a controlled part-segmentation setting. First, In-tent2Part focuses on static images and single-step intents. Many embodied scenarios involve tempo-ral context, multi-step plans, or changing object states, which are outside the scope of this work. Second, our intent-level instructions are authored with the aid of frontier vision-language models and filtered by automatic validators. Although this reduces direct target leakage and single-model lan-guage bias, the resulting language distribution may still differ from naturally collected human instruc-tions. Third, SegWorld makes its reasoning explicit through language, which improves inspectability but also makes the system sensitive to the quality of intermediate textual predictions: errors in scene context, object selection, or action inference can propagate to the final mask. Finally, the benchmark defines one ground-truth affordance-bearing part per intent, while real scenes may admit multiple valid ways to satisfy the same goal. Our evaluation therefore does not measure multi-solution intent grounding. 
+
+Ethical Considerations 
+
+SegWorld is designed for intent-level part seg-mentation and may be useful for assistive inter-faces, embodied agents, and human-centered vi-sual grounding. As with other vision-language systems, its predictions can be affected by biases in the underlying models and datasets, including cul-tural assumptions about common goals, household objects, and typical object use. Incorrect intent grounding may also lead to inappropriate or unsafe action suggestions if used directly in a robotic sys-tem. Our work only predicts segmentation masks and does not execute actions; any deployment in embodied settings should include human oversight, task-specific safety checks, and evaluation under the target environment. The intent-level instruc-tions in Intent2Part are generated and filtered to avoid revealing target regions, but they may not fully reflect the diversity of naturally occurring human language. We will release the dataset con-struction protocol and validation rules to support reproducibility and auditing. 
+
+References 
+
+Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, and 1 others. 2025. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 .Nicolas Carion, Laura Gustafson, Yuan-Ting Hu, Shoub-hik Debnath, Ronghang Hu, Didac Suris, Chai-tanya Ryali, Kalyan Vasudev Alwala, Haitham Khedr, Andrew Huang, and 1 others. 2025. Sam 3: Segment anything with concepts. arXiv preprint arXiv:2511.16719 .Hengshuo Chu, Xiang Deng, Qi Lv, Xiaoyang Chen, Yinchuan Li, Jianye Hao, and Liqiang Nie. 2025. 3d-affordancellm: Harnessing large language models for open-vocabulary affordance detection in 3d worlds. 
+
+arXiv preprint arXiv:2502.20041 .Shengheng Deng, Xun Xu, Chaozheng Wu, Ke Chen, and Kui Jia. 2021. 3d affordancenet: A benchmark for visual object affordance understanding. In pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 1778–1787. Thanh-Toan Do, Anh Nguyen, and Ian Reid. 2018. Af-fordancenet: An end-to-end deep learning approach for object affordance detection. In 2018 IEEE in-ternational conference on robotics and automation (ICRA) , pages 5882–5889. IEEE. Sitong Gong, Lu Zhang, Yunzhi Zhuge, Xu Jia, Ping-ping Zhang, and Huchuan Lu. 2025. Reinforcing video reasoning segmentation to think before it seg-ments. arXiv preprint arXiv:2508.11538 .Donggon Jang, Yucheol Cho, Suin Lee, Taehyeon Kim, and Dae-Shik Kim. 2025. Mmr: A large-scale bench-mark dataset for multi-target and multi-granularity reasoning segmentation. International Conference on Learning Representations .Shiu-hong Kao, Chak Ho Huang, Huaiqian Liu, Yu-Wing Tai, and Chi-Keung Tang. 2026. Cot-seg: Rethinking segmentation with chain-of-thought reasoning and self-correction. arXiv preprint arXiv:2601.17420 .Sahar Kazemzadeh, Vicente Ordonez, Mark Matten, and Tamara Berg. 2014. Referitgame: Referring to objects in photographs of natural scenes. In Pro-ceedings of the Conference on Empirical Methods in Natural Language Processing (EMNLP) , pages 787–798. Xin Lai, Zhuotao Tian, Yukang Chen, Yanwei Li, Yuhui Yuan, Shu Liu, and Jiaya Jia. 2024. Lisa: Reasoning segmentation via large language model. In Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9579–9589. Jingjing Li, Yue Feng, Yuchen Guo, Jincai Huang, Wei Ji, Qi Bi, Yongri Piao, Miao Zhang, Xiaoqi Zhao, Qiang Chen, and 1 others. 2025. Sam3-i: 
+
+9Segment anything with instructions. arXiv preprint arXiv:2512.04585 .Chang Liu, Henghui Ding, and Xudong Jiang. 2023. Gres: Generalized referring expression segmenta-tion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 23592–23601. Ye Liu, Zongyang Ma, Junfu Pu, Zhongang Qi, Yang Wu, Ying Shan, and Chang Chen. 2026. Unipixel: Unified object referring and segmentation for pixel-level visual reasoning. Advances in Neural Informa-tion Processing Systems , 38:126078–126108. Zhenyu Lu, Liupeng Li, Jinpeng Wang, Yan Feng, Bin Chen, Ke Chen, and Yaowei Wang. 2025. Coprs: Learning positional prior from chain-of-thought for reasoning segmentation. arXiv preprint arXiv:2510.11173 .Dipendra K Misra, Jaeyong Sung, Kevin Lee, and Ashutosh Saxena. 2016. Tell me dave: Context-sensitive grounding of natural language to manip-ulation instructions. The International Journal of Robotics Research , 35(1-3):281–300. Kaichun Mo, Leonidas J Guibas, Mustafa Mukadam, Abhinav Gupta, and Shubham Tulsiani. 2021. Where2act: From pixels to actions for articulated 3d objects. In Proceedings of the IEEE/CVF Interna-tional Conference on Computer Vision , pages 6813– 6823. Tushar Nagarajan, Christoph Feichtenhofer, and Kris-ten Grauman. 2019. Grounded human-object inter-action hotspots from video. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 8688–8697. Shengyi Qian, Weifeng Chen, Min Bai, Xiong Zhou, Zhuowen Tu, and Li Erran Li. 2024. Affordancellm: Grounding affordance from vision language mod-els. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 7587–7597. Nikhila Ravi, Valentin Gabeur, Yuan-Ting Hu, Rong-hang Hu, Chaitanya Ryali, Tengyu Ma, Haitham Khedr, Roman Rädle, Chloe Rolland, Laura Gustafson, and 1 others. 2025. Sam 2: Segment anything in images and videos. In International Con-ference on Learning Representations , volume 2025, pages 28085–28128. Mohit Shridhar, Jesse Thomason, Daniel Gordon, Yonatan Bisk, Winson Han, Roozbeh Mottaghi, Luke Zettlemoyer, and Dieter Fox. 2020. Alfred: A bench-mark for interpreting grounded instructions for ev-eryday tasks. In Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition ,pages 10740–10749. Dan Sperber and Deirdre Wilson. 1986. Relevance: Communication and cognition , volume 142. Harvard University Press Cambridge, MA. Yihe Tang, Wenlong Huang, Yingke Wang, Chengshu Li, Roy Yuan, Ruohan Zhang, Jiajun Wu, and Li Fei-Fei. 2025. Uad: Unsupervised affordance distillation for generalization in robotic manipulation. In 2025 IEEE International Conference on Robotics and Au-tomation (ICRA) , pages 3822–3831. IEEE. Stefanie Tellex, Thomas Kollar, Steven Dickerson, Matthew Walter, Ashis Banerjee, Seth Teller, and Nicholas Roy. 2011. Understanding natural language commands for robotic navigation and mobile manip-ulation. In Proceedings of the AAAI conference on artificial intelligence , volume 25, pages 1507–1514. Zifu Wan, Yaqi Xie, Ce Zhang, Zhiqiu Lin, Zihan Wang, Simon Stepputtis, Deva Ramanan, and Ka-tia P Sycara. 2025. Instructpart: Task-oriented part segmentation with instruction reasoning. In Proceed-ings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Pa-pers) , pages 24202–24227. Hanqing Wang, Shaoyang Wang, Yiming Zhong, Zemin Yang, Jiamin Wang, Zhiqing Cui, Jiahao Yuan, Yifan Han, Mingyu Liu, and Yuexin Ma. 2026. Affordance-r1: Reinforcement learning for generalizable affor-dance reasoning in multimodal large language mod-els. In Proceedings of the AAAI Conference on Artifi-cial Intelligence , volume 40, pages 9738–9746. Licheng Yu, Patrick Poirson, Shan Yang, Alexander C Berg, and Tamara L Berg. 2016. Modeling context in referring expressions. In European Conference on Computer Vision , pages 69–85. Haobo Yuan, Xiangtai Li, Tao Zhang, Yueyi Sun, Zi-long Huang, Shilin Xu, Shunping Ji, Yunhai Tong, Lu Qi, Jiashi Feng, and 1 others. 2025. Sa2va: Marrying sam2 with llava for dense grounded un-derstanding of images and videos. arXiv preprint arXiv:2501.04001 .
+
+A Training and Implementation Details 
+
+Model. SegWorld is built on Sa2VA-Qwen2.5-VL-7B. The vision-language backbone is fine-tuned with LoRA adapters applied to attention and MLP projections, with rank r = 64 , α = 128 , and dropout 0.05 . The SAM2 vision encoder is frozen throughout training, while the SAM2 mask decoder and the projection from the [SEG] hidden state to the decoder prompt embedding are trained. 
+
+Optimization. We train with AdamW using learning rate 2 × 10 −5, weight decay 0.05 , bf16 precision, and DeepSpeed ZeRO-2. The effective batch size is 16, with batch size 1 per device, 8-step gradient accumulation, and 2 A100-80G GPUs. Each run is trained for 2,250 optimizer steps and takes approximately 4 hours. Gradient checkpoint-ing is disabled to avoid double gradient reduction across the two-pass forward computation. 10 Scheduled sampling. During inference, Stage 1 conditions on the scene context generated by Stage 0. During early training, Stage 1 is con-ditioned on the synthesized Stage-0 context. Af-ter a warmup of Swarmup steps, we gradually re-place the synthesized context with the model’s self-generated context. The replacement proba-bility is pself (t) = min( t/S warmup , 1) · pmax , with 
+
+pmax = 0 .5. Self-generated contexts are decoded under no_grad and detached before entering Stage 1. Stage 0 is always supervised with its language-modeling loss. 
+
+Baseline training. Trainable baselines are fine-tuned on the same Intent2Part training split with the same instruction pool, optimizer, batch size, train-ing budget, and mask loss as SegWorld whenever their released implementations support supervised fine-tuning. Off-the-shelf Sa2VA is evaluated with-out task-specific fine-tuning. SAM3 Agent is a frozen cascade: Qwen-VL rewrites the instruction into a target description, and SAM3 predicts the mask from that description. 
+
+B Intent2Part Construction Details 
+
+Intent-level instruction generation. For each image-annotation pair, we generate candidate intent-level instructions with three frontier vision-language models: Claude Opus 4.7 , GPT-5.5 ,and Gemini 3.1 Pro . Each model receives the image and a brief description of a plausible user scenario, and is prompted to write a first-person in-struction that expresses a desired outcome without naming the target object, part, action, or affordance. Using multiple generators reduces language and stylistic bias from any single model. 
+
+Validation. Each candidate instruction is checked by an automatic validator. The validator requires a first-person intent form, length between 6 and 25 words, and absence of the ground-truth 
+
+object , part , action , and affordance terms. It also filters plural forms, common morphological variants, and near-synonyms that would reveal the target region. If multiple candidates pass validation, we select the most natural one. If no candidate passes, the instruction is manually rewrit-ten and re-validated. Every released intent-level instruction passes the validator. 
+
+Observation-level annotations. Stage-0 super-vision is synthesized with a vision-language model using an image-only prompt. The model is asked to produce four fields: a one-sentence scene de-scription, a list of salient visible objects, spatial and functional relations among them, and plausible events supported by the scene. The prompt does not include any target-referential or intent-level instruc-tion. These annotations are used only for training the proactive observation stage and are never used during evaluation. 
+
+Split construction. Intent2Part follows the origi-nal InstructPart train/test split, with 1,800 training and 600 test image-annotation pairs. Because In-structPart may contain multiple annotations for the same base image, the official test split includes some images whose base image also appears in training with a different object-part annotation. We therefore define test_clean as the subset of test sam-ples whose base image does not appear in training. This yields 232 source-disjoint test samples and 368 overlapping-image test samples. We report both test_official and test_clean , using test_clean 
+
+as the primary split for image-level generalization. 
+
+C Per-Action Results 
+
+Table 3 reports intent-level mIoU on test_official 
+
+for the eight most frequent action categories. Seg-World v1 already improves substantially over off-the-shelf Sa2VA on actions requiring localized part grounding, while v2 further improves categories where the actionable part is small relative to the object, such as pick up and open .                                     
+
+> Action nvanilla v1 v2 hold 93 0.178 0.184 0.253
+> cut 72 0.073 0.655 0.734
+> sit 71 0.075 0.729 0.775
+> pick up 66 0.101 0.152 0.482
+> open 50 0.020 0.455 0.565
+> support 44 0.234 0.459 0.413 grasp 33 0.147 0.379 0.405
+> contain 32 0.405 0.402 0.627
+> Table 3: Per-action mIoU on intent-level test_official .
+
+11
