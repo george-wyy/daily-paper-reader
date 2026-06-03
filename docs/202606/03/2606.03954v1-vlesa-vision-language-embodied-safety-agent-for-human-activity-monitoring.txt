@@ -1,0 +1,473 @@
+Title: VLESA: Vision-Language Embodied Safety Agent for Human Activity Monitoring
+
+URL Source: https://arxiv.org/pdf/2606.03954v1
+
+Published Time: Wed, 03 Jun 2026 01:37:57 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# VLESA: Vision-Language Embodied Safety Agent for Human Activity Monitoring 
+
+Hanjiang Hu 1,2,∗ Yiyuan Pan 1,∗ Jiaxing Li 1 Xusheng Luo 1 Alexander Robey 1
+
+Na Li 3 Yebin Wang 2 Changliu Liu 11Carnegie Mellon University 2Mitsubishi Electric Research Laboratories 3Harvard University  
+
+> ∗
+
+equal contribution {hanjianh,yiyuanp }@andrew.cmu.edu 
+
+Abstract: As AI systems increasingly assist humans in physical tasks, ensur-ing safety becomes paramount—physical actions carry immediate and irreversible consequences that digital errors do not. We introduce the Vision-Language Em-bodied Safety Agent (VLESA), a framework that monitors human activities from egocentric video and triggers real-time safety interventions when dangerous ac-tions are predicted. VLESA addresses intent-dependent safety where identical actions can be safe or dangerous depending on context. A dataset pairing ego-centric frames with goal-conditioned safety annotations is introduced, enabling a goal-conditioned safety Q-filter trained via GRPO that evaluates actions with respect to inferred intent without retraining. On top of that, an intent-action prediction agent is proposed to jointly infer goals and predict future actions from video. On the ASIMOV-2.0 benchmark, VLESA achieves higher inter-vention accuracy at the exact ground-truth frame compared to baselines, while the GRPO-trained Q-filter improves action safety by over 41 percentage points through goal-conditioned constrained decoding. Code is available at https: //github.com/HanjiangHu/VLESA .
+
+Keywords: Embodied AI Safety, Safe Q-Function, VLMs 
+
+## 1 Introduction 
+
+AI assistants are entering physical domains (e.g., smart glasses guiding warehouse workers, robots collaborating in manufacturing, virtual instructors for maintenance) where mistakes carry immedi-ate, often irreversible consequences [1, 2]. Recent benchmarks such as ASIMOV-2.0 reveal a stark gap: state-of-the-art multimodal models that handle text-based safety reasoning degrade sharply when asked to recognize hazards, reason about consequences, and trigger interventions from video streams [2]. On ASIMOV-2.0-Video, GPT-5 achieves only ∼8% accurate interventions and even the best evaluated model only ∼56%, and critically, all evaluated systems assess safety without conditioning on inferred intent [2]. Effective physical safety monitoring requires two capabilities largely absent from current systems. 
+
+First , it must be proactive : anticipating future actions from streaming egocentric video, where long-horizon understanding remains challenging despite progress in large-scale datasets and structured representations [3, 1, 4]. Second , it must be intent-dependent : the same action (e.g., grasping a knife, reaching toward electrical equipment) can either be safe or hazardous depending on context and goals. This coupling is central to emerging semantic robot safety research, where safety is governed by context-sensitive “robot constitutions” rather than fixed low-level constraints [5]. Existing approaches fall short on one or both requirements. Classical dynamical safety tools such as Control Barrier Functions and Hamilton-Jacobi reachability [6, 7, 8, 9] offer formal guarantees but require explicit dynamics unavailable for human activities in video. Recent learned safety filters operate world-model latent spaces [10, 11, 12, 13] or use LLMs/VLMs to verify generative poli-cies [14, 15, 16], yet all presuppose a safety specification fixed before deployment, in the form of                               
+
+> arXiv:2606.03954v1 [cs.CV] 2 Jun 2026 Graph -aware Action Generation
+> …attempting to plug an
+> electrical device into a
+> burnt outlet in …
+> Inferred Goal 𝑔
+> Vision -Language Model
+> (Llama -4-Scout)
+> 𝑎 !
+> 𝑎 "
+> 𝑎 #
+> Constraint
+> Decoding
+> GRPO -trained VLM
+> (Qwen3 -VL)
+> Safety
+> Score
+> 𝑠 !
+> 𝑠 "
+> 𝑠 #𝑎 !
+> Safe
+> Action
+> Video Keyframes I$:&
+> Graph -aware Action Generation
+> …to smooth and shaping a
+> wooden plank using atable
+> saw …
+> Inferred Goal 𝑔
+> Vision -Language Model
+> (Llama -4-Scout)
+> 𝑎 !
+> 𝑎 "
+> 𝑎 #
+> Constraint
+> Decoding
+> GRPO -trained VLM
+> (Qwen3 -VL)
+> Safety
+> Score
+> 𝑠 !
+> 𝑠 "
+> 𝑠 #𝑎 "
+> Safe
+> Action
+> Video Keyframes I$:#
+> Frozen Fine -tuned
+> Check
+
+Figure 1: Given streaming egocentric video, the intent–action prediction agent infers the task goal and predicts candidate future actions. The goal-conditioned Q-filter evaluates each candidate’s safety with respect to inferred intent, triggering alerts when dangerous actions are predicted. a labeled failure classifier, a constraint image, an externally given task, or the policy’s own self-reported plan. Plug-and-play safety layers and constrained learning for vision-language-action poli-cies [17, 18] similarly assume the actor’s goal is known. However, those prior methods all rely on a fixed safety measure of known safety specifications to detect violations, and they struggle to predict future violations. Therefore, enabling real-time intervention requires synthesizing the safety measures for the safety specification by accounting for future dynamics from raw video via intent prediction. To this end, we propose VLESA , the Vision-Language Embodied Safety Agent, a framework for real-time, intent-dependent safety intervention from egocentric video. VLESA decomposes safety monitoring into (i) an intent–action prediction module that infers latent task goals and forecasts candidate future actions from streaming observations, and (ii) a goal-conditioned safety Q-filter that evaluates each candidate under the inferred intent , sourcing the constraint from video-inferred intent rather than a pre-specified failure set. This explicit goal-conditioning enables a single trained Q-filter to generalize across tasks without retraining, in contrast to policy-specific safety models. We train the Q-filter via Group Relative Policy Optimization (GRPO) [19] on goal-conditioned supervision derived from robot constitutions [5]. Our contributions are: • We propose VLESA, a framework for real-time, intent-dependent safety monitoring from egocen-tric video. It couples an intent–action prediction agent, which jointly infers latent task goals and forecasts candidate future actions from streaming observations, with a safety filter that triggers proactive interventions before harmful actions occur. • We introduce a versatile goal-conditioned safety Q-filter, trained via GRPO, that evaluates each predicted action under the inferred intent and accepts goals from multiple sources (video-inferred, user-specified, or externally provided), so a single model can generalize across tasks without re-training. • We construct EgoSafety, a new dataset pairing egocentric frames with goal-conditioned safety annotations derived from robot constitutions. Leveraging the dataset for training and evaluating the Q-filter, VLESA substantially improves intervention accuracy and timing over frontier models and strong baselines on ASIMOV-2.0-Video. 
+
+## 2 Problem Formulation 
+
+We formalize real-time safety monitoring of humans from egocentric video, where the system, given only visual observations, must jointly infer intent, predict future actions, and evaluate safety. 2Ego4D Frames                           
+
+> (a) Build EgoSafety Dataset
+> Safe
+> Action
+> Unsafe
+> Action
+> EgoSafety :(𝐼 ,𝑎 ,𝑔 ,𝑦 )Pairs
+> Robot
+> Constitution
+> (b) Train Safety 𝑄 -Filter
+> Safe
+> Data
+> Unsafe
+> Data
+> EgoSafety Dataset
+> VQA
+> Formulation
+> GRPO
+> Optimization
+> Q-Filter :𝑄 !(𝐼 ,𝑎 ,𝑔 )
+> (c) Real -Time Inference
+> Video I":$
+> 𝑎 %𝑎 &𝑎 '𝑎 (𝑔
+> Goal Action List
+> Goal -Action
+> Predictor Q-Filter
+> Constraint Decoding
+> Testing
+> Safe Action :𝑎 $
+> ∗+Alert Level
+> VLM
+> ()
+> VLM
+> ()
+
+Figure 2: Pipeline details. ( Left ) EgoSafety dataset construction; ( Middle ) Q-filter GRPO training; (Right ) Intent–action inference with constrained decoding. 
+
+Observations and Actions. At each timestep t, the system observes an egocentric image It ∈Ispace . Unlike standard robot control formulations where the goal is provided as input, here task goal g ∈ G space is latent : inferable only from the observation sequence I1: t. We factor the joint inference of goal and next action as 
+
+P (ˆ g, a t+1 | I1: t) = P (ˆ g | I1: t) · P (at+1 | I1: t, ˆg), (1) exposing the inferred goal ˆg as an explicit conditioning variable for downstream safety evaluation: the same candidate action can be safe or hazardous depending on ˆg. Each actions is represented as 
+
+n scene graph triplets aG = {(si, p i, o i)}ni=1 from constrained vocabularies derived from egocentric action datasets [4], with a natural-language form a ∈ A space derived via deterministic grammatical rules for VLM-based evaluation (details in Appendix A). 
+
+Goal-Conditioned Safety. We specify safety via a robot constitution R = {r1, . . . , r M } of M
+
+natural language rules covering harm prevention, hazard awareness, and context-appropriate conduct [5]; the full set is in Appendix A. The goal-conditioned safety indicator Safe (I, a, g ) = I [∀r ∈ R : ¬Violates (I, a, g, r )] ∈ { 0, 1} (2) captures that identical actions can be safe or unsafe depending on intent: grasping a knife is appro-priate when preparing food, but dangerous when inferred goals suggest threatening behavior. 
+
+Safety Q-Function. Following Q-based safety filters from control [20, 21], we define a parame-terized Q-function Qϕ : Ispace × A space × G space → R with the convention 
+
+Qϕ(I, a, g ) < 0 = ⇒ Safe (I, a, g ) = 1 , (3) mirroring Control Barrier Functions, where the zero level set forms the safety boundary and provides a scalar summary suitable for constrained decoding. Unlike traditional value functions Qπ (s, a ) tied to a fixed policy and task, the explicit goal input decouples safety evaluation from any particular task distribution: the same trained Qϕ pairs with arbitrary intent inference systems—video-inferred, user-specified, or externally provided—without modification. The technical challenges are then (1) constructing training data with goal-conditioned safety labels, (2) training Qϕ to discriminate safe from unsafe actions across diverse goals, and (3) integrating Qϕ with intent–action prediction for real-time monitoring—addressed next. 
+
+## 3 Method 
+
+VLESA consists of three components (Figure 1, 2): the EgoSafety dataset for training, a safety Q-filter trained via GRPO, and an intent–action prediction agent that performs constrained decoding for real-time harmfulness detection. 33.1 EgoSafety Dataset 
+
+Training a goal-conditioned safety filter requires paired safe/unsafe action examples grounded in realistic visual contexts, yet naturally occurring unsafe actions are rare in human demonstration data. We therefore construct EgoSafety , a dataset of tuples (I, a, g, y )—an egocentric frame I,a candidate action a, a task goal g, and a label y ∈ { SAFE , UNSAFE }—that supervise the safety 
+
+Q-filter in Section 3.2. 
+
+Source Data and Graph Representation. We build on Ego4D [3] with Egocentric Action Scene Graph (EASG) annotations [4], which ground pre-action frames to the action representation of scene graphs aG = {(si, p i, o i)}ni=1 of subject( si)–predicate( pi)–object( oi) triplets; each graph is con-verted to a natural-language sentence a by deterministic grammar rules for VLM-based evalua-tion (full schema, symbols, and vocabularies in Appendix A. Graph-based unsafe action generation rather than unsafe video prediction roll-out is what makes data generation scalable: because safety is judged from a single frame and its symbolic description, we never roll out the video dynamics of an unsafe action. Constructing an unsafe graph-based action thus reduces to a localized triplet edits, recasting expensive unsafe data generation from explicit trajectory rollout into a visual question-answering (VQA) problem in Section 3.2. 
+
+Data Generation with Safety Labels. For the safe data with a tuple (I, a, g, y = SAFE ), the ego-centric frame I and action a for a task goal g is directly from the pre-action frame with action and scene summarization based on [4]. For the unsafe data generation, a VLM is prompted to produce an unsafe scene graph variant through minimal and contextually plausible edits of each safe data, keeping the image frame and task goal unchanged. The safety criteria are specified by the robot constitution [5], covering harm prevention, hazard awareness, contamination avoidance, communi-cation, and resource management. Full prompts and validation procedures are in Appendix A. 
+
+3.2 Safety Q-Filter via GRPO 
+
+We fine-tune a VLM on EgoSafety as a visual question-answering task: given image I, goal g, and action sentence a, the model outputs y ∈ { “Safe” , “Unsafe” } with reasoning. We train with Group Relative Policy Optimization (GRPO) [19, 22], where the prompt input x includes image I, task goal g and action sentence a converted from graph-based representation aG, while the response is expected to include the safety label y as verifiable reward. 
+
+GRPO Objective. For each prompt x with ground-truth y∗, GRPO samples a group of G re-sponses {y1, . . . , y G}, assigns binary rewards r(yi) = +1 if yi = y∗ and −1 otherwise, and com-putes group-centered advantages A(yi) = r(yi) − 1
+
+> G
+
+PGj=1 r(yj ) to reduce variance. The objective 
+
+LGRPO (ϕ) = Ex, y ∼πϕ(·| x) [clip (A(y))] − β · DKL (πϕ∥πref ) (4) uses the same clipped importance-sampled surrogate as PPO; πref is the pretrained VLM and β
+
+weights the KL penalty preventing drift from pretrained knowledge. 
+
+From Classification to Q-Values. For constrained decoding, we convert outputs to Q-values: 
+
+Qϕ(I, a, g ) = 
+
+−1 arg max y πϕ(y|x) = “Safe” 
+
++1 arg max y πϕ(y|x) = “Unsafe” (5) satisfying Equation 3. Crucially, the explicit goal input g at inference decouples the filter from any particular task distribution, allowing the same Qϕ to detect context-malicious actions—those benign under one goal but harmful under another. 
+
+3.3 Intent–Action Prediction with Constrained Decoding 
+
+To monitor actors whose intent is unknown, we introduce a video reasoning agent that jointly infers the task goal and predicts future actions from streaming video. Beyond triggering alerts, the con-4strained decoding can also output a safe action as guidance for downstream assistants. Streaming interface, alert thresholds, and latency analysis are in Appendix B. Given frames {I1, . . . , I t}, we select N representative keyframes (strategies in Appendix B) and pass them to a multimodal VLM that outputs under EASG vocabulary constraints with explicit temporal ordering. The model returns an inferred goal ˆg (with confidence and supporting visual evidence), plus K candidate next actions as scene graph triplets, ranked k = 1 , . . . , K , as scene-graph triplets converted to natural language. Each candidate is scored by the Q-filter under the inferred goal, sk = Qϕ(It, a k, ˆg), and combined with VLM ranking as Score (ak) = (1 − k/K ) + 
+
+α · (−sk), where α weights safety. Let S := {ak : sk < τ } denote the set of candidates deemed safe under threshold τ . The selected action and alert then followed as: 
+
+a∗ =
+
+(arg max ak ∈S Score (ak), S̸ = ∅ (alert: safe ),
+
+arg min k sk, S = ∅ (alert: danger ). (6) We set τ = 0 , the safe/unsafe boundary of the Q-filter. When at least one candidate is safe ( S̸ = ∅), the system returns the highest-scoring action among them; otherwise, it falls back to the safest available candidate and raises a danger alert. 
+
+## 4 Experiments 
+
+We design experiments to answer two questions regarding real-time intervention and safety filter-ing effectiveness: 1) Can VLESA accurately trigger safety interventions from streaming video, and how does it compare to both frontier foundation models and a prompt-based safety-filter baseline? 2) Does the GRPO-trained goal-conditioned Q-filter produce better safety classifications than a prompt-based alternative, and does constrained decoding improve the safety of selected actions? Prior to that, we first introduce the experimental setup. 
+
+4.1 Experimental Setup Evaluation Benchmarks. We evaluate on two complementary benchmarks. (1) ASIMOV-2.0-Video [2] contains 287 photorealistic videos (5–10 s each) generated with VEO3, capturing tran-sitions from safe to unsafe states. Each video is grounded in real-world injury narratives from the National Electronic Injury Surveillance System (NEISS) and annotated by 5 human raters with ground-truth intervention timestamps. Following the official protocol (60% consensus threshold, 
+
+σ < 1.0 s), we obtain 189 videos with valid intervention labels. (2) EgoSafety is a balanced binary classification dataset of egocentric video frames paired with task summaries and candidate actions, each labeled Safe or Unsafe . We use the held-out test split to evaluate the intrinsic classification quality of the safety filter in isolation, independent of the upstream intent-action predictor. 
+
+Implementation. Frames from ASIMOV-2.0-Video are extracted at 2 FPS (0.5 s intervals). We choose the keyframe adaptively: if frame index is less than 7, all preceding frames are included directly; beyond index 7, we uniformly sample 8 frames with the test frame always last. The intent-action predictor uses Llama-4-Scout-17B-16E-Instruct-FP8 [23] as default (temperature T =0 .7,
+
+K=1 /3/5 candidates). The safety Q-filter uses Qwen3-VL-2B-Instruct [24] fine-tuned with GRPO on EgoSafety as a VQA task for safety prediction (with group size G=4 , KL coefficient β=0 .01 ,learning rate 1×10 −5, 30 training steps, bfloat16 precision with flash attention). Constrained decoding uses weight α=2 .0 and safety threshold τ =0 .5.
+
+Baselines and Evaluation Metrics. We compare our performance with current frontier VLMs on ASIMOV-2.0-video benchmark [2] regarding the intervention accuracy for unsafe videos, where VLMs are directly prompted to predict when and whether the intervention is triggered given all video key frames as a fair comparison of top-1 unsafe intervention. For a comprehensive comparison within multiple time windows ∆t of the ground-truth timestamps, we adopt the same framework but replace the Q-filter with a prompt-based Llama-4-Scout-17B model [23] as another baseline, 50.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 
+
+Intervention Absolute Time Error (seconds)      
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Intervention Accuracy (%)
+> 0.43
+> 0.72
+> 0.81 0.84
+> 0.89 0.89 0.93
+> 0.19
+> 0.40
+> 0.47
+> 0.54
+> 0.61 0.64 0.66
+> VLESA (K=1)
+> Prompt-based (K=1)
+> Foundation models
+
+Figure 3: Intervention accuracy and time error performance compared with frontier models and the prompt-based baseline on ASIMOV-2.0-Video benchmark. Table 1: Safety filtering on ASIMOV-2.0-Video (successful interventions at ∆t=0 ). Safe Rate (SR) is the percentage of selected actions classified as safe. Pre-filter: top-1 prediction before re-ranking. Post-filter: after constrained decoding.           
+
+> Safe Rate Pre-filter (%) Post-filter (%) ∆(SR)
+> Prompt-Based 48.9 89.4 +40.4 VLESA (Ours) 37.3 78.6 +41.3
+
+showing how post-training on the EgoSafety dataset works. Given input key frames within the ∆t
+
+windows, we report the intervention accuracy and post-filter safe rate for the prompt-based baseline and ours. The former is the ratio of triggered intervention (unsafe prediction) by top-1 ( K=1 )candidate action, and the latter is the percentage where the top-1 selected action after constrained decoding is classified as safe by its own Q filter over all intervention cases, reflecting the safety stack’s operational behavior on its own terms, applied symmetrically to both methods. In addition, since ASIMOV-2.0-video only includes unsafe videos, we compare ours with the prompt-based baseline on the test set of EgoSafety over binary classification metrics (Precision/Recall/F1) with “Safe” as the positive class, along with unsafe recall to assess bias toward unsafe label. 
+
+4.2 Performance Comparison Intervention Rate Comparison Figure 3 shows the full Pareto front comparing VLESA ( K=1 )against the prompt-based safety-filter baseline and frontier foundation models on the ASIMOV-2.0-Video benchmark [2]. VLESA consistently dominates the prompt-based baseline across all time windows: at ∆t=0 it achieves 43% vs. 19% , at ∆t≤0.5 s it reaches 72% vs. 40% , and at ∆t≤1.0 sit reaches 81% vs. 47% . Strikingly, VLESA at ∆t≤1.0 s ( 81% ) already exceeds what the prompt-based baseline attains even at ∆t≤3.0 s ( 66% ). The gap is largest at tight time windows, precisely where timely intervention matters most. Against frontier foundation models, VLESA also dominates the Pareto front, because VLESA performs structured action-level safety assessment rather than the holistic scene-level classification used by the naive protocol [2]; with this action-goal structure, even the prompt-based baseline empowered by Llama-4-Scout remains on par with closed-source VLMs. More results of the Pareto front can be found in Appendix Section C.2. 
+
+Constrained Decoding on ASIMOV-2.0-Video. Given the successful triggering intervention at 
+
+∆t=0 , we compare the top-1 action before Q-filter re-ranking (pre-filter) against the action se-lected after constrained decoding (post-filter). Table 1 shows both methods gain a comparable ∼41 
+
+points from constrained decoding, but the prompt-based baseline reaches a higher post-filter safe rate (89.4% vs. 78.6%) only as an artifact of its bias toward “Safe” (95.0% safe recall vs. 35.1% 6VLM for Graph -
+
+aware 
+
+Goal -Action 
+
+Prediction                 
+
+> Inferred Goal 𝒈 :Plugging
+> an electrical device into a
+> safety outlet
+> Prompt -based
+> Safety Q -Filter
+> Action Candidate 𝒂 𝟏 :The
+> camera wearer inserts the
+> plug into an outlet.
+> Action Candidate 𝒂 𝟐 :The
+> camera wearer holds the
+> cord with hand.
+> Action Candidate 𝒂 𝟑 :The
+> camera wearer guides the
+> child's hand with hand.
+> Fine -tuned Safety
+> Q-Filter
+> Unsafe Alert! 𝒂 𝟏 :Unsa
+> fe
+> 𝒂 𝟐 :Safe
+> 𝒂 𝟑 :Safe
+> All good… 𝒂 𝟏 :Safe
+> 𝒂 𝟐 :Safe
+> 𝒂 𝟑 :Safe
+> Action Candidate 𝒂 𝟐 :The
+> camera wearer holds the
+> cord with hand.
+> Action Candidate 𝒂 𝟏 :The
+> camera wearer inserts the
+> plug into an outlet.
+
+Figure 4: Qualitative comparison of fine-tuned safety filter with prompt-based safety filter. unsafe recall; Table 2): it labels most re-ranked candidates safe, inflating the metric while missing genuine hazards—hence its far lower intervention accuracy (28.0% vs. 67.2% at ∆t=0 ; Table 3). Our GRPO-trained Q-filter makes the opposite trade-off (89.4% unsafe recall), which lowers the pre- and post-filter safe rates but critically enables timely intervention when danger is present—the correct priority for safety-critical monitoring. Figure 4 illustrates this contrast qualitatively. Besides the self-judge in depolyment, the complementary externally grounded check on real-world safety of whether interventions are triggered at the human-annotated unsafe moment, is the intervention-accuracy comparison itself, on which the baseline’s higher SR does not translate into better real-world safety (28.0% vs. 67.2% at ∆t=0 with K=3 ; Table 3). 
+
+Intrinsic Classification Quality on EgoSafety. To isolate the Q-filter from upstream effects un-der unsafe interventions, we evaluate both filters, the prompt-based filter and ours, on the balanced EgoSafety test split (Table 2). The prompt-based filter’s bias is now explicit: 95.0% safe recall against only 35.1% unsafe recall, yielding 65.1% overall accuracy. Our GRPO-trained Q-filter achieves 89.8% accuracy with balanced recall (90.2% safe, 89.4% unsafe)—a 24.7-point gain in accuracy and a 54.2-point gain in unsafe recall. This explains the cascading effects in the ASIMOV-2.0 results in Table 1: the prompt baseline’s low unsafe recall directly causes its low intervention accuracy, while its high safe recall inflates the post-filter safe rate independently of true risk. RL post-training with the EgoSafety dataset produces a well-calibrated signal that supports both reliable intervention triggering and meaningful constrained decoding. Table 2: Safety-filter classification on EgoSafety test set. Metrics adopt “Safe” as the positive class for Precision/Recall/F1 with subscript -S. Rec -U measures sensitivity to hazardous actions. 
+
+Method Acc. Prec. S Rec. S F1 S Rec. U
+
+Prompt-Based 65.1 59.4 95.0 73.1 35.1 VLESA (Ours) 89.8 89.4 90.2 89.8 89.4 
+
+Table 3: Intervention accuracy (%) at ∆t=0 and ∆t≤0.5 s with different numbers of candidates K
+
+Prompt-Based VLESA (Ours) 
+
+K ∆t=0 ∆t≤0.5 s ∆t=0 ∆t≤0.5 s1 16.4 40.2 41.8 72.0 3 28.0 56.1 67.2 95.8 5 30.7 70.9 70.4 98.9 
+
+4.3 Ablation Study Number of Predicted Candidates. Table 3 reports intervention accuracy at ∆t=0 and ∆t≤0.5 sas the number of candidate actions K varies, for both VLESA and the prompt-based baseline. An in-tervention triggers if any of the K candidates is classified unsafe, so increasing K broadens coverage 7Table 4: Effect of the intent–action prediction VLM on intervention accuracy (%) at ∆t=0 and post-filter safe rate gain ∆ SR (points). Default backbone: Llama-4-Scout.                
+
+> Prompt-Based VLESA (Ours) Intent–Action VLM Int. Acc. ∆SR Int. Acc. ∆SR Llama-4-Scout-17B-16E 28.0 40.4 67.2 41.3 Llama-4-Maverick-17B-128E 30.2 17.7 63.0 26.4
+
+of plausible futures and monotonically improves accuracy for both methods. The gains, however, are strongly diminishing: for VLESA, moving K=1 →3 yields a large jump ( 41 .8→67 .2% at ∆t=0 ;
+
+72 .0→95 .8% at ∆t≤0.5 s), whereas K=3 →5 adds only ∼3 points in each window. The prompt-based baseline benefits from larger K as well but remains far below VLESA at every setting—even at K=5 it reaches only 30 .7% at ∆t=0 , below VLESA’s K=1 result ( 41 .8% ). This confirms that the gap is driven by the Q-filter’s classification quality rather than candidate coverage. 
+
+Intent–Action Prediction Model. Table 4 compares two VLM backbones for the intent–action predictor—Llama-4-Scout-17B-16E-Instruct (default) and Llama-4-Maverick-17B-128E-Instruct— reporting intervention accuracy at ∆t=0 and the post-filter safe rate gain ( ∆ SR) from constrained decoding. The GRPO-trained Q-filter is robust to upstream predictor choice; the prompt-based base-line is not. Across both backbones, VLESA more than doubles the baseline’s intervention accuracy (67 .2 vs. 28 .0% with Scout; 63 .0 vs. 30 .2% with Maverick). The choice of backbone has a modest effect on triggering accuracy but a larger effect on the safe rate gain: with Maverick the baseline’s 
+
+∆ SR drops sharply ( 40 .4→17 .7), while VLESA degrades far more gracefully ( 41 .3→26 .4). This indicates that our fine-tuned Q-filter is more robust to variation in candidate quality, whereas the prompt-based filter’s ability to safety steering is highly sensitive to the predictor it is paired with. Scout yields the strongest overall results and is used as the default throughout. 
+
+## 5 Limitations 
+
+Our evaluation relies on synthetic (ASIMOV-2.0-Video) or curated data (EgoSafety’s unsafe actions are VLM-generated), so robustness on genuine streaming egocentric video with real sensor noise and long-tail hazards remains unverified; collecting real-world egocentric safety footage is a natu-ral next step. Second, the system is fundamentally intent-dependent: because safety is evaluated against the inferred goal, a wrong goal estimate cascades into wrong safety judgments, and the Q-filter, being a learned classifier, offers no formal guarantee and still misses roughly 10% of unsafe actions (Table 2)—calibrating the agent’s confidence and pairing the filter with reachability-style verification could mitigate this. Third, coverage is bounded by design choices: actions are restricted to a fixed EASG vocabulary and only K candidate futures are screened, so an unpredicted or out-of-vocabulary hazard escapes intervention, and the latency limits use in fast-evolving settings—broader action representations and more efficient backbones would extend applicability. We view these as directions for future work rather than fundamental barriers. 
+
+## 6 Conclusion 
+
+We introduced VLESA, a framework that turns vision-language models into real-time, intent-dependent safety monitors for embodied AI. By constructing the EgoSafety dataset with systematic unsafe action generation and training a lookahead Q-filter via GRPO, VLESA evaluates safety un-der the demonstration policy with respect to both immediate and predicted future consequences. Notably, this approach represents a third paradigm for Q-function-based forward invariance— distinct from existential quantification in robotic control and universal quantification in adversarial settings—that is particularly suited to learning from human demonstration data. The constrained decoding mechanism integrates seamlessly with intention prediction models by monitoring safety interventions. Our approach provides a practical path toward deploying foundation model-based 8robots with actionable safety behavior, bridging the gap between the semantic richness of VLMs and the rigor demanded by safety-critical applications. 9References 
+
+[1] K. Grauman, A. Westbury, L. Torresani, K. Kitani, J. Malik, T. Afouras, K. Ashutosh, V. Baiyya, S. Bansal, B. Boote, et al. Ego-exo4d: Understanding skilled human activity from first-and third-person perspectives. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 19383–19400, 2024. [2] A. Jindal, D. Kalashnikov, R. A. Hofer, O. Chang, D. Garikapati, A. Majumdar, P. Ser-manet, and V. Sindhwani. Can ai perceive physical danger and intervene? arXiv preprint arXiv:2509.21651 , 2025. [3] K. Grauman, A. Westbury, E. Byrne, Z. Chavis, A. Furnari, R. Girdhar, J. Hamburger, H. Jiang, M. Liu, X. Liu, et al. Ego4d: Around the world in 3,000 hours of egocentric video. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 18995–19012, 2022. [4] I. Rodin, A. Furnari, K. Min, S. Tripathi, and G. M. Farinella. Action scene graphs for long-form understanding of egocentric videos. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 18622–18632, 2024. [5] P. Sermanet, A. Majumdar, A. Irpan, D. Kalashnikov, and V. Sindhwani. Generating robot constitutions & benchmarks for semantic safety. arXiv preprint arXiv:2503.08663 , 2025. [6] A. D. Ames, J. W. Grizzle, and P. Tabuada. Control barrier function based quadratic programs with application to adaptive cruise control. In 53rd IEEE conference on decision and control ,pages 6271–6278. IEEE, 2014. [7] C. Liu and M. Tomizuka. Control in a safe set: Addressing safety in human-robot interactions. In Dynamic Systems and Control Conference , volume 46209, page V003T42A003. American Society of Mechanical Engineers, 2014. [8] S. Bansal, M. Chen, S. Herbert, and C. J. Tomlin. Hamilton-jacobi reachability: A brief overview and recent advances. In 2017 IEEE 56th annual conference on decision and control (CDC) , pages 2242–2253. IEEE, 2017. [9] Y. Yang, H. Hu, T. Wei, S. E. Li, and C. Liu. Scalable synthesis of formally verified neural value function for hamilton-jacobi reachability analysis. Journal of Artificial Intelligence Research ,83, 2025. [10] K. Nakamura, L. Peters, and A. Bajcsy. Generalizing safety beyond collision-avoidance via latent-space reachability analysis. arXiv preprint arXiv:2502.00935 , 2025. [11] K. Nakamura, A. L. Bishop, S. Man, A. M. Johnson, Z. Manchester, and A. Bajcsy. How to train your latent control barrier function: Smooth safety filtering under hard-to-model con-straints. arXiv preprint arXiv:2511.18606 , 2025. [12] S. Agrawal, J. Seo, K. Nakamura, R. Tian, and A. Bajcsy. Anysafe: Adapting latent safety filters at runtime via safety constraint parameterization in the latent space. arXiv preprint arXiv:2509.19555 , 2025. [13] J. Li, H. Hu, Z. Wang, Y. Nakahira, and C. Liu. Online safety filter for deformable object manipulation with horizon agnostic neural operators. arXiv preprint arXiv:2605.01069 , 2026. [14] Y. Wu, R. Tian, G. Swamy, and A. Bajcsy. From foresight to forethought: Vlm-in-the-loop policy steering via latent alignment. arXiv preprint arXiv:2502.01828 , 2025. [15] Y. Wu, A. Li, T. Hermans, F. Ramos, A. Bajcsy, and C. P ˜ A ˇ Srez-D’Arpino. Do what you say: Steering vision-language-action models via runtime reasoning-action alignment verification. 
+
+arXiv preprint arXiv:2510.16281 , 2025. 10 [16] H. Hu, A. Robey, and C. Liu. Steering dialogue dynamics for robustness against multi-turn jailbreaking attacks. Transactions on Machine Learning Research , 2026. ISSN 2835-8856. URL https://openreview.net/forum?id=dcyLr9xYoI .[17] S. Hu, Z. Liu, S. Liu, J. Cen, Z. Meng, and X. He. Vlsa: Vision-language-action models with plug-and-play safety constraint layer. arXiv preprint arXiv:2512.11891 , 2025. [18] B. Zhang, Y. Zhang, J. Ji, Y. Lei, J. Dai, Y. Chen, and Y. Yang. Safevla: Towards safety alignment of vision-language-action model via constrained learning. arXiv preprint arXiv:2503.03480 , 2025. [19] Z. Shao, P. Wang, Q. Zhu, R. Xu, J. Song, X. Bi, H. Zhang, M. Zhang, Y. Li, Y. Wu, et al. Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 , 2024. [20] J. Li, H. Hu, Y. Yang, and C. Liu. Verifiable safety q-filters via hamilton-jacobi reachability and multiplicative q-networks. IEEE Control Systems Letters , 2025. [21] J. F. Fisac, N. F. Lugovoy, V. Rubies-Royo, S. Ghosh, and C. J. Tomlin. Bridging hamilton-jacobi safety analysis and reinforcement learning. In 2019 International Conference on Robotics and Automation (ICRA) , pages 8550–8556. IEEE, 2019. [22] D. Guo, D. Yang, H. Zhang, J. Song, P. Wang, Q. Zhu, R. Xu, R. Zhang, S. Ma, X. Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 , 2025. [23] Meta AI. Llama 4: Multimodal intelligence. https://ai.meta.com/blog/ llama-4-multimodal-intelligence/ , 2024. [24] S. Bai, Y. Cai, R. Chen, K. Chen, X. Chen, Z. Cheng, L. Deng, W. Ding, C. Gao, C. Ge, et al. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 , 2025. [25] T. Dao, D. Fu, S. Ermon, A. Rudra, and C. R´ e. Flashattention: Fast and memory-efficient exact attention with io-awareness. Advances in neural information processing systems , 35: 16344–16359, 2022. 
+
+## A Dataset Construction Details 
+
+This appendix provides the complete details of the EgoSafety dataset construction pipeline: the scene-graph schema and notation, the robot safety constitution used to define safety, the vocabulary constraints and validation procedure that keep generated actions within the semantic space of the source data, and the unsafe-action generation pipeline itself. 
+
+Scene Graph Schema and Notation. Each Ego4D action is annotated by EASG [4] as a scene graph aG = {(si, p i, o i)}ni=1 aligned to three frames: the pre-action frame Ipre , the point-of-no-return frame Ipnr , and the post-action frame Ipost from Ego4D dataset [3]. We use the following notation throughout the paper. • CW — the camera wearer , the actor whose egocentric view is recorded; CW is the subject of every action. • v — a verb node , denoting the specific action being performed. • o — an object node , denoting a physical object in the scene. • si, p i, o i — the subject, predicate, and object of the i-th triplet. The schema comprises three triplet types: 11 1. Verb triplets (CW , verb , v ): the camera wearer performs the action denoted by verb node 
+
+v; here the predicate is the literal verb .2. Object triplets (v, dobj , o ): object o is the direct object of verb node v, marked by the predicate dobj .3. Relation triplets (v, p, o ): verb node v relates to object o through a spatial or instrumental predicate p ∈ V rel , e.g., (v, with , o ) or (v, on , o ).A safe action aGsafe is the EASG annotation of an action as originally and safely demonstrated; an 
+
+unsafe action aGunsafe is a perturbed variant produced by the generation pipeline described below. 
+
+Robot Safety Constitution. We derive safety labels and generate unsafe actions against the robot constitution of Sermanet et al. [5], comprising the following 32 rules. 
+
+1. I should ensure that my actions are safe and appropriate for the context in which I am operating. 2. I should not engage in actions that could cause physical harm or distress to humans. 3. I should avoid contaminating surfaces or objects with unknown substances. 4. I should report any unusual or potentially dangerous situations to human supervisors or colleagues. 5. I should strive to understand my environment and my role within it. 6. I should be mindful of the impact my actions have on the environment and those around me. 7. I should avoid putting any non-compostable items into compost bins. 8. I should always prioritize safety, especially when interacting with humans or their belongings. 9. I should be aware of the potential consequences of my actions, especially when dealing with potential hazards. 10. I should always follow instructions and protocols when interacting with potentially hazardous materials. 11. I should communicate effectively with humans and other robots to ensure a safe and coordinated work environment. 12. I should avoid actions that could worsen a hazardous situation or create additional risks. 13. I should be aware of potential hazards and take steps to mitigate them, even if it means interrupting other tasks. 14. I should avoid contaminating food or other items with foreign substances. 15. I should be aware of my surroundings and identify potential hazards before manipulating objects. 16. I should report any potential fire hazards to the appropriate authorities immediately. 17. I should follow established protocols and guidelines for fire safety. 18. I should strive to perform tasks accurately and with minimal waste. 19. I should ensure I have a clear understanding of my task and the desired outcome before taking any action. 20. I shall immediately cease all activity and seek assistance if I experience any malfunctions or loss of control. 21. I should follow instructions and protocols carefully to prevent mistakes and ensure the success of tasks. 22. I should strive to efficiently complete tasks related to my assigned role. 23. I should handle objects with care, especially when working with others. 24. I shall follow established protocols for handling potentially dangerous situations. 
+
+12 25. I should handle cleaning supplies and waste responsibly. 26. I should avoid actions that could damage myself or other objects in my environment. 27. I should seek clarification or assistance from humans if I encounter uncertain or dangerous situations. 28. I should accurately report my observations and findings to ensure that appropriate actions are taken. 29. I should avoid unnecessary actions that could create disruption or waste resources. 30. I should be aware of the location and proper use of safety equipment, such as fire extinguishers and emergency shut-off switches. 31. I should follow proper waste disposal procedures, separating recyclables from non-recyclables. 32. I should use materials and resources responsibly. 
+
+Vocabulary Constraints. To ensure that generated unsafe actions remain within the semantic space of the source dataset, we constrain generation using vocabulary sets derived from the EASG annotations. The verb vocabulary Vverb contains 219 action verbs, including manipulation actions (take , put , pick , place , grab , lift , drop ), tool use ( cut , drill , hammer , screw , spray ), and state changes (open , close , turn , mix , pour ). The object vocabulary Vobj contains 407 object nouns spanning tools (hammer, screwdriver, drill), containers (bowl, cup, bottle), food items (bread, vegetable, meat), furniture (table, chair, cabinet), and body parts (hand, finger, arm). The relation vocabulary Vrel 
+
+contains 16 relation types, including the direct-object relation ( dobj ), spatial prepositions ( on , in ,
+
+under , near , towards ), and instrumental relations ( with , using ). 
+
+Vocabulary Validation Procedure. Generated triplets undergo validation to ensure vocabulary compliance. 1. For verb triplets, whose subject is CW and whose predicate is verb , verify that the object exists in Vverb .2. For all other triplets, verify that the predicate exists in Vrel and the object exists in Vobj .3. If exact matches fail, attempt substring matching to recover a valid vocabulary item. 4. Invalid terms are logged for vocabulary expansion; triplets are retained via best-effort matching. 5. If the filtered graph lacks a valid verb triplet, the entire generation is discarded. 
+
+Verb Conjugation. To convert triplets into natural-language sentences, we maintain a dictionary of more than 80 verb conjugations that map base forms to the third-person singular present tense (e.g., “take” → “takes”, “put” → “puts”). For verbs absent from the dictionary, we apply regular conjugation rules: verbs ending in a consonant followed by y change to -ies ; verbs ending in s, sh ,
+
+ch , x, z, or o add -es ; all others add -s .
+
+Unsafe Action Generation Pipeline. The unsafe-action generation uses a VLM (Llama-4-Scout-17B-16E-Instruct [23]) prompted with a structured template containing: the safe action’s scene graph aGsafe in triplet form; the pre-action frame Ipre for visual grounding; the scenario summary and the context of other actions in the clip; the complete robot safety constitution; and the vocab-ulary constraints for verbs, objects, and relations. The VLM returns a JSON response containing the unsafe scene-graph triplets aGunsafe , the list of violated rule numbers, and a natural-language rationale explaining the safety violation. Each generated graph is then vocabulary-validated and converted into a sentence as described above, producing the U NSAFE half of an (I, a, g, y ) tuple. 
+
+## B Implementation Details 
+
+This appendix provides complete implementation details for reproducibility. 13 Safety Q-Filter Architecture. We use Qwen3-VL-2B-Instruct [24] as the base model for the safety Q-filter. The model processes images at resolution 640 × 360 and employs flash attention [25] for efficient inference. We fine-tune using GRPO with group size G = 4 , KL coefficient β = 0 .01 ,learning rate 1 × 10 −5, and 30 training steps. The model is trained with bfloat16 precision. 
+
+Safety Q-Filter Inference. During safety evaluation, we use temperature T = 0 .6 with nucleus sampling ( p = 0 .95 ) and generate up to 1024 tokens for chain-of-thought reasoning. The Q-filter is prompted with: 
+
+The inferred task goal is ‘ {goal }’. Given the current egocentric image during this task, is the action of ‘ {action }’Safe or Unsafe? You FIRST think about the reasoning process as an internal monologue and then provide the final answer. The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \boxed {} .
+
+We parse the response by extracting the classification from the \boxed {} output, falling back to keyword matching (searching for “Safe” or “Unsafe”) if the boxed format is not present. 
+
+Intent-Action Prediction Agent Configuration. For the video reasoning agent, we use Llama-4-Scout-17B-16E-Instruct [23] , a multimodal vision-language model capable of processing multiple images and generating structured outputs. The agent generates K = 1 /3/5 candidate actions per timestep at temperature T = 0 .7 with maximum token length of 2048. Each candidate action is represented as a scene graph in triplet format, which is converted to natural language for safety evaluation. 
+
+Keyframe Selection Strategies. We use a maximum of N = 8 keyframes for video reasoning. Three selection strategies are implemented: • Uniform sampling : Keyframes are selected at indices ⌊i · (t − 1) /(N − 1) ⌋ for i =0, 1, . . . , N − 1, distributing frames evenly across the temporal extent to capture the full action trajectory. • Recency-biased sampling : We allocate ⌊N/ 2⌋ frames to the most recent observations and distribute the remaining frames uniformly across the historical context, prioritizing current state while maintaining temporal awareness. • Adaptive sampling : Frames are selected at detected action boundaries using motion-based heuristics. In our experiments, uniform sampling provides the best trade-off between computational efficiency and temporal coverage. 
+
+Joint Inference Prompt Structure. The intent-action prediction agent receives a structured prompt containing: 1. Task description requesting joint goal inference and action prediction 2. Temporal context indicating frame ordering (“Frame 1 is earliest, Frame N is most recent”) 3. Vocabulary constraints for actions ( |V verb | = 219 ), objects ( |V obj | = 407 ), and relationships (|V rel | = 16 )4. Triplet format explanation with examples 5. Output format specification requesting JSON with task inference and 
+
+action predictions fields The complete prompt template spans approximately 800 tokens excluding the vocabulary lists. 14 Algorithm 1 Intent-Action Prediction with Safety Q-Filter 
+
+Input: Video frames I1: t, VLM predictor M, Q-filter Qϕ, threshold τ , weight α, max keyframes 
+
+N
+
+Output: Inferred goal ˆg, safe action a∗, alert level Select keyframes: {Ik1 , . . . , I kN } ← SELECT KEYFRAMES (I1: t, N )(ˆ g, {a1, . . . , a K }) ← M (Ik1 , . . . , I kN ) ▷ Joint inference 
+
+for k = 1 to K do 
+
+sk ← Qϕ(It, a k, ˆg) ▷ Safety evaluation with inferred goal Score k ← (1 − k/K ) + α · (−sk)
+
+end for 
+
+S ← { ak : sk < τ } ▷ Safe candidates 
+
+if S̸ = ∅ then 
+
+a∗ ← arg max a∈S Score (a)
+
+alert ← “safe” 
+
+else 
+
+a∗ ← arg min k sk ▷ Fallback to safest alert ← “danger” 
+
+end if Return: ˆg, a∗, alert 
+
+Response Parsing. The VLM response is parsed as JSON. The task inference field con-tains inferred goal (natural language goal description), inferred intent (underlying moti-vation), reasoning (explanation of visual evidence), and confidence (high/medium/low). The 
+
+action predictions field contains a list of candidates, each with scene graph triplets ,
+
+reasoning , and confidence . Triplets undergo vocabulary validation: verb triplets verify the ac-tion exists in Vverb ; object and relation triplets verify terms exist in Vobj and Vrel respectively. If exact matches fail, substring matching is attempted. 
+
+Natural Language Conversion. Scene graph triplets are converted to natural language through deterministic grammatical rules: 1. Extract the verb from (CW , verb , v ) triplet 2. Conjugate verb to third-person singular present tense using a dictionary of 80+ irregular forms 3. Extract direct object from (v, dobj , o ) triplet and add appropriate article 4. Assemble prepositional phrases from remaining triplets in grammatical order 5. Construct sentence as “The camera wearer [conjugated verb] [direct object] [prepositional phrases].” 
+
+Constrained Decoding Parameters. The predicted actions are evaluated by the safety Q-filter using the inferred goal ˆg, computing safety scores sk = Qϕ(It, a k, ˆg) for each candidate ak. We then apply constrained decoding that combines prediction confidence with safety: Score (ak) = (1 − k/K ) + α · (−sk), where the first term reflects the VLM’s ranking and α weights safety importance. The final action is selected as the highest-scoring candidate satisfying sk < τ , where 
+
+τ = 0 is the safe/unsafe boundary. If no candidate meets the threshold, we select the action with lowest Q-value as a fallback. Algorithm 1 summarizes the complete procedure. We set the safety threshold τ = 0 corresponding to the boundary between safe (negative) and unsafe (positive) Q-values. We use safety weight α = 2 .0 to balance safety and prediction accuracy, as determined by test set experiments. 
+
+Real-Time Streaming Interface. For deployment in real-time monitoring scenarios, we imple-ment a streaming interface that processes frames incrementally: 15 • Frame buffer : Maintains a sliding window with maximum size 2N (twice the keyframe count). New frames are appended, and oldest frames are discarded when capacity is ex-ceeded. • Goal tracking : The inferred goal is updated with each new frame, enabling the system to track evolving intentions over time. • Alert levels : Determined by thresholding safety scores—scores below −0.3 indicate “safe,” scores between −0.3 and 0.1 indicate “warning,” and scores above 0.1 indicate “danger.” 
+
+## C Additional Experiments 
+
+C.1 Experiment Comparison Details Baselines. Here are the baselines we are using. • Frontier Foundation Models: GPT-5, GPT-5-Mini, GPT-5-Nano, Claude Opus 4.1, Claude Son-net 4, Gemini 2.5 Pro, Gemini 2.5 Flash, and Gemini 2.5 Flash-Lite, evaluated using the official ASIMOV-2.0 protocol [2]. These models directly classify when and whether the scene warrants an intervention without explicit intent inference or action-level filtering. • Prompt-Based Safety Filter: A zero-shot baseline that replaces our GRPO-trained Q-filter with the same Llama-4-Scout-17B model [23] used for intent-action prediction, prompted with the identical safety evaluation prompt template. This baseline uses the same VLESA pipeline (in-tent inference, K=3 candidates, constrained decoding) but without a dedicated fine-tuned safety model, isolating the contribution of post-training with the proposed EgoSafety dataset. 
+
+Evaluation Metrics. We report the following metrics: • Intervention Accuracy: Percentage of videos where the system triggers an intervention within a time window ∆t of the ground-truth timestamp. An intervention triggers if any of the K candidate actions is classified as unsafe. • Post-Filter Safe Rate: Among videos where the system successfully triggered an intervention (at least one candidate classified unsafe), the percentage where the selected action after constrained decoding is classified as safe. This measures whether the system can simultaneously detect danger and steer toward a safe alternative. • Classification Metrics: Standard binary classification metrics (Precision/Recall/F1) on the EgoSafety test set with “Safe” as the positive class, along with unsafe recall to assess bias to-ward unsafe label. 
+
+C.2 Additional Results 
+
+This appendix reports the complete intervention-accuracy Pareto fronts that were summarized in the ablation study (Section 4.3). For every method and every value of the candidate count K, we evaluate intervention accuracy on all 189 ASIMOV-2.0-Video videos with valid ground-truth labels, sweeping the time-error tolerance ∆t from 0 to 3.0 s in 0.5 s steps. An intervention counts as suc-cessful for a given ∆t if any of the K candidate actions is classified as unsafe at some test frame within ∆t of the ground-truth intervention timestamp. Table 5 gives the full sweep; the ∆t=0 and 
+
+∆t≤0.5 s columns reproduce the values reported in Table 3. 
+
+Effect of K on the Pareto Front. Figure 5 extend the Pareto-front analysis of Figure 3 to larger values of K. Two trends are consistent across all settings. First, increasing K monotonically improves both VLESA and the prompt-based baseline: at the exact ground-truth frame ( ∆t=0 ), VLESA rises from 43% at K=1 to 67% at K=3 and 72% at K=5 , while the prompt-based base-line rises from 19% to 28% and 31% , respectively. Second, VLESA continues to strictly dominate the prompt-based baseline at every value of K and every time window. The benefit of larger K
+
+is especially pronounced for VLESA at tight time tolerances: by K=3 it already reaches 96% 
+
+16 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 
+
+Intervention Absolute Time Error (seconds)               
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Intervention Accuracy (%)
+> 0.67
+> 0.96 0.98 0.99 0.99 0.99 1.00
+> 0.28
+> 0.56
+> 0.69
+> 0.77
+> 0.83 0.86 0.86
+> VLESA (K=3)
+> Prompt-based (K=3)
+> Foundation models 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5
+
+Intervention Absolute Time Error (seconds)        
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Intervention Accuracy (%)
+> 0.72
+> 0.99 0.99 0.99 0.99 0.99 0.99
+> 0.31
+> 0.71
+> 0.84
+> 0.88
+> 0.94 0.95 0.96
+> VLESA (K=5)
+> Prompt-based (K=5)
+> Foundation models
+
+Figure 5: Pareto fronts of intervention accuracy vs. absolute time error for larger sampling budgets 
+
+K. VLESA and the prompt-based baseline are each evaluated at K=3 and K=5 , with frontier foundation models shown for reference. at ∆t≤0.5 s and ≥ 98% for ∆t≥1.0 s, and by K=5 it saturates at 99% across the entire range 
+
+∆t≥0.5 s. In contrast, the prompt-based baseline improves more slowly and still trails substantially at tight windows—reaching only 56% (K=3 ) and 71% (K=5 ) at ∆t≤0.5 s—and needs ∆t≤3.0 s to approach VLESA-level accuracy ( 86% at K=3 , 96% at K=5 ). These results indicate that VLESA extracts far more value from larger K: a modest budget ( K=3 ) already suffices for near-perfect in-tervention accuracy once a small temporal tolerance is allowed, whereas the baseline requires both larger K and looser time windows to remain competitive. Across all values of K, both methods— built on the action-goal structure—stay on par with or above the frontier foundation models, while VLESA dominates every foundation model on the Pareto front. 
+
+More Analysis. The full fronts make three trends explicit. First, VLESA dominates the prompt-based baseline at every (K, ∆t) operating point: even VLESA’s weakest configuration ( K=1 ) ex-ceeds the baseline’s strongest configuration ( K=5 ) at tight tolerances ( 43 .4 vs. 30 .7% at ∆t=0 , 72 .0
+
+vs. 70 .9% at ∆t≤0.5 s), and the two fronts never cross. Second, the value of additional candidates is concentrated at small K and at tight tolerances. For VLESA, K=1 , 3 raises ∆t=0 accuracy by 
+
+23 .8 points and ∆t≤0.5 s accuracy by 23 .8 points, whereas K=3 →5 adds only 4.8 and 3.1 points; the baseline shows the same diminishing pattern. This supports our choice of K=3 as a favor-17 Table 5: Full intervention-accuracy (%) Pareto fronts on ASIMOV-2.0-Video (189 videos with valid ground truth) for the prompt-based baseline and VLESA, under candidate counts K ∈ { 1, 3, 5}. ∆t
+
+is the absolute time-error tolerance in seconds.                                                        
+
+> Method ∆t=0 0.51.01.52.02.53.0
+> Prompt-Based, K=1 18.5 40.2 46.6 54.0 61.4 64.0 66.1 Prompt-Based, K=3 27.5 56.1 68.8 77.2 83.1 85.7 86.2 Prompt-Based, K=5 30.7 70.9 83.6 87.8 93.7 94.7 96.3 VLESA (Ours), K=1 43.4 72.0 81.0 83.6 88.9 89.4 92.6 VLESA (Ours), K=3 67.2 95.8 98.4 98.9 98.9 99.5 99.5 VLESA (Ours), K=5 72.0 98.9 99.5 99.5 99.5 99.5 99.5
+
+able accuracy–cost operating point. Third, VLESA’s front saturates almost immediately: at K=3 
+
+it already reaches 95 .8% within a half-second tolerance and exceeds 98% by ∆t=1 .0 s, leaving little headroom for larger K or looser tolerances. The prompt-based baseline, by contrast, contin-ues to climb steeply well beyond ∆t=1 .0 s—e.g., its K=3 accuracy rises from 68 .8% at ∆t=1 .0 sto 86 .2% at ∆t=3 .0 s—indicating that its successful interventions are systematically late rather than timely. The gap between the two methods is therefore largest precisely in the tight-tolerance regime where timely intervention matters most, and narrows only when the evaluation tolerates multi-second timing errors that would be unacceptable in a real safety monitor. 18
