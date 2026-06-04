@@ -1,0 +1,394 @@
+Title: See, Infer, Intervene: Proactive World Modeling for Goal-Oriented Social Intelligence
+
+URL Source: https://arxiv.org/pdf/2606.03371v1
+
+Published Time: Wed, 03 Jun 2026 01:06:25 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+## See, Infer, Intervene: Proactive World Modeling for Goal-Oriented Social Intelligence 
+
+Honghui Zhang 1, Chenmeinian Guo 1, Yichen Yu 1, Guanyu Liu 1, Yongming Qin 1,Chongguo Song 1, Mengyue Yang 2, Lei Yu 3, Tianyu Shi 41Mita Technology 2University of Bristol 3University of Toronto 4McGill University  
+
+> Correspondence: tianyu.shi3@mcgill.ca
+
+Abstract 
+
+Multimodal retail agents should not only recog-nize what a customer is doing, but also decide whether and how to assist before an explicit re-quest is made. We study this setting through the See–Infer–Intervene (SII) framework, where a device must see pre-interaction behavior, in-fer latent customer intent, and act by selecting an appropriate service intervention or choos-ing to wait. We instantiate SII with the Proac-tive Intent World Model (PIWM), which rep-resents customer state with AIDA (Attention, Interest, Desire, Action) purchasing phases and BDI (belief, desire, intention) psychological fields, predicts action-conditioned intent tran-sitions, and selects from five response classes: GREET , E LICIT , I NFORM , R ECOMMEND , and HOLD . We further construct GuidanceSales-Bench, a smart-retail benchmark containing state manifests, pre-interaction videos, candi-date responses, action-conditioned outcomes, and best-action labels. When conditioned on ground-truth customer state to isolate action se-lection, PIWM achieves 0.641 macro F1 on 30 held-out target videos, outperforming a zero-shot Qwen2.5-VL-7B baseline and training variants without balanced action supervision; end-to-end video-only selection drops to 0.295, below the 5-class balanced random baseline of 0.414, identifying video-to-state grounding as the dominant deployment-time bottleneck. A preliminary staged real-store pilot (recorded with paid participants performing scripted cus-tomer behaviors) reaches 0.579 action macro F1 on 20 fully annotated videos, with 10 ad-ditional accessible videos released with index-level labels. 
+
+1 Introduction 
+
+Intelligent retail systems are increasingly expected to provide assistance before customers issue ex-plicit requests (Deng et al., 2023; Yang et al., 2025). This setting differs from conventional command-driven interaction: a customer may pause in front 
+
+Figure 1: Motivating example for proactive retail inter-vention. 
+
+of a device, compare products, shift gaze across shelves, approach the screen, or hesitate before pur-chase, but none of these behaviors is a click, scan, or verbal query. A system that waits passively can miss the service window, whereas a system that intervenes too early can interrupt the customer or create sales pressure (Bailey et al., 2000, 2001). The central problem is therefore not only recogni-tion, but proactive decision making: from a short pre-interaction observation, the agent must infer the customer’s state and decide whether an inter-vention would be helpful (Novick and Sutton, 1997; Horvitz, 1999). Current multimodal models(Lin et al., 2024; Maaz et al., 2024) are strong observers but are not designed as proactive retail agents(Mathur et al., 2024). Given an image or video, they can describe visible behavior or answer questions, yet this de-scriptive ability does not directly specify what the device should do next. Proactive assistance re-1
+
+> arXiv:2606.03371v1 [cs.CL] 2 Jun 2026
+
+quires three additional capabilities: modeling latent customer intent beyond visible motion, comparing multiple candidate responses, and predicting how each response may change the customer’s future state. Without this action-conditioned reasoning, a model may produce plausible descriptions while still choosing an intrusive or mistimed service ac-tion(Yao et al., 2022b). We organize this problem as an SII framework: a device should see customer behavior, infer latent in-tent, and intervene only after evaluating candidate responses. The key technical view is to treat proac-tive retail assistance as intent-level world modeling. World models predict future states under candidate actions (Ha and Schmidhuber, 2018; Hafner et al., 2019), and recent World Action Models connect state prediction with action generation (Wang et al., 2026; Ye et al., 2026). However, existing work mainly targets physical control, where actions are motor commands and outcomes are physical state changes. In retail interaction, actions are commu-nicative service moves, and the relevant outcomes are changes in intent, uncertainty, receptiveness, and purchase readiness. We instantiate SII with the Proactive Intent World Model (PIWM) . Given a pre-interaction observation, PIWM estimates a structured cus-tomer state, predicts the outcome of each candi-date device response, and selects the best response from a constrained intervention set. The state combines AIDA purchasing phases with BDI psy-chological fields (Barry, 1987; Rao et al., 1995). The action space contains five device responses: GREET , E LICIT , I NFORM , R ECOMMEND , and HOLD . Treating H OLD as an action is important be-cause non-intervention can be the correct decision when the customer is browsing smoothly. To train and evaluate this formulation, we con-struct GuidanceSalesBench , a smart-retail bench-mark that records the structured decision process rather than only the observed scene (Rouhi et al., 2026; Singh et al., 2016). Each instance links a customer state manifest, a pre-interaction video prompt and video, an AIDA-conditioned candi-date response set, action-conditioned outcomes, and a best-action label. Experiments on Target-Test (n=30, 30 held-out target-domain videos) show that PIWM reaches 0.641 macro F1 for best-action se-lection when given the ground-truth customer-state representation, compared with 0.313 for Qwen2.5-VL-7B (zero-shot) and 0.390 for a Small-Scale Action Training variant; without oracle state, the Target-Test E2E setting reaches 0.295. We addi-tionally evaluate transfer on a real-store pilot: 30 accessible paid-participant videos are released as sparse frames, 20 have full session-level annota-tions for the primary sim-to-real metric, and 10 have index-level labels only. Our contributions are threefold. First, we formu-late multimodal retail marketing as an SII prob-lem that requires seeing customer behavior, in-ferring intent, and acting through low-intrusion response selection. Second, we propose PIWM, an intent-level world model that predicts action-conditioned customer-state transitions over an AIDA–BDI schema and a five-class device action space. Third, we introduce GuidanceSalesBench and an evaluation protocol for state prediction, out-come simulation, and proactive action selection. 
+
+2 Related Work 
+
+2.1 World Models and World Action Models 
+
+World models learn environment representations and transition dynamics for prediction, planning, and policy learning. Ha and Schmidhuber (Ha and Schmidhuber, 2018) learn a latent model that compresses visual observations and predicts fu-ture latent states with recurrent dynamics, while Dreamer (Hafner et al., 2019) learns behaviors from imagined latent trajectories. Recent World Action Models further combine dynamics model-ing with action generation (Wang et al., 2026; Ye et al., 2026), targeting embodied AI, robotic ma-nipulation, autonomous driving, and other physical control tasks. PIWM also uses action-conditioned future sim-ulation, but differs in task grounding. Vision-language-action systems such as RT-2 (Brohan et al., 2023), OpenVLA (Kim et al., 2024), and 
+
+π0 (Black et al., 2024) map observations and in-structions to motor actions. PIWM instead targets communicative service interventions in a single-customer retail setting, where success is best re-sponse selection under customer-state constraints and non-intervention is explicitly represented as an action. 
+
+2.2 Proactive Interaction and Mixed-Initiative Systems 
+
+Proactive interaction studies systems that initiate assistance before explicit user requests(Bi et al., 2024). Related work includes proactive dialogue systems(Yan et al., 2023), context-aware agents, 2and mixed-initiative interaction, where control is shared between user and system (Novick and Sut-ton, 1997). A key challenge is timing: assistance can reduce uncertainty or effort, but poorly timed interventions may interrupt ongoing tasks or in-crease cognitive load (Bailey et al., 2000). PIWM formalizes this timing problem as struc-tured selection over simulated intervention out-comes. Rather than directly triggering an ac-tion from the current context, PIWM predicts the next customer state under each candidate response and assigns a relative action score. Compared with broad proactive assistants such as ContextA-gent (Yang et al., 2025), PIWM targets a narrower but more decision-critical setting: selecting which low-intrusion service move should be used for a third-party customer observed from retail video. 
+
+2.3 Intent Modeling in Human-Centered Interaction 
+
+Intent recognition typically infers user goals from text, speech, behavior sequences, or visual cues(Rabinowitz et al., 2018). In retail environ-ments, intent is rarely explicit and must be inferred from dwelling, gaze movement, comparison, ap-proaching, hesitation, and device operation. We represent customer intent with AIDA for macro-level purchasing phase (Barry, 1987) and BDI for micro-level psychological state (Rao et al., 1995). Unlike static intent recognition, PIWM uses in-tent as a transition state for action-conditioned sim-ulation. The model predicts how candidate inter-ventions change the customer’s purchasing phase and psychological state, making intent representa-tion part of the decision process rather than only an output label. 
+
+2.4 Retail Behavior Understanding and Smart Retail Datasets 
+
+Retail behavior understanding has been stud-ied through shopping action recognition, item-interaction detection, trajectory analysis, and multi-view video understanding. The MERL Shopping Dataset focuses on behaviors such as browsing, picking up items, and returning items (Singh et al., 2016), while PRISM provides richer multi-view retail environments for embodied vision-language understanding (Rouhi et al., 2026). These datasets primarily describe what cus-tomers do or what occurs in the scene. Shopping-agent benchmarks such as WebShop (Yao et al., 2022a) and Shopping MMLU (Jin et al., 2024) focus on product navigation or knowledge reason-ing. PIWM targets a different decision layer: how a smart retail device should intervene given an observed customer state, so GuidanceSalesBench includes candidate interventions, predicted next states, relative action scores, and best-action labels. 
+
+3 Problem Definition 
+
+We study proactive intervention selection for smart retail devices. Given a short pre-interaction video 
+
+Vt, the system predicts a structured customer intent state, simulates the outcomes of candidate device responses, and selects an action before an explicit request is made. 
+
+3.1 Intent State 
+
+At timestamp t, the intent state is defined as 
+
+st = ( gt, b t, x t), (1) where gt ∈ {attention , interest , desire , action }
+
+is the AIDA purchasing phase, bt =(belief t, desire t, intention t) is the BDI state, and xt describes observable evidence such as behavior, expression, posture, and short-term temporal events. 
+
+3.2 Intervention Outcome 
+
+Given st, the device considers a state-dependent candidate set A(st) = {a1, . . . , a K }. Each 
+
+ai is a high-level service response from 
+
+{GREET , ELICIT , INFORM , RECOMMEND , HOLD }.For each candidate, PIWM predicts 
+
+ot(ai) = ( g(i)
+
+> t+1
+
+, b (i)
+
+> t+1
+
+, y i), (2) where g(i) 
+
+> t+1
+
+and b(i) 
+
+> t+1
+
+are the predicted next intent state, and yi ∈ { 1, 2, 3, 4, 5} is a relative action score. A score of 5 denotes the best candidate for the current state. 
+
+3.3 Low-Intrusion Decision 
+
+The selected response is the highest-scoring candi-date: 
+
+a∗ 
+
+> t
+
+= arg max  
+
+> ai∈A (st)
+
+yi. (3) The score is not a free-form preference statement: it is assigned under a fixed rubric in which only one candidate receives 5, and all candidates must be valid for the current AIDA phase. This formulation allows H OLD to be selected when intervention is predicted to be unnecessary or disruptive. 34 Proactive Intent World Model 
+
+We use AIDA (Barry, 1987) and BDI (Rao et al., 1995) because they provide a compact state space for pre-interaction retail assistance. AIDA sepa-rates pre-commitment stages from purchase action, while BDI captures inferred uncertainty, preference, and action readiness. Both schemas are textual and schema-constrained, making them suitable inter-mediate targets for VLM training and diagnostic evaluation. PIWM is the modeling component of SII. It turns the see–infer–intervene view into a schema-constrained prediction and decision pipeline: 
+
+ˆst = fθ(Vt), (4) 
+
+ˆot(ai) = hϕ(ˆ st, a i), ai ∈ A (ˆ st), (5) 
+
+a∗ 
+
+> t
+
+= π({ˆot(ai)}ai∈A (ˆ st)). (6) Figure 2 gives an overview of the GuidanceSales-Bench construction and PIWM training pipeline, from scenario seeds to AIDA–BDI manifests, can-didate actions, counterfactual outcomes, verifica-tion, and the final SFT training set. Here, fθ estimates customer state, hϕ predicts action-conditioned outcomes, and π selects the can-didate with the highest predicted score. We im-plement both worlds with a single Qwen2.5-VL-7B backbone adapted by LoRA(Bai et al., 2025). The same adapter is trained to model a user-intent world, which maps sparse video frames to AIDA, intent labels, and BDI state, and a sales-action world, which predicts the next customer state under a candidate action. 
+
+Table 1: PIWM structured outputs and AIDA-conditioned candidate actions.                                
+
+> Type Item Description or values State ˆgtAIDA phase State ˆbtBDI state State ˆxtObservable evidence Action aiCandidate action class Outcome ˆg(i)
+> t+1 Next AIDA phase Outcome ˆb(i)
+> t+1 Next BDI state Outcome ˆyiRelative action score in 1–5 Decision a∗
+> tSelected response Candidates attention GREET ,ELICIT ,INFORM ,HOLD
+> Candidates interest ELICIT ,INFORM ,RECOM -
+> MEND , H OLD
+> Candidates desire INFORM ,RECOMMEND ,HOLD
+> Candidates action GREET , R ECOMMEND , H OLD
+
+4.1 State Estimation and Candidate Set 
+
+The state estimator separates observable evidence from inferred mental state. Visual cues such as gaze shifts and repeated comparison are represented in ˆxt, while uncertainty, preference, or purchase intention is represented in ˆbt. Given ˆst, PIWM constructs candidates from a finite inventory R =
+
+{GREET , ELICIT , INFORM , RECOMMEND , HOLD }.The candidate set is constrained by AIDA phase, and H OLD is always included as a non-intervention baseline. 
+
+4.2 Outcome Modeling and Selection 
+
+For each candidate response, hϕ predicts the next AIDA phase, the next BDI state, and a score from 1 to 5. This differs from direct action classifica-tion, which estimates p(a | Vt) or p(a | st) without modeling intervention-specific consequences(Ahn et al., 2022). PIWM instead exposes the interme-diate future state under each candidate and then selects the candidate whose outcome receives the highest score. The selector π is deterministic: it returns the candidate with score 5. Low-intrusion behavior is encoded through the candidate inventory and scor-ing rubric rather than an additional hand-designed cost function. For example, H OLD can receive the highest score when the predicted intervention would disturb smooth browsing, while E LICIT or INFORM can be preferred when the customer shows uncertainty or an information gap. PIWM is best understood as a world-model-augmented proactive action policy. The intent-level world-model objective hϕ shapes the policy during training by supervising state estimation and action-conditioned intent transitions, while the learned policy remains the strongest decision-time com-ponent in the current system. Our empirical anal-ysis (Section 6.5) shows that direct action selec-tion consistently outperforms inference-time coun-terfactual planning over predicted outcomes; we therefore retain the structured formulation in Equa-tions (4)–(6) primarily because it (1) supports the dataset construction protocol (Section 5), (2) en-ables intermediate-state diagnostics (Appendix B), and (3) provides a foundation for future work where stronger next-state prediction could make decision-time planning competitive. 4Figure 2: Overview of GuidanceSalesBench construction and PIWM training. The pipeline generates AIDA–BDI manifests, candidate actions, action-conditioned outcomes, and best-action labels before producing the final SFT training set. 
+
+5 GuidanceSalesBench Construction 
+
+GuidanceSalesBench provides supervision for state estimation, outcome prediction, and response selec-tion. It is constructed through two linked chains: seed → manifest → prompt → video , (7) manifest → candidate actions → outcomes 
+
+→ scores → best action . (8) Manifests define customer states, prompts and videos provide pre-interaction visual inputs, and labeled outcomes provide action-conditioned su-pervision. 
+
+5.1 State and Video Generation 
+
+Each instance starts from a natural-language seed describing a retail scenario. We use schema-constrained structured generation to produce a man-ifest containing the customer persona, visual ap-pearance, AIDA phase, BDI state, observable be-havior, facial expression, posture, and a 10-second timeline. In dataset construction, this generator instantiates fθ; in experiments, the same schema becomes the target for video or text-based state prediction. Each manifest is rendered into a 10-second video prompt. The prompt describes only the pre-interaction state and excludes candidate actions, scores, and best-action labels, preventing the gen-erated video from leaking the target response. 
+
+5.2 Candidate Actions and Outcome Labels 
+
+Actions are represented by five class labels rather than free-form text: GREET , E LICIT , I NFORM ,
+
+Table 2: Dataset and supervision sources.                         
+
+> Source Role Count Sales rules action design 78 General synthetic scenes state/outcome data 543 General multitask samples multitask SFT 2,544 Target train videos action SFT 71 Target test videos evaluation 30 Greet augmentation balancing 15 Balanced action data final action SFT 190 Real-store pilot videos transfer set 30 fully annotated sim-to-real metric 20 index-labeled auxiliary release 10 Missing-video candidates documented only 20
+
+RECOMMEND , and H OLD . For each manifest, the annotation system first selects the candidate set allowed by the current AIDA phase, always includ-ing H OLD . A prompt-based structured annotator then predicts each candidate’s next AIDA phase, next BDI state, and relative score. The score is a coarse expert label assigned under a fixed rubric. It ranges from 1 to 5: 5 denotes the best action for the current state, 4 denotes a useful but less fitting action, 3 is neutral, 2 is weak, and 1 is inappropriate or disruptive. The annotation validator enforces that every candidate has exactly one outcome, exactly one candidate receives score 5, and the best-action label matches that candidate. 
+
+5.3 Statistics and Validation 
+
+Table 2 summarizes the data sources used for train-ing and evaluation. The general synthetic retail data provides supervision for customer understanding and action consequence prediction, while the tar-get vending-machine data supports action selection and evaluation in the deployment scenario. 5The action-world supervision is counterfactual by construction. Across 543 retail scenes, we gen-erate 2,001 scene-action samples, with an aver-age of 3.685 candidate actions per scene and full candidate-set coverage for each scene. We apply validation at three stages: manifests must contain complete AIDA, BDI, observable behavior, and timeline fields; video prompts must exclude action labels; and outcome labels must satisfy candidate-count, H OLD -baseline, stage-allowed action, score-range, and best-action consistency constraints. Ad-ditional dataset distributions and real-store frame examples are provided in Appendix A and Ap-pendix H. 
+
+6 Experiments 
+
+We evaluate whether the SII formulation improves proactive retail action selection. The experiments answer three questions: whether target-domain ac-tion training improves response selection, whether AIDA-conditioned candidate filtering is useful, and where the remaining errors arise. 
+
+6.1 Experimental Setup 
+
+The main GuidanceSalesBench evaluation contains Target-Test (n=30) in the smart vending-machine setting, with 6 examples for each action class. The 30 test samples are stratified to achieve balanced best-action class distribution while preserving an AIDA stage distribution representative of the tar-get deployment (Appendix A). Each example is manually QA-checked and represented by three sparsely sampled frames. We report macro F1 over the five action classes, which avoids allowing fre-quent actions to dominate the score. The real-store pilot is reserved for transfer evaluation and is not used for training; its 20 fully annotated videos form the primary sim-to-real metric, and 10 additional index-labeled videos are released as auxiliary real data. Training has two stages. The first stage trains the shared LoRA adapter on 2,544 multitask samples derived from 543 general retail scenes, covering customer understanding and action consequence prediction. The second stage continues training on 190 balanced target-domain action-selection sam-ples. These 190 samples combine 71 original tar-get examples, 15 Greet augmentations, and 104 balanced samples from the general pool to reduce action-class imbalance. Each main training run takes approximately 9 A100-hours on A100 80GB hardware; full configuration details (LoRA hyper-parameters, optimizer, decoding) are provided in Appendix E. 
+
+6.2 Tasks and Metrics 
+
+We evaluate four linked tasks in the PIWM pipeline. AIDA prediction measures whether the model identifies the customer’s sales-funnel stage. In-tent prediction measures whether it captures core customer intent. Next-state prediction measures whether it predicts how a candidate action changes the customer’s state. Best-action prediction mea-sures whether it selects the correct response among GREET , E LICIT , I NFORM , R ECOMMEND , and HOLD .Our primary metric is macro F1 for best-action selection on Target-Test (n=30). We additionally report per-action F1 and collapse H OLD versus the other four actions to evaluate the binary interven-tion decision. 
+
+6.3 Baselines 
+
+We compare PIWM against Random Baseline and Constant-Action Baselines, Qwen2.5-VL-7B (zero-shot) without project-specific training, the State-Outcome Model trained only on customer state and action consequences, Small-Scale Action Training variants, and three closed-source baselines evalu-ated through the same role-separated prompts. Ta-ble 3 shows that balanced target-domain action training yields the strongest Cross-Domain oracle performance. PIWM achieves 0.641 macro F1 with oracle cus-tomer state on Target-Test and 0.734 on Cross-Domain, outperforming Qwen2.5-VL-7B (zero-shot) and the State-Outcome Model. In the video-only E2E setting, performance drops to 0.295, showing that state grounding is the main bottleneck. On the fully annotated Real-Store Pilot, PIWM reaches 0.579 action macro F1, providing prelimi-nary evidence that the learned action selection ca-pability is not confined to synthetic data; however, this subset contains no H OLD cases and therefore does not evaluate real-world non-intervention deci-sions. The closed-source comparison is mixed across settings. Gemini 2.5 Flash slightly exceeds PIWM on Target-Test oracle (0.659 vs. 0.641), while PIWM exceeds all three 302ai closed-source base-lines on Cross-Domain oracle (0.734 vs. 0.638). GPT-4o is stronger on Target-Test E2E (0.354 vs. 0.295), and Claude Sonnet 4.6 is stronger on Real-6Table 3: Best-action macro F1 across evaluation scenarios. Oracle uses ground-truth customer state; E2E predicts state from video. Closed-source baselines are evaluated via 302ai with the same prompts; GPT-5.5 is a diagnostic Codex CLI reference.                                             
+
+> Model Target-Test (n=30) Oracle Cross-Domain (n=60) Oracle Target-Test E2E (n=30) Real-Store Pilot (n=20) Random Baseline 0.414 0.466 0.414 -Constant-Action Baselines 0.067 ---Qwen2.5-VL-7B (zero-shot) 0.313 0.142 -0.111 State-Outcome Model 0.240 0.259 -0.217 Small-Scale Action Training 0.390 ---Gemini 2.5 Flash 0.659 0.638 0.216 0.655 GPT-4o 0.445 0.503 0.354 0.535 Claude Sonnet 4.6 0.579 0.569 0.294 0.833 GPT-5.5 (Codex CLI, diagnostic) 0.622 0.648 --
+> PIWM (full) 0.641 0.734 0.295 0.579
+
+Note: Real-Store Pilot uses 20 fully annotated videos; 10 index-labeled and 20 inaccessible planned videos are excluded. 
+
+Store Pilot (0.833 vs. 0.579), indicating that scale and model family still matter for video grounding and real-store transfer. The State-Outcome Model drops from 0.641 to 0.240 on Target-Test, while the Small-Scale Action Training variant reaches 0.390. This comparison suggests that world-model supervision is most use-ful when paired with balanced target-domain action supervision. GPT-5.5 through the Codex CLI agent surface is included only as a diagnostic reference because its agent interface is not directly compara-ble to API-level baselines. 
+
+6.4 Action-level Analysis 
+
+The best model performs well on active inter-vention actions, with parsed-output F1 scores of 0.800 for G REET , 0.750 for E LICIT , 0.769 for I N-
+
+> FORM
+
+, and 0.600 for R ECOMMEND . HOLD re-mains the weakest class (parsed-output F1 0.286; strict F1 0.250), and most H OLD errors are over-interventions, especially predictions of E LICIT .When H OLD is collapsed into non-intervention and the other actions into intervention, binary macro F1 is 0.592. 
+
+6.5 Ablation Studies 
+
+We perform ablations on the main design choices: action-selection supervision, AIDA-conditioned candidate filtering, inference-time counterfactual planning, and oracle versus end-to-end state condi-tioning. Table 4 summarizes the results. Balanced action supervision improves macro F1 from 0.390 to 0.641, and AIDA-conditioned can-didates improve over unconstrained five-action se-lection (0.504 to 0.641). Inference-time counter-factual planning underperforms direct action se-lection, suggesting that the current world-model objective is more effective as training-time super-vision than as a standalone decision-time planner. 
+
+Table 4: Compact ablation results on Target-Test (n=30). 
+
+Variant Macro F1 No action-selection training 0.240 71 target + 15 G REET augmentation 0.390 Balanced 190-sample supervision (PIWM full) 
+
+0.641 
+
+Choose freely from all five actions 0.504 AIDA-conditioned candidates (PIWM full) 0.641 
+
+AIDA candidates + H OLD bias correction 0.633 Direct action selection (PIWM full) 0.641 
+
+Counterfactual Planning (stage-reward) 0.171 Counterfactual Planning (model-reward) 0.265 State-Outcome Model + CF Planning (model-reward) 0.418 Oracle state 0.641 
+
+End-to-end 0.295 
+
+The E2E drop from 0.641 to 0.295 confirms that video-to-state grounding remains the main bottle-neck. Additional schema ablations in Appendix B show that removing BDI weakens action selection and next-state prediction, while removing observ-able evidence improves oracle action selection but hurts E2E and transition metrics. 
+
+6.6 Sim-to-Real Pilot Evaluation 
+
+To assess transfer from synthetic training data to real footage, we evaluate PIWM on a small staged real-store pilot recorded by paid employee partici-pants enacting scripted customer-behavior scenar-ios. The primary real-store metric uses 20 fully annotated videos, while 10 additional accessible videos have index-level labels only. As shown in Table 3, PIWM reaches 0.579 action macro F1 on Real-Store Pilot, compared with 0.217 for the State-Outcome Model and 0.111 for Qwen2.5-VL-7B (zero-shot). Stage prediction remains challenging, and the fully annotated subset contains no H OLD 
+
+cases; we therefore treat this result as preliminary evidence of sim-to-real transfer rather than a com-plete real-store benchmark. 77 Conclusion 
+
+This paper studies multimodal retail marketing as an SII problem: a device must see customer be-havior, infer latent intent, and intervene before the customer makes an explicit request. We in-stantiate this view with PIWM, an intent-level world-model-augmented proactive action policy that learns AIDA–BDI customer state estimation and action-conditioned intent transition predic-tion during training, and selects from an AIDA-conditioned response set at decision time. Experi-ments on held-out target videos show that balanced action supervision and candidate constraints sub-stantially improve best-action macro F1. Specif-ically, PIWM reaches 0.641 macro F1 on Target-Test ( n = 30 ) with ground-truth state, 0.295 in the end-to-end video-only setting, and 0.579 on a 20-video staged real-store pilot, with the world-model training framework providing a substantial gap over the State-Outcome baseline (0.240). We also introduce GuidanceSalesBench, a struc-tured benchmark that links pre-interaction obser-vations with state manifests, candidate interven-tions, predicted next states, relative action scores, and best-action labels. Comparisons with closed-source models show a mixed but informative pic-ture: PIWM is strongest on Cross-Domain oracle selection, while larger models remain stronger in some E2E and real-store settings. The current for-mulation focuses on short single-customer clips and a finite set of high-level device responses. Ex-tending PIWM to longer interactions, richer multi-modal device behaviors, and online feedback from real deployments is an important direction for fu-ture work. 
+
+Limitations 
+
+PIWM has several limitations. 1. Oracle-state dependence. The strongest best-action result conditions on ground-truth cus-tomer state to isolate response selection. End-to-end video-only performance drops from 0.641 to 0.295, showing that video-to-state grounding remains the main bottleneck. 2. Closed-source models remain stronger in some settings. PIWM is competitive on oracle-state action selection, but it does not uniformly exceed larger closed-source sys-tems: Gemini 2.5 Flash is slightly higher on Target-Test oracle, GPT-4o is stronger in E2E selection, and Claude Sonnet 4.6 is stronger on the small real-store pilot. 3. Non-intervention remains difficult. HOLD 
+
+is the weakest class on Target-Test, indicating that deciding when not to intervene is harder than choosing among active service actions. Larger H OLD -rich evaluation sets are needed to measure low-intrusion behavior more reli-ably. 4. The real-store pilot is preliminary. The Real-Store Pilot uses staged recordings from paid employee participants and only 20 fully annotated videos. The subset contains no HOLD cases, so real-world non-intervention behavior and naturalistic customer variation remain open evaluation targets. 
+
+Ethics Statement 
+
+This work involves video recordings of human participants performing retail customer behaviors and computational modeling of inferred customer states. We address ethical considerations as fol-lows. 
+
+Data sources and participant recruitment. The synthetic GuidanceSalesBench training data is gen-erated entirely by text-to-video models from sce-nario seeds and contains no real individuals. The real-video evaluation set (Real-Store Pilot, n = 20 
+
+fully annotated plus 10 group-labeled videos) was collected through a collaborating retailer. Record-ings were performed by paid employees of the retail partner, working from scripted customer-behavior scenarios that the research team prepared in advance. Participants were not actual store cus-tomers, and the videos are staged enactments rather than naturalistic observation of real customer be-havior. Approximately 5–10 individual employees participated, with each individual performing mul-tiple scripted scenarios. 
+
+Informed consent and compensation. All par-ticipants were informed in advance that record-ings would be used for research on proactive retail assistance, including the development of vision-language models for customer-state inference and action selection. Participants signed release forms covering both the use of their image in research and the public release of the recorded materials. Participants were compensated for their time. We 8do not release any biographical information, and in-dividual identification beyond what is visible in the released video frames is not retained or distributed. 
+
+Ethics review. Formal IRB-style ethics review was not conducted; the project followed the com-pliance practices of the collaborating retail part-ner, including the release-form procedure described above. We acknowledge this as a limitation: future iterations of this work, particularly any deployment study involving real customers, will require formal ethics-board approval. 
+
+Data release. The synthetic GuidanceSales-Bench dataset, including all customer manifests, candidate actions, and action-conditioned out-comes, will be released publicly under an open license upon acceptance. The 30 real-store videos and the frame-and-annotation subset used for sim-to-real evaluation will also be released, in accor-dance with the participant release forms. Code and data release links are provided in Data and Code Availability. 
+
+Potential risks of proactive sales interven-tion. PIWM is designed to select from a con-strained set of service responses, including H OLD 
+
+(non-intervention), explicitly to discourage over-intervention. Nevertheless, deploying proactive sales systems may exert commercial pressure on customers, particularly when intervention is trig-gered before explicit interest. We caution that any deployment of PIWM-like systems should: (1) pre-serve the customer’s ability to ignore or dismiss interventions, (2) avoid leveraging psychological vulnerabilities such as decision fatigue or indeci-sion, and (3) provide transparency that the customer is interacting with an AI-driven assistant rather than human staff. 
+
+Intent inference and psychological profiling. 
+
+PIWM infers AIDA stage and BDI (belief/desire/in-tention) state from short pre-interaction observa-tions. These inferences are intentionally coarse-grained—four AIDA classes and short schema-constrained BDI fields—and serve as intermediate signals for action selection rather than as persistent customer profiles. We do not retain inferred state across sessions or link inferred state to identity in our evaluation setup; any downstream deployment must commit to the same constraint. 
+
+Demographic representativeness. Our real-video set covers a limited demographic range, draw-ing from the employees available at one retail part-ner. We have not evaluated PIWM for fairness across gender, age, ethnicity, or disability. Broader fairness evaluation is required before any deploy-ment and is left as future work. 
+
+Compute footprint. Each main PIWM training run consumes approximately 9 A100-hours on A100 80GB hardware. The complete project (main run plus four ablations) totals approximately 45 A100-hours, substantially below the pretraining cost of foundation vision-language models. 
+
+Data and Code Availability 
+
+The synthetic GuidanceSalesBench dataset, including all customer manifests, prompts, candidate actions, and action-conditioned out-comes, will be released publicly under an open license upon acceptance. The real-store video benchmark was recorded with paid participants who consented to research use and release. Code, configuration, prompt templates, and evaluation scripts are available at https://github.com/ SHITIANYU-hue/Proactive-World-Modeling .The GuidanceSalesBench data release, includ-ing manifests, prompts, candidate actions, action-conditioned outcomes, per-video frames, annotations, and real-store metadata, is avail-able at https://huggingface.co/datasets/ GameFreshMan/PIWM .
+
+References     
+
+> Michael Ahn, Anthony Brohan, Noah Brown, Yevgen Chebotar, Omar Cortes, Byron David, Chelsea Finn, Chuyuan Fu, Keerthana Gopalakrishnan, Karol Haus-man, and 1 others. 2022. Do as i can, not as i say: Grounding language in robotic affordances. arXiv preprint arXiv:2204.01691 .Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wen-bin Ge, Sibo Song, Kai Dang, Peng Wang, Shi-jie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhaohai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng Xu, and 8 oth-ers. 2025. Qwen2.5-vl technical report. Preprint ,arXiv:2502.13923. Brian P Bailey, Joseph A Konstan, and John V Carlis. 2000. Measuring the effects of interruptions on task performance in the user interface. In Smc 2000 con-ference proceedings. 2000 ieee international confer-ence on systems, man and cybernetics.’cybernetics evolving to systems, humans, organizations, and their complex interactions’(cat. no. 0 , volume 2, pages 757–762. IEEE.
+
+9Brian P Bailey, Joseph A Konstan, and John V Carlis. 2001. The effects of interruptions on task perfor-mance, annoyance, and anxiety in the user interface. In Interact , volume 1, pages 593–601. Thomas E Barry. 1987. The development of the hier-archy of effects: An historical perspective. Current issues and Research in Advertising , 10(1-2):251–295. Shuxian Bi, Wenjie Wang, Hang Pan, Fuli Feng, and Xiangnan He. 2024. Proactive recommendation with iterative preference guidance. In Companion Pro-ceedings of the ACM Web Conference 2024 , pages 871–874. Kevin Black, Noah Brown, Danny Driess, Chelsea Finn, Karol Hausman, Brian Ichter, Sergey Levine, Karl Pertsch, Lucy Xiaoyang Shi, Quan Vuong, Ury Zhilinsky, and 1 others. 2024. π0: A vision-language-action flow model for general robot control. arXiv preprint arXiv:2410.24164 .Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi Chen, Krzysztof Choromanski, Tianli Ding, Danny Driess, Avinava Dubey, Chelsea Finn, and 1 others. 2023. Rt-2: Vision-language-action models transfer web knowledge to robotic control. In 
+
+Conference on Robot Learning .Yang Deng, Wenqiang Lei, Wai Lam, and Tat-Seng Chua. 2023. A survey on proactive dialogue systems: Problems, methods, and prospects. arXiv preprint arXiv:2305.02750 .David Ha and Jürgen Schmidhuber. 2018. World mod-els. arXiv preprint arXiv:1803.10122 , 2(3):440. Danijar Hafner, Timothy Lillicrap, Jimmy Ba, and Mo-hammad Norouzi. 2019. Dream to control: Learn-ing behaviors by latent imagination. arXiv preprint arXiv:1912.01603 .Eric Horvitz. 1999. Principles of mixed-initiative user interfaces. In Proceedings of the SIGCHI conference on Human Factors in Computing Systems , pages 159– 166. Yilun Jin, Zheng Li, Chenwei Zhang, Tianyu Cao, Yi-fan Gao, Pratik Jayarao, Mao Li, Xin Liu, Ritesh Sarkhel, Xianfeng Tang, and 1 others. 2024. Shop-ping mmlu: A massive multi-task online shopping benchmark for large language models. arXiv preprint arXiv:2410.20745 .Moo Jin Kim, Karl Pertsch, Siddharth Karamcheti, Ted Xiao, Ashwin Balakrishna, Suraj Nair, Rafael Rafailov, Ethan Foster, Grace Lam, Pannag San-keti, and 1 others. 2024. Openvla: An open-source vision-language-action model. arXiv preprint arXiv:2406.09246 .Bin Lin, Yang Ye, Bin Zhu, Jiaxi Cui, Munan Ning, Peng Jin, and Li Yuan. 2024. Video-llava: Learning united visual representation by alignment before pro-jection. In Proceedings of the 2024 conference on empirical methods in natural language processing ,pages 5971–5984. Muhammad Maaz, Hanoona Rasheed, Salman Khan, and Fahad Khan. 2024. Video-chatgpt: Towards detailed video understanding via large vision and language models. In Proceedings of the 62nd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 12585– 12602. Leena Mathur, Paul Pu Liang, and Louis-Philippe Morency. 2024. Advancing social intelligence in ai agents: Technical challenges and open questions. In Proceedings of the 2024 Conference on Empiri-cal Methods in Natural Language Processing , pages 20541–20560. David G Novick and Stephen Sutton. 1997. What is mixed-initiative interaction. In Proceedings of the AAAI spring symposium on computational models for mixed initiative interaction , volume 2, page 12. Neil Rabinowitz, Frank Perbet, Francis Song, Chiyuan Zhang, SM Ali Eslami, and Matthew Botvinick. 2018. Machine theory of mind. In International conference on machine learning , pages 4218–4227. PMLR. Anand S Rao, Michael P Georgeff, and 1 others. 1995. Bdi agents: from theory to practice. In Icmas , vol-ume 95, pages 312–319. Amirreza Rouhi, Parikshit Sakurikar, Satya Sai Reddy, Narsimha Menga, Anirudh Govil, Sri Harsha Chitta-jallu, Rajat Aggarwal, Anoop Namboodiri, and Sashi Reddi. 2026. Prism: A multi-view multi-capability retail video dataset for embodied vision-language models. arXiv preprint arXiv:2603.29281 .Bharat Singh, Tim K Marks, Michael Jones, Oncel Tuzel, and Ming Shao. 2016. A multi-stream bi-directional recurrent neural network for fine-grained action detection. In Proceedings of the IEEE con-ference on computer vision and pattern recognition ,pages 1961–1970. Siyin Wang, Junhao Shi, Zhaoyang Fu, Xinzhe He, Fei-hong Liu, Chenchen Yang, Yikang Zhou, Zhaoye Fei, Jingjing Gong, Jinlan Fu, and 1 others. 2026. World action models: The next frontier in embodied ai. arXiv preprint arXiv:2605.12090 .Cen Yan, Jun Bai, Yanmeng Wang, Wenge Rong, Yuanxin Ouyang, and Zhang Xiong. 2023. Goal-oriented conditional variational autoencoders for proactive and knowledge-aware conversational rec-ommender system. Computer Speech & Language ,79:101468. Bufang Yang, Lilin Xu, Liekang Zeng, Kaiwei Liu, Siyang Jiang, Wenrui Lu, Hongkai Chen, Xiaofan Jiang, Guoliang Xing, and Zhenyu Yan. 2025. Con-textagent: Context-aware proactive llm agents with open-world sensory perceptions. Advances in Neural Information Processing Systems , 38:167509–167543. Shunyu Yao, Howard Chen, John Yang, and Karthik Narasimhan. 2022a. Webshop: Towards scalable real-world web interaction with grounded language 
+
+10 agents. In Advances in Neural Information Process-ing Systems .Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2022b. React: Synergizing reasoning and acting in language models. arXiv preprint arXiv:2210.03629 .Seonghyeon Ye, Yunhao Ge, Kaiyuan Zheng, Shenyuan Gao, Sihyun Yu, George Kurian, Suneel Indupuru, You Liang Tan, Chuning Zhu, Jiannan Xiang, and 1 others. 2026. World action models are zero-shot policies. arXiv preprint arXiv:2602.15922 .
+
+A Additional Dataset Statistics 
+
+Tables 5 and 6 report the detailed distributions used to contextualize GuidanceSalesBench. The bal-anced action-selection set addresses the raw target split’s absence of H OLD examples by supplement-ing the 71 target examples and 15 G REET augmen-tations with balanced general-domain samples. 
+
+Table 5: AIDA distribution by data source.                          
+
+> Source Att. Interest Desire Action Total General Synthetic 49 289 128 77 543 Target Train 18 31 17 571 Target-Test 310 11 630 Balanced Action 63 60 44 23 190
+
+Table 6: Best-action distribution by data source.                               
+
+> Source Greet Elicit Inform Recom. Hold Total Target Train 11 14 41 5071 Balanced Action 26 41 41 41 41 190 Target-Test 6666630 Real-Store Pilot 5555020
+
+The remaining coverage statistics are as follows. General Synthetic contains 177 confirm_choice ,94 explore_options , 16 compare_value , and 256 other intent labels. Target-Test contains 6 confirm_choice , 15 explore_options , 6
+
+compare_value , and 3 no_clear_intent exam-ples. Candidate-set sizes over the 543 general scenes are distributed as 87 two-action, 59 three-action, 335 four-action, and 62 five-action sets, with mean size 3.685. The user-intent and next-state-prediction tasks overlap on all 543 scenes, while 110 scenes also appear in the five-action action-selection task. 
+
+B Additional Experimental Diagnostics 
+
+Tables 7–10 provide diagnostic numbers omitted from the main text for space. These diagnostics support the same conclusion as the main ablation: action selection benefits from balanced supervi-sion and candidate constraints, while video-to-state grounding remains the main end-to-end bottleneck. 
+
+Table 7: PIWM per-action F1. 
+
+Split Greet Elicit Inform Recom. Hold Target-Test 0.800 0.750 0.769 0.600 0.286 Cross-Domain 0.800 0.905 0.571 0.667 0.727 Real-Store 0.500 0.545 0.778 0.778 N/A 
+
+Table 8: State and transition diagnostics. 
+
+Model AIDA Intent Next-State Random Baseline 0.235 0.138 0.233 Qwen2.5-VL-7B 0.190 0.053 0.108 State-Outcome 0.349 0.111 0.587 
+
+PIWM 0.350 0.114 0.565 
+
+Table 9: Schema ablations.                         
+
+> Variant Target Cross E2E AIDA Intent Next Full PIWM 0.641 0.734 0.295 0.350 0.114 0.565 No BDI 0.526 0.693 0.219 0.428 0.120 0.163 No evidence 0.778 0.796 0.229 0.370 0.116 0.205
+
+Table 10: Frame-count ablations. 
+
+Frames Target Cross E2E AIDA Intent Next 1 frame 0.589 0.723 0.189 0.370 0.074 0.165 3 frames 0.641 0.734 0.295 0.350 0.114 0.565 5 frames 0.627 0.770 0.234 0.412 0.115 0.222 
+
+Removing BDI weakens action selection and next-state prediction. Removing observable evi-dence improves oracle-state action F1 but hurts E2E and transition metrics, so we treat this result as a prompt/supervision artifact rather than a rec-ommended design change. 11 C Qualitative Demo Cases 
+
+Figure 3: H OLD example. 
+
+Figure 4: E LICIT example. 
+
+D Prompt Templates 
+
+All prompts use the following system message. 
+
+You are a multimodal sales-guidance agent trained on retail pedagogy. You observe customers in physical retail stores via a streaming camera and decide whether and how to intervene. Always output your reasoning in the structured tag format requested by the user prompt. Do not output free-form prose outside the requested tags. 
+
+D.1 State Estimation Prompt 
+
+Current code source: piwm_train/prompts.py:: build_user_intent_prompt .
+
+You are observing a short customer-behavior window. Scene: {scene} Below are {n_frames} frames sampled from a streaming camera, in chronological order. <image> <image> <image> Infer the customer 's current user state from the visible behavior only. Do not choose a sales action. Do not output candidate actions, rewards, or recommendations. Output the following fields, in this exact order, each on its own line: <stage>...</stage> <intent_label>...</intent_label> <visual_summary>...</visual_summary> <engagement_pattern>...</engagement_pattern> <gaze_and_attention>...</gaze_and_attention> <body_and_hands>...</body_and_hands> <belief>...</belief> <desire>...</desire> <intention>...</intention> - stage must be one of: attention, interest, desire, action. - intent_label must be one existing PIWM intention category, such as confirm_choice, explore_options, request_demonstration, seek_reassurance, negotiate_price, leave_without_purchase, compare_value_for_money, or no_clear_intent. - visual_summary, engagement_pattern, gaze_and_attention, and body_and_hands must cite visible evidence. - belief, desire, and intention must be short customer-state clauses, not salesperson advice. 
+
+D.2 Outcome Prediction Prompt 
+
+Current code source: piwm_train/prompts.py:: build_deliberation_prompt .
+
+You are observing a customer in a retail store. Below are { n_frames} frames sampled from a streaming camera, in chronological order. <image> <image> <image> The customer 's current state is: - stage: {aida_stage} - visible evidence: {visual_summary} - engagement pattern: {engagement_pattern} - gaze and attention: {gaze_and_attention} - body and hands: {body_and_hands} - belief: {belief} - desire: {desire} - intention: {intention} Consider one candidate intervention: {candidate_action} Dialogue-act layer for this candidate: - act: {act} - params: {params} Terminal realization for this candidate: - surface_text: {surface_text} - screen: {screen} - voice_style: {voice_style} - light: {light} Concrete execution plan for this candidate: - physical action: {physical_action} - utterance: {utterance} Predict how this candidate intervention will change the customer 's state in the next decision step. Output the following fields, in this exact order, each on its own 
+
+12 line: <next_stage>...</next_stage> <next_belief>...</next_belief> <next_desire>...</next_desire> <next_intention>...</next_intention> <risk>...</risk> <benefit>...</benefit> <reward>...</reward> - next_stage must be one of: attention, interest, desire, action. - risk and benefit must each be one of: low, medium, high. - reward must be a number in [-1.00, 1.00] with two decimal places. - all textual spans must be a single short clause in English. 
+
+D.3 Best-Action Selection Prompt 
+
+Current code source: piwm_train/prompts.py:: build_action_prompt_no_leak(...,five_ act_only=True) . The current repository does not define a separate function named 
+
+build_best_action_prompt ; this is the best-action prompt used for the 5-act action-selection rows and closed-model evaluation set. 
+
+> You are observing a customer in a retail store. Below are { n_frames} frames sampled from a streaming camera, in chronological order. <image> <image> <image> The Stage-1 customer-state representation is: - stage: {aida_stage} - intent_label: {intent_label} - visible evidence: {visual_summary} - engagement pattern: {engagement_pattern} - gaze and attention: {gaze_and_attention} - body and hands: {body_and_hands} - belief: {belief} - desire: {desire} - intention: {intention} Candidate interventions are listed below. They include only the action identity, parameters, and concrete realization. They do not include gold rewards, predicted next states, risks, or benefits. {candidate_block_no_leak} Choose the best intervention and explain your reasoning briefly. Output the following fields, in this exact order: <rationale>...</rationale> <chosen>...</chosen> <intervention_action>...</intervention_action> <intervention_utterance>...</intervention_utterance> - chosen must be one of the candidate labels listed above, exact string match. - rationale should use the customer state and action fit, not hidden reward values. - intervention_action must describe the concrete salesperson or terminal behavior. - intervention_utterance must be a short customer-facing sentence, or (silent) for silent Hold. - In the 5-act setting, Hold is a real no-intervention decision, not an uncertainty fallback. Choose Hold only when the visible customer state clearly supports waiting or silence.
+
+E Reproducibility 
+
+Training configuration. All trained PIWM vari-ants use Qwen2.5-VL-7B-Instruct as the base vision-language model and ms-swift as the fine-tuning framework. The main checkpoint is trained with LoRA adaptation ( tuner_type=lora ) us-ing rank 16, alpha 32, dropout 0.05, and no LoRA bias. The ms-swift configuration specifies 
+
+target_modules=all-linear ; the saved PEFT adapter materializes this over the Qwen projec-tion and MLP modules ( q_proj , k_proj , v_proj ,
+
+o_proj , gate_proj , up_proj , and down_proj 
+
+under model.* ). The optimizer is AdamW (adamw_torch ) with learning rate 2×10 −5, weight decay 0.1, β1 = 0 .9, β2 = 0 .95 , cosine learning-rate schedule, max gradient norm 1.0, no warmup (warmup_steps=0 , warmup_ratio=0.0 ), bf16 pre-cision, gradient checkpointing, per-device batch size 4, gradient accumulation 2, and 3 training epochs. The random seed and data seed are both 42. 
+
+Data and schedule. The main PIWM train-ing file is the joint Stage-1 plus Stage-2 ms-swift file with 2,734 rows: 543 user-intent rows, 2,001 next-state-prediction rows, and 190 balanced action-selection rows. The archived run arguments record max_length=8192 and 
+
+max_pixels=1003520 . Stage-1-only variants use the same user-intent and next-state objectives with-out the balanced action-selection rows. Zero-shot Qwen2.5-VL-7B is evaluated without loading a LoRA adapter. 
+
+Hardware and compute. The project used an A100 80GB server pool. Each main training run is budgeted at approximately 9 A100-hours (A100 80GB) using ms-swift LoRA fine-tuning. Counting the main PIWM run plus four ablations gives an estimated total of about 45 A100-hours. 
+
+Inference configuration. All local checkpoint evaluations use greedy decoding. In scripts/ eval_ms_swift_checkpoint.py , generation calls model.generate(..., do_sample=False) 
+
+with default max_new_tokens=256 . In scripts/ eval_e2e_decision_loop_checkpoint.py ,perception, deliberation, and action calls also use 
+
+do_sample=False and default to 128 new tokens for each step. The ms-swift checkpoint metadata stores temperature=0.0 and num_beams=1 . Parse failures are counted as errors in strict metrics unless a table explicitly states a parsed-output convention. 
+
+Frame sampling. The standard input contains three sparse frames per video. The frame extrac-tor uses a cue-timeline sampling plan with default 13 timestamps at 2.0s ( cue_onset ), 5.0s ( cue_peak ), and 8.0s ( cue_resolution ) when a prompt does not provide a custom frame_sampling_plan . Ex-tracted frames are stored as 000.jpg , 001.jpg , and 
+
+002.jpg , and the prompt presents them in chrono-logical order. 
+
+F Dataset Sample 
+
+The following example is drawn from 
+
+data/GuidanceSalesBench/general/main_ schema.jsonl and keeps the task-relevant manifest, frame references, candidate actions, action-conditioned outcomes, and best-action label. 
+
+{"state_id": "piwm_09df40aae2", "product_category": "jewelry", "viewpoint": "salesperson_observable", "manifest": { "aida_stage": "interest", "latent_state": "active_evaluation", "intent": "request_demonstration", "persona": { "description": "A first-time buyer considering a higher-stakes purchase and needing reassurance.", "intent_tier": "exploring", "type": "first_time_high_consideration" }, "bdi": { "belief": "A companion 's approval may influence whether the choice feels safe.", "desire": "see how the product works", "intention": "ask for a demonstration" }, "observable_cues": ["asking_companion_opinion"], "visual_state": { "summary": "The customer asks a companion for feedback, indicating socially influenced evaluation at a jewelry counter.", "engagement_pattern": "The customer remains engaged with the item while using companion feedback to support the decision.", "gaze_and_attention": "Gaze alternates between the product and the companion while waiting for a reaction.", "body_and_hands": "Hands and body posture orient the product toward the companion for inspection." }, "proactive_score": 3 }, "frames": [ {"index": 0, "relative_path": "Archive_generated_priority24/ piwm_09df40aae2/frames/000.jpg", "timestamp_sec": null}, {"index": 1, "relative_path": "Archive_generated_priority24/ piwm_09df40aae2/frames/001.jpg", "timestamp_sec": null}, {"index": 2, "relative_path": "Archive_generated_priority24/ piwm_09df40aae2/frames/002.jpg", "timestamp_sec": null} ], "candidate_actions": [ "Elicit_b1166d372e5e", "Inform_5ff00ba15ca5", "Hold_eda24b4bb712", "Recommend_8d7f8993e333" ], "outcomes": { "Elicit_b1166d372e5e": { "dialogue_act": "Elicit", "act_params": {"openness": "open", "slot": "need_focus"}, "next_aida_stage": "desire", "next_bdi": { "belief": "The salesperson may help resolve the decision.", "desire": "explore available options", "intention": "continue browsing and comparing" }, "risk": "low", "benefit": "high", "reward": 0.83 }, "Inform_5ff00ba15ca5": { "dialogue_act": "Inform", "act_params": {"content_type": "demo", "depth": "brief"}, "next_aida_stage": "desire", "next_bdi": { "belief": "The salesperson may help resolve the decision.", "desire": "explore available options", "intention": "continue browsing and comparing" }, "risk": "low", "benefit": "high", "reward": 0.8 }, "Hold_eda24b4bb712": { "dialogue_act": "Hold", "act_params": {"mode": "silent"}, "next_aida_stage": "interest", "next_bdi": { "belief": "Several options remain worth comparing.", "desire": "see how the product works", "intention": "ask for a demonstration" }, "risk": "low", "benefit": "low", "reward": 0.2 }, "Recommend_8d7f8993e333": { "dialogue_act": "Recommend", "act_params": {"pressure": "soft", "target": "item"}, "next_aida_stage": "attention", "next_bdi": { "belief": "The salesperson may be applying too much pressure.", "desire": "avoid further engagement", "intention": "leave without buying" }, "risk": "medium", "benefit": "low", "reward": -0.3 }}, "best_action": "Elicit_b1166d372e5e", "best_action_spec": {"act": "Elicit", "params": {"openness": "open", " slot": "need_focus"}}, "best_action_realization": { "physical_action": "The smart retail terminal presents this candidate response through screen, voice, and light cues.", "utterance": "Would you like to look at price, functionality, or usage scenario first?" }}
+
+G Failure Case Analysis 
+
+We summarize three representative PIWM errors on Target-Test (n=30). We report them as short qualitative cases rather than a wide table because the useful information is the error pattern, not the sample identifier. 
+
+HOLD misread as ELICIT . In sample 
+
+target_piwm_810 , the gold action is H OLD , while PIWM predicts E LICIT . The customer is in the interest stage with intent explore_options ; the visible evidence shows steady relaxed scanning without confusion or help-seeking gestures. PIWM treats sustained engagement as an information-need signal, whereas the gold annotation treats it as autonomous exploration that should not be interrupted. This is the main over-intervention pattern. 
+
+RECOMMEND misread as I NFORM . In sam-ple target_piwm_760 , the gold action is R ECOM -
+
+MEND , while PIWM predicts I NFORM . The cus-tomer repeatedly looks at the same item and shows minor anxious behavior, such as lightly rubbing the phone edge. PIWM defaults to information provi-sion under uncertainty cues, but the gold annotation interprets the behavior as readiness to commit and expects a soft confirming recommendation. 
+
+GREET misread as HOLD . In sample 
+
+target_piwm_721 , the gold action is G REET ,14 while PIWM predicts H OLD . The customer faces the terminal and raises a hand to operate it. PIWM applies a conservative non-intervention heuristic because the customer is already acting, but the gold annotation expects a lightweight availability cue. This boundary case highlights the difficulty of distinguishing “do not interrupt” from “briefly acknowledge presence.” 
+
+H Real-Store Pilot Frame Examples 
+
+We include additional frames from the 20 fully an-notated real-store videos in Figure 5. Each row shows three sparse timestamps (0s, 5s, 10s) from one paid-participant session, covering different AIDA stages and action labels. 15 Figure 5: Additional real-store pilot frame examples. Rows correspond to distinct paid-participant sessions covering different gold AIDA stages and best-action labels. All participants signed release forms covering public release of recorded materials (see Ethics Statement). 
+
+16

@@ -6,37 +6,43 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-03
-- 运行时间：2026-06-03 22:53:18 UTC
+- 最新运行日期：2026-06-04
+- 运行时间：2026-06-04 22:00:37 UTC
 - 运行状态：成功
-- 本次总论文数：5
-- 精读区：2
-- 速读区：3
+- 本次总论文数：7
+- 精读区：3
+- 速读区：4
 
 ### 今日简报（AI）
-今日精读聚焦两项8.0高分研究：冻结密集特征预测短期物体交互，以及主动视觉驱动的信息依赖眼手协调；速读则关注低延迟VLA策略、自然红外瞳孔分割与视觉语言安全代理。  
-最值得关注的是**Ego4D短期交互预测**与**信息依赖的眼手协调机制**，两者均从被动感知转向主动预示，为具身智能的实时决策提供新范式。  
-建议普通读者关注“冻结特征”与“主动视觉”的结合方向——未来可期待更鲁棒的机器人与人类交互能力。
-- 详情：[/202606/03/README](/202606/03/README)
+1) 今日荐读聚焦两大9分力作：主动世界模型赋能社交智能，以及统一人类注意力建模的基础模型。
+2) 最值得关注两方向：一是通过“先观察、再推理、后干预”模拟社会因果以辅助决策；二是以任意图像/视频为输入，统一预测人类注意点的注意力基础模型。
+3) 建议优先精读这两篇高分论文，也可速览《Perceive Before Reasoning》了解移动智能体高效预感知的思路。
+- 详情：[/202606/04/README](/202606/04/README)
 
 ### 精读区论文标签
-1. [FROST-STA: Frozen Dense Features for the Ego4D Short-Term Object Interaction Anticipation](/202606/03/2606.00694v1-frost-sta-frozen-dense-features-for-the-ego4d-short-term-object-interaction-anticipation)  
+1. [See, Infer, Intervene: Proactive World Modeling for Goal-Oriented Social Intelligence](/202606/04/2606.03371v1-see-infer-intervene-proactive-world-modeling-for-goal-oriented-social-intelligence)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：面向目标社交智能的主动意图推断与干预框架
+2. [Attend to Anything: Foundation Model for Unified Human Attention Modeling](/202606/04/2606.03540v1-attend-to-anything-foundation-model-for-unified-human-attention-modeling)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：跨模态人类注意力计算模型
+3. [The Attention-Aware Pipeline: Design Tensions from Making Attention Visible in XR](/202606/04/2606.03492v1-the-attention-aware-pipeline-design-tensions-from-making-attention-visible-in-xr)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：短期对象交互预测是实时意图预测的一种形式
-2. [Information-dependent eye-hand coordination emerges from active vision](/202606/03/biorxiv-10-64898-2026-05-29-726887-v1-information-dependent-eye-hand-coordination-emerges-from-active-vision)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：基于随机模型预测控制的眼动计算模型，最小化任务不确定性，理解目标
+   evidence：将眼动作为XR中实时输入的人机交互
 
 ### 速读区论文标签
-1. [VisualThink-VLA: Visual Intermediate Reasoning for Effective and Low-Latency Vision-Language-Action Policies](/202606/03/2605.30011v1-visualthink-vla-visual-intermediate-reasoning-for-effective-and-low-latency-vision-language-action-policies)  
+1. [Perceive Before Reasoning: A Pre-Reasoning Perception Framework for Efficient and Reliable Proactive Mobile Agents](/202606/04/2606.03236v1-perceive-before-reasoning-a-pre-reasoning-perception-framework-for-efficient-and-reliable-proactive-mobile-agents)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：前瞻性移动代理的交互框架，与前瞻性系统响应相关
+2. [LastAct: Trajectory-Guided Latest-Activity Localization for Real-Time Smart-Home Activity Recognition](/202606/04/2606.00260v2-lastact-trajectory-guided-latest-activity-localization-for-real-time-smart-home-activity-recognition)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：低延迟视觉-语言-行动框架用于实时动作预测，类似于意图识别
-2. [AmbientEye: A Dataset for Pupil Segmentation under Natural Ambient Infrared Illumination](/202606/03/2606.03774v1-ambienteye-a-dataset-for-pupil-segmentation-under-natural-ambient-infrared-illumination)  
+   evidence：使用轨迹数据实现智能家居中的实时活动定位
+3. [Ego-METAS: Egocentric online Multimodal Energy-efficient Temporal Action Segmentation benchmark](/202606/04/2606.02246v1-ego-metas-egocentric-online-multimodal-energy-efficient-temporal-action-segmentation-benchmark)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：自然光照下用于注视交互的瞳孔分割数据集
-3. [VLESA: Vision-Language Embodied Safety Agent for Human Activity Monitoring](/202606/03/2606.03954v1-vlesa-vision-language-embodied-safety-agent-for-human-activity-monitoring)  
+   evidence：包含眼动模态的多模态动作分割基准
+4. [Hidden-state inference aligns attention and neural representational geometry during flexible behaviour](/202606/04/biorxiv-10-1101-2025-10-10-681143-v3-hidden-state-inference-aligns-attention-and-neural-representational-geometry-during-flexible-behaviour)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：基于第一人称视频的实时意图推断用于安全干预
+   evidence：利用眼动行为作为注意力的代理，在隐状态推断任务中关联眼动与意图识别
 
 
 <div class="dpr-home-promo-card">
