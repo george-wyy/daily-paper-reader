@@ -6,30 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-05
-- 运行时间：2026-06-05 20:42:13 UTC
+- 最新运行日期：2026-06-06
+- 运行时间：2026-06-06 20:22:54 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：3
 - 精读区：1
-- 速读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今日精读一篇高效可靠移动Agent预推理框架论文，速读一项多模态能效时空分割基准。
-
-最值得关注的是精读论文提出的“先感知后推理”范式，显著提升移动Agent的主动性与效率。
-
-建议普通读者可进一步了解移动Agent在感知和推理整合中的实际应用场景。
-- 详情：[/202606/05/README](/202606/05/README)
+今日精读高分论文《Policy-based Foveated Imaging and Perception》，并速读微眼跳与注意力、人脑探索-利用决策两篇。最值得关注的是策略性中央凹成像如何优化视觉感知，以及微眼跳追踪空间注意力的具体机制。建议先精读最高分论文，再结合速读中的注意力动态研究，理解视觉系统在信息采样中的策略性调整。
+- 详情：[/202606/06/README](/202606/06/README)
 
 ### 精读区论文标签
-1. [Perceive Before Reasoning: A Pre-Reasoning Perception Framework for Efficient and Reliable Proactive Mobile Agents](/202606/05/2606.03236v1-perceive-before-reasoning-a-pre-reasoning-perception-framework-for-efficient-and-reliable-proactive-mobile-agents)  
+1. [Policy-based Foveated Imaging and Perception](/202606/06/2606.02565v1-policy-based-foveated-imaging-and-perception)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：提出包含多模态前瞻感知器的两阶段框架，用于决定移动代理何时干预，解决实时意图识别算法问题。
+   evidence：实时预测性注视成像系统，用于任务感知的注视分配
 
 ### 速读区论文标签
-1. [Ego-METAS: Egocentric online Multimodal Energy-efficient Temporal Action Segmentation benchmark](/202606/05/2606.02246v1-ego-metas-egocentric-online-multimodal-energy-efficient-temporal-action-segmentation-benchmark)  
+1. [Microsaccades track shifting but not necessarily maintaining covert visual-spatial attention](/202606/06/biorxiv-10-1101-2025-07-14-664740-v2-microsaccades-track-shifting-but-not-necessarily-maintaining-covert-visual-spatial-attention)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：包含注视模态用于在线动作分割
+   evidence：微眼跳跟踪隐蔽视觉空间注意转移，连接眼动与内部认知状态
+2. [Spatiotemporal Decoding of Explore-Exploit Decisions in the Human Brain](/202606/06/biorxiv-10-64898-2026-06-01-729427-v1-spatiotemporal-decoding-of-explore-exploit-decisions-in-the-human-brain)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：POMDP概率建模探索-利用决策
 
 
 <div class="dpr-home-promo-card">
