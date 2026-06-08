@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-06-08 <!--dpr-date:20260608-->
+    * 精读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/08/2606.04970v1-plan-watch-recover-a-benchmark-and-architectures-for-proactive-procedural-assistance" data-sidebar-item="{&quot;title&quot;: &quot;Plan, Watch, Recover: A Benchmark and Architectures for Proactive Procedural Assistance&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.04970v1-plan-watch-recover-a-benchmark-and-architectures-for-proactive-procedural-assistance&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;主动式过程辅助系统实时步骤指导与偏差检测&quot;}">Plan, Watch, Recover: A Benchmark and Architectures for Proactive Procedural Assistance</a>
   * 2026-06-07 <!--dpr-date:20260607-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/07/2606.04970v1-plan-watch-recover-a-benchmark-and-architectures-for-proactive-procedural-assistance" data-sidebar-item="{&quot;title&quot;: &quot;Plan, Watch, Recover: A Benchmark and Architectures for Proactive Procedural Assistance&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.04970v1-plan-watch-recover-a-benchmark-and-architectures-for-proactive-procedural-assistance&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;主动式多模态助手基准，具有实时指导功能&quot;}">Plan, Watch, Recover: A Benchmark and Architectures for Proactive Procedural Assistance</a>
