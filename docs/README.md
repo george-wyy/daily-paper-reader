@@ -6,23 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-08
-- 运行时间：2026-06-08 21:41:19 UTC
+- 最新运行日期：2026-06-09
+- 运行时间：2026-06-09 20:57:01 UTC
 - 运行状态：成功
-- 本次总论文数：1
-- 精读区：1
+- 本次总论文数：2
+- 精读区：2
 - 速读区：0
 
 ### 今日简报（AI）
-今日精读一篇9.0分论文，聚焦预动式程序化辅助的基准与架构。  
-核心方向：提出“规划-监控-恢复”新范式，挑战现有被动式助手的局限性。  
-建议普通读者关注如何将此类主动规划技术应用到智能家居或任务指南等日常场景中。
-- 详情：[/202606/08/README](/202606/08/README)
+1) 今日精读两篇高分论文，聚焦社交智能与世界建模、超低功耗智能眼镜。  
+2) 值得关注《See, Infer, Intervene》的主动世界建模方法提升社交智能，以及《OpenGlass》基于事件视觉的超低功耗可穿戴AI。  
+3) 建议普通读者关注AI与物理世界交互的前沿，特别是轻量化边缘AI设备。
+- 详情：[/202606/09/README](/202606/09/README)
 
 ### 精读区论文标签
-1. [Plan, Watch, Recover: A Benchmark and Architectures for Proactive Procedural Assistance](/202606/08/2606.04970v1-plan-watch-recover-a-benchmark-and-architectures-for-proactive-procedural-assistance)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：主动式过程辅助系统实时步骤指导与偏差检测
+1. [See, Infer, Intervene: Proactive World Modeling for Goal-Oriented Social Intelligence](/202606/09/2606.03371v2-see-infer-intervene-proactive-world-modeling-for-goal-oriented-social-intelligence)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：使用世界模型进行主动意图推断，用于多模态社交辅助
+2. [OpenGlass: Ultra-Low-Power On-Device AI Eyewear with Event-based Vision](/202606/09/2606.07431v2-openglass-ultra-low-power-on-device-ai-eyewear-with-event-based-vision)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：面向基于注视交互的智能眼镜平台，配备设备端AI
 
 ### 速读区论文标签
 - 本次无速读推荐。
