@@ -1,0 +1,1347 @@
+Title: Hierarchical Policies from Verbal and Egocentric Human Signals for Natural Human-Robot Interaction
+
+URL Source: https://arxiv.org/pdf/2606.10276v1
+
+Published Time: Wed, 10 Jun 2026 00:28:19 GMT
+
+Number of Pages: 33
+
+Markdown Content:
+# Hierarchical Policies from Verbal and Egocentric Human Signals for Natural Human-Robot Interaction 
+
+Dongjun Lee 1∗ Juheon Choi 1∗ Dong Kyu Shin 2∗
+
+Sinjae Kang 1 Kimin Lee 1,31KAIST 2Seoul National University 3Config 
+
+Abstract: For natural human-robot interaction, a robot must understand human intent expressed not only through language but also through nonverbal signals such as gestures and gaze. However, current robot policies rely on language in-structions as the sole interface for conveying intent, leaving nonverbal signals un-used and placing the full burden of communication. In this work, we present EDITH, a robot framework that captures the human’s nonverbal signals through continuous streams of first-person view and gaze from smart glasses, and uses them alongside language instructions as inputs to the robot policy. Our hardware system streams the human’s first-person view, gaze, and speech to the robot in real time, transcribing the speech into language instructions. To handle these rich but noisy signals, we design a hierarchical policy in which a high-level policy infers the human’s intent and produces a sequence of subtasks, where each subtask is represented as a fine-grained instruction paired with a keyframe that grounds the intent in the scene (e.g., the frame where the human points at the target object). A low-level policy then executes these subtasks. In our experiments on human-robot interactive tasks, EDITH enables the robot to act on the human’s nonverbal signals even when intent is expressed only briefly, and significantly reduces user effort to convey intent compared to using language instructions alone. Visit our project page for source code and real-robot demo videos. 
+
+Keywords: Human-robot interaction, Hierarchical policy, Smart glasses 
+
+## 1 Introduction Give me the small metal profile between the long profiles, just below and to the left of the green wrench and yellow nipper in the lower center? 
+
+> Egocentric context
+> Eye Gaze
+
+EDITH (Ours) Language-conditioned policy 
+
+> Robot policy
+> Give me that metal profile.
+> Robot policy
+
+Figure 1: (Left) Language-conditioned policies require fully verbalized text, which is often cum-bersome and imprecise. (Right) We leverage hu-man egocentric view and gaze to capture nonver-bal signals for natural human-robot interaction. Language offers humans an intuitive and flexi-ble interface for conveying intent to robots, mo-tivating a growing body of work on language-conditioned policies for robot control [1, 2, 3]. Recent advances in multi-modal encoders [4, 5], Vision-Language Models (VLMs) [6, 7], and text-to-video generation models [8, 9] pre-trained on internet-scale data have substan-tially expanded the generalization of such poli-cies, equipping them with the rich visual-linguistic priors needed to follow free-form in-structions [10, 11, 12, 13, 14, 15]. However, language alone captures only part of how humans naturally express intent. In everyday interaction, people rarely produce fully specified verbal instructions; instead, they 
+
+> *
+
+Equal contribution. 
+
+> arXiv:2606.10276v1 [cs.RO] 9 Jun 2026
+
+ground their speech in nonverbal cues such as eye gaze and pointing gestures [16, 17]. As illustrated in Figure 1, a person asking for one of several metal profiles scattered across a table will typically pair a brief verbal request with a glance or pointing gesture toward the desired piece, rather than describing it in detail. To support such interactions, a robot must jointly interpret a human’s verbal and nonverbal signals as they arrive, infer the underlying intent, and act on it. In this work, we present EDITH, a robot framework that enables natural human-robot interaction by incorporating live streams of the human’s first-person view and eye gaze, in addition to verbal instructions as inputs to the control policy (Figure 1). To capture these signals, our hardware system is based on Project Aria glasses [18], which stream the wearer’s egocentric view images, gaze coor-dinates, and speech. On top of this hardware, we design a hierarchical policy that pairs a VLM as the high-level controller with a Vision-Language-Action (VLA) model as the low-level controller. The high-level policy infers intent from the egocentric streams together with the user’s speech, and produces subtasks, each represented as a fine-grained instruction (e.g., “Pick up the driver with red handle and pass it to the human” ) paired with a keyframe retrieved from the stream that visually grounds the relevant nonverbal cue (e.g., the frame in which the human is gazing at the target driver). The low-level policy then conditions on this instruction-keyframe pair to produce actions. We evaluate EDITH on three challenging human-robot interaction tasks, including assisting humans with assembly and serving muffins, in which the human conveys intent through both verbal sig-nals (coarse language instructions) and nonverbal signals (e.g., pointing at objects). We find that baselines relying solely on language, including VLA models such as π0.5 [19] and even a hierar-chical policy augmented with a VLM planner based on Gemini-3.1-Flash-Lite [20], fail to capture human intent and perform poorly (below 6.5% success rate on average), whereas EDITH achieves a 59.7% average success rate by grounding its actions in the user’s intent. Our user study further shows that EDITH significantly reduces the workload of conveying intent to the robot compared to a language-only baseline ( p < 0.001 ), highlighting that EDITH provides a more natural interface for human-robot interaction. We believe our work demonstrates the promise of leveraging nonverbal signals together with verbal instructions to enable natural human-robot interaction. 
+
+## 2 Background 
+
+Language-conditioned robot policy. We formulate robot control as a sequential decision-making problem. At each discrete timestep t, given an observation ot (e.g., RGB images from cameras and the robot’s proprioceptive state) and a language instruction ℓt, a language-conditioned policy 
+
+π(at | ot, ℓ t) predicts an action at, executes it on the robot, and receives the next observation ot+1 in a closed loop. Here, the language serves as an interface for conveying human intent, but it captures only an explicit, verbalized slice of communication. We instead consider settings where humans express intent through language, together with nonverbal signals such as eye gaze or gestures. 
+
+Hierarchical architecture. For complex tasks requiring long-horizon robot control, the language-conditioned policy π(at | ot, ℓ t) can be implemented as a hierarchical architecture composed of a high-level policy πh and a low-level policy. Analogous to the System 1 / System 2 view of human cognition [21], πh decomposes a complex task ℓt into an atomic subtask gt, while πl produces the ac-tion at conditioned on gt and the robot observation ot: π(at | ot, ℓ t) = πl(at | ot, g t) πh(gt | ot, ℓ t).
+
+Large Language Models (LLMs) and VLMs are commonly used as πh for their reasoning capabili-ties, while Vision-Language-Action (VLA) models [19, 22] serve as πl. Prior work represents gt as either a fine-grained instruction [19, 23, 24] or a subgoal image [14, 25, 26]. 
+
+## 3 EDITH 
+
+In this section, we introduce EDITH, a robot framework that leverages both the human’s verbal (i.e., language instruction) and nonverbal signals (e.g., gestures, gaze, ongoing activities) for more natural human-robot interaction (see Figure 1). EDITH consists of a smart-glasses-based hardware 2Egocentric context 
+
+Task queue  
+
+> Low-level policy
+> (VLA)
+> Subtasks
+> Robot observations
+> “Pass me that driver
+> and that metal profile”
+> ….
+> 2
+> “Pick up the
+> smallest profile
+> and pass it to
+> human.”
+> “Pick up the
+> driver on the
+> leftmost side and
+> pass it to human.”
+> Action Completion
+> [TASK]
+> “Pick up the
+> smallest profile
+> and pass it to
+> human. ”
+> Robot
+> state
+> High-level policy
+> (VLM)
+> Keyframe
+> Language
+
+Figure 2: Overview of EDITH. The high-level policy πh processes the egocentric context Cego 
+
+> t−H:t
+
+and language instructions ℓt−H:t to produce subtasks, where each subtask is a pair of a fine-grained instruction [TASK] and a keyframe Ckey from Cego 
+
+> t−H:t
+
+. These subtasks are queued in Q and the low-level policy πl executes them by producing robot actions at.system that captures the human’s first-person view, gaze, and speech in real time (Section 3.1), and a hierarchical policy that processes these signals to produce robot actions (Section 3.2). Finally, we describe data collection and policy training scheme in Section 3.3. 
+
+3.1 Hardware System 
+
+We build a hardware system that streams the human’s first-person view, gaze, and speech in real time, and synchronizes them with the robot’s observations. 
+
+Why first-person view and gaze? We first motivate our choice of first-person view and gaze as the representation of the human’s nonverbal signals. The first-person view visually captures the human’s gestures and ongoing activities, while gaze reveals where their attention is focused within the visual frame. Together, these two streams provide cues for a robot policy to infer the human’s underlying intent and needs. We hereafter denote the first-person view image and gaze coordinates at timestep t as the egocentric context Cego  
+
+> t
+
+.
+
+Capturing human signals via smart glasses. To capture the human’s egocentric context Cego 
+
+> t
+
+and language instruction ℓt in real time, we use Project Aria glasses [18], a lightweight wearable device with a built-in first-person RGB camera, eye tracker, and microphone. The glasses stream the first-person view, gaze, and speech to the robot server, which transcribes speech into the language instruction ℓt and synchronizes all signals with the robot observation ot by timestamp, producing an aligned stream of (Cego  
+
+> t
+
+, ℓ t, o t) at each timestep t. Further details are provided in Appendix B.2. 
+
+3.2 Policy Design 
+
+Given (Cego  
+
+> t
+
+, ℓ t, o t), we now describe how EDITH uses these signals to produce actions. While the human signals (Cego  
+
+> t
+
+, ℓ t) are rich, they are also noisy: humans often express their intent briefly, interleaved with unrelated ongoing activities. We empirically find that directly feeding these signals to a single end-to-end policy fails to produce actions that follow the human’s underlying intent (see Section 4.2 for supporting results). We therefore design a hierarchical policy that decouples the problem of inferring human intent from producing low-level actions. 
+
+Overview of the hierarchical policy. The hierarchical policy consists of a high-level policy πh and a low-level policy πl. πh periodically infers intent from the human’s egocentric context stream and produces a sequence of subtasks for πl to execute. Each subtask is represented as a pair of a fine-grained instruction and a keyframe retrieved from the input stream, where the keyframe captures the moment the human’s nonverbal signal is most clearly expressed. For example (Figure 2), when the human says “Pass me that driver and that metal profile” while pointing at each, πh produces two subtasks, each pairing an instruction (e.g., “Pick up the driver with a hexagonal tip and pass 3it to the human”) with the keyframe where the human’s gaze fixates on the target. The keyframe grounds nonverbal signals that language alone often fails to specify, giving πl a precise and compact subtask specification. Conditioned on both, πl produces low-level robot actions and a completion probability; once this probability exceeds a threshold, πl proceeds to the next subtask. While the above describes how a single subtask is represented and executed, real-time human-robot interaction poses two additional challenges. First, the human may express intent at any moment, even while πl is executing a previous subtask, so πh must monitor human signals in parallel with πl.Second, the human may express multiple intents at once (e.g., “Give me these things” while pointing at several targets), producing multiple subtasks that must be queued for sequential execution. To meet both requirements, we run πh and πl asynchronously, connecting them through a task queue 
+
+Q: πh appends newly identified subtasks to Q, while πl pops and executes the subtask at its head. We describe the full procedure in Algorithm 1. 
+
+High-level policy. πh infers intent from the streams of human signals (Cego  
+
+> t
+
+, ℓ t). Specifically, every 
+
+H timesteps, πh takes as input the recent H frames of egocentric context Cego  
+
+> t−H:t
+
+together with the language instructions ℓt−H:t captured within this window, and produces a set of subtasks: 
+
+{([TASK] i, C key  
+
+> i
+
+)}ni=1 ∼ πh(· | Cego 
+
+> t−H:t
+
+, ℓ t−H:t), (1) where each [TASK] i is a fine-grained language instruction specifying the i-th subtask, and Ckey 
+
+> i
+
+is the keyframe in Cego  
+
+> t−H:t
+
+at which the human’s nonverbal signal for [TASK] i is most clearly ex-pressed. These subtasks are then pushed into Q. When no intent is expressed through either language or nonverbal signals within the window, πh returns the empty set ( n = 0 ), leaving Q unchanged. We implement πh with a VLM (e.g., Gemini-3.1-flash-lite [20]), leveraging its world knowledge to infer human intent from multimodal context [27]. To feed Cego  
+
+> t−H:t
+
+and ℓt−H:t jointly to the VLM, we render them as a single video clip by overlaying gaze markers on each first-person RGB frame and inserting transcribed speech as time-aligned captions. 1 For each subtask, the VLM outputs a fine-grained instruction [TASK] and a timestamp index, and we retrieve the frame at this index from 
+
+Cego  
+
+> t−H:t
+
+as Ckey . Further details are in Appendix B.1. 
+
+Low-level policy. The low-level policy πl sequentially executes each subtask in Q at the robot control frequency. Given the subtask ([TASK] , C key ) at the head of Q and the robot observation ot,
+
+πl produces a low-level robot action at together with a completion probability pt ∈ [0 , 1] :
+
+(at, p t) ∼ πl(· | ot, [TASK] , C key ). (2) Here, pt is πl’s estimate of whether the current subtask has been completed; once pt exceeds a threshold, πl pops the subtask from Q and proceeds to the next. If Q is empty, πl remains idle until 
+
+πh pushes a new subtask. We implement πl by fine-tuning a pre-trained VLA model (e.g., π0.5 [19]) on our dataset (Section 3.3). To predict pt, we add a linear head on top of the VLA backbone. 
+
+3.3 Data Collection and Policy Training Data collection. To train our hierarchical policy, we collect a demonstration dataset in human-robot interaction scenarios, where a human conveys intent to a robot through language instructions and nonverbal signals such as gestures and gaze (see Figure 4 for example tasks). Each episode involves two participants: a human actor and a robot teleoperator. The human actor, wearing Project Aria glasses, expresses intent to the robot through speech, gestures, and gaze (e.g., gazing at a specific driver and saying “give me that driver” while assembling a metal stand). The teleoperator then controls the robot to fulfill the intent (e.g., picking up the requested driver and passing it to the human). Throughout the interaction, the human’s egocentric context Cego  
+
+> t
+
+, language instruction 
+
+ℓt, robot observation ot, and robot action at are synchronously recorded, yielding a trajectory τ =
+
+{Cego  
+
+> t
+
+, ℓ t, o t, a t}Lt=1 . Further details of the data collection protocol are provided in Appendix E.1. After collection, we annotate each trajectory τ in three steps. First, since τ spans the entire inter-action and typically contains multiple consecutive subtasks, we temporally segment τ into subtasks 
+
+> 1We obtain word-level timestamps for the captions using the Whisper API [28].
+
+4(see Appendix E.2 for details). Second, for each segment, we annotate the fine-grained instruction 
+
+[TASK] and the keyframe Ckey . Finally, within each segment, we label every frame with a comple-tion probability pt (pt = 1 near the end of the segment and pt = 0 otherwise). This yields a labeled subtask trajectory τlabeled =  ([TASK] , C key ), {(ot, a t, p t)}Mt=1 
+
+.Subtask 
+
+> Drop fine-grained instruction
+> Drop keyframe
+> “Pick up the 5cm
+> metal profile and
+> pass it to user.”
+> “Pick up the 5cm
+> metal profile and
+> pass it to user”
+> observation
+> action
+> “Pick up this one
+> and pass it to user”
+> Low-level
+> policy
+
+Figure 3: Modality dropout . We ran-domly either replace the instruction (middle) into underspecified one or the drop the keyframe (bottom), enforcing 
+
+πl to use both modalities. 
+
+Policy training. While both πh and πl could be trained on τlabeled , we find that closed VLMs (e.g., Gemini-3.1-Flash-Lite) outperform open-source alternatives as πh, so we focus on training πl to predict at given the robot obser-vation ot and the subtask ([TASK] , C key ). We instantiate 
+
+πl as a VLA model with a flow-matching action head [19], and train it with the flow-matching objective [22] by feed-ing Ckey as a first-person image with the gaze marker overlaid. We also train a linear head on the frozen VLA backbone to predict pt with a binary cross-entropy loss. Naively training πl on both modalities biases it toward re-lying on only one, since either is often sufficient for action prediction. To force πl to use both, we introduce modality dropout (Figure 3). For each training sample, we choose one of three options with equal probability: (i) keep both modalities intact; (ii) replace [TASK] with an underspec-ified version (e.g., “pick up this one” instead of “pick up the 5cm metal profile”), forcing reliance on Ckey ; or (iii) replace Ckey with a blank image, forcing reliance on [TASK] . See Appendix E for more training details. 
+
+## 4 Experiments 
+
+Our experiments answer three questions: (1) Does EDITH enable the robot to interpret and respond to the human’s nonverbal signals? (Section 4.2) (2) Does it provide a more natural interface than language-only ones for conveying user intent? (Section 4.3) (3) How robust is it across users and external distractions, and what does each design choice contribute? (Section 4.4 and Appendix A) 
+
+4.1 Setup Tasks. We design three evaluation tasks involving human-robot interaction, where a human evalu-ator expresses intent in real time through language instruction complemented by nonverbal signals. In every task, the language instruction is insufficient on its own, requiring the robot to interpret the human’s nonverbal signals to succeed. Figure 4 illustrates the tasks, which we detail below: • Muffin-Serving : Six muffins are densely arranged in a display, and the human requests three of them through a single instruction (e.g., “Give me this muffin, this muffin, and this muffin”) while pointing at each one. The robot must understand the gesture and serve the corresponding muffins to a plate held by the human. • Tumbler-Sorting : Five tumblers and two baskets are placed on the table. The human requests placing two tumblers into different baskets through a single instruction (e.g., “Put this tumbler to that basket, this tumbler to that basket”) while pointing at each tumbler and basket. The robot must ground these gestures and place each tumbler into the corresponding basket. • Tool-Passing : While assembling a metal stand, the human requests tools (drivers and metal profiles) as they are needed, conveying each request through a brief verbal instruction paired with gaze (e.g., glancing at a specific driver while saying “Give me that driver”). The human first requests a particular driver from among many on the table, uses it to continue the assembly, and later requests a specific metal profile in the same manner. The robot must respond to these intermittent requests and ground the intended target from the human’s gaze. 5We collect 120 demonstrations for Tool-Passing and 80 demonstrations for each of the other two tasks, following the protocol in Section 3.3 for training, and we evaluate using two metrics: success rate (SR) and task progress (TP). SR is the fraction of trials in which all subtasks are completed, whereas TP is the average fraction of subtasks completed per trial. We run 48 trials per task per method and report the mean SR and TP. In each trial, one of the two humans who collected the training data serves as the evaluator. We provide the full evaluation protocol in Appendix C. Muffin-Serving Tool-Passing Tumbler-Sorting   
+
+> 1
+> 23
+> 1
+> 2
+> 12
+
+Figure 4: Three human-robot interaction tasks. Numbered blue arrows indicate the target object and order of each request. 
+
+Tested methods. For our method, we use Gemini-3.1-Flash-Lite [20] as the high-level policy πh, and finetune a pretrained π0.5 [19] on our subtask-segmented demonstrations as the low-level policy. We compare EDITH against three baselines (see Appendix C.4 for details): (i) πlang  
+
+> l
+
+is an end-to-end language-conditioned policy that takes as input the robot observation and a language instruction. We implement this by finetuning π0.5 on the same demonstrations without subtask segmentation, conditioned on a language instruction that fully specifies the task (e.g., “Give me a strawberry muffin, a cherry muffin, and an Oreo muffin.”). (ii) πlang  
+
+> h
+
++πlang  
+
+> l
+
+is a hierarchical policy where Gemini-3.1-Flash-Lite acts as the high-level policy, taking the language instruction and robot-camera RGB streams as input to produce a subtask instruction for the low-level policy. The low-level policy is a π0.5 finetuned on the same subtask-segmented demonstrations as our method, but conditioned only on the subtask in-struction without the keyframe. This baseline differs from EDITH only in that it omits the human’s egocentric context and the subtask keyframe. (iii) πego+lang  
+
+> l
+
+is an end-to-end policy that takes as input the human’s current egocentric context Cego  
+
+> t
+
+in addition to the robot observation and language instruction. We finetune π0.5 on the same unsegmented demonstrations as πlang  
+
+> l
+
+, additionally condi-tioned on Cego  
+
+> t
+
+. During training, we apply the modality dropout described in Section 3.3; otherwise the policy is biased to ignore Cego  
+
+> t
+
+and fails when the language instruction is underspecified. All experiments use a bimanual 6-DoF Agilex Piper with parallel-jaw grippers and three RealSense RGB-D cameras. Further training and implementation details are provided in Appendices B and E. 
+
+4.2 Main Results “Give me this muffin, this muffin, and this muffin”         
+
+> Subtasks
+> 12
+> 1
+> 3
+> “Pick up the
+> strawberry muffin and pass it to the user”
+> 11Keyframe 111
+> “Pick up the muffin with a tangerine topping and pass it to the user”
+> 11Keyframe 11211Keyframe 113
+> “Pick up the muffin at the bottom left
+> and pass it to the user”
+
+Figure 5: Examples of subtasks pro-duced by the high-level policy of EDITH on the muffin-serving task. Figure 6 presents the success rate and task progress of EDITH against baselines across the three evalua-tion tasks, none of which can be specified through lan-guage alone, each requiring interpretation of the human’s rapidly evolving, complex nonverbal signals. Despite this difficulty, EDITH achieves an average success rate of 59.7% and task progress of 84.7% by translating the hu-man’s nonverbal signals into a sequence of subtasks, each grounded by a keyframe (see Figure 5 for examples pro-duced when the human requests three muffins by pointing at each). In contrast, πlang  
+
+> l
+
+and πlang  
+
+> h
+
++πlang  
+
+> l
+
+, baselines that do not use the human’s egocentric context, perform poorly, 2 highlighting the importance of egocentric con-text for grounding nonverbal intent. Naively exploiting this context, however, does not guarantee strong performance: πego+lang  
+
+> l
+
+, which directly conditions the policy on the egocentric context, yields inconsistent benefits across tasks. It shows only marginal improvement over the language-only baselines in Muffin-Serving and 
+
+> 2
+
+In Appendix A, we also evaluate πlang  
+
+> l
+
+with fully-specified instructions that name each target object ex-plicitly. Even so, it underperforms EDITH, which receives only underspecified instructions. 
+
+6SR (%) TP (%)              
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> 0.0
+> 12.2 4.2
+> 25.3
+> 2.1 12.2
+> 50.0
+> 80.6
+> Muffin-Serving
+> SR (%) TP (%)
+> 0.0
+> 26.2
+> 12.5
+> 54.5
+> 2.5
+> 28.5
+> 45.8
+> 83.0
+> Tumbler-Sorting
+> SR (%) TP (%)
+> 12.5
+> 31.3
+> 12.5 27.0
+> 14.6
+> 40.6
+> 83.3 90.6
+> Tool-Passing
+> SR (%) TP (%)
+> 4.2
+> 23.2
+> 9.7
+> 35.6
+> 6.4
+> 27.1
+> 59.7
+> 84.7
+> Average
+> ¼lang
+> l¼ego +lang
+> l¼lang
+> h+¼lang
+> lEDITH (Ours)
+
+Figure 6: Success rate (SR) and task progress (TP) of EDITH compared against baselines. Error bars indicate the 95% confidence interval of the reported SR / TP estimates, computed over 48 trials. 
+
+Tumbler-Sorting , where the human’s gaze tends to remain on the target throughout the interaction (e.g., staring at the desired muffin until the robot grasps it), so the real-time egocentric context provides signals it can directly exploit. In Tool-Passing , however, the gain diminishes, as the human is mostly engaged in their own activity and only intermittently attends to the target. EDITH handles both scenarios consistently through its hierarchical design, in which the high-level policy continuously monitors the human’s intent in a separate process. 
+
+4.3 User Study 
+
+Next, we examine whether EDITH reduces the effort users spend conveying their intent to the robot. 1 2 3 4 5 6 7          
+
+> 4.83
+> 2.41
+> Muffin-Serving
+> 1234567
+> 4.30
+> 2.20
+> Tool-Passing
+> Instruction Workload (Lower is better ↓)
+> ¼lang
+> h+¼lang
+> lEDITH
+
+Figure 7: Instruction workload (i.e., effort to convey intent) reported by participants. 
+
+User study setup. We conduct an IRB-approved user study with 16 participants on Muffin-Serving 
+
+and Tool-Passing , comparing EDITH against the 
+
+πlang  
+
+> h
+
++πlang  
+
+> l
+
+baseline. Each participant interacts with the robot using both methods, with three tri-als per task per method. Under EDITH, participants use verbal instructions and nonverbal signals. Un-der the baseline, they use verbal instructions alone, since it supports only a verbal interface. After each method’s trials, participants rate the instruction workload 3 and we apply two-sided Wilcoxon signed-rank tests [30] to test whether EDITH reduces it. Further details are provided in Appendix D. 
+
+EDITH reduces the effort users must spend to convey their intent. As shown in Figure 7, EDITH substantially reduces instruction workload compared to the πlang  
+
+> h
+
++πlang  
+
+> l
+
+baseline on both tasks, and the reduction is statistically significant ( p < 0.001 ). Users experienced a higher workload with πlang  
+
+> h
+
++πlang  
+
+> l
+
+mainly because users had to verbally describe each target object’s attributes (e.g., color, position, surroundings) precisely enough to disambiguate it, which is itself burdensome. In contrast, EDITH lets users convey intent through brief utterances with nonverbal expressions such as gestures, removing the need to fully describe the target. Appendix D provides further analysis. 
+
+4.4 Analysis 
+
+In this section, we provide comprehensive analyses of EDITH, covering ablations of its design choices, its robustness, and its failure cases. We refer to Appendix A for additional analyses. 
+
+Q: What is the benefit of keyframe? To isolate the keyframe’s contribution, we compare EDITH against a hierarchical baseline that ablates it: the high-level policy πh takes the egocentric context and language instruction to produce subtasks as in EDITH, while the low-level policy πl is condi-tioned on the subtask instruction without the keyframe. As shown in Figure 8, removing the keyframe causes a 49.9% drop in success rate and 51.5% drop in task progress on average, mainly for two reasons. First, πh often hallucinates when translating nonverbal signals into a subtask instruction, producing a description that refers to the wrong target. 
+
+> 3
+
+Four NASA-TLX [29] items (mental demand, performance, effort, frustration), on a 7-point Likert scale. 
+
+7SR (%) TP (%)      
+
+> 0
+> 25
+> 50
+> 75
+> 100
+> 2.1 11.8
+> 50.0
+> 80.6
+> Muffin-Serving
+> SR (%) TP (%)
+> 2.5
+> 36.8
+> 45.8
+> 83.0
+> Tumbler-Sorting
+> SR (%) TP (%)
+> 25.0
+> 51.0
+> 83.3 90.6
+> Tool-Passing
+> EDITH w/o keyframe EDITH (Ours)
+
+Figure 8: Comparison between EDITH and a baseline that ablates the keyframe. Second, even with a semantically correct instruc-tion, the same subtask can be phrased in multi-ple equivalent ways, and if πh uses a phrasing un-seen during πl’s training, πl often fails. Since the keyframe is retrieved from the input egocen-tric stream rather than generated by πh, it avoids both failure modes (i.e., hallucination and ambigu-ous phrasing). 0 25 50 75 100          
+
+> Success Rate (%)
+> 50.0
+> 47.9
+> 4.2
+> 0.0
+> 025 50 75 100
+> Task Progress (%)
+> 80.6
+> 80.2
+> 25.3
+> 20.8
+> EDITH
+> ¼ego +lang
+> l
+> EDITH (w/ Distract)
+> ¼ego +lang
+> l(w/ Distract)
+
+Figure 9: Robustness of EDITH to ex-ternal distractions (e.g., intermittently looking at a phone) in the human’s ego-centric context, compared to πego+lang  
+
+> l
+
+.
+
+Q: How does EDITH performs when humans are dis-tracted? When humans deliver their intent in natural interaction, their attention often shifts to things unrelated to the robot’s task, such as briefly checking a text on their phone. We evaluate whether EDITH remains robust un-der such distraction. In the Muffin-Serving task, the human evaluator alternates between checking a text mes-sage and requesting a muffin, repeating this until all three muffins are requested. As shown in Figure 9, the SR and TP under distraction remain comparable to the non-distracted setting, with only a 0.5% relative drop in task progress. In contrast, πego+lang  
+
+> l
+
+, a baseline that directly feeds the egocentric context to an end-to-end policy, ex-hibits a 17.8% relative drop under such distraction. This underscores the value of the hierarchical design, in which the high-level policy πh effectively cap-tures the moments when the human expresses intent. 
+
+## 5 Related Work 
+
+Language-based interaction for robot control. Language has become a key interface for con-veying user intent to robots [31, 32, 33]. Early systems mapped structured commands to prede-fined actions [34, 35], but struggled with varied and ambiguous language [36, 37, 38]. Internet-scale pretrained models, equipped with general world knowledge, have enabled new modes of language-based control. LLMs generate executable robot code from natural-language instruc-tions [39, 40], while VLA models pair these with robot data to map instructions directly to ac-tions [19, 22, 41, 42, 43, 44]. To handle more complex instructions, recent works adopt hierarchical architectures in which a VLM serves as a high-level planner and a VLA as a low-level executor [23]. 
+
+Leveraging nonverbal signals for robot control. To enable natural human-robot interaction, prior works leverage nonverbal cues such as deictic gestures, gaze, hand pose, and body motion to infer the user’s intended target and guide robot actions [17, 45, 46, 47]. More recently, smart glasses have been used to capture the user’s gaze and egocentric view, which are processed by VLMs to generate robot control code [48, 49]. However, built as modular pipelines of gaze fixation detectors, hand keypoint extractors, and object detectors, these systems often struggle with weak or transient nonverbal signals such as brief gaze shifts or quickly vanishing gestures [45, 49]. 
+
+## 6 Limitations and Future Works 
+
+EDITH has two limitations. First, while EDITH follows nonverbal signals in real time, its reactivity is limited by the high-level policy’s latency from window-based processing of the egocentric stream. Hence, developing a VLM capable of processing streamed video and audio is a promising future direction. Second, EDITH’s performance degrades for users whose physical attributes differ from those in the training data. For example, height shifts a user’s egocentric view and gesturing style, so EDITH generalizes poorly to keyframes of unseen heights (Appendix A). This suggests training over a more diverse user population, though how much diversity suffices remains an open question. 87 Conclusion 
+
+In this paper, we present EDITH, a framework that enables a robot to comprehend human nonverbal signals, enabling better human-robot interaction. EDITH leverages the human’s first-person view and gaze captured by smart glasses as additional inputs to the robot control policy, and introduces a hierarchical architecture to process these signals as they unfold in real time. We demonstrate EDITH on three realistic human-robot interaction tasks, and analyze its robustness and failure cases. We hope EDITH serves as a step toward robots that interact with humans naturally and in real time. 
+
+## Acknowledgement 
+
+We thank Meta Reality Labs for providing Project Aria research kits used in this work, and Google Cloud for research credits through the Gemma Academic Program. 9References 
+
+[1] O. Mees, L. Hermann, E. Rosete-Beas, and W. Burgard. Calvin: A benchmark for language-conditioned policy learning for long-horizon robot manipulation tasks. IEEE Robotics and Automation Letters , 7(3):7327–7334, 2022. [2] C. Lynch and P. Sermanet. Language conditioned imitation learning over unstructured data. 
+
+arXiv preprint arXiv:2005.07648 , 2020. [3] S. Stepputtis, J. Campbell, M. Phielipp, S. Lee, C. Baral, and H. Ben Amor. Language-conditioned imitation learning for robot manipulation tasks. In Advances in Neural Information Processing Systems , 2020. [4] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, et al. Learning transferable visual models from natural language supervi-sion. In International Conference on Machine Learning , 2021. [5] M. Tschannen, A. Gritsenko, X. Wang, M. F. Naeem, I. Alabdulmohsin, N. Parthasarathy, T. Evans, L. Beyer, Y. Xia, B. Mustafa, et al. Siglip 2: Multilingual vision-language en-coders with improved semantic understanding, localization, and dense features. arXiv preprint arXiv:2502.14786 , 2025. [6] H. Liu, C. Li, Q. Wu, and Y. J. Lee. Visual instruction tuning. In Advances in Neural Informa-tion Processing Systems , 2023. [7] L. Beyer, A. Steiner, A. S. Pinto, A. Kolesnikov, X. Wang, D. Salz, M. Neumann, I. Alabdul-mohsin, M. Tschannen, E. Bugliarello, et al. Paligemma: A versatile 3b vlm for transfer. arXiv preprint arXiv:2407.07726 , 2024. [8] A. Ali, J. Bai, M. Bala, Y. Balaji, A. Blakeman, T. Cai, J. Cao, T. Cao, E. Cha, Y.-W. Chao, et al. World simulation with video foundation models for physical ai. arXiv preprint arXiv:2511.00062 , 2025. [9] T. Wan, A. Wang, B. Ai, B. Wen, C. Mao, C.-W. Xie, D. Chen, F. Yu, H. Zhao, J. Yang, et al. Wan: Open and advanced large-scale video generative models. arXiv preprint arXiv:2503.20314 , 2025. [10] E. Jang, A. Irpan, M. Khansari, D. Kappler, F. Ebert, C. Lynch, S. Levine, and C. Finn. Bc-z: Zero-shot task generalization with robotic imitation learning. In Conference on Robot Learn-ing , 2022. [11] M. Shridhar, L. Manuelli, and D. Fox. Cliport: What and where pathways for robotic manipu-lation. In Conference on Robot Learning , 2022. [12] O. M. Team, D. Ghosh, H. Walke, K. Pertsch, K. Black, O. Mees, S. Dasari, J. Hejna, T. Kreiman, C. Xu, et al. Octo: An open-source generalist robot policy. arXiv preprint arXiv:2405.12213 , 2024. [13] J. Barreiros, A. Beaulieu, A. Bhat, R. Cory, E. Cousineau, H. Dai, C.-H. Fang, K. Hashimoto, M. Z. Irshad, M. Itkina, et al. A careful examination of large behavior models for multitask dexterous manipulation. Science Robotics , 11(113):eaea6201, 2026. [14] P. Intelligence, B. Ai, A. Amin, R. Aniceto, A. Balakrishna, G. Balke, K. Black, G. Bokin-sky, S. Cao, T. Charbonnier, et al. π0.7: a steerable generalist robotic foundation model with emergent capabilities. arXiv preprint arXiv:2604.15483 , 2026. [15] S. Ye, Y. Ge, K. Zheng, S. Gao, S. Yu, G. Kurian, S. Indupuru, Y. L. Tan, C. Zhu, J. Xiang, et al. World action models are zero-shot policies. arXiv preprint arXiv:2602.15922 , 2026. 10 [16] J. Holler and S. C. Levinson. Multimodal language processing in human communication. 
+
+Trends in cognitive sciences , 23(8):639–652, 2019. [17] C. Matuszek, L. Bo, L. Zettlemoyer, and D. Fox. Learning from unscripted deictic gesture and language for human-robot interactions. In AAAI Conference on Artificial Intelligence , 2014. [18] J. Engel, K. Somasundaram, M. Goesele, A. Sun, A. Gamino, A. Turner, A. Talattof, A. Yuan, B. Souti, B. Meredith, et al. Project aria: A new tool for egocentric multi-modal ai research. 
+
+arXiv preprint arXiv:2308.13561 , 2023. [19] Physical Intelligence, K. Black, N. Brown, J. Darpinian, K. Dhabalia, D. Driess, A. Esmail, M. Equi, C. Finn, N. Fusai, et al. π0.5: A vision-language-action model with open-world generalization. arXiv preprint arXiv:2504.16054 , 2025. [20] G. DeepMind. Gemini 3.1 flash-lite model card, 2026. [21] D. Kahneman. Thinking, fast and slow . macmillan, 2011. [22] K. Black, N. Brown, D. Driess, A. Esmail, M. Equi, C. Finn, N. Fusai, L. Groom, K. Hausman, B. Ichter, et al. π0: A vision-language-action flow model for general robot control. arXiv preprint arXiv:2410.24164 , 2024. [23] L. X. Shi, B. Ichter, M. R. Equi, L. Ke, K. Pertsch, Q. Vuong, J. Tanner, A. Walling, H. Wang, N. Fusai, et al. Hi robot: Open-ended instruction following with hierarchical vision-language-action models. In International Conference on Machine Learning , 2025. [24] M. Ahn, A. Brohan, N. Brown, Y. Chebotar, O. Cortes, B. David, C. Finn, C. Fu, K. Gopalakr-ishnan, K. Hausman, et al. Do as i can, not as i say: Grounding language in robotic affordances. In Conference on Robot Learning , 2022. [25] Y. Li, Y. Deng, J. Zhang, J. Jang, M. Memmel, R. Yu, C. R. Garrett, F. Ramos, D. Fox, A. Li, A. Gupta, and A. Goyal. Hamster: Hierarchical action models for open-world robot manipulation. In International Conference on Learning Representations , 2025. [26] K. Black, M. Nakamoto, P. Atreya, H. R. Walke, C. Finn, A. Kumar, and S. Levine. Zero-shot robotic manipulation with pre-trained image-editing diffusion models. In International Conference on Learning Representations , 2024. [27] J. Choi, J. Lee, J. Kim, C. Kim, T. Min, W. B. Knox, M. K. Lee, and K. Lee. State your intention to steer your attention: An ai assistant for intentional digital living. In CHI Conference on Human Factors in Computing Systems , 2026. [28] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever. Robust speech recognition via large-scale weak supervision. In International Conference on Machine Learn-ing , 2023. [29] S. G. Hart and L. E. Staveland. Development of nasa-tlx (task load index): Results of empirical and theoretical research. Advances in psychology , 52:139–183, 1988. [30] F. Wilcoxon. Individual comparisons by ranking methods. Biometrics Bulletin , 1(6):80, 1945. [31] S. Tellex, N. Gopalan, H. Kress-Gazit, and C. Matuszek. Robots that use language. Annual Review of Control, Robotics, and Autonomous Systems , 3(1):25–55, 2020. [32] N. Mavridis. A review of verbal and non-verbal human–robot interactive communication. 
+
+Robotics and Autonomous Systems , 63:22–35, 2015. [33] W. Hunt, S. D. Ramchurn, and M. D. Soorati. A survey of language-based communication in robotics. arXiv preprint arXiv:2406.04086 , 2024. 11 [34] R. Liu and X. Zhang. Systems of natural-language-facilitated human-robot cooperation: A review. arXiv preprint arXiv:1701.08269 , 2017. [35] G. Bugmann, E. Klein, S. Lauria, T. Kyriacou, et al. Corpus-based robotics: A route instruction example. In Intelligent Autonomous Systems , 2004. [36] R. Deits, S. Tellex, P. Thaker, D. Simeonov, T. Kollar, and N. Roy. Clarifying commands with information-theoretic human-robot dialog. Journal of Human-Robot Interaction , 2(2):58–79, 2013. [37] J. Thomason, S. Zhang, R. J. Mooney, and P. Stone. Learning to interpret natural language commands through human-robot dialog. In International Joint Conference on Artificial Intel-ligence , 2015. [38] J. Thomason, A. Padmakumar, J. Sinapov, N. Walker, Y. Jiang, H. Yedidsion, J. Hart, P. Stone, and R. Mooney. Jointly improving parsing and perception for natural language commands through human-robot dialog. Journal of Artificial Intelligence Research , 67:327–374, 2020. [39] J. Liang, W. Huang, F. Xia, P. Xu, K. Hausman, B. Ichter, P. Florence, and A. Zeng. Code as policies: Language model programs for embodied control. In IEEE International conference on robotics and automation , 2023. [40] I. Singh, V. Blukis, A. Mousavian, A. Goyal, D. Xu, J. Tremblay, D. Fox, J. Thomason, and A. Garg. Progprompt: Generating situated robot task plans using large language models. arXiv preprint arXiv:2209.11302 , 2022. [41] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, J. Dabis, C. Finn, K. Gopalakrishnan, K. Haus-man, A. Herzog, J. Hsu, et al. Rt-1: Robotics transformer for real-world control at scale. arXiv preprint arXiv:2212.06817 , 2022. [42] M. J. Kim, K. Pertsch, S. Karamcheti, T. Xiao, A. Balakrishna, S. Nair, R. Rafailov, E. Foster, G. Lam, P. Sanketi, et al. Openvla: An open-source vision-language-action model. arXiv preprint arXiv:2406.09246 , 2024. [43] B. Zitkovich, T. Yu, S. Xu, P. Xu, T. Xiao, F. Xia, J. Wu, P. Wohlhart, S. Welker, A. Wahid, et al. Rt-2: Vision-language-action models transfer web knowledge to robotic control. In 
+
+Conference on Robot Learning , 2023. [44] J. Bjorck, F. Casta˜ neda, N. Cherniadev, X. Da, R. Ding, L. Fan, Y. Fang, D. Fox, F. Hu, S. Huang, et al. Gr00t n1: An open foundation model for generalist humanoid robots. arXiv preprint arXiv:2503.14734 , 2025. [45] L.-H. Lin, Y. Cui, Y. Hao, F. Xia, and D. Sadigh. Gesture-informed robot assistance via foundation model. In Conference on Robot Learning , 2023. [46] H. Admoni and S. S. Srinivasa. Predicting user intent through eye gaze for shared autonomy. In AAAI Fall Symposium Series , 2016. [47] H. Su, W. Qi, J. Chen, C. Yang, J. Sandoval, and M. A. Laribi. Recent advancements in multimodal human–robot interaction. Frontiers in Neurorobotics , 17:1084000, 2023. [48] Y. Lai, S. Yuan, B. Zhang, B. Kiefer, P. Li, T. Deng, and A. Zell. Fam-hri: Foundation-model assisted multi-modal human-robot interaction combining gaze and speech. arXiv preprint arXiv:2503.16492 , 2025. [49] T. Y. H. Tay, X. Yan, J. Ouyang, D. Wu, W. Jiang, J. Kao, and Y. Cui. Intent at a glance: Gaze-guided robotic manipulation via foundation models. arXiv preprint arXiv:2601.05336 ,2026. 12 Appendix 
+
+## A Additional Analysis 
+
+Comparison to πlang  
+
+> l
+
+provided with a fully-specified language instruction. We additionally evaluate πlang  
+
+> l
+
+with the fully-specified language instruction it was trained on (e.g., “Give me a straw-berry muffin, a cherry muffin, and an Oreo muffin” instead of “Give me this muffin, this muffin, and this muffin”) and compare it with EDITH evaluated with underspecified language instruction ac-companied by nonverbal signals. As shown in Figure 10, although EDITH is not provided with fully-specified instruction as in πlang  
+
+> l
+
+, EDITH achieves even higher success rate highlighting that it effectively leverages nonverbal signals to capture human’s intent and act accordingly. In contrast, 
+
+πlang  
+
+> l
+
+frequently fails even when given the fully-specified instruction, since the target objects in our evaluation tasks are densely cluttered and visually similar, making it difficult to identify the correct target from language alone. For example, in Tool-Passing , the human needs a screwdriver with a hexagonal tip but the table contains other visually similar screwdrivers (e.g., Phillips-head drivers), and in Muffin-Serving , the muffins differ only by small toppings while their overall shape and color are nearly identical. SR (%) TP (%)       
+
+> 0
+> 25
+> 50
+> 75
+> 100
+> 16.7
+> 41.0
+> 50.0
+> 80.6
+> Muffin-Serving
+> SR (%) TP (%)
+> 43.8
+> 76.4
+> 45.8
+> 83.0
+> Tumbler-Sorting
+> SR (%) TP (%)
+> 56.3 74.5
+> 83.3 90.6
+> Tool-Passing
+> ¼lang
+> l(fully-specified) EDITH (underspecified + nonverbal)
+
+Figure 10: Comparison to πlang  
+
+> l
+
+provided with fully-specified language instruction. Moreover, as we discussed in our user study (Section 4.3), requiring users to fully verbalize their intent imposes a substantial workload. EDITH matches or surpasses the performance of πlang  
+
+> l
+
+pro-vided with fully-specified instructions, without imposing such workload on the user. 
+
+What is the effect of the egocentric context? To isolate the contribution of leveraging egocen-tric context, we compare EDITH against a hierarchical policy baseline where the high-level policy takes as input the streams of robot-view observation instead of the egocentric context, and produces subtasks each pairing subtask instruction and a keyframe captured at the robot view. Different from EDITH, as a low-level policy, we finetune π0.5 with the subtask trajectory conditioned on a subtask instruction and a keyframe captured at robot’s view. SR (%) TP (%)     
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> 8.3
+> 38.2
+> 50.0
+> 80.6
+> Muffin-Serving
+> SR (%) TP (%)
+> 30.0
+> 63.5
+> 45.8
+> 83.0
+> Tumbler-Sorting
+> SR (%) TP (%)
+> 8.3
+> 25.0
+> 83.3 90.6
+> Tool-Passing
+> EDITH w/o egocentric context EDITH (Ours)
+
+Figure 11: Ablation of egocentric context. As shown in Figure 11, removing the egocentric context leads to a significant drop in success rate (33.8% drop averaged over 3 evaluation tasks). In Tool-Passing , since the human’s intent is ex-pressed through eye gaze and head orientation, the VLM cannot reliably tell which tool the human is requesting from the robot view alone. In Muffin-Serving , while the VLM still captures the keyframes (i.e., the moments when the human points at a specific muffin), the keyframe no longer 13 suffices to specify a single target, due to a phenomenon called parallax . Specifically, the same pointing gesture appears differently depending on the viewpoint from which it is captured (see Fig-ure 12).In the human’s egocentric view, the finger and the target muffin are aligned along the same line of sight, making the target visually unambiguous. In the robot view, however, the finger and the target are separated in image space, and when targets are densely arranged on the table, this separation makes it ambiguous which muffin the gesture refers to. Keyframe captured from first-person view 
+
+> Keyframe captured from robot’s view
+
+Figure 12: Example of the parallax. The keyframe captured from the human’s first-person view clearly represents which object does the human is pointing at. In contrast, owing to the parallax, the keyframe captured from the robot’s view often fails to disambiguate the referents of human’s pointing gesture. SR (%) TP (%)    
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> 50.0
+> 27.1
+> 80.6
+> 59.7
+> Muffin-Serving
+> SR (%) TP (%)
+> 83.3
+> 60.8
+> 90.6 78.0
+> Tool-Passing
+> in-distribution out-of-distribution
+
+Figure 13: EDITH’s generalization to humans of unseen heights (i.e., out-of-distribution). The gap is small in Tool-Passing (no gestures), but pronounced in Muffin-Serving , as height affects how humans perform the pointing ges-ture. 
+
+Is EDITH robust to shift in human evalua-tors? We analyze whether EDITH remains ro-bust when interacting with humans whose physi-cal attributes differ from those who collected the training data. We focus on height, since it de-termines the human’s egocentric field of view that EDITH directly relies on. The training dataset was collected by two humans of similar heights (the in-distribution humans), and we ad-ditionally recruit five out-of-distribution evalua-tors whose heights are shorter or taller, measur-ing EDITH’s success rate and task progress on 
+
+Muffin-Serving and Tool-Passing for each group. 4 As shown in Figure 13, the performance gap differs across tasks. In Tool-Passing ,where requests are expressed solely through eye gaze, the gap is relatively small (27.0% and 13.9% relative drop in SR and TP). In contrast, in Muffins-Serving , which involves hand gestures, the gap is larger (50.0% and 26.4% relative drop). We attribute this to variation in how the pointing gesture is performed: as shown in Figure 15, a shorter human reaches toward the front of the muffin showcase, while a taller human reaches over from above. Since the in-distribution humans were on the shorter side, πl often fails to generalize to keyframes capturing the gestures of taller hu-
+
+> 4
+
+The two in-distribution participants had heights of 167 cm and 173 cm, while the out-of-distribution par-ticipants had heights of 162, 165, 176, 182, and 184 cm. 
+
+14 mans. These findings suggest that diversifying the human actors along physical attributes during data collection is a natural direction to improve generalization. 33%        
+
+> 17%
+> Muffin-Serving
+> 17%
+> 38%
+> Tumbler-Sorting
+> 025 50 75 100
+> 4%
+> 12%
+> Tool-Passing
+> Ours
+> Ours with Oracle ¼h
+> Error of ¼h
+> Error of ¼l
+
+Figure 14: We disentangle the two sources of EDITH’s failure: an error of 
+
+πh and an error of πl. We visualize the former with red lines, while latter with green lines. 
+
+Failure analysis for EDITH. The failure of EDITH stems from two sources, errors of the high-level policy 
+
+πh in producing subtasks from human’s signals, and er-rors of the low-level policy πl in producing actions con-ditioned on the subtasks. To disentangle the two sources of error, we compare EDITH with an oracle in which a human directly serves as the high-level policy πh, pro-viding ground-truth subtask instructions and keyframes to πl. The performance gap between EDITH and the oracle corresponds to the failure induced by πh, while the gap between the oracle and 100% success rate cor-responds to the failure purely caused by πl. As shown in Figure 14, the dominant source of error differs across tasks. In two out of three tasks, the error of πl is domi-nant, indicating that πl occasionally fails to execute sub-tasks specified by a subtask instruction and keyframe. In contrast, πh becomes the dominant source of failure in Muffin-Serving , where the human rapidly points at several muffins among densely arranged ones, making it difficult for πh to precisely identify each subtask. These results suggest two complementary directions for future work: training πh to ground subtasks under such visually cluttered scenes and rapid intent expressions, and improving the reliability of πl by collecting demonstrations from a more diverse set of human actors and interaction conditions. Pointing gesture of taller humans Pointing gesture of shorter humans 
+
+Figure 15: Example of variation in human’s height leads to variation in gesture. We observe variation in human’s height leads to variation in pointing gesture, especially in Muffin-Serving task. SR (%) TP (%)     
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> 4.2
+> 32.6
+> 0.0
+> 25.0
+> 6.5
+> 30.7
+> 53.4
+> 80.6
+> Collaborative Sorting
+> ¼lang
+> l
+> ¼ego +lang
+> l
+> ¼lang
+> h+¼lang
+> l
+> EDITH (Ours)
+
+Figure 16: Performance of EDITH in Collaborative Sorting compared against baselines. 
+
+Application of EDITH for human-robot collaboration. We ad-ditionally apply EDITH in a task where a human and a robot col-laborate over a long horizon toward a shared goal. Specifically, in a task which we refer to as Collaborative Sorting , the human repeatedly packs a tumbler (either green color or pink) into a box and place the box on a shelf, while in parallel, the robot sequen-tially picks up each box from the shelf and sort them into one of two baskets according to its content (e.g., green tumblers into the left basket, pink into the right). Unlike the three tasks in Section 4.1, the human does not directly instruct the robot here. To successfully sort the boxes, the robot must continuously infer the task context from the human’s ongoing activity, tracking which tumbler the human packed into each box 15 and where on the shelf the corresponding box was placed (see Figure 17 for an illustration of the task). As shown in Figure 16, EDITH achieves 53.4% success rate by inferring the human’s ongoing activity from the streams of the first-person view and gaze, without any explicit instruction. This result highlights the promise of leveraging the human’s egocentric signals beyond direct instruction-following, toward natural human-robot collaboration where the robot autonomously adapts to the human’s behavior. Human packs tumbler into a box and place it on the shelf 
+
+> Robot pick up the box from the shelf, sort it into two baskets
+
+Figure 17: Example episode of the Collaborative Sorting task. A human and a robot coworks by doing its role: the human packs the tumbler into a box, and the robot sort the box according to its content. 16 B Implementation Details 
+
+B.1 Policy Implementation High-level policy (VLM). For the high-level policy πh, we employ Gemini -3.1-Flash-Lite [20]. For every H timesteps, the policy receives human egocentric context and language instruction cap-tured over a recent H timesteps (i.e., Ct−H:t and ℓt−H:t). We set H as 120 , which corresponds to 8 seconds of 15Hz stream. We describe preprocessing steps applied to Ct−H:t and ℓt−H:t before we feed them into the VLM. First, we render Cego  
+
+> t−H:t
+
+as a single egocentric video clip. Second, to direct VLM’s attention to interaction-relevant regions, we spatially crop each frame around the human’s gaze coordinate. Specifically, the original 1408 × 1408 frames are cropped to 512 × 512 centered at the gaze coordinate, and the gaze marker is overlaid to the cropped frame. Third, to reduce the inference cost, we temporally downsample the video from 15fps to 4fps. Finally, to enable VLM to jointly reason over Ct−H:t and ℓt−H:t in a temporally synchronized manner, we overlay the lan-guage instruction ℓt−H:t on the egocentric video as a time-aligned caption, rather than naively feed 
+
+ℓt to the VLM in text (see Figure 18 for a concrete example). Egocentric Context with Gaze         
+
+> Gaze Centered Cropping
+> Can Ihave this cherry muffin and… this oreo muffin?
+> transcribed language
+> Time-aligned Caption Gaze Overlay
+
+Figure 18: Illustration of the preprocessing steps applied to egocentric context and human’s utter-ance, before fed into the high-level policy (VLM). 
+
+Low-level policy (VLA model). For the low-level policy πl, we finetune a pretrained π0.5 [19] as the Vision-Language-Action (VLA) model. At each timestep, πl takes as input the robot observation 
+
+ot, the subtask instruction [TASK] , and the keyframe Ckey . Here Ckey is one of the frames in the egocentric video fed to the VLM, but without the time-aligned caption: gaze centered cropped first-person view ( 512 × 512 ) with the gaze marker overlaid. Conditioned on these inputs, πl produces both low-level action at and a completion probability pt indicating whether the current subtask is completed. The success probability is predicted by a linear head attached on top of the last hidden state of the VLA backbone. We note that we set the action chunk size as 8 during the inference. 
+
+Overall algorithm. We describe full inference procedure in Algorithm 1. We set the max horizon 
+
+T and the threshold τ as 10 , 000 and 0.8 respectively. Importantly, the high-level policy πh may produce empty set of subtask if there is no actionable intent found in its input, in which the task queue Q remains unchanged. 
+
+B.2 Hardware Details Aria details. We use the Project Aria recording configuration Profile 21 [18]. At each timestep, we obtain an RGB image frame at 15 Hz with resolution 1408 × 1408 , and eye-tracking images at 17 Algorithm 1: Asynchronous inference of the EDITH policy 
+
+Input: High-level policy πh, low-level policy πl, context window size H, max horizon T , threshold τ 
+
+> 1
+
+Initialize shared task queue Q ← ∅ ; 
+
+> 2
+
+Run Process 1 and Process 2 asynchronously.  
+
+> 3
+
+Process 1: πh monitors the human’s egocentric context every H steps and produces subtasks.  
+
+> 4
+
+t ← 1 ; 
+
+> 5
+
+while t < T do  
+
+> 6
+
+if t mod H = 0 then  
+
+> 7
+
+Read recent H frames of egocentric context as Cego  
+
+> t−H:t
+
+; 
+
+> 8
+
+Read language instruction within recent H frames as ℓt−H:t ; 
+
+> 9
+
+{([TASK] i, C key  
+
+> i
+
+)}ni=1 ← πh(Cego 
+
+> t−H:t
+
+, ℓ t−H:t) // πh produces subtasks  
+
+> 10
+
+Q.append ({([TASK] i, C key  
+
+> i
+
+)}ni=1 ) // Append the subtask to Q 
+
+> 11
+
+end  
+
+> 12
+
+t ← t + 1 ; 
+
+> 13
+
+end  
+
+> 14
+
+Process 2: πl sequentially executes subtasks queued in Q 
+
+> 15
+
+t ← 1 ; 
+
+> 16
+
+Reset the robot and read its initial observation ot ; 
+
+> 17
+
+while t < T do  
+
+> 18
+
+if Q = ∅ then  
+
+> 19
+
+await until Q̸ = ∅ // Wait for πh to fill the task queue Q 
+
+> 20
+
+end  
+
+> 21
+
+[TASK] , C key ← head (Q) // Get subtask at the head of Q 
+
+> 22
+
+(at, p t) ← πl(ot, [TASK] , C key ) // πl produces action and completion probability  
+
+> 23
+
+Execute at on the robot and observe ot+1 ; 
+
+> 24
+
+if pt > τ then  
+
+> 25
+
+Pop ([TASK] , C key ) from Q // Subtask completed, move to the next one  
+
+> 26
+
+end  
+
+> 27
+
+t ← t + 1 ; 
+
+> 28
+
+end 
+
+30 Hz with resolution 240 × 640 . The eye-tracking images are converted in real time into a 2D gaze coordinate within the wearer’s first-person-view RGB frame through the neural-network-based gaze projection module provided by the Aria SDK. We use the RGB observations and projected gaze coordinates as the human’s egocentric context throughout this paper. In addition, speech is captured using the onboard microphone array supported by Profile 21, and the audio stream is transmitted in fixed-horizon chunks as raw audio signals. 
+
+Robot system details We deploy EDITH on a bimanual 6-DoF Agilex Piper robot platform, where each arm is equipped with a parallel-jaw gripper for object manipulation. The robot perceives the workspace through 3 RGB-D RealSense cameras consisting of one overhead camera that provides a global view of the interaction scene, and two wrist-mounted cameras attached to the end effectors for close-range manipulation observations. During operation, joint states, gripper states, RGB ob-servations, and robot action commands (joint velocity actions) are streamed to the robot server in real time and recorded during data collection. The robot control loop operates at 15 Hz. 
+
+Integration of human signals to a robotic system. To integrate human egocentric signals (first-person view, eye gaze coordinate, utterance) with robot perception and control, all Project Aria sensor streams, including RGB video, projected gaze coordinates, and speech transcripts, are syn-chronized with the robot sensing pipeline through a unified timestamp-based streaming frame-work. Since the Project Aria streams operate at different native frequencies, all human signals are temporally resampled to 15 Hz to match the robot control frequency. Specifically, gaze coordi-nates estimated from the eye-tracking pipeline are aligned with the corresponding egocentric RGB frames, while speech transcripts generated by Whisper are temporally associated with the nearest synchronized observation window. The synchronized human observations are then integrated with 18 the robot’s multi-view RGB-D observations and proprioceptive states before being provided to the high-level VLM and low-level VLA policies. This unified synchronization pipeline enables EDITH to jointly reason over human visual attention, language instructions, egocentric scene context, and robot workspace observations within a temporally consistent multi-modal control framework. 
+
+B.3 Prompts 
+
+In this section, we provide a set of prompts that we used for using VLM as a high-level policy. For 
+
+Muffin-Serving , Tumbler-Sorting , Tool-Passing tasks, we utilize an identical prompt. 
+
+User prompt for the VLM 
+
+[TASK DESCRIPTION] You are monitoring a robot pick-and-place task from a first-person egocentric video. You are receiving a new {segment_duration:.1f}-second clip covering {t_start:.1f}s to {t_end:.1f}s of the episode. Decide whether the current action queue needs to be modified in response to human intervention in this clip. [KEYFRAME DETECTION OBJECTIVE] Detect any human intervention in this clip: speech, pointing gestures, gaze fixation on new targets, or verbal corrections such as "not that one", "also grab this", or "forget about that". Localize each new keyframe with the same multi-cue convergence as the initial prompt (utterance + hand gesture + gaze). Multiple separate pointing events in one clip must NOT be collapsed into a single keyframe. [INPUT OBSERVATION FORMAT] - Video clip of duration {segment_duration:.1f} s at {fps:.1f} FPS, covering [{t_start:.1f}, {t_end:.1f}] of the episode. - Current keyframe queue (remaining subtasks): {queue_state}. - Currently executing: index {current_idx} --"{current_instruction}". - Optional transcript: {transcript_section}. An empty transcript does NOT imply NoOp; rely on visual cues when audio is absent. [OUTPUT FORMAT] Return a single JSON object. Populate keys in the exact order shown. Reason about human_intent FIRST. {"human_intent": "<intent of the human in THIS clip: silent/passive, or adding new objects/destinations? If intervening, describe the high-level goal.>", "reasoning": "<what you observed in the clip>", "command": "<NoOp | Append>", "new_elements": [ {"keyframe_description": "<fine-grained visual description>", "subtask_instruction": "<pick up X | place it Y>", "keyframe_interval": {"start": <float>, "end": <float>} }]}For NoOp: new_elements = []. For Append: new_elements = list of new elements, sorted by keyframe_interval.start. [ADDITIONAL CONSTRAINTS / REASONING INSTRUCTIONS] - Each clip covers a disjoint, non-overlapping time window. ANY human speech, gesture, or instruction detected in this clip is, by 
+
+19 construction, new information that was NOT present in any previous clip. You MUST update the queue accordingly. Do NOT dismiss it as "already reflected" or "already in the queue". - NoOp is correct ONLY when the clip contains no human intervention at all -- the person is silent and passive. - Verb form: subtask_instruction uses ONLY "pick up <object>" or "place it <destination>". Rephrase any other verb. - Perspective: egocentric. All spatial references from the wearer’s viewpoint. - Contextual recomposition applies on append: e.g., "also put this in that basket" -> append TWO elements (pick up + place it), not one. - Multiple keyframes per clip are allowed; return them as separate new_elements sorted by keyframe_interval.start. - All timestamps are relative to this clip (0.0 = clip start, {segment_duration:.1f} = clip end). 
+
+20 C Evaluation details 
+
+In this section, we detail the evaluation protocol and the definitions of success rate (SR) and task progress (TP) for each evaluation task. We run 48 trials per task, consisting of 24 distinct evaluation configurations (each differing in object arrangement and the human’s request order) evaluated twice, once by each of the two human evaluators. 
+
+C.1 Muffin-Serving Evaluation protocols. The six muffins are arranged in a fixed 3 × 2 grid. For each episode, a list specifying the three target muffins and their order is provided to the human evaluator (see the list of 24 evaluation configurations below). For each episode, the human evaluator verbally requests three muffins by saying “Give me this muffin, this muffin, and this muffin” while consecutively pointing at the muffins with the index finger from a fixed position. Verbal instructions and pointing gestures are performed naturally and concurrently. 
+
+Evaluation metrics. An episode is considered successful if the robot picks up all three requested muffins in the specified order. The episode is marked as a successful only if the robot serve 3 request muffins correctly in the requested order, otherwise failure. Task progress (TP) is the fraction of completed subtasks, where each muffin contributes two subtasks: (i) reaching the requested muffin and (ii) grasping and placing it onto the plate. This yields six subtasks per episode in total. 
+
+Muffin-Serving: Evaluation tasks 
+
+Each evaluating human performs a total of 24 evaluation trials. Human requests the robot to serve three specific muffins among six different muffins in the illustrated fixed scene below. We remark that the arrangement of muffins used during the evaluation is unseen during the training data collection. Please refer to Figure 22 for names of each muffin.  
+
+> Evaluation Scene The human directs the robot to serve three muffins. 1. Give me the muffin with grape topping, the muffin with cherry topping, and the muffin with 2 strawberries topping. 2. Give me the muffin with cherry topping, the muffin with 2 strawberries topping, and the muffin with oreo and strawberry topping.
+
+21 3. Give me the muffin with 2 strawberries topping, the muffin with oreo and strawberry topping, and the muffin with pineapple topping. 4. Give me the muffin with oreo and strawberry topping, the muffin with pineapple topping, and the muffin with tangerine and strawberry topping. 5. Give me the muffin with pineapple topping, the muffin with tangerine and strawberry top-ping, and the muffin with grape topping. 6. Give me the muffin with tangerine and strawberry topping, the muffin with grape topping, and the muffin with cherry topping. 7. Give me the muffin with grape topping, the muffin with 2 strawberries topping, and the muffin with pineapple topping. 8. Give me the muffin with cherry topping, the muffin with oreo and strawberry topping, and the muffin with tangerine and strawberry topping. 9. Give me the muffin with 2 strawberries topping, the muffin with pineapple topping, and the muffin with grape topping. 10. Give me the muffin with oreo and strawberry topping, the muffin with tangerine and straw-berry topping, and the muffin with cherry topping. 11. Give me the muffin with pineapple topping, the muffin with grape topping, and the muffin with 2 strawberries topping. 12. Give me the muffin with tangerine and strawberry topping, the muffin with cherry topping, and the muffin with oreo and strawberry topping. 13. Give me the muffin with grape topping, the muffin with oreo and strawberry topping, and the muffin with tangerine and strawberry topping. 14. Give me the muffin with cherry topping, the muffin with pineapple topping, and the muffin with grape topping. 15. Give me the muffin with 2 strawberries topping, the muffin with tangerine and strawberry topping, and the muffin with cherry topping. 16. Give me the muffin with oreo and strawberry topping, the muffin with grape topping, and the muffin with 2 strawberries topping. 17. Give me the muffin with pineapple topping, the muffin with cherry topping, and the muffin with oreo and strawberry topping. 18. Give me the muffin with tangerine and strawberry topping, the muffin with 2 strawberries topping, and the muffin with pineapple topping. 19. Give me the muffin with grape topping, the muffin with pineapple topping, and the muffin with cherry topping. 20. Give me the muffin with cherry topping, the muffin with tangerine and strawberry topping, and the muffin with 2 strawberries topping. 21. Give me the muffin with 2 strawberries topping, the muffin with grape topping, and the muffin with oreo and strawberry topping. 22. Give me the muffin with oreo and strawberry topping, the muffin with cherry topping, and the muffin with pineapple topping. 23. Give me the muffin with pineapple topping, the muffin with 2 strawberries topping, and the muffin with tangerine and strawberry topping. 24. Give me the muffin with tangerine and strawberry topping, the muffin with oreo and straw-berry topping, and the muffin with grape topping. 
+
+C.2 Tumbler-Sorting Scenario. Five different tumblers and two baskets are arranged on the table. The human directs the robot to place 2 tumblers into specific basket through a verbal instruction (“Put this tumbler and this tumbler into this basket”) accompanied by pointing gestures. This task evaluates whether the robot can resolve multiple deictic references of different types within a single instruction (which tumblers and which basket) and execute the corresponding placements. 22 Evaluation protocols. Five distinct tumblers are placed in a fixed arrangement (three in the front row and two in the back row from the human’s perspective), and the two baskets are placed at fixed positions. For each episode, the human evaluator is given a configuration specifying the initial position of each tumbler and the goal state (i.e., which tumbler goes into which basket). Standing at a fixed position, the evaluator then issues the request by saying “Put this tumbler in this basket, and put this tumbler in this basket,” while consecutively pointing at the corresponding tumblers and baskets in turn. 
+
+Evaluation metrics. Each episode is considered successful if the robot places both requested tum-blers into their specified baskets in the instructed order, otherwise failure. Task progress (TP) is measured across six stages, with three stages per tumbler: (i) approaching the specified tumbler, (ii) successfully grasping it, and (iii) successfully placing it into the specified basket. Each stage is evaluated independently according to the instructed order. 
+
+Tumbler-Sorting: Evaluation Tasks 
+
+Each evaluating human performs a total of 24 evaluation trials, covering various combina-tions of tumbler colors and target basket assignments. Each trial consists of a two tumbler sorting instructions. Please refer to Figure 22 for asset names.  
+
+> Evaluation Scene The human directs the robot to place 2 tumblers into specific basket. 1. Pick up the Pink Tumbler at the front left and put it in the left basket, and pick up the pink tumbler at front center and put it in the right basket. 2. Pick up the Pink Tumbler at the front left and put it in the left basket, and pick up the green tumbler at front right and put it in the right basket. 3. Pick up the Pink Tumbler at the front left and put it in the right basket, and pick up the Pink Tumbler at the back left and put it in the right basket. 4. Pick up the Pink Tumbler at the front left and put it in the right basket, and pick up the green tumbler at back right and put it in the right basket. 5. Pick up the pink tumbler at front center and put it in the left basket, and pick up the Pink Tumbler at the front left and put it in the left basket. 6. Pick up the pink tumbler at front center and put it in the right basket, and pick up the green tumbler at front right and put it in the left basket. 7. Pick up the pink tumbler at front center and put it in the left basket, and pick up the Pink Tumbler at the back left and put it in the left basket.
+
+23 8. Pick up the pink tumbler at front center and put it in the right basket, and pick up the Pink Tumbler at the back left and put it in the left basket. 9. Pick up the pink tumbler at front center and put it in the left basket, and pick up the green tumbler at back right and put it in the left basket. 10. Pick up the green tumbler at front right and put it in the left basket, and pick up the Pink Tumbler at the front left and put it in the left basket. 11. Pick up the green tumbler at front right and put it in the right basket, and pick up the Pink Tumbler at the front left and put it in the right basket. 12. Pick up the green tumbler at front right and put it in the right basket, and pick up the pink tumbler at front center and put it in the left basket. 13. Pick up the green tumbler at front right and put it in the left basket, and pick up the Pink Tumbler at the back left and put it in the right basket. 14. Pick up the green tumbler at front right and put it in the right basket, and pick up the green tumbler at back right and put it in the left basket. 15. Pick up the Pink Tumbler at the back left and put it in the left basket, and pick up the Pink Tumbler at the front left and put it in the right basket. 16. Pick up the Pink Tumbler at the back left and put it in the right basket, and pick up the pink tumbler at front center and put it in the left basket. 17. Pick up the Pink Tumbler at the back left and put it in the right basket, and pick up the green tumbler at front right and put it in the left basket. 18. Pick up the Pink Tumbler at the back left and put it in the left basket, and pick up the green tumbler at back right and put it in the right basket. 19. Pick up the Pink Tumbler at the back left and put it in the right basket, and pick up the green tumbler at back right and put it in the right basket. 20. Pick up the green tumbler at back right and put it in the right basket, and pick up the Pink Tumbler at the front left and put it in the right basket. 21. Pick up the green tumbler at back right and put it in the left basket, and pick up the pink tumbler at front center and put it in the right basket. 22. Pick up the green tumbler at back right and put it in the left basket, and pick up the green tumbler at front right and put it in the left basket. 23. Pick up the green tumbler at back right and put it in the right basket, and pick up the green tumbler at front right and put it in the right basket. 24. Pick up the green tumbler at back right and put it in the left basket, and pick up the Pink Tumbler at the back left and put it in the left basket. 
+
+C.3 Tool-Passing Evaluation protocols. Two screwdrivers with different tips and three metal profiles are scattered on the table, with their arrangement differing across episodes. For each episode, the human evaluator is given an assembly specification and tasked to assemble a metal stand accordingly. During the assembly, the evaluator requests either a specific screwdriver or a specific metal profile from the robot whenever needed, in the sequence required by the assembly specification. Since the evaluator’s hands are occupied by the assembly, each request is made through gaze and a brief verbal instruction (e.g., glancing at a specific screwdriver while saying “Give me that driver”), without hand gestures. In our evaluation, the evaluator requests one tool at a time and proceeds sequentially: requesting a specific screwdriver, receiving it from the robot, using it for assembly, and then requesting a metal profile. 
+
+Evaluation metrics. An episode is considered successful if the robot delivers the requested screw-driver and the requested metal support in front of the human, in the specified order, otherwise failure. Task progress (TP) is measured across four stages, with two stages per object: (i) approaching the specified object and (ii) successfully grasping it. Each stage is evaluated independently according to the instructed order. 24 Tool-Passing: Evaluation Tasks 
+
+Each evaluating human performs a total of 24 evaluation trials, consisting of 12 trials per scene. Each scene is evaluated under varied combinations of tool and metal profile requests to assess robustness to ordering and compositional instruction variations. Please refer to Figure 22 for asset names. 
+
+Evaluation Scene 1. The human requests tools and metal profiles while performing an assembly task. 1. Give me the Phillips screwdriver and 5cm metal profile. 2. Give me the Phillips screwdriver and 10cm metal profile. 3. Give me the Phillips screwdriver and 12cm metal profile. 4. Give me the hexagonal screwdriver and 5cm metal profile. 5. Give me the hexagonal screwdriver and 10cm metal profile. 6. Give me the hexagonal screwdriver and 12cm metal profile. 7. Give me the 5cm metal profile and Phillips screwdriver. 8. Give me the 10cm metal profile and Phillips screwdriver. 9. Give me the 12cm metal profile and Phillips screwdriver. 10. Give me the 5cm metal profile and hexagonal screwdriver. 11. Give me the 10cm metal profile and hexagonal screwdriver. 12. Give me the 12cm metal profile and hexagonal screwdriver. 
+
+25 Evaluation Scene 2. The human requests tools and metal profiles while performing an assembly task. 1. Give me the Phillips screwdriver and 5cm metal profile. 2. Give me the Phillips screwdriver and 10cm metal profile. 3. Give me the Phillips screwdriver and 12cm metal profile. 4. Give me the hexagonal screwdriver and 5cm metal profile. 5. Give me the hexagonal screwdriver and 10cm metal profile. 6. Give me the hexagonal screwdriver and 12cm metal profile. 7. Give me the 5cm metal profile and Phillips screwdriver. 8. Give me the 10cm metal profile and Phillips screwdriver. 9. Give me the 12cm metal profile and Phillips screwdriver. 10. Give me the 5cm metal profile and hexagonal screwdriver. 11. Give me the 10cm metal profile and hexagonal screwdriver. 12. Give me the 12cm metal profile and hexagonal screwdriver. 
+
+C.4 Baselines 
+
+In this section, we describe details of each baseline method. We provide illustration of each baseline in Figure 19. 
+
+πlang  
+
+> l
+
+(bottom left of Figure 19). This is a standard end-to-end language-conditioned policy which we implement by finetuning a pretrained π0.5 [19] model using task-specific demonstration data, conditioned on the language instruction. At inference time, we prompt the model with language instruction, 
+
+πlang  
+
+> h
+
++πlang  
+
+> l
+
+(top of Figure 19). This is a hierarchical policy with high-level VLM and low-level VLA model. The high-level policy, which we implement by Gemini-3.1-flash-lite, takes the stream of observations captured from the robot’s view and human’s language instruction as input, and pro-duces a fine-grained subtask instruction. This subtask instruction is pushed into a task queue, and the low-level policy produces actions and completion probability conditioned on each subtask in-struction. Once the completion probability exceeds certain threshold, it moves on to next subtask in the task queue. The low-level policy is implemented by finetuning π0.5 with the same data used for 26 Recent robot observations 
+
+Task queue 
+
+Low-level policy 
+
+(VLA) 
+
+Robot observations 
+
+> ….
+
+2    
+
+> “Pick up the profile on
+> the right most side and
+> pass it to human.”
+> “Pick up the driver on the
+> leftmost side and pass it
+> to human. ”
+
+Action Completion 
+
+> Subtask instruction [TASK]
+
+“Pick up the driver on the 
+
+leftmost side and pass it 
+
+to human. ”
+
+Robot 
+
+state 
+
+High-level policy 
+
+(VLM) 
+
+Language 
+
+“Pass me that driver 
+
+and that metal profile” 
+
+Robot observations 
+
+Robot 
+
+state 
+
+Action 
+
+Low-level policy 
+
+(VLA) “Pass me that driver 
+
+and that metal profile” 
+
+Action 
+
+Low-level policy 
+
+(VLA) 
+
+“Pass me that driver 
+
+and that metal profile” 
+
+Robot observations 
+
+Robot 
+
+state Figure 19: Illustration of each baseline. training EDITH, but only conditioned on subtask instruction, instead of pair of subtask instruction and keyframe. 
+
+πego+lang 
+
+l (bottom right of Figure 19). This baseline is an end-to-end policy which conditioned both on language instruction and human’s egocentric context at current time step. To this end, we finetune π0.5 both conditioned on the language instruction and real-time egocentric context, where we feed the egocentric context as an image to the model. 27 D User Study 
+
+D.1 Participants 
+
+We recruited 16 participants (6 female, 10 male; ages 20–40). All participants were native Korean speakers with no or limited prior experience interacting with collaborative robots. Each participant was compensated 10,000 KRW for approximately 30 minutes of participation. 
+
+D.2 Procedure 
+
+An overview of the procedure is shown in Figure 20. Each participant experienced both methods across the two tasks in a within-subjects design. 
+
+Orientation. Before the main study, participants attended a brief orientation session. The session introduced the purpose and procedure of the study, and showed videos of the robot performing the tasks so that participants could become familiar with the robot’s behavior and the interaction setup. To reduce potential bias, the two methods were referred to throughout the study only as color labels (System Blue for the baseline πlang  
+
+> h
+
++ πlang  
+
+> l
+
+, System Purple for EDITH). 
+
+Condition-specific instructions. In the baseline condition, participants were asked to use verbal instructions alone, since it is built around a verbal instruction interface. They provided specific verbal commands (including attributes such as color, location, and name) without using gestures or gaze. In the EDITH condition, participants were asked to use both verbal instructions and nonverbal signals, conveying intent through brief referring expressions along with pointing gestures and gaze. 
+
+Tasks and goal presentation. At the beginning of each trial, participants were shown a goal im-age. For the Muffin-Serving task, the image showed a specified muffin served on a plate; for the 
+
+Tool-Passing task, the image showed an assembly instruction diagram. We presented goals as im-ages rather than text to prevent participants from anchoring on the wording of a written instruction, allowing us to observe their own natural expressions. The goal image was not shown again during the trial, so that participants relied on their memory and conveyed intent in their own words. 
+
+Trials and survey. For each task–condition combination, participants performed three trials, each with a different goal. The order of tasks and conditions was counterbalanced across participants to avoid ordering effects. Immediately after completing the three trials of a single condition, partici-pants responded to the survey, resulting in 12 trials and 4 survey responses per participant. 
+
+D.3 Survey Items 
+
+After each condition, participants rated the following items on a 7-point Likert scale (1 = strongly disagree, 7 = strongly agree). Post-survey Post-survey Post-survey Post-survey     
+
+> Task 2
+> X3 X3
+> Orientation
+> X3 X3
+> Task 1
+> Trials Trials Trials Trials
+
+Figure 20: User study procedure. Before the user study, participants attended a 5-minute orien-tation session. Each participant performed two manipulation tasks three times each under both the baseline ( πlang  
+
+> h
+
++ πlang  
+
+> l
+
+) and EDITH, and completed a survey after each condition. The order of tasks and conditions was counterbalanced. 28 Instruction workload. We adapted four items corresponding to four dimensions of NASA-TLX [29] relevant to our context. The survey was administered in Korean. We report English translations of the items below. • Q1. Expressing my intention to the robot required a lot of mental effort. (mental demand) • Q2. It was difficult to successfully convey what I wanted to the robot. (performance) • Q3. I had to put in a lot of effort to get the robot to perform the behavior I wanted. (effort) • Q4. I felt frustrated, annoyed, or irritated while expressing my intention to the robot. (frustra-tion) 
+
+D.4 Statistical Analysis 
+
+Given that Likert responses may not satisfy the normality assumption, we used the Wilcoxon signed-rank test for paired comparisons between the two conditions. Effect sizes are reported as r =
+
+Z/ √N .
+
+D.5 Survey Results 
+
+Figure 21 shows the per-item Likert responses for both tasks. EDITH yielded lower workload scores than the baseline on all four items (Q1–Q4) and on both tasks, and every comparison was statistically significant ( p < 0.01 ). The effect sizes ranged from r = 0 .74 to 0.89 , well above the conventional threshold for a large effect ( r = 0 .5), indicating that EDITH substantially reduces workload relative to the baseline. Across items, EDITH’s effect was statistically significant and large for every item. The effect sizes followed the order Q1 ( r = 0 .88 ), Q2 ( r = 0 .88 ), Q3 ( r = 0 .86 ), and Q4 ( r = 0 .79 ), with the largest effects observed on mental demand (Q1) and performance (Q2). This suggests that the burden of verbally describing the attributes of each target object precisely is a primary source of workload under the baseline. For frustration (Q4), the baseline mean (3.81) was lower than those of the other items (4.69–4.88), and the responses were more dispersed. This indicates that, unlike mental demand or effort, frustra-tion was not perceived as a consistent burden across all participants. Comparing the two tasks, the baseline workload was higher on Serving Muffins than on Passing Tools across items (e.g., Q1–Q2 means of 5.19 vs. 4.56), likely because distinguishing among visu-ally similar muffins required more precise verbal descriptions. Under EDITH, however, the work-load was nearly identical across the two tasks (means of approximately 2.2–2.4), and the effect sizes were consistent ( r ≈ 0.87 for both tasks), suggesting that EDITH consistently reduces the burden of conveying intent regardless of task. 29 Q1. Expressing my intention to the robot required a lot of mental effort. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+1 2 1 4 5 3
+
+6 3 4 3
+
+5.19(1.52) 
+
+2.44(1.50) 
+
+*** 
+
+Q2. It was difficult to successfully convey what I wanted to the robot. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+1 1 8 3 3
+
+6 5 1 4
+
+5.19(1.52) 
+
+2.44(1.63) 
+
+** 
+
+Q3. I had to put in a lot of effort to get the robot to perform the behavior I wanted. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+1 3 1 4 4 3
+
+6 4 3 2 1
+
+5.00(1.59) 
+
+2.50(1.79) 
+
+** 
+
+Q4. I felt frustrated, annoyed, or irritated while expressing my intention to the robot. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+2 2 4 1 2 4 1
+
+7 4 1 2 2
+
+3.94(1.95) 
+
+2.25(1.48) 
+
+** 
+
+MEAN(SD) 
+
+Serving Muffins 
+
+0 4 8 12 16 
+
+Number of Responses 
+
+Q1. Expressing my intention to the robot required a lot of mental effort. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+1 1 1 2 7 4
+
+5 6 4 1
+
+4.56(1.46) 
+
+2.19(1.28) 
+
+** 
+
+Q2. It was difficult to successfully convey what I wanted to the robot. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+2 1 4 5 3 1
+
+5 7 2 1 1
+
+4.56(1.41) 
+
+2.25(1.44) 
+
+** 
+
+Q3. I had to put in a lot of effort to get the robot to perform the behavior I wanted. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+1 4 3 4 4
+
+6 5 1 2 1 1
+
+4.38(1.31) 
+
+2.38(1.59) 
+
+** 
+
+Q4. I felt frustrated, annoyed, or irritated while expressing my intention to the robot. 
+
+¼lang  
+
+> h
+
++ ¼lang 
+
+> l
+
+EDITH 
+
+3 1 4 1 4 3
+
+9 2 2 2 1
+
+3.69(1.82) 
+
+2.00(1.37) 
+
+** 
+
+MEAN(SD) 
+
+Passing Tools 
+
+1 = Strongly disagree 
+
+2 = Disagree 
+
+3 = Slightly disagree 
+
+4 = Neutral 
+
+5 = Slightly agree 
+
+6 = Agree 
+
+7 = Strongly agree Figure 21: Per-item instruction workload responses ( ↓). Distribution of 7-point Likert responses for each of the four workload items (Q1–Q4, adapted from NASA-TLX) under the baseline ( πlang 
+
+h +
+
+πlang 
+
+l ) and EDITH, across the two tasks (Serving Muffins and Passing Tools). Bars show the number of responses at each scale point, with mean and standard deviation reported on the right. ∗∗∗ and 
+
+∗∗ indicate significance levels of p < 0.001 and p < 0.01 , respectively, from two-sided Wilcoxon signed-rank tests. The arrow ( ↓) indicates that lower scores correspond to lower workload. 30 Tumbler-Sorting           
+
+> Pink Tumbler
+> at back left
+> Left
+> Basket
+> Right
+> Basket
+> Pink Tumbler
+> at back right
+> Green Tumbler
+> at front left
+> Pink Tumbler
+> at front center
+> Green Tumbler
+> at front right
+
+Tool-Passing 
+
+> Philips
+> Screwdriver
+> 5cm
+> Metal Profile
+> 10cm
+> Metal Profile
+> 12cm
+> Metal Profile
+> Hexagonal
+> Screwdriver
+
+Muffin-Serving      
+
+> Muffin with
+> Grape Topping
+> Muffin with
+> Cherry Topping
+> Muffin with
+> Oreo and
+> Strawberry Topping
+> Muffin with
+> Pineapple
+> Topping
+> Muffin with
+> Tangerine and
+> Strawberry Topping
+> Muffin with
+> 2 Strawberries
+> Topping
+
+Figure 22: Data collection configurations for Muffin-Serving , Tumbler-Sorting , and 
+
+Tool-Passing . The names of the assets used in each task are provided and are used for annotating fine-grained instructions. Example annotations include: “Give me the muffin with grape topping, the muffin with cherry topping and the muffin with pineapple topping.”, “Pick up the pink tumbler at the back left and place it in the left basket,”,“Pass me the Phillips screwdriver.” and “Pass me the 5cm metal profile.” 
+
+## E Dataset Curation and Training Details 
+
+As we described in Section 3.3, the training data curation pipeline consists of two major stages: raw data collection in interactive human-robot scenarios, followed by post-processing and annotation for hierarchical policy learning. 
+
+E.1 Raw Data Collection. 
+
+In this section, we describe the collection protocol used to construct the raw interaction dataset 
+
+τ = {(Cego  
+
+> t
+
+, ℓ t, o t, a t)}Lt=1 . The dataset consists of human-robot interaction demonstrations in which a human communicates intent to a robot through multimodal signals, including language, gaze, and gestures, while a robot teleoperator interprets these signals and executes the corresponding actions. 
+
+Protocol for human actor. Before each episode, human actor is first provided with task instruc-tions describing the overall interaction scenario (e.g., which objects to request to robot). The the human actor then interacts naturally with the robot while performing the assigned tasks. Rather than following strict predefined communication templates, participants are given only minimal guidance and are encouraged to express their intent freely through multimodal signals, including speech, gaze, hand gestures. This protocol encourages diverse and realistic communication behaviors commonly observed in everyday interaction settings. 
+
+Teleoperator protocol. A robot teleoperator controls the robot in real time to collaboratively com-plete tasks with the human participant. Importantly, the teleoperator is not given access to the pre-defined interaction scenarios that the human actor is provided with. Instead, the teleoperator contin-uously interprets the human actor’s verbal and nonverbal signals, including language instructions, gaze, head movements, hand gestures, and ongoing activities, and controls the robot to complete the participant’s request. 
+
+Interactive scenario diversification. To improve robustness and generalization, demonstrations are collected under diverse interaction conditions. Across demonstrations, we randomize object placements, task goal, and interaction timing to encourage a broad distribution of communication patterns and interactions. 
+
+Per-task details We describe details of the raw data collection for each task. • Muffin-Serving . Participants are instructed to request a sequence of three muffins selected among 6 muffins with different toppings (grape topping, 2 strawberries topping, Oreo and straw-31 berry topping, straweberry and tangerine topping, pineapple topping, cherry topping), as illus-trated in left of Figure 22. To encourage natural interaction, participants are given only minimal instructions and are encouraged to express their requests primarily through eye gaze and hand gestures, while remaining free to use additional verbal cues if desired (e.g., “Give me this muf-fin, this muffin, and this muffin”). For each data collection episode, the arrangement of the six muffins is randomized. • Tumbler-Sorting . Five tumblers and two baskets are placed on the table (middle of Figure 22), and the human actor instruct the robot to place two selected tumblers into designated baskets through interaction. The human actor is given only minimal instructions and are encouraged to express their requests primarily through eye gaze and hand gestures while remaining free to use additional verbal cues if desired (e.g., “Put this pink tumbler in here, and this tall green bottle in this basket,” while alternately pointing at the bottle and basket). For each data collection episode, both the position of the tumblers and the assignment of tumblers to baskets are randomized. • Tool-Passing . While the human actor assembles a metal stand, they request tools needed dur-ing the assembly (e.g., screwdrivers with different tips, pliers, or metal profiles) from the robot, and the robot’s role is to pick up the requested tool and pass it to the human (right of Figure 22). The human actor is given only minimal instructions and is encouraged to express their requests primarily through eye gaze and hand gestures while remaining free to use additional verbal cues if desired (e.g., glancing at a specific screwdriver while saying “Give me that driver”). For each data collection episode, both the arrangement of the tools on the table and the order in which the tools are requested are randomized. 
+
+E.2 Segmenting and Relabeling the Raw Data 
+
+In this section, we describe the post-processing pipeline used to convert raw interaction trajectories 
+
+τ into labeled subtask trajectories τlabeled for hierarchical policy learning. Each raw interaction trajectory the trajectories are segmented into semantically meaningful subtasks and subsequently annotated with fine-grained subtask instructions, keyframes and completion probabilities. 
+
+Hindsight subtask annotation. After collecting raw interaction episodes, subtask boundaries and semantic labels are annotated through a hindsight annotation process. Since the definition of a subtask is task-dependent, we construct task-specific subtask annotation protocols for each interac-tion scenario. In some tasks, a single subtask corresponds to an entire pick-and-place interaction (Muffin-Serving and Tool-Passing ), whereas in Tumbler-Sorting , picking and placing ac-tions are annotated as separate subtasks. We now describe, for each task, the format of the subtask instruction and the criterion for selecting the keyframe. • Muffin-Serving . As a subtask instruction, we use the format: “Pick up the muffin with [top-ping] and serve it to the user.” We annotate the keyframe as the frame at which the human’s pointing gesture is most clearly directed at the target muffin. • Tumbler-Sorting . Each pick-and-place interaction is annotated as two separate subtasks. For the pick subtask, we use the format: “Pick up the [color] tumbler.” For the place subtask, we use the format: “Place the [color] tumbler into the [left/right] basket.” We annotate the keyframe of the pick subtask as the frame at which the human points at the target tumbler, and the keyframe of the place subtask as the frame at which the human points at the target basket. • Tool-Passing . As a subtask instruction, we use the format: “Pick up the [tool description] and pass it to the user” (e.g., “Pick up the hexagonal screwdriver and pass it to the user”, “Pick up the 12cm metal profile and pass it to the user”). We annotate the keyframe as the frame at which the human’s gaze is most clearly fixated on the target tool. 
+
+Success labeling. For each subtask, we annotate the completion signal pt ∈ { 0, 1} for every timestep in the subtask trajectory. We use the gripper’s open/close transitions to identify completion moments: the timestep at which the gripper closes marks the completion of a pick subtask, and the 32 timestep at which the gripper opens marks the completion of a place subtask. We label pt = 1 for the 32 timesteps following each completion moment, and pt = 0 elsewhere. 
+
+E.3 Training Details 
+
+For all experiments, π0.5 is finetuned as the low-level policy using the AdamW optimizer with learn-ing rate 1e − 5, batch size 32 . We train the policy for 5 epochs for each task. Training is performed on 8×A100 GPUs. The action chunk horizon is configured as 50 . We train separate low-level poli-cies for each evaluation task, using 80 demonstrations for Muffin-Serving , Tumbler-Sorting 
+
+and 120 demonstrations for Tool-Passing .
+
+Details on the modality dropout. The subtask instructions are fully-specified by default, naming each target object and receptacle explicitly. During training πl, we employ the modality dropout, in which either keyframe is replaced to blank image or subtask instruction is replaced to underspeci-fied version. To construct the underspecified subtask instruction, we systematically replace specific references with generic ones, while preserving the overall task structure and verb. Specifically, for pick subtasks, we replace the target object’s name with “this one” (e.g., “Pick up the muffin with Oreo and strawberry topping and serve it to the user” → “Pick up this one and serve it to the user”). For place subtasks, we replace the target receptacle’s name with “here” (e.g., “Place it on the basket on the left side” → “Place it here”). The underspecified version retains the high-level intent (i.e., what action to perform) but removes the information needed to disambiguate the target, forcing πl
+
+to rely on the keyframe to identify it. 33
