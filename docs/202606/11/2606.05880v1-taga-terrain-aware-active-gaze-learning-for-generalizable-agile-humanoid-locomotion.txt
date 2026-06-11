@@ -1,0 +1,604 @@
+Title: TAGA: Terrain-aware Active Gaze Learning for Generalizable Agile Humanoid Locomotion
+
+URL Source: https://arxiv.org/pdf/2606.05880v1
+
+Published Time: Fri, 05 Jun 2026 01:19:03 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# TAGA: Terrain-aware Active Gaze Learning for Generalizable Agile Humanoid Locomotion 
+
+LI Peizhuo 1,∗, Hongyi LI 2,∗, Mingfeng FAN 1,∗, Fangzhou XU 1, Shuhao LIAO 1, Yuxuan MA 1,Zicheng ZENG 3, Ze WANG 2, Yongbin JIN 2,†, Yuhong CAO 1,†, Hongtao WANG 2, Guillaume SARTORETTI 11MarmotLab, National University of Singapore 2Center of X-Mechanics, Zhejiang University 
+
+> 3
+
+South China University of Technology ∗Equal contribution †Corresponding authors Project Page: https://marmotlab.github.io/taga-humanoid/ 
+
+Figure 1: TAGA enables agile and robust humanoid locomotion across diverse challenging terrains. Deployed on a Unitree G1 with onboard Jetson Orin inference, the robot traverses up to 1.2 m 
+
+gaps, narrow beams, sparse stepping stones, stairs, and outdoor terrain. TAGA uses egocentric vision and proprioception to predict task-relevant regions in the height scan, selectively routing these local terrain observations to the downstream locomotion policy, while remaining robust to severe perceptual disturbances and environmental interference. 
+
+Abstract: Agile humanoid locomotion across diverse challenging terrain de-mands both wide perceptual coverage and precise local geometry understanding. Motivated by the way humans selectively look at relevant terrain during locomo-tion, we introduce TAGA, a Terrain-aware Active Gaze learning framework for Attention-based humanoid control. By fusing vision, proprioception, and mo-tion commands, our framework guides the model to learn anticipatory cues and actively attend to specific areas of the height scan, selectively using these infor-mative regions for the downstream network. This adaptively increases the in-formation density of observations under tight onboard computational constraints, thus enabling fine-grained perceptive locomotion over larger-scale terrains. We find that such gaze behaviors can naturally emerge through reinforcement learning alone, without requiring additional supervision or explicit guidance, significantly improve training efficiency. As a result, the trained policy demonstrates robust and generalizable locomotion in simulation and on hardware, including reliable terrain-aware foothold selection, elevated-platform traversal, competitive sparse-foothold traversal, and the largest reported real-world gap traversal distance of 
+
+1.2 m among perceptive humanoid locomotion systems, while maintaining stabil-ity under severe perceptual disturbances and environmental interference. 
+
+Keywords: Humanoid Locomotion, Gaze Mechanism, Multimodal Perception 
+
+> arXiv:2606.05880v1 [cs.RO] 4 Jun 2026
+
+## 1 Introduction 
+
+Humanoids have shown significant advantages over wheeled robots in crossing obstacles, travers-ing discontinuous terrain, and navigating complex spatial structures. While recent motion-tracking methods enable dynamic whole-body behaviors such as dancing, backflips, and human-motion im-itation [1, 2, 3, 4, 5, 6, 7], tracking predefined motions is fundamentally different from locomotion in complex terrain, from cluttered indoor scenes to unstructured outdoor landscapes. The former resembles reproducing a memorized trajectory, whereas the latter requires the robot to actively perceive its surroundings, reason about terrain traversability, and adapt its motion strategy in real time [8]. This makes perception a central bottleneck: the robot must obtain look-ahead awareness of upcoming terrain while retaining precise local geometry for reliable foothold placement. 
+
+Figure 2: Comparison between local height scan and depth image perception. Existing perceptive locomotion methods can generally be divided into two categories: mapping-based methods and vision-based methods. Mapping-based approaches use point clouds or reconstructed height scans as compact ter-rain representations for locomotion [8, 9, 10, 11]. While effective, these methods often incur increasing computa-tional cost as the perception range expands. In contrast, vision-based methods directly map raw depth images to actions, reducing reliance on explicit terrain reconstruc-tion [12, 13, 14, 15, 16]. However, forward-facing depth images often miss the terrain near or beneath the robot’s feet, and recurrent memory struggles to preserve fine-grained geometry over long horizons [17]. These two perceptual paradigms actually provide complementary information. As shown in Fig. 2, vision offers look-ahead awareness of distant terrain, while a height scan provides accurate local geometry for foot placement and contact-rich motion control. However, many existing approaches either rely on a single source or couple the two only loosely. As a result, they fail to fully exploit the complementary strengths of multimodal perception and cannot effectively align look-ahead visual cues with local geometric details. In contrast, humans and animals actively direct their gaze toward task-relevant regions, such as nearby footholds, gaps, or distant obstacles, based on the situation. This suggests that robust humanoid locomotion requires not only multimodal perception, but also an active perception mechanism for deciding where to look and which perceived information matters most for the next step(s) .To this end, we propose TAGA , an active perception framework for generalizable agile humanoid lo-comotion. TAGA is built around a hierarchical gaze mechanism: vision provides long-range terrain preview, height scans supply precise local geometry, and a learned active gaze policy selectively at-tends to the most locomotion-relevant regions, adaptively fusing these complementary signals. Con-cretely, TAGA consists of two core components. A Task-Relevant Active Gaze Module fuses vision, proprioception, and motion commands to predict which terrain region is most relevant for the next movement and crops the corresponding patch from the height scan. A Visuomotor Fusion Encoder 
+
+then applies cross-attention over this selected region, emphasizing geometric structures critical for foothold placement and terrain-aware decision making. This hierarchical design increases the effec-tive information density of observations, reduces interference from irrelevant terrain, and simplifies downstream policy learning. The main contributions of this work are summarized as follows: 1. We present TAGA, a perceptive locomotion system that integrates depth vision, height scan, and proprioception into a unified sensing and control pipeline for humanoids operating in challeng-ing terrain with onboard computation, while improving training efficiency over full-context. 2. At the core of TAGA is an emergent hierarchical active gaze mechanism learned without ex-plicit gaze supervision: the policy learns to select a task-relevant terrain patch via visual and proprioceptive cues, then applies fine-grained attention to that region for precise understanding. 23. We deployed TAGA on Unitree G1 and demonstrated state-of-the-art (SOTA) performance across gaps, stepping stones, narrow beams, stairs, and outdoor terrain. Notably, the robot achieves a 120 cm gap crossing, surpassing the best reported result by 50%. 
+
+## 2 Related Works 
+
+Terrain Mapping-Based Perceptive Locomotion. A major class of perceptive locomotion meth-ods relies on explicit geometric terrain representations such as height scans, elevation maps, or voxel grids to guide locomotion policies [18, 19, 20, 21]. These approaches generally achieve strong lo-cal terrain awareness and precise foothold placement in challenging tasks such as stepping stones, sparse footholds, and gap traversal [22, 23]. Recent methods further improve terrain understanding through learned geometric encodings, including multi-layer height scans [24], 3D terrain representa-tions [25], and Attention-Based Map Encoding (AME) [8]. However, mapping-based approaches are usually constrained by the size and resolution of the terrain representation, which limits the tradeoff between local detail and broader terrain coverage [24, 25]. Their performance also depends on map quality and can degrade under localization uncertainty, occlusions, or deficient perception [26]. 
+
+Vision-Based Perceptive Locomotion under Partial Observations. Vision-based methods reduce reliance on explicit mapping by learning policies from depth images, RGB-D inputs, or egocen-tric vision [13, 27, 28]. They have enabled agile locomotion across sparse footholds, discontin-uous terrains, complex obstacle traversal, and humanoid stepping tasks [12, 29, 30], with recent humanoid-oriented works further improving performance through internal models, depth reconstruc-tion, voxel-grid navigation, and limited-view omnidirectional control [10, 31, 32]. However, these policies often encode terrain reasoning implicitly [15, 28] and remain vulnerable to partial observ-ability, especially when forward-facing sensors miss underfoot geometry needed for sparse foothold placement [33, 34]. Recent methods address this issue using memory or reconstruction, includ-ing implicit-explicit learning, visuospatial or volumetric memory, world-model perception, spatial recurrent memory, neural scene representations, sparse-terrain reconstruction, and diffusion-based occupancy synthesis [35, 36, 37, 38, 39, 40]. Nevertheless, they can still suffer from viewpoint changes, motion uncertainty, and drift between stored terrain representations and the robot’s current pose, particularly when latent memory lacks explicit geometric constraints [41, 42]. 
+
+Active Perception for Locomotion. Recent studies suggest that robust locomotion depends not only on perceiving the environment, but also on selecting task-relevant terrain regions during traver-sal. Prior attention-based locomotion methods have shown that selective terrain encoding and exteroceptive–proprioceptive fusion can improve robustness and generalization [8], while Cross-modal Transformers integrate visual and proprioceptive representations for terrain reasoning [15]. More recent adaptive perception methods, such as ADAPT, mainly improve perception robustness by adaptively clipping noisy observations and suppressing perception noise [43], while CART se-lects relevant temporal context for terrain adaptation [44]. Nevertheless, most existing methods still emphasize short-horizon terrain reasoning, while proactive allocation of perception across both nearby footholds and future terrain structures remains underexplored. 
+
+## 3 TAGA Framework 
+
+3.1 Problem Formulation 
+
+We formulate humanoid perceptive locomotion as a partially observable Markov decision process (POMDP; see Appendix A). The policy π(at|ot) maps the observation ot = {pHt , d t, h xyz t } to an action at ∈ R29 representing target joint positions, where dt ∈ R1×36 ×64 is a forward-facing depth image and hxyz t ∈ R3×21 ×21 is a local height scan. The proprioceptive input is a 5-frame history 
+
+pHt = {pt−4, . . . , p t}, where each frame is pt = {ωb,t , g b,t , q t, ˙qt, a t−1, c t}. Here, ωb,t ∈ R3
+
+is the measured torso angular velocity, gb,t ∈ R3 is the projected gravity vector, qt, ˙qt ∈ R29 
+
+are joint positions and velocities, and at−1 ∈ R29 is the previous action. The command ct =(vcmd  
+
+> x,t
+
+, v cmd  
+
+> y,t
+
+, ˙ψcmd  
+
+> t
+
+) ∈ R3 specifies the desired forward velocity, lateral velocity, and yaw rate. 3Height S can                  
+
+> Depth Image
+> Proprioception
+> Commands
+> High
+> Low
+> Depth
+> Encoder
+> Proprioception
+> Encoder
+> Key
+> Value
+> Cross Attention
+> Task -Relevant Active Gaze Module Visuomotor Fusion
+> Encoder
+> Action Decoder
+> MoE Gating Network
+> Expert 1 Expert N
+> Fusion Embedding
+> ···
+> Action Head
+> Actions
+> Prediction Head
+> Projection Head
+> Visual Embedding
+> Proprioception
+> Embedding
+> Crop Parameter Cropped Height Scan
+> ···
+> ···
+> ···
+> ···
+> 𝑟 !∈[0,1]"
+> Biological
+> Inspiration
+> Differentiable
+> Bilinear Grid Sample
+> Hight Scan
+> Encoder
+> Positional
+> Encoder
+> Query
+
+Figure 3: The architecture of TAGA. 
+
+3.2 Neural Network Design Overview. As shown in Fig. 3, the TAGA policy π(at|ot) is parameterized by a neural network that takes the multimodal observation ot as input and outputs a vector action at. TAGA first encodes the depth image dt and proprioception history pHt using a CNN-based depth encoder ϕd and an MLP-based proprioception encoder ϕp, producing a visual embedding edt ∈ R128 and a proprioceptive embedding ept ∈ R128 , respectively. The visual embedding captures distant terrain awareness, while the proprioceptive embedding encodes the robot’s dynamic state and command context. Given these embeddings and the height scan hxyz t , TAGA employs a hierarchical gaze mechanism to extract locomotion-relevant terrain information. The first stage, the task-relevant active gaze module , pre-dicts a region of interest (ROI) in the height scan. The second stage, the visuomotor fusion encoder ,further emphasizes terrain cues relevant to the next locomotion decision by producing a fusion em-bedding epg t based on the cropped ROI. Finally, a mixture-of-experts (MoE) based action decoder 
+
+maps the fusion embedding epg t and proprioceptive embedding ept to the action output at. This de-sign enables vision and proprioception to guide where the robot should look, while height scans provide precise local geometry, thereby supporting terrain-aware agile locomotion. 
+
+Task-Relevant Active Gaze Module. TAGA enables a robot to actively focus its gaze on the ROI via the task-relevant active gaze module. Conditioning on visual preview and proprioceptive state, this module filters irrelevant terrain and directs perception to the most informative region for the next locomotion step. Concretely, a lightweight prediction head froi takes the visual and pro-prioceptive embeddings as input and predicts a normalized two-dimensional gaze location: rt =
+
+froi ([ edt , e pt ]) , r t ∈ [0 , 1] 2. The predicted location is then mapped onto the full local height-scan grid and used to crop a compact terrain patch: ˜hxyz t = Crop( hxyz t , r t), ˜hxyz t ∈ R3×K×K , where K = 11 
+
+denotes the crop size. The crop is implemented using differentiable bilinear grid sampling, allowing this module to be optimized end-to-end with the policy. To discourage degenerate solutions near the height-scan boundary, we apply a boundary penalty Lroi (detailed in Appendix D). 
+
+Visuomotor Fusion Encoder. TAGA further identifies which perceived information is most rel-evant through the visuomotor fusion encoder. Given the cropped patch ˜hxyz t , the encoder first extracts terrain features using a lightweight CNN, while the corresponding spatial coordinates are embedded by an MLP. These features are then fused to obtain pointwise terrain embeddings 
+
+Emt ∈ RK×K×128 , which serve as the key and value vectors. Meanwhile, the query vector is gen-erated from the visual and proprioceptive embeddings through a projection head fproj . Finally, the visuomotor fusion encoder applies a multi-head cross-attention layer to obtain the fusion em-bedding: epg t = MHA  fproj ([ ept , e dt ]) , E mt , E mt
+
+. The resulting embedding epg t ∈ R128 forms a terrain-aware visuomotor representation for downstream action decoding. 
+
+Action Decoder. The action decoder is implemented as an MoE module [45] to increase policy ex-pressiveness through adaptive action composition. The actor receives the proprioceptive embedding 
+
+ept and the fusion embedding epg t as eπt = [ ept , e pg t ]. A gating network g(·) computes soft expert weights αit = Softmax( g(eπt )) i, i = 1 , . . . , N e, and the final action is given by a weighted com-bination of expert outputs: at = PNe 
+
+> i=1
+
+αitEi(eπt ), where Ei denotes the i-th expert and Ne = 5 in our implementation. Through soft routing, all experts contribute to action generation with input-4dependent weights. This allows the decoder to adaptively compose expert outputs based on TAGA’s task-relevant perceptual and proprioceptive embeddings, improving policy expressiveness for di-verse locomotion conditions. 
+
+## 4 Training TAGA Policy via Reinforcement Learning 
+
+We train TAGA using asymmetric actor-critic PPO in massively parallel simulation [46]. The actor is described in Sec.3.2, while the critic additionally receives privileged information, including the ground-truth base linear velocity and the full uncropped height scan. To support progressive policy learning over risky terrains, we construct multiple terrain types with increasing difficulty and train the policy using curriculum learning. To encourage natural gait and stable control, we further apply AMP-style regularization and safety-oriented termination. To improve both skill acquisition and hardware robustness, we adopt a two-stage training procedure. Finally, we define the full training objective with symmetry augmentation[47] (detailed in Appendix D). 
+
+Terrain Design and Curriculum. We design a training terrain set composed of multiple challeng-ing terrain types and train TAGA across these environments. This terrain set covers representative traversal skills, including gap crossing, stair climbing, sparse-foothold traversal, narrow-beam walk-ing, obstacle crossing, and slope locomotion (details in Appendix C.1), allowing the robot to acquire a broad set of terrain-adaptive locomotion behaviors. Each terrain type is divided into 10 difficulty levels by varying geometric parameters such as gap width, step height, and foothold size. During training, each robot is assigned to a terrain level according to its locomotion performance: successful traversal promotes it to harder terrains, while failure moves it back to easier ones. 
+
+Task Reward and Safety Constraints. The base task reward renv  
+
+> t
+
+combines command tracking, posture and joint regularization, and contact-related terms (detailed in Appendix C.2). An AMP-style reward rAMP  
+
+> t
+
+is added to encourage human-like gait, produced by a discriminator trained to distinguish policy motions from motion capture data [48]. Since extreme agile locomotion may encourage unstable policies, we apply early termination on physically unsafe states, including illegal non-foot-body contacts, excessive torso tilt, insufficient base height, and abnormally large hip-link acceleration during foot contact. These termination conditions serve as hard safety boundaries, filtering out irrecoverable failure cases and focusing learning on stable, feasible locomotion. 
+
+Two-stage Training. Following AME [8], we use a two-stage procedure to balance skill acquisi-tion and real-world robustness. In the first stage, the policy is trained in a clean setting without observation noise or domain randomization, allowing the robot to acquire core locomotion skills ef-ficiently. Starting from this checkpoint, the second stage fine-tunes the policy with reduced entropy and deployment-oriented randomization, including actuation variations, visual degradation, height-scan noise, external pushes, and terrain perturbations. This improves robustness to noisy real-world sensing and dynamics while preserving the learned active gaze behavior of TAGA. 
+
+Loss Function. Two auxiliary objectives regularize the learned representations: a contrastive loss 
+
+Lcon aligning MoE gating latents with full height-scan context to encourage expert specializa-tion [45], and a gaze boundary penalty Lroi preventing TAGA from degenerately fixating on height-map edges. Putting everything together, the full training objective combines the PPO surrogate loss on the augmented reward ˜r = renv t + ηr AM P t with a value loss Lvalue , an entropy bonus H(πθ ), and the auxiliary terms: 
+
+Lpolicy = LPPO (˜ r) + cv Lvalue − ceH(πθ ) + λcLcon + λbLroi , (1) where η is the AMP reward coefficient, and cv , ce, λc, and λb are loss weights. 
+
+## 5 Experiments 
+
+We train TAGA in Isaac Lab [49] with 8,000 parallel environments on four NVIDIA GeForce RTX 5090 GPUs. The policy is trained over 30k iterations, and then fine-tuned for 10k iterations, re-quiring about 17 RTX-5090 GPU-days in total. It executes actions at 50 Hz , tracked by a low-level 5Table 1: Comparison of TAGA with baseline methods and ablation variants across challenging terrain types. We report GPU count, total training cost in GPU-days, and success rates. Each method is evaluated over 1000 trials per terrain when applicable. Bold indicates the best success rate in each terrain column and results within 0.5% of the best.                                                                 
+
+> Method # GPUs ↓GPU-days ↓Gaps ↑Stepping Stones ↑Beam ↑High Platform ↑Terrain C1 ↑Terrain C2 ↑
+> CReF [50] 2∼10 97.40% 52.30% 96.50% 98.70% 85.20% 43.10% TAGA-HSOnly 4∼17 93.10% 92.50% 98.30% 99.60% 90.50% 91.50% TAGA-InactiveGaze 4∼14 57.10% 83.20% 95.60% 100.00% 72.70% 48.80% TAGA-FullScan 8∼49 99.50% 98.00% 97.50% 100.00% 93.40 %92.50% TAGA-NoAMP 4∼16 96.40% 97.20% 97.60% 99.50% 89.80% 91.60%
+> TAGA (Ours) 4∼17 98.30% 97.90% 98.50% 100.00% 93.70% 93.90%
+
+Figure 4: Visualization of the learned active gaze regions and attention-weight distributions of TAGA in simulation. Black points denote the full local height-scan grid, while colored points indi-cate the predicted ROI. Red and blue points indicate higher and lower attention weights, respectively. (a) shows how the active gaze regions shift during a 1.2 m gap crossing, and (b) demonstrates atten-tion shifts across diverse terrains. (c) illustrates out-of-distribution testing terrains from training 
+
+200 Hz PD controller. Details are provided in Appendix C.3. For real-world experiments, TAGA is deployed on a Unitree G1 humanoid robot with onboard inference on an NVIDIA Jetson Orin. 
+
+5.1 Simulation Evaluation 
+
+We first evaluate TAGA in simulation, where terrain conditions and sensing ablations can be con-trolled systematically. The goal is to characterize its locomotion capability and robustness before real-world deployment. Specifically, we study three questions: Q1: What is the complementary nature of the information provided by visual preview and height scans during challenging terrain traversal? Q2: What are the advantages of our gaze module dynamically selecting task-relevant terrain regions instead of processing the full height scan? Q3: Do AMP priors improve motion naturalness, whole-body coordination, and dynamic stability? We conduct a comprehensive abla-tion study for TAGA and compare it with a vision-based baseline. TAGA-HSOnly removes depth input and uses only height scans with proprioception. TAGA-InactiveGaze deactivates the Gaze Module and uses a fixed ROI. TAGA-FullScan removes the Gaze module to only use the full height scan. TAGA-NoAMP removes AMP priors. Since TAGA is designed around local height-scan se-lection, directly removing height scans would yield an ill-matched vision-only baseline. Instead, we compare TAGA with CReF [50], a vision-based humanoid locomotion method. 
+
+Multimodal Perception (Q1). Comparing TAGA with CReF and TAGA-HSOnly highlights the complementary roles of visual preview and height scans. TAGA matches or surpasses the vision-based CReF on gaps, beams, and high platforms, and substantially outperforms it on stepping stones (Table 1). This suggests vision alone is insufficient for sparse footholds, where precise foot place-ment demands accurate local geometry. In contrast, TAGA-HSOnly, which relies solely on height scans and proprioception, struggles with gaps. This indicates that height-scan-only perception lacks sufficient preview to anticipate distant discontinuities and landing regions. Together, these results support the complementary roles of vision and height scans: vision provides anticipatory preview, 6while height scans provide local geometric precision for robust terrain traversal. Under OOD (out of distribution) terrain challenges (C1, C2), TAGA achieves 93 .70% and 93 .90% , demonstrating stronger robustness and generalization across diverse terrain combinations. 
+
+Gaze Module (Q2). We assess the effectiveness of our gaze module through visualization (Fig. 4) and ablation (Table 1). Instead of using a fixed crop, TAGA predicts task-relevant regions guided by fused visual and proprioceptive cues. During gap crossing, the gaze shifts from the current support region forward to the opposite edge as the robot prepares to cross, resembling the anticipatory gaze behavior observed in humans and animals during locomotion (Fig. 4(a)). On stepping stones and beams, it moves toward sparse footholds or the traversable strip; on continuous terrains, the robot’s gaze remains local, to cover nearby height changes and contact regions (Fig. 4 (b)). In our ablations, TAGA achieves performance comparable to TAGA-FullScan with 65.2% lower training cost than TAGA-FullScan. TAGA-InactiveGaze, with the same compact input but a fixed crop, degrades sharply on gaps and stepping stones where distant footholds lie outside its window. 
+
+Figure 5: Robot stance without AMP. Without motion guidance, the robot constantly walk with its leg bent. 
+
+Motion Prior (Q3). Removing the AMP priors does not substantially hurt task completion, with TAGA-NoAMP performing close to TAGA across all terrains (Table 1). However, Fig. 5 shows a clear drop in motion quality. Without AMP, the robot exhibits unnatural motions, in-cluding inward knee collapse and short, shuffling steps, especially during turning and terrain transitions. These high-frequency foot motions also made real-world de-ployment brittle: TAGA-NoAMP proves far less robust to sim-to-real gap and small disturbances. 
+
+5.2 Real-World Evaluation 
+
+We further evaluate our policy in real-world environments of increasing complexity, moving from controlled indoor trials with designed challenging terrains to outdoor tests involving perception degradation, terrain variation, and physical disturbances. Table 2 compares TAGA with reported real-world perceptive humanoid and biped locomotion methods, while Fig. 1 and Fig. 6 show repre-sentative indoor and outdoor trials. TAGA covers the widest range of real-world terrain categories among currently reported methods: it achieves the largest gap-crossing distance and can traverse sparse-foothold areas, significantly outperforming previous reported SOTA results on both metrics.                                                                                                      
+
+> Table 2: Real-world traversal capabilities reported in perceptive humanoid and biped locomotion works. n.r.indicates that the behavior was demonstrated but the terrain geometry was not numerically reported; –indicates that the behavior was not evaluated. Bold and underline indicate the best and second-best results, respectively.
+> Work Robot Gap Platform Sparse foothold Beam Stairs
+> HPL [16] Unitree H1 80 cm 42 cm –✗✗
+> PIM [10] Unitree H1 70 cm 50 cm –✗✓
+> GA-PHL [14] LimX Oli 46 cm ––✗✓
+> AME-1 [8] Fourier GR-1 n.r. –n.r., uneven ✓✓
+> AME-2 [17] LimX Tron1 60 cm 48 cm 40 cm spacing, uneven ✓✓
+> Vel Tracking AME-2 Unitree G1 90 cm 40 cm 40 cm , uneven ✓✓
+> Now You See That [51] Honor 45 cm 40 cm –✗✓
+> BeamDojo [29] Unitree G1 50 cm –45 cm spacing, flat ✓✗
+> MoRE [52] Unitree G1 40 cm 30 cm –✗✓
+> Hiking in the Wild [53] Unitree G1 50 cm 32 cm –✗✗
+> Gallant [32] Unitree G1 40 cm 30 cm –✗✓
+> CReF [50] Agibot X2 80 cm 40 cm –✗✓
+> RPL [54] Unitree G1 ––60 cm spacing, flat ✗✓
+> CMoE [45] Unitree G1 80 cm 30 cm –✗✓
+> Ours Unitree G1 120 cm 40 cm 70 cm spacing, uneven ✓✓
+
+Indoor Evaluation. As shown in Fig. 6 (A) , we evaluate TAGA on highly discontinuous indoor ter-rains with only sparse, separated footholds—long gaps, narrow blocks, and stepping stones—where 7Figure 6: Real-world evaluation of TAGA from controlled indoor terrains to unstructured outdoor environments. (A) Indoor trials test limit traversal over discontinuous terrains such as platform transitions, large steps, and sparse stepping blocks. (B) Outdoor trials evaluate robustness to terrain variation, perception degradation, and external disturbances. Our results show that TAGA maintains stable locomotion across discrete foothold selection, terrain variation, and physical perturbations. the robot must carefully plan its footholds and generate sufficient momentum between contacts. TAGA handles these near-limit conditions, crossing 120 cm gaps, balancing on narrow footholds, and traversing sparse blocks with 50 –70 cm spacing and 10 cm height variation. Beyond these met-rics, TAGA exhibits emergent terrain-adaptive behaviors. When crossing long gaps (Fig. 6 (A2) ), the robot steps onto the block edge and pushes off for extra momentum rather than taking off from the center of the support region. Upon landing, it bends its knees to absorb impact and quickly recovers balance. These strategies emerge without any hand-crafted motion, indicating that TAGA learns practical locomotion skills for challenging discrete terrains. 
+
+Outdoor Evaluation. We further evaluate TAGA in outdoor and low-light environments (Fig. 1 and Fig. 6 ), which introduce varied ground materials and challenging perception conditions, includ-ing changing illumination, background clutter, depth degradation, sensor noise, as well as occluded footholds in tall grass and confined spaces. Despite these challenges, the robot maintains stable lo-comotion across terrain types, demonstrating robustness to real-world perception noise and contact variations. Under external disturbances such as kicks and pushes, TAGA absorbs the perturbations, recovers balance, and continues walking without falling. These results indicate that TAGA learns a robust terrain-aware control strategy effective under both perceptual uncertainty and physical distur-bances, enabling reliable real-world deployment. 
+
+## 6 Conclusion 
+
+We presented TAGA, a terrain-aware active gaze framework for agile humanoid locomotion. TAGA improves traversability across gaps, narrow beams, stairs, elevated platforms, and sparse stepping stones in both simulation and real-world experiments. The learned gaze behavior emerges without explicit supervision, and hardware deployment demonstrates stable locomotion under low-light con-ditions and strong external disturbances. By fusing vision, proprioception, and motion commands, TAGA selectively attends to task-relevant terrain regions, combining look-ahead visual with local geometric precision for anticipatory, terrain-aware decision-making. 
+
+## 7 Limitations 
+
+The dynamic maneuvers that TAGA achieves, including explosive jump, precise foothold target-ing, and dynamic balance recovery, exert a high thermal load on the actuators during extended operation. This can progressively let actuators overheat, gradually damaging control accuracy and causing reduced jump distance or missed footholds. Additionally, poor height scan quality on com-plex terrain can cause improper gaits or failures. Future directions include improving tolerance to actuator degradation through online adaptation, better height scan reconstruction, and incorporat-ing uncertainty-aware control to maintain precise foothold selection under degraded hardware and sensing conditions. 8References 
+
+[1] M. Sombolestan and Q. Nguyen. Adaptive-force-based control of dynamic legged locomotion over uneven terrain. IEEE Transactions on Robotics , 40:2462–2477, 2024. [2] Q. Ben, F. Jia, J. Zeng, J. Dong, D. Lin, and J. Pang. Homie: Humanoid loco-manipulation with isomorphic exoskeleton cockpit. arXiv preprint arXiv:2502.13013 , 2025. [3] Y. Zhang, Y. Yuan, P. Gurunath, I. Gupta, S. Omidshafiei, A.-a. Agha-mohammadi, M. Vazquez-Chanlatte, L. Pedersen, T. He, and G. Shi. Falcon: Learning force-adaptive hu-manoid loco-manipulation. arXiv preprint arXiv:2505.06776 , 2025. [4] N. Fey, G. B. Margolis, M. Peticco, and P. Agrawal. Bridging the sim-to-real gap for athletic loco-manipulation. arXiv preprint arXiv:2502.10894 , 2025. [5] M. Murooka, K. Chappellet, A. Tanguy, M. Benallegue, I. Kumagai, M. Morisawa, F. Kane-hiro, and A. Kheddar. Humanoid loco-manipulations pattern generation and stabilization con-trol. IEEE Robotics and Automation Letters , 6(3):5597–5604, 2021. [6] K. Bouyarmane, K. Chappellet, J. Vaillant, and A. Kheddar. Quadratic programming for mul-tirobot and task-space force control. IEEE Transactions on Robotics , 35(1):64–77, 2018. [7] Z. Fu, Q. Zhao, Q. Wu, G. Wetzstein, and C. Finn. Humanplus: Humanoid shadowing and imitation from humans. arXiv preprint arXiv:2406.10454 , 2024. [8] J. He, C. Zhang, F. Jenelten, R. Grandia, M. B¨ acher, and M. Hutter. Attention-based map encoding for learning generalized legged locomotion. Science Robotics , 10(105):eadv3604, 2025. [9] T. Miki, J. Lee, J. Hwangbo, L. Wellhausen, V. Koltun, and M. Hutter. Learning robust per-ceptive locomotion for quadrupedal robots in the wild. Science Robotics , 7(62):eabk2822, 2022. [10] J. Long, J. Ren, M. Shi, Z. Wang, T. Huang, P. Luo, and J. Pang. Learning humanoid locomo-tion with perceptive internal model. In 2025 IEEE International Conference on Robotics and Automation (ICRA) , pages 9997–10003. IEEE, 2025. [11] D. Hoeller, N. Rudin, D. Sako, and M. Hutter. Anymal parkour: Learning agile navigation for quadrupedal robots. Science Robotics , 9(88):eadi7566, 2024. [12] X. Cheng, K. Shi, A. Agarwal, and D. Pathak. Extreme parkour with legged robots. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 11443–11450. IEEE, 2024. [13] A. Agarwal, A. Kumar, J. Malik, and D. Pathak. Legged locomotion in challenging terrains using egocentric vision. In Conference on robot learning , pages 403–415. PMLR, 2023. [14] H. Song, H. Zhu, T. Yu, Y. Liu, M. Yuan, W. Zhou, H. Chen, and H. Li. Gait-adaptive per-ceptive humanoid locomotion with real-time under-base terrain reconstruction. IEEE Robotics and Automation Letters , 2026. [15] R. Yang, M. Zhang, N. Hansen, H. Xu, and X. Wang. Learning vision-guided quadrupedal lo-comotion end-to-end with cross-modal transformers. In International Conference on Learning Representations , 2022. URL https://openreview.net/forum?id=kFdPX1VdgXx .[16] Z. Zhuang, S. Yao, and H. Zhao. Humanoid parkour learning. In 8th Conference on Robot Learning , 2024. URL https://openreview.net/forum?id=fs7ia3FqUM .[17] C. Zhang, V. Klemm, F. Yang, and M. Hutter. Ame-2: Agile and generalized legged locomotion via attention-based neural map encoding. arXiv preprint arXiv:2601.08485 , 2026. 9[18] P. Fankhauser, M. Bjelonic, C. D. Bellicoso, T. Miki, and M. Hutter. Robust rough-terrain locomotion with a quadrupedal robot. In 2018 IEEE International Conference on Robotics and Automation (ICRA) , pages 5761–5768. IEEE, 2018. [19] F. Jenelten, T. Miki, A. E. Vijayan, M. Bjelonic, and M. Hutter. Perceptive locomotion in rough terrain–online foothold optimization. IEEE Robotics and Automation Letters , 5(4):5370–5376, 2020. [20] Z. Wang, Y. Li, L. Xu, H. Shi, Z. Ma, Z. Chu, C. Li, F. Gao, K. Yang, and K. Wang. Sf-tim: A simple framework for enhancing quadrupedal robot jumping agility by combining terrain imagination and measurement. In 2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 10676–10683. IEEE, 2025. [21] T. Miki, L. Wellhausen, R. Grandia, F. Jenelten, T. Homberger, and M. Hutter. Elevation map-ping for locomotion and navigation using gpu. In 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 2273–2280. IEEE, 2022. [22] Y. Dong, J. Ma, L. Zhao, W. Li, and P. Lu. Marg: Mastering risky gap terrains for legged robots with elevation mapping. IEEE Transactions on Robotics , 2025. [23] C. Zhang, N. Rudin, D. Hoeller, and M. Hutter. Learning agile locomotion on risky terrains. In 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 11864–11871. IEEE, 2024. [24] Y. Chen, J. Ma, Z. Luo, Y. Han, Y. Dong, B. Xu, and P. Lu. Learning autonomous and safe quadruped traversal of complex terrains using multi-layer elevation maps. IEEE Robotics and Automation Letters , 2025. [25] T. Miki, J. Lee, L. Wellhausen, and M. Hutter. Learning to walk in confined spaces using 3d representation. In 2024 IEEE International Conference on Robotics and Automation (ICRA) ,pages 8649–8656. IEEE, 2024. [26] P. Fankhauser, M. Bloesch, and M. Hutter. Probabilistic terrain mapping for mobile robots with uncertain localization. IEEE Robotics and Automation Letters , 3(4):3019–3026, 2018. [27] W. Yu, D. Jain, A. Escontrela, A. Iscen, P. Xu, E. Coumans, S. Ha, J. Tan, and T. Zhang. Visual-locomotion: Learning to walk on complex terrains with vision. In 5th Annual Conference on Robot Learning , 2021. [28] H. Duan, B. Pandit, M. S. Gadde, B. Van Marum, J. Dao, C. Kim, and A. Fern. Learning vision-based bipedal locomotion for challenging terrain. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 56–62. IEEE, 2024. [29] H. Wang, Z. Wang, J. Ren, Q. Ben, T. Huang, W. Zhang, and J. Pang. Beamdojo: Learning agile humanoid locomotion on sparse footholds. arXiv preprint arXiv:2502.10363 , 2025. [30] N. Rudin, J. He, J. Aurand, and M. Hutter. Parkour in the wild: Learning a general and extensible agile locomotion policy using multi-expert distillation and rl fine-tuning. arXiv preprint arXiv:2505.11164 , 2025. [31] J. Sun, G. Han, P. Sun, W. Zhao, J. Cao, J. Wang, Y. Guo, and Q. Zhang. Dpl: Depth-only perceptive humanoid locomotion via realistic depth synthesis and cross-attention terrain reconstruction. arXiv preprint arXiv:2510.07152 , 2025. [32] Q. Ben, B. Xu, K. Li, F. Jia, W. Zhang, J. Wang, J. Wang, D. Lin, and J. Pang. Gallant: Voxel grid-based humanoid locomotion and local-navigation across 3d constrained terrains. arXiv preprint arXiv:2511.14625 , 2025. 10 [33] S. Li, S. Luo, J. Wu, and Q. Zhu. Move: Multi-skill omnidirectional legged locomotion with limited view in 3d environments. In 2025 IEEE International Conference on Robotics and Automation (ICRA) , pages 7647–7653. IEEE, 2025. [34] P. Li, H. Li, Y. Ma, L. Chang, X. Yang, R. Yu, Y. Zhang, Y. Cao, Q. Zhu, and G. Sartoretti. Kivi: Kinesthetic-visuospatial integration for dynamic and safe egocentric legged locomotion. 
+
+arXiv preprint arXiv:2509.23650 , 2025. [35] S. Luo, S. Li, R. Yu, Z. Wang, J. Wu, and Q. Zhu. Pie: Parkour with implicit-explicit learning framework for legged robots. IEEE Robotics and Automation Letters , 9(11):9986–9993, 2024. [36] R. Yang, G. Yang, and X. Wang. Neural volumetric memory for visual locomotion control. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 1430–1440, 2023. [37] H. Lai, J. Cao, J. Xu, H. Wu, Y. Lin, T. Kong, Y. Yu, and W. Zhang. World model-based perception for visual legged locomotion. In 2025 IEEE International Conference on Robotics and Automation (ICRA) , pages 11531–11537. IEEE, 2025. [38] C. Zhang, J. Jin, J. Frey, N. Rudin, M. Mattamala, C. Cadena, and M. Hutter. Resilient legged local navigation: Learning to traverse with compromised perception end-to-end. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 34–41. IEEE, 2024. [39] D. Hoeller, N. Rudin, C. Choy, A. Anandkumar, and M. Hutter. Neural scene representation for locomotion on structured terrain. IEEE Robotics and Automation Letters , 7(4):8667–8674, 2022. [40] R. Yu, Q. Wang, H. Li, Z. Jun, Z. Wang, J. Wu, and Q. Zhu. Start: Traversing sparse footholds with terrain reconstruction. IEEE Robotics and Automation Letters , 11(2):2194–2201, 2025. [41] F. Yang, P. Frivik, D. Hoeller, C. Wang, C. Cadena, and M. Hutter. Spatially-enhanced recur-rent memory for long-range mapless navigation via end-to-end reinforcement learning. The International Journal of Robotics Research , page 02783649251401926, 2025. [42] A. Reed, B. Crowe, D. Albin, L. Achey, B. Hayes, and C. Heckman. Scenesense: Diffusion models for 3d occupancy synthesis from partial observation. In 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 7383–7390. IEEE, 2024. [43] S. Shao, T. Huang, W. Gao, and S. Zhang. Adapt: Adaptive dual-projection architecture for perceptive traversal. arXiv preprint arXiv:2603.16328 , 2026. [44] K. Singh, Y. Kim, Y. Turkar, and K. Dantu. Cart: Context-aware terrain adaptation using temporal sequence selection for legged robots. arXiv preprint arXiv:2604.14344 , 2026. [45] S. Ma, H. Chen, Z. Xu, Y. Zhao, K. Wu, R. Yang, L. Zou, Z. Gan, and W. Ding. Cmoe: Contrastive mixture of experts for motion control and terrain adaptation of humanoid robots. 
+
+arXiv preprint arXiv:2603.03067 , 2026. [46] C. Schwarke, M. Mittal, N. Rudin, D. Hoeller, and M. Hutter. Rsl-rl: A learning library for robotics research. arXiv preprint arXiv:2509.10771 , 2025. [47] M. Mittal, N. Rudin, V. Klemm, A. Allshire, and M. Hutter. Symmetry considerations for learning task symmetric robot policies. In 2024 IEEE International Conference on Robotics and Automation (ICRA) , pages 7433–7439. IEEE, 2024. [48] X. B. Peng, Z. Ma, P. Abbeel, S. Levine, and A. Kanazawa. Amp: adversarial motion priors for stylized physics-based character control. ACM Transactions on Graphics , 40(4):1–20, 2021. ISSN 1557-7368. doi:10.1145/3450626.3459670. URL http://dx.doi.org/10. 1145/3450626.3459670 .11 [49] M. Mittal, P. Roth, J. Tigue, A. Richard, O. Zhang, P. Du, A. Serrano-Mu˜ noz, X. Yao, R. Zurbr¨ ugg, N. Rudin, L. Wawrzyniak, M. Rakhsha, A. Denzler, E. Heiden, A. Borovicka, O. Ahmed, I. Akinola, A. Anwar, M. T. Carlson, J. Y. Feng, A. Garg, R. Gasoto, L. Gulich, Y. Guo, M. Gussert, A. Hansen, M. Kulkarni, C. Li, W. Liu, V. Makoviychuk, G. Malczyk, H. Mazhar, M. Moghani, A. Murali, M. Noseworthy, A. Poddubny, N. Ratliff, W. Rehberg, C. Schwarke, R. Singh, J. L. Smith, B. Tang, R. Thaker, M. Trepte, K. V. Wyk, F. Yu, A. Mil-lane, V. Ramasamy, R. Steiner, S. Subramanian, C. Volk, C. Chen, N. Jawale, A. V. Kurut-tukulam, M. A. Lin, A. Mandlekar, K. Patzwaldt, J. Welsh, H. Zhao, F. Anes, J.-F. Lafleche, N. Mo¨ enne-Loccoz, S. Park, R. Stepinski, D. V. Gelder, C. Amevor, J. Carius, J. Chang, A. H. Chen, P. de Heras Ciechomski, G. Daviet, M. Mohajerani, J. von Muralt, V. Reutskyy, M. Sauter, S. Schirm, E. L. Shi, P. Terdiman, K. Vilella, T. Widmer, G. Yeoman, T. Chen, S. Grizan, C. Li, L. Li, C. Smith, R. Wiltz, K. Alexis, Y. Chang, D. Chu, L. J. Fan, F. Farshid-ian, A. Handa, S. Huang, M. Hutter, Y. Narang, S. Pouya, S. Sheng, Y. Zhu, M. Macklin, A. Moravanszky, P. Reist, Y. Guo, D. Hoeller, and G. State. Isaac lab: A gpu-accelerated sim-ulation framework for multi-modal robot learning. arXiv preprint arXiv:2511.04831 , 2025. URL https://arxiv.org/abs/2511.04831 .[50] Y. Hao, R. Yu, S. Luo, G. Zhang, J. Wu, and Q. Zhu. Cref: Cross-modal and recurrent fusion for depth-conditioned humanoid locomotion. arXiv preprint arXiv:2603.29452 , 2026. [51] W. Sun, Y. Su, L. Huang, A. Zhang, D. Wei, M. San, D. Tian, E. Cao, B. Cao, Y. Liu, et al. Now you see that: Learning end-to-end humanoid locomotion from raw pixels. arXiv preprint arXiv:2602.06382 , 2026. [52] D. Wang, X. Wang, X. Liu, J. Shi, Y. Zhao, C. Bai, and X. Li. More: Mixture of residual experts for humanoid lifelike gaits learning on complex terrains. arXiv preprint arXiv:2506.08840 ,2025. [53] S. Zhu, Z. Zhuang, M. Zhao, K.-Y. Lee, and H. Zhao. Hiking in the wild: A scalable perceptive parkour framework for humanoids. arXiv preprint arXiv:2601.07718 , 2026. [54] Y. Zhang, Y. Seo, J. Chen, Y. Yuan, K. Sreenath, P. Abbeel, C. Sferrazza, K. Liu, R. Duan, and G. Shi. Rpl: Learning robust humanoid perceptive locomotion on challenging terrains. arXiv preprint arXiv:2602.03002 , 2026. [55] N. Mahmood, N. Ghorbani, N. F. Troje, G. Pons-Moll, and M. J. Black. AMASS: Archive of motion capture as surface shapes. In International Conference on Computer Vision , pages 5442–5451, Oct. 2019. 12 A The Details of POMDP 
+
+We formulate humanoid perceptive locomotion as a partially observable Markov decision process (POMDP), denoted as a 6-tuple M = ⟨S , O, A, P, R, γ ⟩. Here, S is the state space, O is the observation space, A is the action space, P is the transition kernel, R is the reward function, and 
+
+γ is the discount factor. At each timestep t, the robot has an underlying state st ∈ S , which is not fully observable by the policy. The state includes the full robot configuration, velocity, contact state, actuator state, and surrounding terrain geometry. Instead of accessing st directly, the policy receives a multimodal observation ot ∈ O composed of proprioception, egocentric depth perception, and local height-scan geometry: 
+
+ot = {pHt , d t, h xyz t }. (2) Here, dt ∈ R1×36 ×64 denotes the forward-facing depth image, and hxyz t ∈ R3×21 ×21 denotes the egocentric height scan, where each grid cell stores an (x, y, z ) terrain point. The proprioceptive observation is a five-frame history 
+
+pHt = {pt−4, . . . , p t}, (3) where each frame is defined as 
+
+pt = {ωb,t , g b,t , q t, ˙qt, a t−1, c t}. (4) Specifically, ωb,t ∈ R3 is the torso angular velocity, gb,t ∈ R3 is the projected gravity vec-tor, qt, ˙qt ∈ R29 are joint positions and velocities, at−1 ∈ R29 is the previous action, and 
+
+ct = ( vcmd  
+
+> x,t
+
+, v cmd  
+
+> y,t
+
+, ˙ψcmd  
+
+> t
+
+) ∈ R3 is the velocity command. The policy πθ (at|ot) maps the observation to an action at ∈ A , where at ∈ R29 represents target joint positions at 50 Hz , tracked by a low-level PD controller at 200 Hz . After the action is executed, the environment transitions via P(st+1 |st, a t) and yields a reward ˜rt = R(st, a t) that encourages velocity tracking, stable posture, safe contacts, and human-like motion (see Appendix C.2 for the full reward specification). The complete observation and action spaces are detailed in Table 3. The objective is to maximize the expected discounted return: 
+
+max  
+
+> θ
+
+Eπθ
+
+"T −1X
+
+> t=0
+
+γt ˜rt
+
+#
+
+. (5) Table 3: Action and observation space specifications. 
+
+Modality Symbol Description 
+
+Action 
+
+Joint position targets at ∈ R29 50 Hz control output, tracked via PD at 200 Hz 
+
+Proprioception 
+
+Base angular velocity ωb,t ∈ R3 Torso angular velocity Projected gravity gb,t ∈ R3 Gravity direction in torso frame Joint positions qt ∈ R29 Measured joint angles Joint velocities ˙qt ∈ R29 Measured joint velocities Previous action at−1 ∈ R29 Last commanded joint targets Velocity command ct ∈ R3 (vcmd  
+
+> x
+
+, v cmd  
+
+> y
+
+, ˙ψcmd ) target 
+
+Depth 
+
+Depth image dt ∈ R1×36 ×64 Forward-facing, long-range terrain preview 
+
+Height Scan 
+
+Height map hxyz t ∈ R3×21 ×21 Egocentric (x, y, z ) terrain grid, local surroundings 13 B Definition of Gaze Learning 
+
+We define gaze as a combination of a normalized gaze location rt = (rxt , r yt ) ∈ [0 , 1] 2 and an ROI centered at the gaze location. The ROI is defined as a terrain patch ˜hxyz t ∈ R3×K×K
+
+over the local height scan hxyz t ∈ R3×M ×M with M = 21 . We crop the ROI based on the gaze location, where the normalized gaze coordinates are first mapped to the height scan grid as (ut, v t) = (⌊rxt M ⌋, ⌊ryt M ⌋), and the ROI is obtained by extracting terrain points through 
+
+˜hxyz t = hxyz t (i, j ) |i − ut| ≤ K 
+
+> 2
+
+, |j − vt| ≤ K 
+
+> 2
+
+, i, j ∈ Z . Consequently, we define gaze learn-ing as training the gaze prediction head froi (·) to output the gaze location rt = froi ([ edt , e pt ]) , which is then used to extract an ROI ˜hxyz t = Crop( hxyz t , r t), where Crop( ·) denotes the ROI cropping operation defined above. The extracted ROI ˜hxyz t is subsequently provided to the downstream loco-motion policy for decision-making. 
+
+## C Training Details 
+
+C.1 Terrain Design 
+
+Figure 7: Training Terrains for TAGA To improve traversability across diverse terrain conditions, we construct a broad set of representa-tive terrain types during training, including ascending and descending stairs, gaps, stepping stones (sparse footholds), box obstacles, elevated platforms, and sloped surfaces, as illustrated in Fig. 7. This terrain mixture exposes the policy to diverse geometric features, including elevation changes, discontinuous support regions, sparse footholds, obstacle negotiation, and inclined surfaces, thereby encouraging the emergence of generalizable terrain-adaptive locomotion strategies. Terrain sampling during training follows a probabilistic strategy to balance exposure across terrain types. Stepping stones are sampled with a probability of 0.3, as they most directly exercise pre-cise foothold selection and sparse-terrain reasoning. Ascending stairs, descending stairs, upslope terrains, and downslope terrains are each sampled with a probability of 0.05, since they mainly in-troduce structured elevation variations and are less demanding in terms of sparse foothold selection. The remaining probability mass is evenly distributed among gaps, box obstacles, and elevated plat-forms. This sampling strategy allows the policy to experience a wide range of terrain geometries and improves its adaptability to challenging deployment scenarios. 
+
+C.2 Reward Terms 
+
+The locomotion policy is trained with an augmented reward ˜rt = renv  
+
+> t
+
++ηr AMP  
+
+> t
+
+, where renv  
+
+> t
+
+denotes the base task reward, rAMP  
+
+> t
+
+denotes the Adversarial Motion Prior (AMP) reward, and η controls the contribution of the AMP term. The base task reward combines command-tracking objectives, pos-14 ture regularization, joint-level regularization, contact-aware locomotion terms, and safety-oriented penalties. It is designed to encourage agile yet stable locomotion with coordinated contacts and physically plausible motion patterns. The primary task objective is velocity tracking, where the robot is rewarded for matching the com-manded linear and angular velocities. To improve stability and motion quality, we additionally pe-nalize excessive torso rotation, body tilt, joint torques, joint velocities, joint accelerations, action-rate changes, and deviations from nominal body configurations. These regularization terms encourage smooth and energy-efficient motions while reducing unnecessary body oscillations. To promote robust locomotion behaviors, several contact-related rewards and penalties are intro-duced. These include rewards for maintaining appropriate foot swing durations and penalties for foot sliding, stumbling, undesired body contacts, loss of ground contact, and excessively narrow foot placement. Together, these terms encourage coordinated stepping behaviors and stable support transitions on challenging terrain. During the second-stage fine-tuning process, additional penalties are activated to improve robustness under deployment-oriented disturbances and terrain variations. The detailed components and coefficients of renv  
+
+> t
+
+are summarized in Table 4. Here, cxy t =(vcmd  
+
+> x,t
+
+, v cmd  
+
+> y,t
+
+) and cωt = ˙ψcmd  
+
+> t
+
+denote the commanded linear and angular velocity components; F
+
+denotes the set of feet, B denotes the set of robot links, q0 is the default joint configuration, f bt is the contact force acting on body b, and [·]+ = max( ·, 0) denotes the positive-part operator. The gating function Gflat (ht) activates the torso-orientation penalty only when the local terrain is sufficiently flat, preventing unnecessary penalization on uneven terrain that naturally requires body inclination. In addition to these handcrafted reward terms, an AMP reward is used throughout training to en-courage human-like locomotion styles. The discriminator is trained using motion-capture data and provides an auxiliary reward that regularizes the learned behaviors toward natural gait patterns. Specifically, we use retargeted AMASS [55] motions as the reference motion distribution. Both the simulated robot motion and the reference motion are encoded into a compact motion descriptor containing body motion, body orientation, and joint-state information. The discriminator is trained to distinguish policy-generated motion descriptors from AMASS reference descriptors, while the policy is rewarded when its motion is classified as closer to the reference distribution. Unlike frame-wise imitation, this adversarial formulation provides a distribution-level style prior, allowing the policy to preserve task performance while producing smoother and more natural locomotion pat-terns. 
+
+C.3 Training Hyperparameters 
+
+Table 5 summarizes the main PPO optimization hyperparameters used for training TAGA. Unless otherwise specified, the same hyperparameters are used throughout all experiments. Values shown in parentheses correspond to the second-stage fine-tuning configuration when different from the first-stage training setup. 
+
+C.4 Termination Conditions 
+
+To facilitate stable training and avoid unsafe failure modes, we use the following episode termination conditions during training: 1. Timeout and terrain boundary. An episode is reset after the maximum episode length of 20 s ,or when the robot moves outside the valid terrain region. 2. Illegal non-foot contact. We terminate the episode when non-foot bodies make contact with the environment. The monitored links include the torso, pelvis, waist, shoulder links, elbow links, hip links, and knee links. Contacts are detected using a force threshold of 1 N .3. Bad torso orientation. The episode is terminated when the torso orientation deviates exces-sively from upright. In implementation, this is measured by the angle between the torso-frame projected gravity direction and the upright axis, with a threshold of 0.8 rad .15 Table 4: Reward terms used for locomotion training. The formulas denote the unweighted reward terms. Values in parentheses indicate coefficients used during the second-stage fine-tuning. 
+
+Category Term Formula Weight Task Objective Alive Ialive 3.0
+
+Linear velocity tracking exp  −∥ vxy  
+
+> torso ,t
+
+− cxy t ∥2/σ 2
+
+> v
+
+ 2.0 (2.5)Yaw velocity tracking exp  −(ωz 
+
+> torso ,t
+
+− cωt )2/σ 2
+
+> ω
+
+ 3.0
+
+Yaw command regularization |cωt | −1.0
+
+Forward progress I(cxt > 0.3) I(vx 
+
+> torso ,t
+
+< 0.15) + I(vx 
+
+> torso ,t
+
+< 0) + I(vx 
+
+> torso ,t
+
+< −0.15)  −0.5
+
+Posture Regularization Torso angular velocity ∥ωxy 
+
+> torso ,t
+
+∥2 −0.05 
+
+Torso orientation Gflat (ht) ∥gxy 
+
+> torso ,t
+
+∥2 −2.0
+
+Pelvis orientation ∥gxy 
+
+> pelvis ,t
+
+∥2 −0.5
+
+Joint Regularization Joint torque ∥τt∥2 −1.5×10 −7
+
+Joint velocity ∥ ˙qt∥2 −5.0×10 −4
+
+Joint acceleration ∥¨qt∥2 −1.25 ×10 −7
+
+Link acceleration 1
+
+> |B|
+
+P 
+
+> b∈B
+
+∥ ˙vbt ∥ −0.01 
+
+Hip deviation ∥qhip  
+
+> t
+
+− qhip ,0∥2 −0.1
+
+Arm deviation ∥qarm  
+
+> t
+
+− qarm ,0∥1 −0.3
+
+Waist deviation ∥qwaist  
+
+> t
+
+− qwaist ,0∥1 −1.0
+
+Joint position limit P 
+
+> j
+
+dist( qjt , Qj ) −5.0
+
+Joint velocity limit P
+
+> j
+
+| ˙qjt | − ρ ˙q ˙qj
+
+> max
+
+ 
+
+> +
+
+−1.0
+
+Joint torque limit P
+
+> j
+
+|τ jt | − ρτ τ j
+
+> max
+
+2+ −0.01 
+
+Action rate ∥at − at−1∥2 −0.005 
+
+Contact and Gait Undesired contact P 
+
+> b / ∈F
+
+I(∥f bt ∥ > ϵ f ) −1.0
+
+Foot air time Icmd Isingle min f ∈F T f 
+
+> mode
+
+0.25 
+
+Air/contact time variance Var f ∈F (clip( T f
+
+> air
+
+, 0.5)) + Var f ∈F (clip( T f
+
+> contact
+
+, 0.5)) −0.7 (−2.0)Foot stumble I(∃f ∈ F : ∥f xy t ∥ > 4|f zt |) −2.0 (−5.0)Foot slide P  
+
+> f∈F
+
+If
+
+> contact
+
+∥vxy,f t ∥ −0.1
+
+Foot orientation P  
+
+> f∈F
+
+If
+
+> contact
+
+∥gxy,f t ∥ −0.5
+
+No-fly I
+
+P  
+
+> f∈F
+
+If 
+
+> contact
+
+= 0 
+
+
+
+−2.0
+
+Feet too near dmin − ∥ xLt − xRt ∥ 
+
+> +
+
+−1.0 (−5.0)Fine-tuning Only Volume penetration P 
+
+> x∈V
+
+I(δx > 0)( ∥vx∥ + ϵ)δx 0.0( −1.0) 
+
+Stand still I(∥cxy t ∥ < ϵ c)I(|cωt | < ϵ c)( ∥qt − q0∥1 − b) 0.0( −0.3) 
+
+Table 5: Main training hyperparameters. Values in parentheses indicate the second-stage fine-tuning configuration when different from the first stage. 
+
+Parameter Value 
+
+Rollout length 24 PPO epochs 5Mini-batches 10 Learning rate 1 × 10 −3
+
+Learning-rate schedule Adaptive Discount factor γ 0.99 GAE parameter λ 0.95 PPO clipping coefficient 0.2 Value loss coefficient 1.0 Entropy coefficient 0.005 (0.002) Gradient clipping norm 1.0 
+
+4. Low base height. We terminate states in which the robot has effectively fallen or collapsed. This includes cases where the root height is below 0.5 m relative to the terrain origin, or the root clearance above the local terrain estimate is below 0.2 m .5. High hip-link acceleration during foot contact. To filter out high-impact failure cases, we terminate the episode when a foot is in contact and the corresponding hip-pitch link experi-ences excessive linear acceleration. A contact is considered active when the foot contact force exceeds 1 N , and termination is triggered when the hip-link acceleration exceeds 225 m /s2.This condition discourages stiff, high-impact landings and encourages recoverable contact be-haviors. Triggering any unsafe termination condition resets the episode immediately. These conditions pre-vent the policy from exploiting unstable behaviors and focus learning on recoverable locomotion strategies. 16 C.5 Two-stage Training and Domain Randomization 
+
+We use a two-stage training procedure to balance skill acquisition and real-world robustness. In the first stage, TAGA is trained in a clean simulation setting without observation noise or deployment-oriented dynamics randomization, allowing the policy to efficiently acquire the core locomotion skills. In the second stage, we fine-tune from the pre-trained checkpoint with a reduced entropy coefficient and deployment-oriented domain randomization. For robot dynamics, we randomize the added base payload within [−1.0, 3.0] kg , perturb the base center of mass by [−0.05 , 0.05] m along the x and y axes and along the z axis, and sample motor delays from 0–3 delay steps. Contact properties are randomized with static friction in [0 .3, 1.0] ,dynamic friction in [0 .3, 0.8] , and restitution in [0 .0, 0.5] . We also apply random pushes every 10 –
+
+15 s with planar velocity perturbations in [−0.5, 0.5] m /s.For observations, we add independently sampled uniform noise to proprioceptive channels, with maximum magnitudes of 0.2 rad /s for base angular velocity, 0.05 for projected gravity, 0.01 rad 
+
+for joint positions, and 1.5 rad /s for joint velocities. The depth camera is updated at 30 Hz during fine-tuning and is degraded with contour corruption, random depth artifacts, reflections, sky arti-facts, Gaussian blur, stereo failure for too-close surfaces, and robot self-occlusion. Depth values are clipped to [0 .4, 3.0] m and then normalized before being fed to the policy. For height scans, we add z-axis noise in [−0.05 , 0.05] m and ray-cast drift in [−0.05 , 0.05] m along each axis. We also randomly corrupt a small portion of height-scan returns to simulate missing or unreliable terrain measurements. Terrain geometry is further perturbed with Perlin roughness, randomized gap-edge transition widths, and virtual edge obstacles. These randomizations improve robustness to perception noise, actuation uncertainty, contact variation, and terrain irregularities that may arise during hardware deployment. 
+
+## D Training Objectives 
+
+TAGA is trained using an asymmetric actor–critic PPO objective augmented with auxiliary regular-ization losses. The overall optimization objective is 
+
+Lpolicy = LPPO + cv Lvalue − ceH(πθ ) + λcLcon + λbLroi , (6) where LPPO is the PPO surrogate loss, Lvalue is the critic regression loss, H(πθ ) is the policy entropy bonus, and Lcon and Lroi denote the contrastive and gaze regularization losses, respectively. 
+
+D.1 MoE–Terrain Contrastive Loss 
+
+Following CMoE [45], we employ a contrastive objective to encourage terrain-aware soft routing in the MoE policy. Let B denote the batch size and K denote the number of learnable prototypes in a shared prototype dictionary C. The contrastive pair is formed by the actor-gate embedding egi and the terrain embedding ehi encoded from the full height scan. Both embeddings are normalized and compared through the prototype dictionary. For an embedding e, we define its prototype prediction distribution and balanced assignment as 
+
+P (e) = softmax( eC ⊤/T con ), Q(e) = Sinkhorn( eC ⊤), (7) where Tcon is a temperature parameter. The contrastive loss is 
+
+Lcon = − 12BK
+
+> B
+
+X
+
+> i=1
+
+Q(egi )⊤ log P (ehi ) + Q(ehi )⊤ log P (egi ) . (8) 17 This objective encourages the gating network to produce terrain-aware soft routing weights by align-ing the gate embedding egi with the terrain embedding ehi in the shared prototype space. This helps reduce terrain-invariant or nearly uniform expert mixtures and promotes functional differentiation among experts. 
+
+D.2 Gaze Boundary Loss 
+
+To prevent the learned gaze from degenerately selecting crops near the height-scan boundary, we penalize ROI centers that are too close to the edge of the normalized scan domain. For notational convenience, let 
+
+ri = ( rxi , r yi ) ∈ [0 , 1] 2 (9) denote the normalized gaze location predicted by TAGA for the i-th sample in a mini-batch. Here, ri
+
+is a batch-level notation for the corresponding time-indexed prediction rt used in the policy rollout. Given a boundary margin m = 0 .05 , the boundary loss is defined as 
+
+Lroi = 12B
+
+> B
+
+X
+
+> i=1
+
+([ m − rxi ]+ + [ rxi − (1 − m)] + + [ m − ryi ]+ + [ ryi − (1 − m)] +) , (10) where [ξ]+ = max( ξ, 0) . This regularizer keeps the selected crop inside the valid height-scan region and prevents unstable edge fixation. 
+
+Symmetry Augmentation. We exploit the humanoid’s left-right morphological symmetry by mir-roring proprioceptive observations, height scans, AMP states, and actions. For depth observations, a horizontally flipped virtual camera view is used. Both original and mirrored samples are included in PPO updates, encouraging symmetric locomotion behaviors and improving training efficiency. 18
