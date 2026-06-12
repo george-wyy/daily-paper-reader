@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-06-12 <!--dpr-date:20260612-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/12/biorxiv-10-64898-2026-06-08-731021-v1-single-camera-calibration-free-gaze-estimation-using-corneal-reflections" data-sidebar-item="{&quot;title&quot;: &quot;Single-camera, calibration-free gaze estimation using corneal reflections&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-06-08-731021-v1-single-camera-calibration-free-gaze-estimation-using-corneal-reflections&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;无校准注视估计方法，支持基于注视的人机交互&quot;}">Single-camera, calibration-free gaze estimation using corneal reflections</a>
   * 2026-06-11 <!--dpr-date:20260611-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/11/biorxiv-10-64898-2026-01-21-700857-v2-beyond-the-focus-of-expansion-retinal-curl-as-a-functional-signal-for-heading-estimation" data-sidebar-item="{&quot;title&quot;: &quot;Beyond the Focus of Expansion: Retinal curl as a functional signal for heading estimation.&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-01-21-700857-v2-beyond-the-focus-of-expansion-retinal-curl-as-a-functional-signal-for-heading-estimation&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;利用眼动注视和视网膜卷曲建模人类朝向估计&quot;}">Beyond the Focus of Expansion: Retinal curl as a functional signal for heading estimation.</a>
