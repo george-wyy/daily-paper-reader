@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-06-14 <!--dpr-date:20260614-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/14/biorxiv-10-64898-2026-06-12-731866-v1-the-dynamic-relationship-between-pupil-dilation-and-neural-surprise-in-natural-language-comprehension" data-sidebar-item="{&quot;title&quot;: &quot;The dynamic relationship between pupil dilation and neural surprise in natural language comprehension&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-06-12-731866-v1-the-dynamic-relationship-between-pupil-dilation-and-neural-surprise-in-natural-language-comprehension&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;使用瞳孔测量研究语言理解中的神经惊喜&quot;}">The dynamic relationship between pupil dilation and neural surprise in natural language comprehension</a>
   * 2026-06-13 <!--dpr-date:20260613-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/13/2606.08458v1-personalized-and-robust-proactive-robot-assistance-with-uncertainty-guided-llm-reasoning" data-sidebar-item="{&quot;title&quot;: &quot;Personalized and Robust Proactive Robot Assistance with Uncertainty-Guided LLM Reasoning&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.08458v1-personalized-and-robust-proactive-robot-assistance-with-uncertainty-guided-llm-reasoning&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;使用不确定性引导的LLM推理进行实时意图预测的前瞻性机器人辅助&quot;}">Personalized and Robust Proactive Robot Assistance with Uncertainty-Guided LLM Reasoning</a>
