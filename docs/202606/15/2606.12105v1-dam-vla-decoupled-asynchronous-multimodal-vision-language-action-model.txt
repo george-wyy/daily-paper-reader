@@ -1,0 +1,342 @@
+Title: DAM-VLA: Decoupled Asynchronous Multimodal Vision Language Action model
+
+URL Source: https://arxiv.org/pdf/2606.12105v1
+
+Published Time: Thu, 11 Jun 2026 01:07:11 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# DAM-VLA: Decoupled Asynchronous Multimodal Vision Language Action model 
+
+Pankhuri Vanjani 1, Zhuoyue Li 1* , Jakub Suliga 1* , Moritz Reuss 2,Gianluca Geraci 1, Xinkai Jiang 1, Rudolf Lioutikov 1,3 
+
+> 1
+
+Intuitive Robots Lab, Karlsruhe Institute of Technology (KIT), Germany 
+
+> 2
+
+NVIDIA 3Robotics Institute of Germany 
+
+Abstract: Vision-language-action (VLA) models inherit a shared synchronous clock from vision-language pretraining, processing every input at one rate. This is misaligned with physical interaction, where a high-frequency modality changes at hundreds of hertz, vision evolves more slowly, and language stays constant across an episode. A synchronous VLA oversamples slow modalities, undersam-ples fast ones, and caps action generation at the lowest effective frequency. We hypothesize that decoupling temporal processing per modality, letting each update and retain information at its own sensor rate, yields stronger representations and more robust control. We present Decoupled Asynchronous Multimodal Vision Language Action (DAM-VLA), which maintains per-modality latent buffers re-freshed at sensor rates and read continuously by the action head, integrating new high-frequency modalities through gated cross-attention that leaves the pretrained backbone intact. Across seven contact-rich real-world manipulation tasks, DAM-VLA more than doubles the average success rate of the strongest synchronous baseline (95.2% vs. 40.95%) while sustaining smooth, reactive 100 Hz control. Project website: intuitive-robots.github.io/DAM-VLA/ 
+
+Keywords: Vision Language Action models, multimodal learning 
+
+# 1 Introduction 
+
+Robot manipulation requires models that can act reliably across diverse tasks and environments. Vision-Language-Action (VLA) models have emerged as a promising foundation for this goal, lever-aging pretrained vision-language representations to generalize across tasks. They are building on imitation learning where representation quality drives robust behavior [1, 2, 3]. However, the archi-tectural assumptions underlying these models were shaped by language and vision pretraining. In those domains a single, uniform processing clock is a natural fit. Current VLA architectures are all synchronous with respect to sensor modalities. At each fixed timestep, every input, vision, force-torque, proprioception, tactile, is encoded together and passed to the policy. This design is inherited from Vision-Language Models (VLMs) optimized for language-grounded perception, not for real-time sensorimotor control. The result is a fundamental mismatch between the model’s internal rhythm and the physical structure of the real world and its sensors. This mismatch arises because heterogeneous sensors produce meaningful information at fundamen-tally different rates. As one concrete example, force-torque signals capture contact transients at 100-500 Hz, while RGB cameras provide informative signals at 3-10 Hz. Each modality also carries meaning over a different temporal horizon. A force spike is relevant for milliseconds, while a scene layout remains stable across seconds. A synchronous fixed-clock model is doubly misaligned: it ig-nores both the natural sensor rate at which each modality becomes informative and the natural hori-zon over which its information remains relevant. This mismatch produces three major challenges. First, Redundant compute : the expensive VLM encoder re-processes semantically identical frames 
+
+> arXiv:2606.12105v1 [cs.RO] 10 Jun 2026
+
+Figure 1: Standard synchronous VLAs operate on a single slow clock, missing critical high-frequency contact transients. In contrast, DAM-VLA updates each modality asynchronously at its natural sensor rate, successfully capturing fast dynamics and enabling smooth, continuous control. every step, wasting the compute budget needed for higher action rates. Second, Cross-modal rate mismatch : a uniform clock simultaneously undersamples fast-updating modalities and oversamples slow-updating ones. No modality is processed at the rate its signal structure demands. Third, Action latency : policy execution is gated on the arrival of a fully synchronized observation bundle. Waiting for the slowest modality directly increases latency and reduces effective control frequency. 
+
+Decoupling is the right architectural principle for multimodal robot learning. Rather than forcing all modalities into a synchronous token stream, each modality updates, retains, and contributes informa-tion according to its own temporal dynamics. This principle spans two dimensions. 1) asynchrony :each modality is processed at its natural sensor instead of down- or upsampling it to a shared clock. 2) temporal context : each modality maintains a buffer sized to its meaningful horizon. Short- and long-lived signals are preserved at their appropriate timescale. These dimensions lead to represen-tations that reflect the information structure of the sensors instead of synchronous projections. Following these insights we present DAM-VLA, a decoupled asynchronous VLA architecture for dexterous robot manipulation. In this work the heterogeneous modality set comprises visual streams and forces/torques as a representative high-frequency modality updated at the natural sensor rate. The architecture is not specific to this sensor set. Other modalities can be leveraged at their sensor rates via independent memory buffers. Our contributions are: 
+
+1. Asynchronous multimodal architecture : We introduce a decoupled processing design in which each modality stream updates independently at its natural frequency, with per-modality temporal context windows sized to the meaningful horizon of that signal. 2. Improved performance through asynchronous representations : By preserving the natural information structure of each sensor, DAM-VLA learns multimodal representations that lead to higher task success rates than synchronous baselines. 3. Reduced inference latency : Decoupling action generation from slow modality update cycles, such as periodic VLM re-encoding, enables the policy to act continuously at the control fre-quency, reducing end-to-end latency and increasing effective control frequency. We evaluate DAM-VLA on seven contact-rich, real world manipulation tasks, using X-VLA [4] as the VLA backbone, with force/torque as the high-frequency modality. The results show that asyn-chronous decoupled processing improves average success rate by 54.25% while running smoothly at 100Hz demonstrating, the practical value of multi-rate VLA design. 
+
+# 2 Related Work 
+
+Asynchronous and Efficient VLA Inference. Early work on asynchronous robot learning ad-dresses the mismatch between slow VLA inference and real-time control demands. Black et al. [5] and VLA-RAIL [6] overlap chunk generation and execution to maintain continuity, while A2C2 [7] attaches a lightweight correction head that injects time-aware residuals at every control step, recov-2ering reactivity under inference delay. A complementary slow-fast thread splits the model into a semantic VLM pathway and a fast action pathway: FiS-VLA [8] shares parameters between both at a fixed 1:4 frequency ratio. DuoCore [9] bridges them via a latent buffer achieving 30Hz whole-body control. On the efficiency side, VLA-Cache [10] and SD-VLA [11] avoid recomputing static visual tokens across frames ,Realtime-VLA V2 [12] focuses on system level optimizations, and VLASH [13], FASTER [14] address temporal misalignment between prediction and execution. These works either treat asynchrony as a system-level scheduling problem or focus on a single fast-slow split at a fixed ratio. All assume a synchronized observation bundle is available at each inference cycle. We study a complementary problem: heterogeneous sensory streams that update at different rates. None consider the general case of heterogeneous sensors streaming at different rates, nor do they study how the choice of modality integration mechanism affects the quality of the learned multimodal representation. Rather than requiring complete observations at every step, DAM-VLA maintains per-modality latent buffers updated at sensor rates, addressing both issues jointly. Outside the VLA setting, ManipForce [15] shows that training with native async RGB and force/torque streams outperforms downsampled baselines, directly motivating our multi-rate approach. 
+
+Multimodal Sensing and Temporal Context in VLAs. Recent work has extended VLA architec-tures with additional sensing modalities for contact-rich manipulation, with force and tactile sensing as the most commonly integrated examples. TA-VLA [16] and ForceVLA2 [17] inject torque at different architectural points, the latter adding force-based prompts into the VLM for hybrid force-position control. TacVLA [18] fuses tactile tokens with a hard contact gate, while FAVLA [19] uses the slow VLM to predict near-future force variation to schedule the fast action expert. FD-VLA [20] takes the opposite extreme, distilling force entirely from vision without a physical sensor. Across all these works, force signals are fused synchronously into a shared token stream. To handle temporally extended tasks, recent VLAs [21, 22, 23, 24, 25, 26, 27, 28, 29, 30] integrate latent memory through recurrent encoders, memory banks, or attention-based compressors, yet universally enforce a syn-chronous update regime that ties all sensor streams to a single clock. DAM-VLA addresses both. Each modality is maintained as an independently buffered asynchronous stream updated at its sensor rate, and integrated via Gated Cross-Attention (GCA) pathways with gating strategies matched to each modality’s signal structure. We use force/torque as a new, high-frequency modality. 
+
+# 3 Method 
+
+3.1 Problem Formulation 
+
+We consider a policy that receives observations from M heterogeneous sensing modalities M =
+
+{m1, . . . , m M }, each producing meaningful information at distinct rates. In our experiments, M
+
+contains a third person scene camera at 25Hz , a wrist mounted camera at 25Hz , force/torque at 
+
+100Hz sourced directly from the Franka’s internal sensor, proprioception at 100Hz and a language instruction that is static for the duration of each episode. A synchronous VLA queries all modalities at a single control frequency, treating every observation as if it contains every relevant information since the last step. This is suboptimal for heterogeneous sensing. It oversamples redundant visual data, undersamples fast contact transients, and blocks action generation until a complete observation bundle is available. We decouple each modality’s update rate from the control rate, maintaining a per modality latent context zm in a shared buffer. Between update events, the cached context is held as a latent buffer and read by the action head at every control step. The action head is conditioned on this latent buffer, so that action generation is not blocked by individual modality’s update rate. 
+
+3.2 DAM-VLA Architecture Asynchronous Data Collection. Rather than synchronising all sensor streams to a single times-tamp before recording, we collect each modality independently at its sensor rate and store observa-tions with per-modality timestamps. During training, we construct the observation context for each action label by fetching a fixed history window from each modality at its natural temporal resolu-3Figure 2: DAM-VLA architecture. Each modality stream encodes tokens into independent latent buffers at their sensor rate: vision periodically, proprioception and force/torque at high frequency. The action expert reads all buffers continuously via parallel GCA pathways, a global-gate pathway for visual memory and an input-dependent gate pathway for force/torque, adding new modalities through dedicated cross-attention modules that preserve the pretrained self-attention structure. tion: sparse visual history of 16 frames at 25 Hz, corresponding to approximately 0.64 s of semantic visual context and dense proprioceptive and force/torque histories of 96 samples each at 100 Hz, corresponding to approximately 0.96 s of high-resolution state and contact history which captures fine-grained short-horizon dynamics. Vision provides semantic context over a longer horizon while force and proprioception provide high-resolution contact and state information over shorter periods. 
+
+Multimodal asynchronous Latent buffer Continuous re-encoding of all modalities at full control frequency is wasteful. Vision changes slowly between manipulation phases, while force at contact change an order of magnitude faster. We maintain a shared latent buffer B = {Zm}m∈M that holds one token sequence per modality. Each Zm ∈ RNm×d is refreshed at a modality-specific rate. At every inference step the tokens of each Zm are processed but not consumed, i.e., if the inference frequency is higher than the sensor update the same sensor input is read again. The action head reads the entire buffer at every inference step, fully decoupling action generation from any individ-ual modality’s encoding schedule. This work uses these modalities: 
+
+1) Language tokens : For each episode a language instruction is encoded once at the beginning. 
+
+2) Visual tokens : The primary camera and the wrist camera are encoded by a vision-language en-coder to generate a sequence of patch tokens. To avoid redundant re-encoding of semantically identical frames, the visual encoder is invoked every 4 inference steps to get VLM embeddings. 
+
+3) Proprioception tokens : Joint states are concatenated with the action tokens as in X-VLA [4], but read at the full 100 Hz control rate, then encoded and processed in the asynchronous latent buffer. 
+
+4) Force tokens : Joint-torque readings arrive at the full control frequency and are smoothed via ex-ponential moving average before being accumulated in a rolling buffer. A Gated Recurrent Unit (GRU) encodes this buffer and cross-attention over force registers compresses it to Zf t , updated every control step independently of the visual schedule. DAM-VLA also maintains a short-term visual memory for context across sparse updates: each visual update appends the new frame embedding to a rolling buffer of the K most recent ones, which a GRU encodes and learned-query cross-attention compresses to Nmem tokens, producing 4Zmem . Summarizing K frames rather than one snapshot, Zmem stays valid while held constant between multiple inference updates. 
+
+Dual-pathway modulation via gated cross-attention. Inputs from all modalities are jointly pro-cessed in the action expert of the VLA. Most naive baselines concatenate these heterogeneous in-formation streams into a single flat sequence. This design, inherited from VLM token processing, is ill-suited to asynchronous updates and information decoupling. Also it forces new modality tokens into pretrained self-attention weights that have never seen them, risking corruption of pretrained representations. Instead, DAM-VLA augments the standard token-sequence input with two novel conditioning mechanisms: parallel GCA pathways that modulate the action expert on memory and force, inserted at every four transformer block of the action expert. This preserves pretrained weights untouched while allowing new modalities to inject residual corrections onto action tokens only. This is inspired by [31]. 
+
+Visual Memory pathway. Compressed visual memory tokens Zmem condition action tokens Z(ℓ) via a zero-initialized residual: 
+
+Z(ℓ+1) = Z(ℓ) + tanh( α) CA  LN( Z(ℓ)), Z mem , (1) where α is a learned scalar initialized to zero so the pathway contributes nothing at the start of train-ing and grows gradually without disrupting pretrained representations. A global gate is appropriate here because temporal visual context is relevant throughout the complete episode. 
+
+Additional modality pathway. : Other modalities use the same insertion points but an input-dependent gate, which we demonstrate with force tokens Zft .
+
+Z(ℓ+1) = Z(ℓ) + σ W ¯zft  CA  LN( Z(ℓ)), Z ft , (2) where ¯zft is the mean-pooled force token and the sigmoid gate is initialized near-closed. A static gate would be driven open by contact-phase gradients and closed by free-space gradients, converging to a compromise that either leaks noise during free motion or under-weights force during contact. The input-dependent gate lets the network learn when force is informative without requiring explicit contact detection. Critically, force queries the pre-memory-update action tokens Z(ℓ) rather than the memory-updated tokens, computing a pure additive delta 
+
+∆ft = CA  LN( Z(ℓ)), Z ft  − Z(ℓ), (3) that is added on top of the memory update, keeping the two conditioning pathways orthogonal and preventing cross-modal entanglement. The force gate responds to raw contact state, not to a signal already mixed with visual memory context to ensure reactive response at high frequency. 
+
+Training- and inference-time asynchrony During training, all modalities are first aligned to a common 100 Hz timeline for consistent action labeling. Visual observations are then sampled with stride S, recovering a sparse history matching the camera’s sensor rate, while force is sampled con-secutively at the full 100 Hz. This mirrors the inference-time buffer, where vision updates sparsely and force updates every control step. We use asynchronous, delay-aware execution [32] and charac-terize horizon-dependent replanning, as studied for X-VLA in [14].                                         
+
+> Configuration Isolates Async Force Mem. Integ.
+> X-VLA 25 std. VLA regime (25 Hz) ✗✗✗–X-VLA 100 naive high-freq. (100 Hz) ✗✗✗–X-VLA AFM concat. baseline ✓✓✓concatenate DAM-VLA /F/ Masync. alone ✓✗✗–DAM-VLA /Fmemory contribution ✓✗✓GCA DAM-VLA /Mforce contribution ✓✓✗GCA DAM-VLA (Ours) full model ✓✓✓GCA
+
+Table 1: Evaluated configurations. All share the X-VLA backbone [4], training data, and task split. 
+
+cat : modality tokens concatenated into the input sequence; GCA : our gated cross-attention. 5Model Scarf Whiteboard Button Handwash Lego Socket Sweep Avg.                                                         
+
+> Baselines
+> X-VLA 25 80.0 86.7 13.3 0.0 0.0 6.7 100.0 40.95 X-VLA 100 80.0 13.3 6.7 0.0 0.0 0.0 53.3 21.9
+> Ours
+> X-VLA AF M 100.0 73.3 13.3 86.7 0.0 6.7 100.0 54.3 DAM-VLA /F/M 80.0 66.7 40.0 20.0 0.0 6.7 66.7 40.0 DAM-VLA /F 100.0 73.3 86.7 40.0 0.0 6.7 100.0 58.1 DAM-VLA /M 100.0 86.7 86.7 80.0 13.3 13.3 86.7 66.7
+> DAM-VLA (Ours) 100.0 100.0 93.3 100.0 93.3 80.0 100.0 95.2
+
+Table 2: Task success rate (%) per configuration over 15 trials each. Best result per column in bold .
+
+# 4 Evaluation 
+
+We evaluate DAM-VLA, our proposed asynchronous decoupled Multimodal VLA with per-modality latent buffering, against synchronous baselines across a suite of manipulation tasks. Our evaluation is structured around four research questions: (RQ1) Does synchronous processing limit manipula-tion performance, and does naive frequency scaling resolve this? (RQ2) Does asynchronous decou-pling affect task performance? (RQ3) Can high frequency modalities, e.g. forces, combined with individual memory improve performance? (RQ4) Does the integration mechanism for additional modalities affect task performance in a decoupled asynchronous backbone? 
+
+4.1 Experimental Setup 
+
+We conduct experiments on a Franka Emika Panda arm using a fixed third-person scene camera and a wrist-mounted camera. RGB streams are recorded at 25 Hz and proprioception at 100Hz. Force/torque readings are sourced directly from the Franka’s internal sensor at 100 Hz. We evaluate on seven manipulation tasks spanning a range of contact requirements, reactivity demands, and precision constraints: Scarf folding, Whiteboard cleaning, Button pressing, Handwash top press, 
+
+Socket insertion, Sweep beads into a dustpan, and Lego piece arranging. We measure (i) task success rate (%) over 15 trials per task and (ii) average episode length (seconds), compared against teleoperation demonstrations as a natural-pacing reference. In the Appendix we further compare and show improvements in trajectory smoothness across two smoothness metrics. 
+
+Baselines and Ablations We evaluate six configurations (Table 1), each isolating one design axis of DAM-VLA, all built on the same X-VLA backbone [4] and finetuned with identical data and splits. The X-VLA baselines test the standard synchronous approach and a naive high-frequency variant that upsamples visual frames to 100Hz without redundancy suppression or temporal mem-ory. X-VLA AF M is the strongest concatenation baseline. It accesses the same force and memory information as DAM-VLA but integrates it via a flat token sequence in contrast to DAM-VLA’s gated cross-attention. The remaining ablations isolate the individual contributions of asynchronous decoupling (DAM-VLA /F/M ), force (DAM-VLA /F ), and visual memory (DAM-VLA /M ). All reported results run on a 100 Hz controller: the X-VLA 25 and X-VLA 100 baselines replan at 
+
+≈ 1 and ≈ 3.5 Hz, and DAM-VLA ( s=22 ) at ≈ 5.5 Hz with smooth, stable execution. To probe the frequency limit, we additionally ran DAM-VLA on a 200 Hz controller, where it stayed reactive from ≈ 8 Hz ( s=22 ) up to ≈ 17 Hz ( s=6 ). Force and proprioception enter the buffer at 200 Hz and are read every inference step, decoupling the input rate from replanning. 
+
+4.2 Result Analysis RQ1: Synchronous processing hits a performance ceiling despite frequency scaling. 
+
+Table 2 shows that X-VLA 25 achieves an average success rate of 40.95%, with strong performance on visually-guided tasks such as whiteboard cleaning (86.7%) and sweep (100%), but near-zero 6Figure 3: Qualitative rollout comparison across a subset of manipulation tasks. green boxes indicate successful DAM-VLA executions and the other colored boxes indicate X-VLA 25 partial outcomes or the failure modes. performance on tasks requiring precise contact: handwash (0%), Lego (0%), and socket insertion (6.7%). Increasing control frequency to 100 Hz drops average success further to 21.9%, with degra-dation across almost all tasks. Notably, sweep falls from 100% to 53.3% and whiteboard from 86.7% to 13.3%, showing that higher frequency actively hurts even on tasks where the synchronous baseline was strong. X-VLA 100 was trained with visual observations naively upsampled to match the 100 Hz control rate. At this rate, identical frames are paired with different action labels, creat-ing a contradictory training signal that causes the policy to predict small hesitant movements rather than committing to actions. This redundant-frame bias stalls execution and produces jerky motion (Fig.3). These results confirm that naive frequency scaling is not a viable path to high-frequency manipulation, and that the bottleneck is architectural rather than a matter of controller rate. 
+
+RQ2: Asynchronous decoupling alone recovers performance lost by naive frequency scaling. 
+
+DAM-VLA /F/M isolates the effect of asynchronous decoupling without any additional modality. It runs at 100 Hz with vision updated sparsely and proprioception updated at every control step. It achieves 40.0% average success, nearly matching X-VLA 25 at 40.95% while running at higher frequency, and outperforming X-VLA 100 at 21.9%. At inference, vision is cached than re-encoded every step, avoiding the execution collapse seen in X-VLA 100 . Decoupling also begins to unlock tasks that synchronous baselines could not do at all: button press improves from 13.3% to 40.0% and handwash from 0.0% to 20.0%. Some regression remains on visually-guided tasks like sweep (66.7% vs 100.0%), since no memory pathway preserves visual context between sparse updates. 
+
+RQ3: Additional modalities at their sensor rates further improve the decoupled foundation. 
+
+Building on the decoupled foundation of DAM-VLA /F/M (40.0%), every configuration that adds modality information improves: X-VLA AF M (54.3%), DAM-VLA /F (58.1%), DAM-VLA /M 
+
+(66.7%), and the full DAM-VLA (95.2%) This confirms the decoupled architecture is a founda-         
+
+> 050 100
+> X-VLA 25
+> X-VLA 100
+> X-VLA AF M
+> DAM-VLA /F/M
+> DAM-VLA /F
+> DAM-VLA /M
+> DAM-VLA (Ours)
+> Button
+> 93.3
+> 86.7
+> 86.7
+> 40
+> 13.3
+> 6.7
+> 13.3
+> 050 100
+> Handwash
+> 100
+> 80
+> 40
+> 20
+> 86.7
+> 0
+> 0
+> 050 100
+> Lego
+> 93.3
+> 13.3
+> 0
+> 0
+> 0
+> 0
+> 0
+> 050 100
+> Socket
+> 80
+> 13.3
+> 6.7
+> 6.7
+> 6.7
+> 0
+> 6.7
+> Clean success Partial success
+
+Figure 4: Success rates across different tasks and model configurations. Blue indicates clean success, while orange indicates partial success. 70 10 Time (s) 30 40           
+
+> −20
+> −10
+> 0
+> 10 DAM-VLA
+> Wrench
+> Fx Fy Fz
+> Tx Ty Tz
+> 010 Time (s) 30 40
+> −20
+> −10
+> 0
+> 10 X-VLA AF M
+> Wrench
+
+Figure 5: Handwash execution wrench: DAM-VLA makes a single clean press, whereas X-VLA AFM 
+
+repeatedly presses and retracts (multipress) over a longer episode. tion additional modalities can build on, each contributing independently. Memory alone provides meaningful gains over the decoupled baseline. DAM-VLA /F achieves 100% on scarf and sweep and 86.7% on button press, but falls short on contact-critical tasks: partial presses without depth regulation on button, over-pressing that spills liquid on handwash (Fig. 4), and 0% on Lego despite reaching the target (Fig. 3). Force alone also improves over the decoupled baseline but introduces distinct failures without memory. DAM-VLA /M achieves 86.7% on button and 80.0% on handwash, but in 46.67% of rollouts presses repeatedly, unable to retain that contact was made, and on Lego overshoots, failing to align. The full model resolves both failure modes by combining force-guided contact with memory-stabilized sequencing. On sweep, DAM-VLA /F achieves 100% but takes 40 s per episode versus 22.5 s for DAM-VLA, slowing at every contact boundary without force. Memory stabilizes sequential context and prevents repetitions. Force provides the contact signal needed to terminate interactions precisely. Together they reach 93.3% on Lego and 80.0% on socket where all synchronous baselines scored near zero. 
+
+RQ4: Gated cross-attention preserves pretrained representations under new modalities. 
+
+X-VLA AF M has the same force and memory inputs as DAM-VLA but concatenates them into one flat token sequence. Despite identical information, it degrades across all tasks (54.3% vs 95.2%). Pushing unseen new tokens through pretrained self-attention disrupts the backbone’s visual-language features. The policy reaches targets but cannot finish interactions, under-pressing on but-ton, repeatedly pressing and retracting on handwash (Fig.5), and stalling on whiteboard. GCA avoids this by adding new tokens as zero-initialized residuals, leaving pretrained weights untouched. The gap shows multimodal gains depend not just on the information itself, but how it enters a pretrained backbone as well. 
+
+# 5 Limitations 
+
+DAM-VLA uses high-frequency force to build better representations, but it does not use force to correct actions within a chunk. This leads to reduced performance on very contact-heavy tasks (e.g. 
+
+80% on socket), where small alignment errors are not fixed mid-chunk. Using force to refine actions is the direct next step to improve these cases. The vision side is also only partly decoupled as the camera updates on a fixed timer rather than when the scene changes. A detector that triggers the VLM on change would close this gap. Finally our force signal comes from Franka’s built-in joint-torque estimate, not a dedicated sensor. This shows the gains hold even without special hardware. Adding an external Force/Torque (F/T) sensor, torque-level control, and more modalities could push performance further. 
+
+# 6 Conclusion 
+
+We introduced DAM-VLA, a VLA built on a simple principle: each modality should update and be remembered at its own natural sensor rate, not forced onto one shared clock. DAM-VLA keeps a separate latent buffer per modality, refreshes each at its sensor rate, and lets the action head read all of them continuously. New high-frequency modalities are added through gated cross-attention, so the pretrained backbone stays intact. Across seven contact-rich real-world tasks, this more than 8doubles the success rate of the strongest synchronous baseline (95.2% vs. 40.95%) while running smoothly and reactively at 100 Hz. These results show that letting each sensor update the model at its own rate, instead of forcing everything onto one shared rate, is a practical way to build better manipulation policies. Next, we plan to use force to correct actions while they happen, and to add other fast sensors in the same way. 
+
+Acknowledgments 
+
+The research presented in this paper was funded by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) – 448648559. The authors gratefully acknowledge the computing time provided on the high-performance computer HoreKa by the National High-Performance Com-puting Center at KIT and by Gauss Centre for Supercomputing e.V. (www.gauss-centre.eu) for GCS Supercomputer JUPITER at J¨ ulich Supercomputing Centre (JSC). 9References 
+
+[1] A. Brohan, N. Brown, J. Carbajal, Y. Chebotar, J. Dabis, C. Finn, K. Gopalakrishnan, K. Haus-man, A. Herzog, J. Hsu, et al. Rt-1: Robotics transformer for real-world control at scale. arXiv preprint arXiv:2212.06817 , 2022. [2] C. Chi, Z. Xu, S. Feng, E. Cousineau, Y. Du, B. Burchfiel, R. Tedrake, and S. Song. Diffusion policy: Visuomotor policy learning via action diffusion. The International Journal of Robotics Research , 44(10-11):1684–1704, 2025. [3] P. Vanjani, P. Mattes, X. Jia, V. Dave, and R. Lioutikov. Disdp: Robust imitation learning via disentangled diffusion policies. In Reinforcement Learning Conference , 2025. [4] J. Zheng, J. Li, Z. Wang, D. Liu, X. Kang, Y. Feng, Y. Zheng, J. Zou, Y. Chen, J. Zeng, et al. X-vla: Soft-prompted transformer as scalable cross-embodiment vision-language-action model. 
+
+arXiv preprint arXiv:2510.10274 , 2025. [5] K. Black, M. Galliker, and S. Levine. Real-time execution of action chunking flow policies. 
+
+Advances in Neural Information Processing Systems , 38:33383–33407, 2026. [6] Y. Zhao, L. Zhao, B. Cheng, G. Yao, X. Wen, and H. Gao. Vla-rail: A real-time asynchronous inference linker for vla models and robots. arXiv preprint arXiv:2512.24673 , 2025. [7] K. Sendai, M. Alvarez, T. Matsushima, Y. Matsuo, and Y. Iwasawa. Leave no observation behind: Real-time correction for vla action chunks. arXiv preprint arXiv:2509.23224 , 2025. [8] H. Chen, J. Liu, C. Gu, Z. Liu, R. Zhang, X. Li, X. He, Y. Guo, C.-W. Fu, S. Zhang, et al. Fast-in-slow: A dual-system vla model unifying fast manipulation within slow reasoning. Advances in Neural Information Processing Systems , 38:98049–98083, 2026. [9] T. Zou, H. Zeng, Y. Nong, Y. Li, K. Liu, H. Yang, X. Ling, X. Li, and L. Ma. Asynchronous fast-slow vision-language-action policies for whole-body robotic manipulation. arXiv preprint arXiv:2512.20188 , 2025. [10] S. Xu, Y. Wang, C. Xia, D. Zhu, T. Huang, and C. Xu. Vla-cache: Towards efficient vision-language-action model via adaptive token caching in robotic manipulation. arXiv e-prints ,pages arXiv–2502, 2025. [11] W. Qiu, T. Huang, and R. Ying. Efficient long-horizon vision-language-action models via static-dynamic disentanglement. arXiv preprint arXiv:2602.03983 , 2026. [12] C. Yang, Y. Hu, Y. Ma, Y. Yang, J. Tan, and H. Fan. Realtime-vla v2: Learning to run vlas fast, smooth, and accurate. arXiv preprint arXiv:2603.26360 , 2026. [13] J. Tang, Y. Sun, Y. Zhao, S. Yang, Y. Lin, Z. Zhang, J. Hou, Y. Lu, Z. Liu, and S. Han. Vlash: Real-time vlas via future-state-aware asynchronous inference. arXiv preprint arXiv:2512.01031 , 2025. [14] Y. Lu, Z. Liu, X. Fan, Z. Yang, J. Hou, J. Li, K. Ding, and H. Zhao. Faster: Rethinking real-time flow vlas. arXiv preprint arXiv:2603.19199 , 2026. [15] G. Lee, Y. Lee, K. Kim, S. Lee, S. Noh, S. Back, and K. Lee. Manipforce: Force-guided policy learning with frequency-aware representation for contact-rich manipulation. arXiv preprint arXiv:2509.19047 , 2025. [16] Z. Zhang, H. Xu, Z. Yang, C. Yue, Z. Lin, H.-a. Gao, Z. Wang, and H. Zhao. Ta-vla: Elu-cidating the design space of torque-aware vision-language-action models. arXiv preprint arXiv:2509.07962 , 2025. 10 [17] Y. Li, H. Jiang, J. Xia, H. Zhang, J. Du, Y. Zhou, J. Zeng, C. Hao, J. Ren, Q. Yu, et al. Forcevla2: Unleashing hybrid force-position control with force awareness for contact-rich ma-nipulation. arXiv preprint arXiv:2603.15169 , 2026. [18] K. Zhang, H. Zhang, Z. Xu, Z. Zhang, M. R. I. Prince, X. Li, X. Han, Y. Zhou, A. Ajoudani, and Y. She. Tacvla: Contact-aware tactile fusion for robust vision-language-action manipulation. 
+
+arXiv preprint arXiv:2603.12665 , 2026. [19] Y. Li, P. Tang, W. Zhang, C. Zhu, Y. Duan, W. Shi, X. Zhang, Z. Yang, J. Ji, and Y. Zhang. Favla: A force-adaptive fast-slow vla model for contact-rich robotic manipulation. arXiv preprint arXiv:2602.23648 , 2026. [20] R. Zhao, W. Wang, Y. Ma, X. Li, F. E. Tay, M. H. Ang Jr, and H. Zhu. Fd-vla: Force-distilled vision-language-action model for contact-rich manipulation. arXiv preprint arXiv:2602.02142 ,2026. [21] M. Torne, K. Pertsch, H. Walke, K. Vedder, S. Nair, B. Ichter, A. Z. Ren, H. Wang, J. Tang, K. Stachowicz, et al. Mem: Multi-scale embodied memory for vision language action models. 
+
+arXiv preprint arXiv:2603.03596 , 2026. [22] A. Sridhar, J. Pan, S. Sharma, and C. Finn. Memer: Scaling up memory for robot control via experience retrieval. arXiv preprint arXiv:2510.20328 , 2025. [23] R. Zheng, Y. Liang, S. Huang, J. Gao, H. Daum´ e III, A. Kolobov, F. Huang, and J. Yang. Tracevla: Visual trace prompting enhances spatial-temporal awareness for generalist robotic policies. In International Conference on Learning Representations , volume 2025, pages 54277–54296, 2025. [24] M. Lin, P. Ding, S. Wang, Z. Zhuang, Y. Liu, X. Tong, W. Song, S. Lyu, S. Huang, and D. Wang. Hif-vla: Hindsight, insight and foresight through motion representation for vision-language-action models. arXiv preprint arXiv:2512.09928 , 2025. [25] M. Koo, D. Choi, T. Kim, K. Lee, C. Kim, Y. Seo, and J. Shin. Hamlet: Switch your vision-language-action model into a history-aware policy. arXiv preprint arXiv:2510.00695 , 2025. [26] H. Shi, B. Xie, Y. Liu, L. Sun, F. Liu, T. Wang, E. Zhou, H. Fan, X. Zhang, and G. Huang. Memoryvla: Perceptual-cognitive memory in vision-language-action models for robotic ma-nipulation. arXiv preprint arXiv:2508.19236 , 2025. [27] M. Lin, X. Liang, B. Lin, L. Jingzhi, Z. Jiao, K. Li, Y. Ma, Y. Liu, S. Zhao, Y. Zhuang, et al. Echovla: Robotic vision-language-action model with synergistic declarative memory for mobile manipulation. arXiv preprint arXiv:2511.18112 , 2025. [28] C. Ni, C. Chen, X. Wang, Z. Zhu, W. Zheng, B. Wang, T. Chen, G. Zhao, H. Li, Z. Dong, et al. Swiftvla: Unlocking spatiotemporal dynamics for lightweight vla models at minimal overhead. arXiv preprint arXiv:2512.00903 , 2025. [29] Y. Dai, H. Fu, J. Lee, Y. Liu, H. Zhang, J. Yang, C. Finn, N. Fazeli, and J. Chai. Robomme: Benchmarking and understanding memory for robotic generalist policies. arXiv preprint arXiv:2603.04639 , 2026. [30] Y. Gao, J. Liu, S. Li, and S. Song. Gated memory policy. arXiv preprint arXiv:2604.18933 ,2026. [31] J.-B. Alayrac, J. Donahue, P. Luc, A. Miech, I. Barr, Y. Hasson, K. Lenc, A. Mensch, K. Mil-lican, M. Reynolds, et al. Flamingo: a visual language model for few-shot learning. Advances in neural information processing systems , 35:23716–23736, 2022. 11 [32] M. Shukor, D. Aubakirova, F. Capuano, P. Kooijmans, S. Palma, A. Zouitine, M. Aractingi, C. Pascal, M. Russi, A. Marafioti, et al. Smolvla: A vision-language-action model for afford-able and efficient robotics. arXiv preprint arXiv:2506.01844 , 2025. [33] P. W. L¨ odige, M. X. Li, and R. Lioutikov. Use the force, bot!-force-aware prodmp with event-based replanning. In 2025 IEEE International Conference on Robotics and Automation (ICRA) ,pages 16730–16736. IEEE, 2025. 12 Appendix 
+
+# A Robot Platform and Sensor Suite 
+
+All real-world experiments are conducted on a Franka Emika Panda 7-DoF robot arm equipped with a Robotiq 2F-85 parallel-jaw gripper. Our setup follows the DROID-style robot platform, using one external third-person camera and one wrist-mounted camera for visual observations. The sensor suite comprises: • Third-person RGB camera : External right-view RGB camera following the DROID camera setup, mounted at a fixed side viewpoint with respect to the workspace. The RGB stream is recorded at 25 Hz, resized to 256 ×256, and temporally upsampled to 100 Hz for synchronized training with proprioceptive and force/torque observations. • Wrist-mounted RGB camera : Wrist RGB camera attached near the robot end-effector, providing an egocentric view of the manipulation scene. The RGB stream is recorded at 25 Hz, resized to 256 ×256, and temporally upsampled to 100 Hz for synchronized training with proprioceptive and force/torque observations. • Force/torque : Force-related observations are obtained from the Franka’s internal estimates rather than from an external force/torque sensor. The recorded 14-D force/torque observation consists of 7 external joint-torque estimates, a 6-D external wrench estimate, and the gripper current, all logged at 100 Hz. No dedicated contact sensor was used (as in [33]). For our method, we use only 7-D external joint-torque estimates. • Proprioception : Proprioceptive observations consist of the 7 robot joint positions and the gripper state, forming an 8-D state vector recorded at 100 Hz. Each episode is stored in a LeRobot-style format with synchronized RGB observations, propriocep-tive state, force/torque observations, actions, timestamps, and frame indices. The RGB cameras are recorded at 25 Hz and temporally upsampled to 100 Hz by holding the most recent visual observa-tion, so that vision, proprioception, force/torque, and action streams are aligned within each training batch. The real-world dataset used in this work contains 50–60 episodes for each task. The robot operates over a fixed tabletop workspace. All tasks use the same hardware configuration; no task-specific changes to sensor mounting are made between evaluations. For the 200 Hz controller experiments, the same sensor suite is used with the libfranka control loop running at 200 Hz for proprioception and force/torque, while the camera streams remain at 25 Hz. 
+
+# B Training and Implementation Details                   
+
+> Parameter Value
+> Backbone X-VLA Learning rate 2×10 −4
+> Global Batch size 192 Training steps 20,000 Training hardware NVIDIA GH200 480GB GPU node Inference hardware NVIDIA RTX 4060 Ti Backbone training Finetuned vision encoders, action experts Visual input rate 25 Hz Control rate 100 Hz Force input rate 100 Hz Proprioception input rate 100 Hz Visual stride Sfor history 8GCA insertion points Every 4th transformer layer of the action expert
+
+Table 3: Training and implementation details for the reported experiments. 13 We train all policies using the same real-world demonstration data, sensor streams, and X-VLA backbone initialization. RGB observations are recorded at 25 Hz and temporally aligned to the 100 Hz control timeline used for proprioception, force observations, and actions. All policies are trained with two RGB views, 256 ×256 image observations, 8-D proprioceptive state observations, and 7-D external joint-torque estimates from the Franka internal sensors. The policies are trained to predict 8-D actions (7-D joint positions and 1-D gripper state). During inference, visual tokens are computed once and cached. The VLM is queried to refresh them every 4 inference steps rather than at every control step. 
+
+# C Failure Modes and Ablation Observations 
+
+Synchronous baselines. X-VLA 25 generally exhibits jerky free-space motion. X-VLA 100 stalls mid-task on Scarf after reaching a visually stable intermediate configuration. The policy does not recover from this stall and fails to complete the remaining folding steps. On Sweep, X-VLA 100 loses the smooth continuous motion profile that X-VLA 25 produces at lower frequency. The redundant-frame bias causes the policy to issue small inconsistent commands instead of committing to a sus-tained sweeping motion. 
+
+DAM-VLA without force and memory. Separating visual encoding from the control loop avoids the redundant-frame problem. However, on whiteboard cleaning the policy can become slow or stall mid-trajectory without the temporal context needed to track progress across sequential steps. 
+
+Full DAM-VLA. Memory stabilizes long-horizon sequencing and prevents repeated interactions. Force provides the contact-state signal needed to terminate interactions at the right moment. This combination is especially important for handwash, Lego, and socket insertion, where success de-pends on both reaching the correct object and executing the final contact phase precisely. 
+
+# D Motion Smoothness Metrics 
+
+We report two complementary metrics to evaluate trajectory quality on the Sweep task: spectral arc length (SPARC) for command smoothness and tracking lag for execution responsiveness. Each metric is suited to a different comparison, as described later. We focus on Sweep because it requires sustained, continuous arm motion across the full episode, making differences in command smooth-ness and tracking responsiveness most apparent. It is also the task where all configurations achieve measurable execution, enabling a complete cross-method comparison. The smoothness difference is most directly visible in the project videos. The metrics below provide quantitative support. 
+
+Spectral arc length (SPARC). SPARC measures the arc length of the normalized Fourier mag-nitude spectrum of the 7D joint-command trajectory. Smoother trajectories concentrate spectral energy at low frequencies and produce lower SPARC values. We evaluate all 100 Hz configurations on their native command signals. X-VLA 25 is excluded from this comparison: converting 25 Hz commands to 100 Hz via zero-order hold introduces staircase artifacts that inflate SPARC indepen-dently of motion quality, making cross-frequency comparison via SPARC meaningless. As shown in Figure 6, among 100 Hz methods, X-VLA 100 produces the highest SPARC value on Sweep, consistent with its redundant-frame bias causing small, inconsistent joint commands. DAM-VLA achieves the lowest SPARC, confirming it issues the smoothest commands among all 100 Hz configurations. 
+
+Tracking lag. Tracking lag measures the temporal delay between commanded and measured joint motion. For each joint, we compute command and measured velocities via finite differences. We then find the delay τ ∈ [0 , 0.5] s at which the measured velocity best matches the command velocity, estimated via normalized cross-correlation. The lower bound of zero enforces causality. The robot can only lag behind the command, not ahead of it. The upper bound of 0.5 s excludes delays beyond 14 X-VLA 25 
+
+X-VLA 100 
+
+X-VLA AFM 
+
+DAM-VLA /F/M
+
+DAM-VLA /F
+
+DAM-VLA /M
+
+DAM-VLA (Ours) 
+
+0
+
+10 
+
+20 
+
+30 
+
+# Sweep 
+
+N/A  
+
+> 25 .04
+> 10 .47
+> 16 .83
+> 10 .98 10 .6
+> 8.1
+> 7D joint-position – SPARC (lower is smoother)
+
+# SPARC 7D Vector Comparison 
+
+Figure 6: Command smoothness on Sweep using 7D joint commands. Only 100 Hz configurations are shown. X-VLA 25 is excluded because zero-order hold upsampling to 100 Hz introduces stair-case artifacts that inflate SPARC independently of motion quality. Lower values indicate smoother commands with less high-frequency content. 
+
+> X-VLA 25
+> X-VLA 100
+> X-VLA AFM
+> DAM-VLA /F/M
+> DAM-VLA /F
+> DAM-VLA /M
+> DAM-VLA (Ours)
+
+0
+
+0.05 
+
+0.1
+
+0.15 
+
+0.2 Sweep 0.189     
+
+> 0.135 0.124
+> 0.139 0.128 0.127 0.118
+> mean lag (s)
+
+Tracking Lag Mean 
+
+Figure 7: Mean tracking lag comparison on Sweep. Tracking lag measures the estimated temporal delay between the commanded joint motion and the measured joint motion. Unlike SPARC, this metric is not affected by frequency mismatch and provides a fair comparison across all methods. Lower values indicate that the measured robot motion follows the command more promptly. any plausible tracking range for the tasks studied, all observed values fall well below this ceiling. We report the mean lag across joints and episodes. Unlike SPARC, this metric requires no frequency normalization. All command signals are compared against the same measured joint signal, making it valid across all configurations including X-VLA 25 . While the per-step lag differences are modest, a persistent lag across multiple control steps compounds into visible trajectory deviation over a full episode. 15 Sweep 
+
+> Handwash
+> Lego
+> Scarf
+> Whiteboard
+> Button
+> Socket
+> 0
+> 20
+> 40
+> 60
+> 80
+> Execution Time (s)  DAM-VLA (Ours)
+> X-VLA 25
+> X-VLA 100
+> Avg. demo time
+
+Figure 8: Execution times across different tasks and model configurations. Hatched bars indicate partial or no proper success. Gray bars show the average demonstration time in the dataset. With this in mind, the results in Figure 7 are consistent with our broader findings. X-VLA 25 shows the highest lag (0.189 s), which is partly structural: at 25 Hz, commands update every 40 ms, so elevated lag is mechanically expected regardless of command quality. Among 100 Hz methods, where all configurations share the same update period, DAM-VLA achieves the lowest lag (0.116 s). This is consistent with its smoother command profile as measured by SPARC. Finally, DAM-VLA completes Sweep episodes faster than all other configurations (22.5 s on average), ruling out the possibility that lower lag simply reflects slower, easier-to-follow motion. Neither SPARC nor track-ing lag is a perfect measure of motion quality in isolation, but together they tell a consistent story: DAM-VLA issues smoother commands among 100 Hz methods and the robot follows them more promptly across all methods, in line with the qualitative behavior visible in the project videos. 
+
+# E Episode Length and Execution Time 
+
+Beyond task success rate, episode duration offers a complementary view of policy quality. A policy that hesitates, stalls, or repeatedly retries will accumulate long episode lengths even on tasks it eventually completes. Conversely, short durations on successful tasks suggest the policy commits to actions confidently and without unnecessary repetition. Figure 8 shows mean episode length across all seven tasks for DAM-VLA, X-VLA 25 , and X-VLA 100 , alongside the average human demonstration time from the dataset (gray bars) as a reference anchor. Hatched bars mark cases with zero or partial success. Episode lengths for these cases do not reflect successful completion and should be interpreted accordingly. We include them as a best-effort record of how long each policy remained active before episode termination, so that comparisons across configurations remain as informative as possible. 
+
+Successful tasks. On tasks where all three configurations achieve measurable success, DAM-VLA consistently produces the shortest or near-shortest episode lengths. On Scarf, execution times are broadly comparable across configurations. On Sweep, DAM-VLA and X-VLA 25 finish at similar durations while X-VLA 100 takes noticeably longer, consistent with its tendency to issue overly con-servative commands. The strongest difference appears on Whiteboard, where X-VLA 100 averages 83s, more than three times the 24.4s recorded for DAM-VLA, consistent with the stalling behavior described in Section C. On Button, DAM-VLA completes cleanly in 10.8s, well below the 16s and 20s recorded for X-VLA 25 and X-VLA 100 respectively, reflecting single-attempt execution without repeated contact probing. 
+
+Partial and failed cases. For Lego and Handwash, neither X-VLA 25 nor X-VLA 100 achieves any successful completion. The hatched bars represent the duration of active arm motion before episode termination. The policy made adjustments and attempted to reach the target but never completed the task. These times are reported for completeness and should not be interpreted as successful execution times. On Socket, X-VLA 25 records 80s corresponding to one near-successful attempt 16 where the plug reached the socket but was slightly misaligned, preventing full insertion, with the remaining episodes timing out. 
+
+Overall. We note that the mean episode length for X-VLA 25 is heavily skewed by Socket (80s) and Lego (44s), both failed or partial cases. Excluding these, the average episode length for X-VLA 25 becomes comparable to DAM-VLA. This confirms that the advantage of DAM-VLA lies not in raw speed on individual tasks, but in maintaining reliable and consistent execution across the full task set, including tasks where the baselines fail entirely. Taken together with the smoothness metrics from Section D, DAM-VLA’s shorter episode lengths reflect genuine decisiveness rather than faster or more aggressive motion. 
+
+# F Replanning Frequency Ablation 
+
+The main results reported in this paper use a 100 Hz controller. To stress-test the limits of the asyn-chronous architecture, we additionally ran ablation experiments on the Handwash and Whiteboard tasks at 200 Hz, varying the execution horizon s to probe the trade-off between replanning frequency and motion quality. In DAM-VLA, the input streams remain decoupled: force/torque and proprioception enter the buffer at high frequency, while visual tokens are updated sparsely and cached between updates. This means increasing the control frequency does not require more frequent visual inference, but it does affect how often the policy generates new action chunks. We compare two execution horizons (action chunk length): s = 22 , corresponding to an inference frequency of 8 Hz, which is the default configuration used throughout the paper, and s = 6 , corresponding to 17 Hz. Shorter horizons increase the replanning rate but reduce the amount of open-loop execution per generated chunk. As shown in Table 4, both settings achieve full success on Handwash and Whiteboard. However, the two configurations differ in motion character. At s = 22 , the policy executes longer chunks and pro-duces smooth, fluid motion. At s = 6 , the policy remains reactive but motion becomes visibly less fluid, as shorter chunks introduce more frequent transitions between generated sequences. Going beyond 17 Hz, i.e. horizons shorter than s = 6 , caused task success to degrade, as even with sparse visual updates, the remaining VLM encoding latency becomes a bottleneck at very high replanning rates, leading to unstable execution.               
+
+> Controller Horizon Freq. Motion quality Success
+> 200 Hz s= 22 8 Hz Smooth, fluid (default) 100% 200 Hz s= 6 17 Hz Reactive, less fluid, slow task execution 100%
+
+Table 4: Replanning frequency ablation for DAM-VLA under a 200 Hz controller on Handwash and Whiteboard tasks. Execution horizon s controls steps executed per generated chunk; shorter horizons increase replanning frequency. 17

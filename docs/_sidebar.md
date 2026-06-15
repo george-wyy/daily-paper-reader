@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-06-15 <!--dpr-date:20260615-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/15/2606.12105v1-dam-vla-decoupled-asynchronous-multimodal-vision-language-action-model" data-sidebar-item="{&quot;title&quot;: &quot;DAM-VLA: Decoupled Asynchronous Multimodal Vision Language Action model&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.12105v1-dam-vla-decoupled-asynchronous-multimodal-vision-language-action-model&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;解耦异步多模态处理框架，适用于实时多模态意图预测&quot;}">DAM-VLA: Decoupled Asynchronous Multimodal Vision Language Action model</a>
   * 2026-06-14 <!--dpr-date:20260614-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/14/biorxiv-10-64898-2026-06-12-731866-v1-the-dynamic-relationship-between-pupil-dilation-and-neural-surprise-in-natural-language-comprehension" data-sidebar-item="{&quot;title&quot;: &quot;The dynamic relationship between pupil dilation and neural surprise in natural language comprehension&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-06-12-731866-v1-the-dynamic-relationship-between-pupil-dilation-and-neural-surprise-in-natural-language-comprehension&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;使用瞳孔测量研究语言理解中的神经惊喜&quot;}">The dynamic relationship between pupil dilation and neural surprise in natural language comprehension</a>
