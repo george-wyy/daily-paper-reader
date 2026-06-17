@@ -6,34 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-16
-- 运行时间：2026-06-16 23:08:22 UTC
+- 最新运行日期：2026-06-17
+- 运行时间：2026-06-17 21:14:15 UTC
 - 运行状态：成功
 - 本次总论文数：4
-- 精读区：3
-- 速读区：1
+- 精读区：1
+- 速读区：3
 
 ### 今日简报（AI）
-今日推荐4篇论文，精读两篇9分佳作：注视生成与AR感知。
-重点看ST-DiffEye的扩散模型连续注视生成，以及EPIC的自中心感知系统框架。
-建议优先精读这两篇高分论文，速读JoyAI的视觉-语言交互作为补充。
-- 详情：[/202606/16/README](/202606/16/README)
+今日精选4篇论文，核心围绕视觉-语言模型与人类注视/手势行为的交叉研究。  
+最值得关注的是精读论文《ST-DiffEye》，其通过扩散模型联合建模扫描路径与轨迹实现连续注视生成（9.0/10），以及速读中《GIVE》关于手势在视觉-语言-动作模型中的接地研究。  
+建议普通读者优先精读《ST-DiffEye》，了解扩散模型在眼动预测中的前沿应用，同时浏览《GIVE》探索手势与AI交互的结合点。
+- 详情：[/202606/17/README](/202606/17/README)
 
 ### 精读区论文标签
-1. [ST-DiffEye: Diffusion-based Continuous Gaze Generation via Joint Scanpath-Trajectory Modeling](/202606/16/2606.15486v1-st-diffeye-diffusion-based-continuous-gaze-generation-via-joint-scanpath-trajectory-modeling)  
+1. [ST-DiffEye: Diffusion-based Continuous Gaze Generation via Joint Scanpath-Trajectory Modeling](/202606/17/2606.15486v1-st-diffeye-diffusion-based-continuous-gaze-generation-via-joint-scanpath-trajectory-modeling)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：使用扩散概率模型联合建模扫描路径与轨迹的注视生成
-2. [EPIC: A System Framework for Efficient Egocentric Perception on Embodied AR Glasses](/202606/16/2606.15859v1-epic-a-system-framework-for-efficient-egocentric-perception-on-embodied-ar-glasses)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：利用注视、姿态和惯性信号推断AR眼镜上的用户意图
-3. [An Augmented Reality Brain-Robot Interface for Generalist Robot Arm Manipulation](/202606/16/2606.16413v1-an-augmented-reality-brain-robot-interface-for-generalist-robot-arm-manipulation)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：增强现实中的基于注视的对象选择
+   evidence：通过联合扫描路径-轨迹建模生成注视模式
 
 ### 速读区论文标签
-1. [JoyAI-VL-Interaction: Real-Time Vision-Language Interaction Intelligence](/202606/16/2606.14777v1-joyai-vl-interaction-real-time-vision-language-interaction-intelligence)  
+1. [GIVE: Grounding Human Gestures in Vision-Language-Action Models](/202606/17/2606.13435v1-give-grounding-human-gestures-in-vision-language-action-models)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：前瞻性实时交互范式，用于主动系统响应
+   evidence：利用非言语线索（手势）进行多模态意图识别
+2. [JoyAI-VL-Interaction: Real-Time Vision-Language Interaction Intelligence](/202606/17/2606.14777v1-joyai-vl-interaction-real-time-vision-language-interaction-intelligence)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：前瞻性实时交互范式
+3. [Comparing Human Gaze and Vision-Language Model Attention in Safety-Relevant Environments](/202606/17/2606.15202v1-comparing-human-gaze-and-vision-language-model-attention-in-safety-relevant-environments)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：通过眼动追踪比较人类注视与VLM注意力在安全环境中的差异
 
 
 <div class="dpr-home-promo-card">
