@@ -6,28 +6,24 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-21
-- 运行时间：2026-06-21 20:38:01 UTC
+- 最新运行日期：2026-06-22
+- 运行时间：2026-06-22 22:26:12 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：1
 - 精读区：1
-- 速读区：1
+- 速读区：0
 
 ### 今日简报（AI）
-今日精读高分论文《行为签名揭示偏好选择中的决策后注意机制》，速读多模态模拟社交智能基准。  
-最值得关注的是决策后注意力在行为层面上的可量化特征，以及视觉社交智能评估新框架。  
-建议普通读者可结合行为经济学与计算机视觉，探索“选择后的注意力分配”如何影响现实决策。
-- 详情：[/202606/21/README](/202606/21/README)
+今日精读一篇高分论文，聚焦基底节与额叶皮层在决策中的差异化编码机制。核心发现：基底节输出负责情境依赖的价值评估，而额叶皮层输出主导分类承诺的生成。建议关注该模型对理解人类选择障碍（如成瘾、强迫症）的潜在启示。
+- 详情：[/202606/22/README](/202606/22/README)
 
 ### 精读区论文标签
-1. [Behavioral Signatures of Post-Decisional Attention in Preferential Choice](/202606/21/biorxiv-10-64898-2026-01-10-698805-v2-behavioral-signatures-of-post-decisional-attention-in-preferential-choice)  
+1. [Parallel basal ganglia and frontal cortical outputs differentially encode context-dependent evaluation and categorical commitment during choice](/202606/22/biorxiv-10-64898-2026-06-15-732482-v1-parallel-basal-ganglia-and-frontal-cortical-outputs-differentially-encode-context-dependent-evaluation-and-categorical-commitment-during-choice)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：眼动注视分析检验注意力偏差决策模型
+   evidence：决策任务中眼动选择的神经编码
 
 ### 速读区论文标签
-1. [Can Agents Read the Room? Benchmarking Visual Social Intelligence in Multimodal Simulation](/202606/21/2606.15152v1-can-agents-read-the-room-benchmarking-visual-social-intelligence-in-multimodal-simulation)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：包含注视线索的视觉社交智能基准
+- 本次无速读推荐。
 
 
 <div class="dpr-home-promo-card">
