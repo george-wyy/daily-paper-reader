@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-06-24 <!--dpr-date:20260624-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/24/biorxiv-10-64898-2026-06-13-732042-v1-pupil-responses-reveal-temporally-distinct-signatures-of-value-updating-and-decision-strategy" data-sidebar-item="{&quot;title&quot;: &quot;Pupil responses reveal temporally distinct signatures of value updating and decision strategy&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-06-13-732042-v1-pupil-responses-reveal-temporally-distinct-signatures-of-value-updating-and-decision-strategy&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;瞳孔动态和概率选择模型揭示决策策略&quot;}">Pupil responses reveal temporally distinct signatures of value updating and decision strategy</a>
   * 2026-06-23 <!--dpr-date:20260623-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/23/2606.21920v1-predictive-gaze-is-preserved-but-reorganized-toward-monitoring-during-robot-mediated-manipulation" data-sidebar-item="{&quot;title&quot;: &quot;Predictive Gaze Is Preserved but Reorganized toward Monitoring during Robot-Mediated Manipulation&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.21920v1-predictive-gaze-is-preserved-but-reorganized-toward-monitoring-during-robot-mediated-manipulation&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;机器人中介操作中预测性注视的保留，人类目标计算模型&quot;}">Predictive Gaze Is Preserved but Reorganized toward Monitoring during Robot-Mediated Manipulation</a>
