@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-06-27 <!--dpr-date:20260627-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/27/2606.25149v1-proactive-systems-in-hci-and-ai-concepts-challenges-and-opportunities" data-sidebar-item="{&quot;title&quot;: &quot;Proactive Systems in HCI and AI: Concepts, Challenges, and Opportunities&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.25149v1-proactive-systems-in-hci-and-ai-concepts-challenges-and-opportunities&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;人机交互中的前瞻性系统，直接对应基于注视的前瞻交互范式&quot;}">Proactive Systems in HCI and AI: Concepts, Challenges, and Opportunities</a>
   * 2026-06-26 <!--dpr-date:20260626-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202606/26/2606.26725v1-modeling-adaptive-visual-search-in-semantically-hierarchical-layouts" data-sidebar-item="{&quot;title&quot;: &quot;Modeling Adaptive Visual Search in Semantically Hierarchical Layouts&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2606.26725v1-modeling-adaptive-visual-search-in-semantically-hierarchical-layouts&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;视觉搜索的计算模型复制眼动模式，用于理解用户目标&quot;}">Modeling Adaptive Visual Search in Semantically Hierarchical Layouts</a>
