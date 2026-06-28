@@ -1,0 +1,490 @@
+Title: Learning Robot Visual Navigation in Crowds via Intention-Aware Scene Representations
+
+URL Source: https://arxiv.org/pdf/2606.26047v1
+
+Published Time: Thu, 25 Jun 2026 01:21:40 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+> IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. MARCH, 2026 1
+
+# Learning Robot Visual Navigation in Crowds via Intention-Aware Scene Representations 
+
+Han Bao †, Bingyi Xia †, Hanjing Ye, Yu Zhan, Hao Cheng, Baozhi Jia, Wenjun Xu, Jiankun Wang 
+
+Abstract —Robot crowd navigation requires the ability to infer human intentions while accounting for the structural constraints of the environment. Currently, deep reinforcement learning (DRL) provides a promising method for learning navigation policies that understand human intentions. However, most of them rely on limited scene representations, treating pedestrians as simple 2D points and ignoring rich visual cues from both humans and the environment. To address this issue, iCrowdNav, a novel visual crowd navigation method with intention-aware scene representations, is introduced to encode behavioral and structural context from egocentric visual observations. Our method employs two key components: a spatio-temporal encoder for extracting occupancy features of the scene, and Intent-Interact Former (I 2Former), an attention-based module that encodes human poses to infer pedestrians’ motion intentions. These features are integrated into a compact state embedding that supports effective DRL policy training. Extensive experiments show that our method achieves superior performance over baselines, and real-world deployment demonstrates vision-based crowd navigation. 
+
+Index Terms —Human-aware motion planning, vision-based navigation, collision avoidance. 
+
+I. I NTRODUCTION 
+
+# AUTONOMOUS navigation has been significantly ad-vanced by developments in visual perception and intelli-gent planning, paving the way for safe and reliable navigation in human presence. However, relying solely on egocentric vision to navigate in dynamic, unstructured environments with dense crowds remains an open challenge [1]–[4]. For instance, a service robot navigates through an unfamiliar shopping mall to perform delivery tasks, as shown in Fig. 1. Although this task is trivial for humans, robots still face severe difficulties in maneuvering through the dynamic environments safely and efficiently. This requires understanding human motion intentions from visual input while accounting for environ-mental constraints, which enables appropriate and foresighted decision-making in dynamic crowds. Therefore, it is crucial to investigate vision-based crowd navigation methods that can operate reliably in everyday dense crowd environments. 
+
+Corresponding authors: Baozhi Jia, Wenjun Xu, Jiankun Wang.  
+
+> †
+
+Equal contribution. Han Bao, Bingyi Xia, Hanjing Ye, Yu Zhan, Hao Cheng and Jiankun Wang are with the Shenzhen Key Laboratory of Robotics Perception and Intelligence, Department of Electronic and Electrical Engineering, SUSTech, Shenzhen, China (e-mail: wangjk@sustech.edu.cn). Jiankun Wang is also with the Jiaxing Research Institute, SUSTech, Jiaxing, China. Baozhi Jia is with Xiamen Key Laboratory of Visual Perception Technology and Application, and the Algorithm Research Center at Reconova Information Technology Co., Ltd. in Xiamen, China(e-mail: jiabaozhi@reconova.com). Wenjun Xu is with the Research Institute of MA&EI, Peng Cheng Labo-ratory, Shenzhen, China(e-mail: xuwenjunwendy@gmail.com). Our code and appendix are available at https://broln7.github.io/socialbev.io/. right camera left camera 
+
+Fig. 1. The robot is navigating in a shopping mall, which is required to avoid pedestrians in constrained space. Our approach allows the robot to extract visual cues from onboard cameras for safe and efficient navigation. 
+
+Recently, deep reinforcement learning (DRL) approaches [5]–[7] have shown promising performance in learning crowd dynamics and interactions that are difficult to model explicitly. Nevertheless, the effectiveness of such approaches critically depends on the design of the state embeddings, which should preserve environmental cues that are both detailed and precise enough for optimal decision making. Existing approaches [7]–[10] typically oversimplify the scene representation: for pedestrians, they use low-level states such as position and velocity on the 2D plane; for the environment, they rely on 2D binary occupancy maps or 2D single-line lidar scans. These methods ignore rich visual cues in the raw images—such as the fact that humans may turn their heads and shoulders before changing their walking directions—and instead assume that intentions only concern the trajectories of pedestrians. We argue that such low-level scene representations primarily overlook two key aspects: (1) subtle yet critical human behaviors that express their intentions (e.g., gestures, gazes, body poses), and (2) spatial and semantic features of the environment . These factors are particularly crucial in the real world, such as the constrained passages shown in Fig. 1, where a robot must rapidly infer the human intention to proactively yield for human crossing, and avoid collisions with walls or furniture. As a result, low-level scene representations are limited in laboratory settings with certain participants, creating a gap to real-world scenarios. In this article, we investigate the following question: How to learn scene representations from egocentric vision that better preserve visual cues for crowd navigation policy training? Adirect end-to-end mapping from raw images to robot actions suffers from the curse of dimensionality and provides no  
+
+> arXiv:2606.26047v1 [cs.RO] 24 Jun 2026 2IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. MARCH, 2026
+
+guarantee that social contexts are effectively identified [11]. Instead, Bird’s-Eye View (BEV) feature provides a compact yet informative scene representation by unifying visual inputs across multiple views and frames, which is convenient for downstream planning [12]. It preserves spatial and semantic features of both the environment and pedestrians at an absolute scale while reducing dimensionality. However, in highly dy-namic and crowded scenarios, representing occupancy alone is insufficient, since human behaviors are often highly reactive and do not follow deterministic rules. Thus, we argue that human intention reasoning should be incorporated to enable foresighted decision-making. Such intentions refer to pedes-trians’ motion tendencies, for example whether they tend to walk straight or suddenly change direction. 3D human poses reflect these motion intentions and provide clear and reliable visual cues for inferring them [13], [14]. We aim to capture such visual cues and incorporate them into our navigation framework. To this end, we propose iCrowdNav , a visual navigation method that incorporates intention-aware scene representations by augmenting standard BEV with human pose features to facilitate the learning of crowd navigation policy. Specifically, we design a spatio-temporal encoder that extracts occupancy features from a sequence of RGB-D observations of the dynamic environment. Moreover, we introduce the Intent-Interact Former ( I2Former ), an attention-based module that learns implicit joint-level features from 3D human poses, enabling the robot to infer human intentions. By concatenating the BEV occupancy features with the intention-aware features extracted by I 2Former, we construct the intention-aware scene representations, which are then fed into the DRL framework to enable vision-based crowd navigation. The main contributions of this article are as follows:  
+
+> •
+
+A novel visual encoder is incorporated in a DRL policy for crowd navigation using RGB-D cameras. It is end-to-end trained in simulation and achieves zero-shot sim-to-real deployment.  
+
+> •
+
+The proposed intention-aware scene representations can implicitly capture behavioral and environmental contexts. Our method encodes BEV representations to densely build occupancy features of the scene, and leverages the attention mechanism to infer the human intention from 3D pose, prioritizing the human-robot interactions.  
+
+> •
+
+We develop diverse human-centric environments in Isaac Sim, providing rich visual signals for training and bench-marking navigation in complex and dynamic scenar-ios. Comprehensive experiments show that our approach outperforms existing state-of-the-art methods in crowd navigation performance. II. R ELATED WORK 
+
+Robot navigation in dynamic crowds aims for robots to respond proactively and appropriately to surrounding pedes-trians during navigation, achieving not only safety but also comfort and legibility [15]–[18]. Compared with rule-based approaches [19], [20], DRL offers the advantage of optimizing long-term rewards that balance efficiency and safety while implicitly accounting for pedestrian comfort. For instance, DRL approaches [5], [6] can overcome the frozen robot problem in dense crowds. Furthermore, coupled prediction and planning frameworks are developed to minimize discomfort to pedestrians by predicting their behavior. For example, human-robot interactions rules can be implicitly learned through graph neural network (GNN) [7] or integrated with the reward design [8]. However, these policies typically assume fully observable environments and often simplify the scene, thus showing limited generalization to various scenarios. Real-world social navigation requires a more comprehensive understanding of holistic social contexts, which motivates researchers to explore state representations for integrating additional social cues [21]. On one hand, the motion patterns of humans and robots are both constrained by the environment. For example, DRL policies can be augmented with a map en-coder that leverages pre-built grids maps for collision checking [9], [22]. Furthermore, real-time laser scans are used for the precise localization and prediction of dynamic obstacles [10], [23]. On the other hand, simplistic safety distance approxi-mations lead to overly conservative policies focused solely on obstacle avoidance. Hence, researchers have exploited human behavioral knowledge to capture spatial relationships between humans and robots more faithfully. Proxemics-based methods employ diverse representations such as probabilistic reachable sets [24] or bounding capsules for modeling pedestrian occu-pancy [25]. Other approaches consider physical constraints on human motion. For example, gait variations detected on 2D laser scans have been exploited as the state embeddings [26]. Despite their progress, the above approaches primarily rely on low-dimensional planar observations that represent pedes-trians to points, thereby discarding crucial visual cues. In contrast, this article leverages 3D vision features to benefit situation awareness in crowd navigation. Although onboard cameras provide sufficient information about the surroundings, such visual inputs introduce challenges of partial observability and the curse of dimensionality in RL training. BEV represen-tations have been widely adopted in autonomous driving and robotic navigation [27], [28] due to their ability to unify multi-view observations and maintain spatio-temporal consistency. However, in human-populated environments, current BEV representations are insufficient to capture visual signals that correlate with human behavior. Previous trajectory prediction studies have revealed that human motion priors, such as gait patterns or human poses, can reliably reflect their intentions [13], [14]. Inspired by these insights, we design the intention-aware scene representations, which integrate BEV representa-tions with visual features capturing human intentions. These representations enable the DRL policy to more proactively and reliably avoid collisions in dense crowds. III. M ETHODOLOGY 
+
+This article addresses the problem of vision-based robot navigation in crowded environments. Our method (Fig. 2) consists of three primary components: a feature extraction module, a feature fusion module, and a DRL network. Specif-ically, for the feature extraction module, the spatio-temporal BAO et al. : LEARNING ROBOT VISUAL NAVIGATION IN CROWDS VIA INTENTION-AWARE SCENE REPRESENTATIONS 3Robot States           
+
+> Multi -Timestep
+> Depth Images
+> Multi -Timestep
+> RGB Images
+> System Input
+> Learning
+> (PPO)
+> Actions
+> DRL Network
+> Fusion Net
+> Concatenate
+> Lift &Splat
+> Temporal
+> Encoder
+> Spatio -Temporal
+> BEV Features BEV Encoder
+> State Encoder
+> Spatio -Temporal Encoder
+> Intent –Interact Former ( 𝐼 !Former)
+> Pose Encoder
+> I!-State Encoder
+> Q
+> Q
+> K
+> V
+> K
+> V
+> ...
+> t=1
+> t=n
+> Aligned
+> BEV Features
+> Feature Extraction
+> Pose Detection
+> IntentFormer
+> InteractFormer
+> Feature
+> Fusion
+> Fig. 2. Our method consists of three primary components: a feature extraction module, a feature fusion module, and a DRL network. It takes multi-timestep RGB-D images, pedestrian poses, and the robot’s internal states as inputs. In the representation encoding stage, the spatio-temporal encoder and the I 2Former extract intention-aware scene representations, which are then fused with the robot’s state embedding to form DRL state embedding and fed into the DRL policy for navigation.
+
+encoder extracts occupancy features of the scene, while the I2Former extracts intention-related features from the poses of surrounding pedestrians. These features are then concate-nated to form intention-aware scene representations, which are further fused with robot state features to form the state embedding for the DRL network. Finally, the DRL network predicts navigation actions to enable collision-free navigation in dynamic environments. 
+
+A. Problem Formulation 
+
+The navigation problem extends the general visual naviga-tion objective: learn to navigate along a collision-free path to-wards the goal by leveraging its egocentric visual observations, with the additional objective of maintaining an appropriate social distance from pedestrians. In particular, this problem can be formulated as a partially observed Markov decision process. The partial observation ot consists of egocentric images and robot states, and action at represents linear and angular velocity commanded to the robot. The navigation policy πθ models the conditional distribution of actions given observations, denoted as πθ (at|ot). Our goal is to optimize the navigation policy πθ with DRL, which can be achieved by maximizing the general objective L(θ):
+
+L(θ) = Eπθ
+
+" ∞X
+
+> t=0
+
+γtrt
+
+#
+
+(1) where γ is the discount rate, and rt is the reward at time t
+
+that evaluates the safety and efficiency of the navigation. We summarize the commonly used notations in the follow-ing. Uppercase letters denote constants such as dimensions, while bold lowercase letters denote latent vectors in neural networks. For instance, BEV features are denoted by x, and 
+
+z denotes the state embedding used by the policy network. Functions such as neural networks are denoted by ϕ, and their learnable parameters are denoted by W.
+
+B. Intention-Aware Scene Representations 
+
+In this subsection, we introduce the detailed structure for learning intention-aware scene representations, which consists of two main modules, the spatio-temporal encoder and the I2Former, as shown in Fig. 3. Our method takes the robot’s partial observation ot as input, which comprises three com-ponents: the RGB-D data, the pedestrian poses detected from the RGB-D data, and robot states. 
+
+1) Spatio-Temporal Encoder: For the perception of the surroundings, we transform the multi-view visual observations into BEV feature maps as intermediate representations for downstream encoding, which provide a spatially consistent representation that facilitates reasoning about nearby pedestri-ans and obstacles in complex environments. Fig 3 illustrates the pipeline for extracting spatio-temporal BEV features st
+
+> bev
+
+and encoding them into the embedding zt 
+
+> bev
+
+using a 2D convolutional BEV encoder. Our spatio-temporal encoder is inspired by the Fiery model [28]. At timestep t, multi-view images from Nc RGB-D cameras on the robot are collected and processed using a pre-trained ResNet-18 [29], producing the feature map et ∈
+
+RNc×C×Hc×Wc . The corresponding depth images are down-sampled to the same resolution, yielding dt ∈ RNc×Hc×Wc .Then, we lift the image features into 3D using the measured depth under known camera parameters, and project them into a unified ego-centric coordinate frame at time t. The result-ing 3D features are collapsed along the vertical dimension through sum pooling, producing the local BEV feature map 
+
+xt 
+
+> bev
+
+∈ RC×Hb×Wb , where Hb = 120 , W b = 200 .Subsequently, to construct spatio-temporal BEV features, we aggregate BEV representations from a temporal window 
+
+τ = {t − T, . . . , t }. The historical BEV features are first aligned to the current frame at time t by compensating for ego-motion using geometric transformations from the robot’s trajectory. These aligned feature maps, alongside the current feature map xt
+
+> bev
+
+, are then fed into the temporal encoder 4 IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. MARCH, 2026 
+
+to extract spatio-temporal representations. This module is denoted as Fτ that performs temporal alignment and encoding: 
+
+st 
+
+> bev
+
+= Fτ (xt−T 
+
+> bev
+
+, . . . , xt−1 
+
+> bev
+
+, xt
+
+> bev
+
+) ∈ RC×Hb×Wb . (2) The temporal encoder is implemented as a 3D convolutional network and pre-trained on the nuScenes dataset [30], which provides the multi-view camera setup required for BEV rep-resentation and contains pedestrian data. Finally, the spatio-temporal BEV features are fed into the BEV encoder to extract scene representations zt 
+
+> bev
+
+:
+
+zt 
+
+> bev
+
+= ϕbev (st
+
+> bev
+
+; Wbev ), (3) where ϕbev is a 2D convolutional network with residual con-nection and 2D pooling layers. 
+
+2) Intent-Interact Former: To capture behavioral intentions from human poses, we design I 2Former (Fig. 3), which com-prises four modules: a pose encoder, an I 2-states encoder, In-tentFormer, and InteractFormer. We first detect 2D poses from RGB images using Ultralytics YOLO [31], which achieves highly accurate pose estimation even under occlusions. These 2D poses are then lifted to 3D and transformed into the robot’s coordinate frame using camera intrinsics, extrinsics, and depth images, yielding Θt = [ pt
+
+> 1
+
+, ..., ptNp ] ∈ RNp×17 ×3 for Np
+
+pedestrians with 17 joints. To map the raw 3D coordinates into higher-dimensional embeddings, we apply an MLP pose encoder ϕp with ReLU activations: 
+
+ˆΘt = ϕp(Θt; Wϕp ) (4) Crucially, occluded keypoints are zero-padded [13]. Through its global context modeling, the Transformer inherently directs its attention weights toward detected keypoints, maintaining robust representations even with incomplete poses. Human pose reflects a pedestrian’s next motion state. By modeling the relationships among all joints, we can infer behavioral intentions, such as moving forward, turning, or yielding. To this end, we design the IntentFormer, which leverages multi-head self-attention (MHSA) to capture these joint relationships, enabling the model to understand implicit behavioral intentions. It also incorporates a Feed-Forward Network (FFN), residual connections, and LayerNorm (LN). Additionally, attention pooling (AttnPool) is applied at the final stage, allowing the model to adaptively weigh the im-portance of different joints and improve its understanding of human motions and intentions. The IntentFormer outputs implicit intention features f t
+
+> ped
+
+, which can be formulated as: 
+
+ˆf t 
+
+> ped
+
+= LN (MHSA ( ˆΘt) + ˆΘt), (5) 
+
+f t 
+
+> ped
+
+= AttnPool (LN (FFN (ˆf t
+
+> ped
+
+) + ˆf t
+
+> ped
+
+)) . (6) After obtaining the intention features of each pedestrian, a module is needed to associate the robot with them to capture interactions between the robot and surrounding pedestrians. To this end, we design the InteractFormer based on multi-head cross-attention (MHCA), where the robot’s state embedding serves as the query to attend to the surrounding pedestrians’ features, enabling the robot to form a global understanding of RGB Backbone      
+
+> Down -
+> sampling
+> RGB -D Input
+> Lift Features to 3D
+> 𝐳 !"#
+> $
+> 𝐳 %&'" ()*'
+> $
+> Temporal
+> Encoder
+> 𝐱 !"#
+> $
+> 𝐱 !"#
+> $+,
+> Align BEV
+> Features BEV
+> Encoder
+> Splat to BEV
+> vv
+> 𝜙 -
+> 𝐞 (.!.'
+> $
+> Multi -Head
+> Attention
+> Add & Norm
+> Feed Forward
+> Network
+> Add & Norm
+> InteractFormer
+> QKV
+> 𝐈 $
+> 𝐃 $
+> 𝚯 $
+> Multi -Head
+> Attention
+> Feed Forward
+> Network
+> Add & Norm
+> Add & Norm
+> AttnPool
+> IntentFormer
+> VKQ
+> ……
+> ……
+> ……
+> 17 Joint Tokens
+> 𝐬 !"#
+> $FOV
+> Pre -trained
+> Left camera
+> Right camera
+> 𝐱 !"#
+> $+/
+
+Fig. 3. Our method includes two key components: a spatio-temporal encoder and the I 2Former. The spatio-temporal encoder extracts scene features that implicitly capture the occupancy of both static and dynamic objects in the surrounding environment, while the I 2Former extracts intention-related features from the poses of surrounding pedestrians. These features are then concatenated to form intention-aware scene representations. 
+
+their behavioral intentions. The InteractFormer outputs interact representations zt
+
+> interact
+
+, which can be expressed as: 
+
+ˆzt 
+
+> interact
+
+= LN (MHCA (et
+
+> robot
+
+, f t
+
+> ped
+
+) + et
+
+> robot
+
+), (7) 
+
+zt 
+
+> interact
+
+= LN (FFN (ˆ zt
+
+> interact
+
+) + ˆ zt
+
+> interact
+
+), (8) where et 
+
+> robot
+
+= ϕsp (st; Wϕsp ) denotes the robot state embed-ding, and the I 2-states encoder ϕsp is implemented as an MLP with ReLU activations. 
+
+3) Feature Fusion: To obtain the DRL state embedding 
+
+zt, we first encode the robot state st = [ gtx, g ty , d tg , v tx, v ty ]
+
+that comprises the goal direction [gtx, g ty ], distance to the goal dtg , and velocity [vtx, v ty ] into the state embedding. This encoded state is then concatenated with the intention-aware scene representations and fused: 
+
+zt 
+
+> state
+
+= ϕs(st; Wϕs ) (9) 
+
+zt = ϕf (Concat (zt
+
+> bev
+
+, zt
+
+> interact
+
+, zt
+
+> state
+
+); Wϕf ). (10) Both the state encoder ϕs and the fusion network ϕf are implemented as MLPs with ReLU activations. 
+
+C. Deep Reinforcement Learning 
+
+We adopt the proximal policy optimization (PPO) [32] algorithm for online training of our policy. During training, all the modules ϕ(·) with weights W are jointly optimized with the DRL policy network. Since the RGB backbone and the temporal encoder of the spatio-temporal encoder are pretrained on external datasets, they are kept frozen during DRL training. This pretraining strategy enhances the robustness of our scene representations and the training stability. The reward function is designed to guide the robot toward safe, collision-free navigation in dynamic and complex envi-ronments. According to [10], [33], it should provide dense feedback at every step, along with clear terminal signals that indicate success or failure. Therefore, we design the following BAO et al. : LEARNING ROBOT VISUAL NAVIGATION IN CROWDS VIA INTENTION-AWARE SCENE REPRESENTATIONS 5
+
+reward function, which encourages the robot to move toward the goal while proactively avoiding pedestrians: 
+
+rt 
+
+> nav
+
+=
+
+
+
+20 , if dtg ≤ ρrobot 
+
+−20 , else if dto ≤ ρrobot 
+
+0.5( dto − 0.9) , else if ρrobot < d to < 0.93.2( dt−1 
+
+> g
+
+− dtg ), otherwise ,
+
+(11) where ρrobot is the radius of the robot, dtg is the distance between the robot and its goal at time t, and dto is the minimum distance between the robot and any pedstrian or obstacle at time t. Unlike [8], [10], we do not design a complex reward function based on obstacle-avoidance strategies or human–robot interaction patterns, which would require careful manual tuning. Those works explicitly craft such rewards so that the neural network can learn concepts like human private space through training; in contrast, our scene representations already implicitly encode human intentions, obviating the need for finely hand-tuned reward terms. Since policies optimized via DRL may exhibit jitter, we also include a trajectory-smoothing reward following [10], [33], defined as follows: 
+
+rtω =
+
+(
+
+−0.1|ωtz |, if |ωtz | > 1.00, otherwise , (12) where ωtz denotes the robot’s angular velocity at time step 
+
+t. Therefore, our overall reward is the sum of these two components: rt = rt 
+
+> nav
+
++ rtω .
+
+IV. S IMULATION EXPERIMENTS 
+
+A. Simulation Implementation 
+
+During the simulation phase, we utilize a Clearpath Dingo robot with a maximum velocity of 1.0 m/s. The robot is equipped with two Intel RealSense D435 RGB-D cameras, each with a depth range of [0.3, 10] m, providing a com-bined field of view of approximately 140°. Pedestrians move according to the Social Force Model (SFM) [19] toward fully randomized target destinations. Combined with the natural pedestrian animations rendered by Isaac Sim, these settings guarantee that our simulated crowd interactions closely mir-ror actual real-world scenarios. Fig 4 illustrates the training environment in SocNav-Gym, which covers various common social navigation scenarios such as hallways, corners, cluttered areas, and dense crowds in open spaces. In addition, SocNav-Gym also provides diverse testing environments, including hospital, office, and warehouse scenarios. In each episode, the robot’s start and target positions are randomized to promote adaptation to diverse navigation scenarios. 
+
+B. Crowd Navigation 
+
+We first conduct a series of crowd navigation experiments, where the initial distances between the robot and the goal are around 6.0 m. According to benchmark [34], social navigation scenarios can be categorized based on crowd density and scene width. Therefore, we design three test scenarios with varying widths: an office lobby, a hospital corridor, and a warehouse with cluttered obstacles. Their widths are 7.0 m, 4.0 m, and 2.5 m, as illustrated in Fig. 5. In addition, we set two crowd Cluttered Zone 
+
+> Goal
+> Corner
+> Goal
+> Open Space
+> Goal
+> Corner
+> Goal
+> Doorway
+> Goal
+> Hallway
+> Goal
+> Robot
+> Fig. 4. Policy training environment in SocNav-Gym, featuring common social scenarios and providing diverse training data for DRL.
+
+density levels: low (0.1) and high (0.2) pedestrians/m 2. For comparison, we utilize four widely used metrics: 1) Success rate (SR) : the proportion of non-collision trials among all trials. 2) Navigation time (NT) : the average time taken to reach the goal in successful trials. 3) Path length (PL) : the average length traveled in suc-cessful trials. 4) Time in private zone (TPZ) : the average time the robot spent in pedestrians’ private zones (distance < 0.8 m) during successful trials. To evaluate the effects of both components, we perform an ablation study comparing the full method with two vari-ants: one without the I 2Former and one replacing the spatio-temporal encoder with a CNN that encodes the occupancy map (OM). For the comparative experiments, the following methods are used as baselines: DRL-VO [10], SARL*-OM [8], [9], ViNT [35], and DWA [20]. DRL-VO and SARL*-OM are DRL-based, targeting navigation efficiency and pedestrian comfort, respectively, with SARL*-OM combining the local OM [9] and danger-zone modeling [8]. ViNT is a visual navi-gation foundation model with obstacle avoidance capability. DWA is a model-based collision avoidance controller. For each method and configuration, we run three trials with 25 random goals in the corresponding test environment. Results are summarized in Table I. Across environments and density levels, our method consis-tently outperforms the ablated variants, demonstrating stronger overall performance in crowded and constrained scenarios. Removing the I 2Former lowers SR and increases time in pedestrians’ private zones, reflecting impaired intention infer-ence. Removing the BEV module reduces scene awareness, leading to less flexible navigation, frequent pauses, and higher intrusion into pedestrian space. These results show that BEV representations improve navigation by providing spatial and semantic features of the environment, while I 2Former en-hances navigation by encoding pedestrians’ intentions. When evaluated against the baselines, our method maintains the highest SR, with clear advantages in dense and constrained environments. It also navigates more efficiently, with shorter times and paths, while keeping the lowest TPZ, reflecting safer behavior. Even in narrower, more crowded settings, its performance degrades more slowly than baselines. Notably, the version without I 2Former, which relies only on the BEV vi-6 IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. MARCH, 2026 Robot Robot 
+
+> Robot
+
+(a) Office lobby Robot Robot  
+
+> Robot
+
+(b) Hospital corridor Robot Robot  
+
+> Robot
+
+(c) Warehouse Fig. 5. Experimental environments for navigation policy testing. (a) Office lobby with a width of 7.0 m. (b) Hospital corridor with a width of 4.0 m. (c) Warehouse with a width of 2.5 m. TABLE I COMPARISON RESULTS IN SIMULATED CROWD NAVIGATION 
+
+Density Method Office Lobby Hospital Corridor Warehouse 
+
+SR ↑ NT ↓ PL ↓ TPZ ↓ SR ↑ NT ↓ PL ↓ TPZ ↓ SR ↑ NT ↓ PL ↓ TPZ ↓
+
+Low Ours 0.95 9.03 5.87 0.92 0.88 9.82 6.19 1.98 0.87 9.77 6.15 1.83 Ours (w/o I 2) 0.93 9.22 5.99 1.79 0.84 9.30 6.32 2.69 0.79 10.77 6.67 2.22 
+
+Ours (w/o BEV) 0.92 9.15 5.95 1.57 0.81 9.97 6.97 2.54 0.74 10.85 6.71 2.12 DRL-VO 0.93 8.32 5.91 1.29 0.80 8.60 6.08 3.08 0.80 9.67 6.38 2.33 SARL*-OM 0.85 8.89 6.31 1.23 0.75 13.00 9.10 3.87 0.75 10.16 6.40 1.88 ViNT 0.81 10.55 6.11 2.01 0.69 11.13 6.21 3.15 0.69 11.25 6.65 3.72 DWA 0.92 12.48 6.24 1.66 0.87 11.34 6.01 2.57 0.77 13.16 6.71 3.42 
+
+High Ours 0.91 9.20 6.18 1.42 0.84 9.83 6.31 2.55 0.80 11.15 7.02 2.83 Ours (w/o I 2) 0.85 9.29 5.89 2.04 0.80 9.75 6.34 3.04 0.75 11.08 6.74 3.58 
+
+Ours (w/o BEV) 0.83 9.31 6.14 1.65 0.77 9.91 6.67 2.89 0.73 11.45 6.97 3.39 DRL-VO 0.83 8.51 5.95 2.54 0.72 8.86 6.28 3.01 0.71 10.89 6.68 3.71 SARL*-OM 0.67 9.04 6.35 2.05 0.67 14.90 9.95 3.13 0.57 11.50 7.61 3.17 ViNT 0.71 11.05 6.01 2.91 0.65 13.51 6.79 4.01 0.51 12.51 7.12 5.02 DWA 0.75 12.94 6.86 2.88 0.75 12.46 6.35 3.50 0.72 15.18 7.60 4.79 DRL -VO SARL* -OM DWA 
+
+Goal Robot Navigation Progress 
+
+Ours 
+
+Pedestrian 
+
+ViNT 
+
+Fig. 6. Example trajectories for the compared policies with nine static obstacles and four SFM agents. The robot trajectory is color-coded with the viridis colormap to indicate the navigation timesteps. Black squares denote obstacles. 
+
+sual representation, performs comparably to DRL-VO, which requires a full map, complete pedestrian states, and LiDAR fusion. Compared with ViNT, another visual navigation model, our approach surpasses it in all performance metrics. For qualitative evaluation, we record robot trajectories with different navigation policies, as shown in Fig. 6. All poli-cies enable the robot to reach the goal, but show notable differences. DWA’s conservative policy leads to detours and the longest navigation time. ViNT demonstrates inflexible navigation, resulting in excessively long paths and collisions with pedestrians. SARL*-OM exhibits a rather rigid navigation strategy and often gets stuck or collides with static obstacles. DRL-VO emphasizes efficiency but can disturb nearby pedes-trians and hesitates near obstacles. In contrast, our method effectively perceives obstacles and initiates early avoidance maneuvers, while also respecting pedestrian social space, minimizing disturbance, and achieving the shortest time. 
+
+C. Long-horizon Comparison 
+
+We then integrate the proposed algorithm with a topological map to evaluate crowd navigation within long horizon tasks. The topological map is generated by the generalized voronoi graph [36]. We design two different scenarios, as illustrated in Fig. 7. Both scenarios are large-scale, supporting navigation over 20 m. Compared with the previous crowd navigation settings, they better reflect real-world conditions, requiring the robot to navigate through corridors, doorways, and rooms commonly found in real world. The evaluation metrics and baselines are consistent with those in Subsection IV-B, and each navigation task is repeated 25 times. Across both environments, our full method outperforms the versions without the I2Former and without the BEV module. Removing the I 2Former lowers SR and increases intrusions into pedestrians’ private zones, highlighting the value of capturing human motion intentions. Removing the BAO et al. : LEARNING ROBOT VISUAL NAVIGATION IN CROWDS VIA INTENTION-AWARE SCENE REPRESENTATIONS 7Robot   
+
+> (a) long-distance navigation in hospital Robot (b) long-distance navigation in office Fig. 7. Two long-distance Navigation Scenarios. Each scenario uses a generalized voronoi graph to generate a topological map. In each map, green dots indicate possible goal points, red dot denotes start point, blue dots represent waypoints, and orange segments show the navigation paths. Each trajectory is defined as the robot starting from the start point and navigating along the paths to reach a randomly selected goal point.
+
+Left camera Right camera 
+
+Odometry Timestamp: 22.48s 
+
+Left camera Right camera 
+
+Odometry Timestamp: 20.02s 
+
+> (a) Navigation in an outdoor gym
+
+Right camera 
+
+Timestamp: 20.02s 
+
+Left camera Right camera 
+
+Odometry Timestamp: 20.02s (b) Navigation in a station Left camera Right camera 
+
+Odometry 
+
+Timestamp: 80.32s Timestamp: 56.18s Odometry 
+
+Left camera Right camera Left came 
+
+Odometr (c) Navigation in a mall Fig. 8. Snapshots and visualizations of the proposed method operating in three scenarios: an outdoor gym, a subway station, and a shopping mall. Each column shows the robot’s first view, the corresponding real-world scene, and odometry visualizations in RViz. 
+
+BEV module reduces navigation flexibility and efficiency, while also affecting personal space compliance. In the office, our method achieves higher SR and fewer intrusions while remaining efficient. In the narrower hospital environment, its benefits are more evident, enabling reliable navigation. When benchmarked against baselines, our method consis-tently achieves superior performance in SR, efficiency, and minimal intrusion. In the office environment, it reaches an SR of 0.95, outperforming the others, while reducing TPZ from 7.96 (SARL*-OM) to 1.70, indicating safer and less intrusive navigation. In the hospital environment, it achieves an SR of 0.79 with the lowest TPZ (0.42), demonstrating robust and safe navigation even in narrower passages. Compared with ViNT, which is also a visual navigation method, our approach consistently achieves better results across all metrics. V. R EAL -W ORLD VALIDATION 
+
+Besides simulated evaluations, we conduct real-world ex-periments in complex scenes—including a gym, a subway station, and a shopping mall—to validate the robustness and applicability of our method, with full demonstrations provided in the Multimedia. Our policy achieves an inference rate of 15 Hz on the onboard computer’s RTX 2060 GPU. In the outdoor gym, where pedestrians behave non-cooperatively and frequently block the robot’s path, the robot actively adjusts its heading to yield space for passing, resulting                                                                
+
+> TABLE II LONG -H ORIZON COMPARISON RESULTS
+> Env Method SR ↑NT ↓PL ↓TPZ ↓
+> Office
+> Ours 0.95 40.82 26.53 1.70 Ours (w/o I 2)0.80 49.39 24.21 2.10
+> Ours (w/o BEV) 0.83 47.01 28.21 2.20 DRL-VO 0.75 41.02 25.02 1.80 SARL*-OM 0.33 68.64 39.81 7.96 ViNT 0.41 55.87 32.49 5.61 DWA 0.37 61.21 27.32 3.80 Hospital
+> Ours 0.79 40.89 22.49 0.42 Ours (w/o I 2)0.72 37.15 20.06 1.37
+> Ours (w/o BEV) 0.73 42.34 23.29 1.21 DRL-VO 0.67 35.31 21.90 1.48 SARL*-OM 0.42 46.90 30.02 1.65 ViNT 0.56 42.51 24.38 1.89 DWA 0.50 45.19 25.25 2.15
+
+in smooth and socially compliant avoidance behaviors, as shown in Fig. 8a. In the subway station, the robot navigates through dense crowds and constrained spaces; it reliably percepts limited free space and promptly steers toward safer regions, successfully avoiding both moving pedestrians and static obstacles, as illustrated in Fig. 8b. In the shopping mall, the robot completes a 109.49 m long-distance navigation in a constraint environment; even when a pedestrian suddenly emerges from a blind corner, it rapidly adjusts its trajectory to maintain safe separation and stable motion, as shown in 8 IEEE ROBOTICS AND AUTOMATION LETTERS. PREPRINT VERSION. MARCH, 2026 
+
+Fig. 8c, achieving an average speed of 0.76 m/s. Additional results under occlusions are provided in Appendix A. VI. C ONCLUSION 
+
+This article presents iCrowdNav, a visual navigation frame-work designed for robots operating in populated and dynamic environments. Unlike existing methods that rely on oversimpli-fied scene representations, our approach learns the intention-aware scene representations directly from egocentric vision, allowing the robot to infer human intention and preserve more navigation-relevant visual cues, thereby enabling efficient and safe navigation in challenging crowds. We validate our method in simulation and real-world settings, showing safer and more robust navigation in crowded scenarios, with successful de-ployment on physical robots. However, severe occlusions and the limited field of view of egocentric cameras make intention inference difficult in ultra-dense scenes. Future work will explore richer multi-modal scene representations to improve intention reasoning and further enhance navigation robustness. REFERENCES [1] M. Lu et al. , “Fapp: Fast and adaptive perception and planning for uavs in dynamic cluttered environments,” IEEE Transactions on Robotics ,vol. 41, pp. 871–886, 2025. [2] H. Ye et al. , “Rpf-search: Field-based search for robot person follow-ing in unknown dynamic environments,” IEEE/ASME Transactions on Mechatronics , pp. 1–12, 2025. [3] Z. Sun et al. , “Namr-rrt: Neural adaptive motion planning for mobile robots in dynamic environments,” IEEE Transactions on Automation Science and Engineering , vol. 22, pp. 13 087–13 100, 2025. [4] J. Peng et al. , “A dual closed-loop control strategy for human-following robots respecting social space,” in 2024 IEEE International Conference on Robotics and Automation (ICRA) , 2024, pp. 11 252–11 258. [5] C. Chen et al. , “Crowd-robot interaction: Crowd-aware robot navigation with attention-based deep reinforcement learning,” in 2019 international conference on robotics and automation (ICRA) . IEEE, 2019, pp. 6015– 6022. [6] M. Everett, Y. F. Chen, and J. P. How, “Motion planning among dynamic, decision-making agents with deep reinforcement learning,” in 2018 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 2018, pp. 3052–3059. [7] S. Liu et al. , “Intention aware robot crowd navigation with attention-based interaction graph,” in 2023 IEEE International Conference on Robotics and Automation (ICRA) , 2023, pp. 12 015–12 021. [8] S. S. Samsani and M. S. Muhammad, “Socially compliant robot navi-gation in crowded environment by human behavior resemblance using deep reinforcement learning,” IEEE Robotics and Automation Letters ,vol. 6, no. 3, pp. 5223–5230, 2021. [9] L. Liu et al. , “Robot navigation in crowded environments using deep reinforcement learning,” in 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 2020, pp. 5671–5677. [10] Z. Xie and P. Dames, “Drl-vo: Learning to navigate through crowded dy-namic scenes using velocity obstacles,” IEEE Transactions on Robotics ,vol. 39, no. 4, pp. 2700–2719, 2023. [11] D. Dugas et al. , “Navdreams: Towards camera-only rl navigation among humans,” in 2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 2022, pp. 2504–2511. [12] Y. Ma et al. , “Vision-centric bev perception: A survey,” IEEE Transac-tions on Pattern Analysis and Machine Intelligence , vol. 46, no. 12, pp. 10 978–10 997, 2024. [13] T. Salzmann et al. , “Robots that can see: Leveraging human pose for trajectory prediction,” IEEE Robotics and Automation Letters , vol. 8, no. 11, pp. 7090–7097, 2023. [14] Y. Gao, S. Saadatnejad, and A. Alahi, “Social-pose: Enhancing trajectory prediction with human body pose,” IEEE Transactions on Intelligent Transportation Systems , 2025. [15] P. T. Singamaneni et al. , “A survey on socially aware robot navigation: Taxonomy and future challenges,” The International Journal of Robotics Research , vol. 43, no. 10, pp. 1533–1572, 2024. [16] D. Song et al. , “Vlm-social-nav: Socially aware robot navigation through scoring using vision-language models,” IEEE Robotics and Automation Letters , 2024. [17] A. Payandeh et al. , “Social-llava: Enhancing robot navigation through human-language reasoning in social spaces,” arXiv preprint arXiv:2501.09024 , 2024. [18] S. Luo et al. , “Gson: A group-based social navigation framework with large multimodal model,” IEEE Robotics and Automation Letters , 2025. [19] D. Helbing and P. Molnar, “Social force model for pedestrian dynamics,” 
+
+Physical review E , vol. 51, no. 5, p. 4282, 1995. [20] D. Fox, W. Burgard, and S. Thrun, “The dynamic window approach to collision avoidance,” IEEE robotics & automation magazine , vol. 4, no. 1, pp. 23–33, 2002. [21] C. Zhou et al. , “Human-behaviour-based social locomotion model im-proves the humanization of social robots,” Nature Machine Intelligence ,vol. 4, no. 11, pp. 1040–1052, 2022. [22] S. Yao et al. , “Crowd-aware robot navigation for pedestrians with mul-tiple collision avoidance strategies via map-based deep reinforcement learning,” in 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2021, pp. 8144–8150. [23] Y. Cui et al. , “Learning world transition model for socially aware robot navigation,” in 2021 IEEE International Conference on Robotics and Automation (ICRA) , 2021, pp. 9262–9268. [24] H. Yang et al. , “Rmrl: Robot navigation in crowd environments with risk map-based deep reinforcement learning,” IEEE Robotics and Automation Letters , vol. 8, no. 12, pp. 7930–7937, 2023. [25] K. Zhu et al. , “Collision avoidance among dense heterogeneous agents using deep reinforcement learning,” IEEE Robotics and Automation Letters , vol. 8, no. 1, pp. 57–64, 2023. [26] R. Guldenring et al. , “Learning local planners for human-aware navi-gation in indoor environments,” in 2020 IEEE/RSJ International Con-ference on Intelligent Robots and Systems (IROS) . IEEE, 2020, pp. 6053–6060. [27] J. Jiang et al. , “Bevnav: Robot autonomous navigation via spatial-temporal contrastive learning in bird’s-eye view,” IEEE Robotics and Automation Letters , 2024. [28] A. Hu et al. , “Fiery: Future instance prediction in bird’s-eye view from surround monocular cameras,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 15 273–15 282. [29] K. He et al. , “Deep residual learning for image recognition,” in Proceed-ings of the IEEE conference on computer vision and pattern recognition ,2016, pp. 770–778. [30] H. Caesar et al. , “nuscenes: A multimodal dataset for autonomous driving,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2020, pp. 11 621–11 631. [31] G. Jocher, A. Chaurasia, and J. Qiu, “Ultralytics yolov8,” 2023. [Online]. Available: https://github.com/ultralytics/ultralytics [32] J. Schulman et al. , “Proximal policy optimization algorithms,” arXiv preprint arXiv:1707.06347 , 2017. [33] Z. Xu et al. , “Navrl: Learning safe flight in dynamic environments,” 
+
+IEEE Robotics and Automation Letters , 2025. [34] A. Stratton, K. Hauser, and C. Mavrogiannis, “Characterizing the complexity of social robot navigation scenarios,” IEEE Robotics and Automation Letters , 2024. [35] D. Shah et al. , “ViNT: A foundation model for visual navigation,” in 
+
+7th Annual Conference on Robot Learning , 2023. [Online]. Available: https://arxiv.org/abs/2306.14846 [36] J. Wang and M. Q.-H. Meng, “Optimal path planning using generalized voronoi graph and multiple potential functions,” IEEE transactions on industrial electronics , vol. 67, no. 12, pp. 10 621–10 630, 2020.
