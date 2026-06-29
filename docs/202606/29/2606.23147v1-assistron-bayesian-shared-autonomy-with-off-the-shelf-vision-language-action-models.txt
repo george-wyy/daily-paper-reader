@@ -1,0 +1,840 @@
+Title: Assistron: Bayesian Shared Autonomy with Off-the-shelf Vision-Language-Action Models
+
+URL Source: https://arxiv.org/pdf/2606.23147v1
+
+Published Time: Tue, 23 Jun 2026 03:36:24 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Assistron: Bayesian Shared Autonomy with Off-the-shelf Vision-Language-Action Models 
+
+Pinhao Song 1,3,* , Ze Fu 1,3,* , Yutong Hu 1,3 , Renaud Detry 1,2,3 
+
+> 1
+
+KU Leuven, Dept. Mechanical Engineering, Research unit Robotics, Automation and Mechatronics 
+
+> 2
+
+KU Leuven, Dept. Electrical Engineering, Research unit Processing Speech and Images, 
+
+> 3
+
+Flanders Make@KU Leuven 
+
+> *
+
+Equal Contribution 
+
+{firstname.lastname }@kuleuven.be 
+
+Abstract: We propose Assistron , a shared autonomy model that leverages Vision-Language-Action (VLA) models to assist the user in daily activities. Our approach is grounded in two core principles: (1) minimizing human cognitive and physical effort by leveraging VLA-driven autonomy for macro-movements, and (2) pri-oritizing human intervention specifically at critical failure points. Driven by the user’s verbal language commands, Assistron utilizes the VLA to autonomously execute macro-reaching trajectories, saving users’ effort. In contact-rich interac-tions where VLAs tend to fail, Assistron employs a phase-aware interaction de-tection mechanism and solicits the user to intervene, in turn adjusting the VLA’s action generation via flow matching guidance. Critically, our formulation elim-inates the need for VLA fine-tuning, protecting its broad behavioral priors from catastrophic forgetting and ensuring the model does not become a narrow spe-cialist. We validate our approach on a comprehensive multi-task scene recov-ery benchmark encompassing diverse daily manipulation skills. Empirical results demonstrate that Assistron significantly improves task success rates over pure autonomous baselines while significantly reducing human cognitive and physi-cal workload compared to traditional teleoperation, offering a scalable, smooth, and effortless paradigm for assistive manipulation. The code is available in 
+
+https://github.com/mousecpn/Assistron.git .
+
+## 1 Introduction 
+
+Assistive robotics aims to support individuals with motor impairments in activities of daily living. However, a long-standing challenge in assistive technology is the tension between system versa-tility and engineering complexity. Traditionally, assistive controllers are engineered for narrow, predefined tasks such as inserting [1, 2], grasping [3, 4, 5], or pouring water [6, 7, 8]. In con-trast, everyday human environments demand general-purpose intelligence capable of executing an unpredictable variety of actions—from picking up a pill to sliding a drawer. Vision-language-action (VLA) models have recently demonstrated remarkable open-world general-ization across various manipulation tasks by leveraging internet-scale semantic priors and large-scale robot data [9, 10, 11, 12, 13, 14]. These capabilities make VLA policies particularly attractive for assistive robotics, where robots must flexibly interpret diverse user intents and operate in unstruc-tured environments. However, deploying VLA policies in assistive settings exposes a fundamental tension among precision, cost, and generality. Retraining a VLA to produce an assistive model demands an overwhelming amount of data [15, 16]. Instead of re-training a VLA, fine-tuning one requires fewer data, but it risks collapsing the broad behavioral priors of foundation policies into narrow, task-specific controllers [17, 18]. Ideally, an assistive model would use a VLA directly, without re-training or fine-tuning. However, their straightforward use in assistive systems would unavoidably yield unsatisfactory performance, because of their relatively poor zero-shot reliability: 
+
+10th Conference on Robot Learning (CoRL 2026), Austin TX, USA. 
+
+> arXiv:2606.23147v1 [cs.RO] 22 Jun 2026
+
+VLM backbone    
+
+> Joystick command 𝒖
+> 𝒂 !
+> 𝒂 !"
+> “Pick up the
+> blue cup”
+> 𝒗 $(𝒂 !,𝒖 )
+> 𝕀 𝒊𝒂 𝕀 𝒖𝒔𝒆𝒓
+> Logical OR
+> 𝕀 𝒊𝒏𝒕
+> 𝒗 $(𝒂 !)
+
+Action 
+
+Expert   
+
+> Flow Matching
+> Guidance 𝒈 (𝒂 !,𝒖 )
+
+Figure 1: Overview of the Assistron. The system employs a VLA model as a general-purpose se-mantic engine to map verbal language instructions and visual observations into macro-action trajec-tories. To overcome spatial imprecision during critical interaction phases, the framework introduces an intervention mechanism to solicit the user’s intervention. During the intervention, the user’s low-level joystick command u is continuously fused into the VLA’s generative process (Action Expert) as an analytical flow matching guidance term, g(at, u).Empirical evaluations, such as those in the RoboArena benchmark [19], reveal that even state-of-the-art VLAs struggle to achieve success rates above 50% (46.95% and 35.25% for π0.5 and π0,respectively 1). Our work is built on the observation that the shortcomings in real-world manipulation are often not semantic failures, but localized execution failures concentrated around contact-rich interaction phases such as grasping, insertion, and object release. In many cases, the VLA correctly identifies the intended task and produces coherent long-horizon behavior, yet fails due to spatial imprecision or unstable contact dynamics during fine manipulation. This observation inspires us to an alternative paradigm for the assistive robot: rather than re-training or specializing the VLA itself, we preserve the frozen foundation policy and only intervene during localized failure-prone interaction phases. Such a paradigm allows the system to retain the open-world generalization of the underlying VLA while compensating for its lack of contact-level precision through sparse human corrections. Based on this insight, we propose Assistron , a shared autonomy framework that builds upon VLA policies without re-training or fine-tuning. Our approach is grounded in two core principles: (1) minimizing human cognitive and physical effort by leveraging VLA-driven autonomy for macro-movements, and (2) prioritizing human intervention specifically at critical failure points. Following these principles, Assistron dynamically alternates between autonomous VLA execution and human-in-the-loop intervention using an interaction-aware arbitration mechanism. During intervention, human joystick commands are incorporated as posterior guidance within the flow-matching action generation process [20, 21, 22]. This formulation enables human corrections to remain dynamically consistent with the latent action manifold of the underlying VLA policy, avoiding the instability introduced by naive action-space blending. We validate our framework through a comprehensive, long-horizon scene recovery benchmark in-volving a diverse set of daily tasks, including grasping, placing, inserting, and articulated object manipulation. We compare our system against two baselines: a verbally instructed VLA model and a pure teleoperation setup. Our empirical results demonstrate that neither component alone is suf-ficient; only by integrating VLA-based semantic priors with continuous human refinement can the system achieve smooth, precise, and effortless assistance, offering a promising direction for scalable assistive manipulation without task-specific retraining.    
+
+> 1The statistics were derived from 667 demonstrations of π0.5and 1,125 demonstrations of π0, all collected up to May 13th.
+
+## 2 Overview 
+
+Assistron is a shared autonomy framework that leverages a frozen VLA model to provide seam-less assistance for users, particularly those relying on low-bandwidth physical interfaces alongside natural-language commands. As illustrated in Fig. 1, Assistron builds upon π0.5 [14] (denoted as πvla 
+
+in the following text), which utilizes flow matching to map visual observations and linguistic goals directly to action trajectories. We leverage Whisper [23] to transcribe the user’s verbal commands into natural-language prompts for the VLA. To address the local contact-rich failures in zero-shot VLA executions, we formulate a hybrid policy that dynamically toggles between autonomous execution and human-guided refinement. The system policy, πsys , is defined as: 
+
+πsys (a|s) = (1 − Iint )πvla (a|s) + Iint πshared (a|s, u), (1) where Iint ∈ { 0, 1} is a binary intervention indicator, and πshared denotes the shared control policy that fuses the user’s low-level continuous command u with the VLA’s spatial prior. This formulation strictly reflects our core principles: the first term governs the VLA-driven macro-movements, while the second term activates human intervention specifically at critical failure points. The indicator 
+
+Iint determines whether this intervention is required. In the following subsections, we detail the interaction-aware intervention mechanism (Sec. 3) and the control blending strategy via posterior inference (Sec. 4). 
+
+## 3 Intervention via Interaction Detection 
+
+Pre-trained on an exhaustive amount of data, the VLA has a strong semantic understanding, which helps approach the object to interact with, but it often falters during contact-rich interactions due to spatial imprecision. Minor predictive errors in this phase can lead to critical task failures, such as premature object release or forceful collisions. Therefore, it is crucial to solicit human intervention when the robot transitions from macro-reaching to fine-grained physical interaction. Inspired by the structural consistency of relational manipulation [24, 25], we approximate the interaction phase as the short temporal window preceding a change in gripper contact state (e.g., grasping or releasing). To detect this stage, we introduce a lightweight task-agnostic visual detector fθ , parameterized by a ResNet-18 architecture. Given the wrist-camera observation Iwrist , the detector predicts an in-teraction confidence pit = fθ (Iwrist ). However, visual proximity alone is insufficient for reliable intervention triggering, since the robot may approach objects without initiating contact. To reduce false-positive interventions, we adopt a dual-verification strategy requiring both interaction proxim-ity and an intended gripper actuation predicted by the VLA. The final intervention signal is defined as: 
+
+Iint = Iia ∨ Iuser , (2) where Iuser denotes manual user intervention, and the autonomous interaction trigger is: 
+
+Iia =
+
+
+
+pit > τ it 
+
+
+
+∧
+
+
+
+|∆˜ agrip | > ϵ 
+
+
+
+, (3) where τit is the interaction probability threshold, and ∆˜ agrip denotes the predicted gripper-state change from the VLA policy. When Iia = 1 , the system temporarily suspends the VLA gripper action and transfers control authority to the human operator for fine-grained interaction execution. Once the user completes the grasp or release, control is smoothly returned to the autonomous policy. In addition, users may manually intervene at any time through Iuser = I(u̸ = 0), where u denotes the human control signal. By unifying phase-aware interaction detection with human intent, this mechanism ensures that the operator only expends effort during high-stakes bottlenecks, thereby preserving task success with a minimum of human effort. 
+
+## 4 Policy Blending via Posterior Inference 
+
+As mentioned in Sec. 2, when the system requires intervention from the user ( Iint = 1 ), the user can use the low-level command to help the VLA with the object interaction. However, the low-level user interface is usually low-bandwidth, which makes it difficult to control a high-degree-of-freedom robot. Thus, we can continuously exploit the capability of the VLA in assisting users by blending the user command with the VLA’s action prediction. Our policy blending approach is grounded in the probabilistic shared control framework [26], which elegantly formulates shared control as a posterior inference problem. In this paradigm, we treat the pre-trained VLA, denoted as π(a|s), as a powerful semantic prior over the ex-pected action distribution. In our architecture, this distribution is instantiated via flow matching. 𝑎 !
+
+# 𝑎 " 𝑢  
+
+> 𝑣 (𝑎 !)Observed Variable
+> Un observed Variable
+
+Figure 2: The graphical model of the action flow model and measurement u. a1 is the user’s in-tended action, at is the noisy intended action. u
+
+is the intent measurement. The flow model v(at)
+
+allows us to sample a1 from an unconditional ac-tion distribution p(a1) via denoising from Gaus-sian noise. In the current timestep, we also ob-serve u from the user interface. Thus, the goal is to obtain a more informed a1 from the posterior 
+
+p(a1|u).Specifically, the model generates a valid action trajectory a1 ∈ RH×D (where H is the ac-tion horizon and D is the action dimension) by transforming an initial Gaussian noise sam-ple a0 ∼ N (0 , I). This continuous transfor-mation is governed by a learned flow model 
+
+ˆv(at) integrated from timestep t = 0 to t = 1 .By treating the continuous human command as a measurement that conditions this generative process, we can seamlessly update the VLA’s prior to reflect the user’s real-time intentions. Omitting the state s for notational simplicity, the posterior inference for our shared control can be expressed as: 
+
+p(a1|u) ∝ p(u|a1)p(a1), (4) where u ∈ RH×D is the proposed joint veloc-ity translated from the instantaneous user’s joy-stick commands via inverse kinematics with H repetition. We assume that the measurement like-lihood p(u|a1) is a Gaussian N (a1, Σu), where Σu is a diagonal matrix. Our goal is to produce clean samples from the posterior p(a1|u) using ˆv(at) and the real-time measurement u, without the need to train a problem-specific conditional action flow model. Inspired by flow matching guidance methods [20, 22], we can add a guidance term g(at, u) to the unconditional action flow model ˆv(at) to obtain the conditional action flow model ˆv(at, u), as 
+
+ˆv(at, u) = ˆ v(at) + g(at, u), (5) where the guidance term is formulated as: 
+
+g(at, u) = 
+
+ 1 − tt
+
+
+
+(u − ˆa1)T
+
+ (1 − t)2
+
+(1 − t)2 + t2 I + Σ u
+
+−1
+
+, (6) where ˆa1 is the one-step backward flow approximation of a1. The derivation of Eq. 6 can be found in the Appendix. The conditional action flow model ˆv(at, u) corresponds to the p(a1|u). Thus, by adding g(at, u) in the denoising process, we can prompt the VLA to generate actions that closely align with the user command u and maximize the manipulation efficiency at the same time. 
+
+## 5 Experiments 
+
+In this section, we evaluate the applicability of Assistron through three research questions. RQ1 
+
+(Sec. 5.1) addresses Assistron’s overall performance, asking “Does Assistron improve task perfor-mance and user experience compared to existing methods?” RQ2 (Sec. 5.2) studies Assistron’s flow-matching guidance mechanism, and asks “Does the posterior policy blending outperform other alternatives during the intervention?” RQ3 (Sec. 5.3) evaluates Assistron’s interaction detection model and quantifies its ability to effectively detect interaction phases. 
+
+5.1 Real-World Shared Autonomy Performance and User Study 
+
+Here, we comprehensively study our method’s applicability and performance in a long-horizon task. (a) (b) (c) Figure 4: Experiment results of the scene recovery task. (a) Objective performance. (b) The user satisfaction survey. (b) The NASA-TLX survey. For (b) a higher score is better, while for (c) a lower score is better. 
+
+Design . We consider a scene recovery task where the user is expected to rearrange ob-jects to match a specified configuration. The goal configuration is specified via an image. (a) Initial Scen e (b) Goal Scene 
+
+Figure 3: The task setup for the scene recovery experiment. At the beginning of the experiment, the table will be set as the Initial Scene (a). The users are shown the Goal Scene (b), and asked to recover the Goal Scene by controlling the robot. Starting from an initial configuration, the user issues verbal and joystick commands to the robot to move ob-jects to their goal pose. Because the robot is unaware of the goal configu-ration, it must continuously infer the user’s intended actions from its mul-timodal inputs. To keep experiments within a reasonable time budget, any run exceeding seven minutes is auto-matically terminated and marked as failed. We compare the proposed method with two baselines. The first baseline uses neither assistance nor VLA, giving the user full authority via joystick commands (referred to as “Direct joystick”). The second baseline consists of a VLA that has full authority to execute motor commands derived from verbal user commands (referred to as “VLA”). 
+
+Task Description . As illustrated in Fig. 3, the scene recovery task comprises five sub-tasks: (a) opening the drawer; (b) placing the grape into a drawer; (c) placing the avocado into a box; (d) inserting the marker pen into the red cup; and (e) inserting the toothpaste into the blue cup. These sub-tasks encompass fundamental daily manipulation skills—such as pick-and-place, insertion, and pulling—serving as representative proxies for broader everyday activities. Crucially, users are not provided with explicit verbal scripts for these tasks, requiring them to formulate their own instruc-tions. The full teleoperation interface details, sensory setup, and audio/keyboard interaction design are provided in the Appendix. 
+
+Protocol . We enrolled 17 novice participants from the local community (14 male, 3 female; age range: 18–40). Participants completed a practice session before completing tasks with each method in randomized order. After each, they answered the user satisfaction and NASA-TLX survey [27] (see full questionnaire in the Appendix). All participants provided signed consent for the experi-mental procedure, which was approved by the Social and Societal Ethics Committee of (anonymous institution). The collected data were processed in accordance with the General Data Protection Regulation (GDPR) of (anonymous organization).                        
+
+> $
+> 
+> 
+>  
+> !
+> &%!
+> $$$%
+> !
+> #!"%$
+> &%%!!%"$% %!%&&"
+> &%%##"  %!%#!#
+> &%%##"  %#&"
+> !" %(%#(#
+> "&%%#" %#(#
+> "&%%'!! %!)
+> (i)(ii) (iii) (iv)
+
+Figure 5: Visualization of the scene recovery task. The top sequence visualizes critical keyframes (i)–(iv) corresponding to moments of human intervention. The middle timeline illustrates the dy-namic transitions of the control state ( Auto , Assist , or Voice ) over the duration of the execution. The bottom timeline indicates the active natural language prompt (P1–P6) guiding the VLA at any given time. See details in the text. 
+
+Objective Performance. Figure 4 (a) compares the methods across completion time and partial success (20% per sub-task). VLA consistently timed out. Assistron (324.5s) took slightly longer than 
+
+Direct Joystick (305.9s) due to the VLA’s conservative macro-reaching speeds. However, Assistron 
+
+required active user input for only 56.5% of the duration (41.7% joystick, 14.8% voice), while autonomously handling the remaining 43.5%. This halves the active control time compared to Direct Joystick , substantially reducing continuous human effort. For partial success , spatial imprecision limited VLA to 13.7%. Assistron achieved 91.3%, closely trailing Direct Joystick (96.3%). This slight gap occurred because occasional VLA semantic confusion required users to manually override misaligned actions. We also observe a strong Pearson correlation ( r = 0 .762 , p = 0 .001 ) between the improvement in completion time facilitated by Assistron and users’ baseline performance with the Direct Joystick , indicating that less proficient users derive substantially greater benefits from the system. 
+
+Subjective Evaluation. Figure 4 (b-c) presents the user satisfaction and NASA-TLX results. We analyzed main effects across control methods ( Direct Joystick , VLA , Assistron ) using the Kruskal-Wallis H-test, followed by Wilcoxon signed-rank tests with Benjamini-Hochberg correction for post-hoc comparisons. In the satisfaction survey, all metrics showed significant effects ( p < 0.05 ). 
+
+VLA scored lowest on positive metrics due to poor task completion. Compared to Direct Joystick ,
+
+Assistron scored significantly higher in being Quick , Easy to Use , having Low Workload , and Reuse 
+
+(p < 0.05 ), but lower in Wanted and Trust (p < 0.05 ). This indicates Assistron improves efficiency and ease at the cost of some absolute trust and direct agency. For the NASA-TLX assessment, significant effects emerged in Mental , Physical , Performance , and Frustration (p < 0.05 ). While 
+
+VLA required the least Physical effort, it yielded the highest Frustration and poorest Performance .Crucially, Assistron demanded significantly less Mental and Physical effort than Direct Joystick 
+
+(p < 0.001 ). This workload reduction corroborates the satisfaction ratings, confirming Assistron ’s effectiveness in providing effortless shared autonomy. Furthermore, correlation analysis between 
+
+Teleop ’s completion time and subjective score differences ( ∆ = Assistron −Teleop) reveals that less proficient users experienced a significantly greater reduction in frustration ( r = −0.564 , p = 0 .023 ). 
+
+Visualization of Shared Autonomy. Fig. 5 illustrates a demonstration of how the human user col-laborates with the VLA in our method. We highlight the distinct operating modes—autonomous VLA execution πvla (a|s) (Auto ), the shared policy πshared (a|s, u) (Assist ), and verbal command recording ( Voice )—along with the transitions between them. The corresponding language prompts used throughout the process are also displayed. During the entire task, the Auto mode accounts for over 50% of the execution time, demonstrating the VLA’s ability to significantly reduce user work-load. Conversely, user intervention remains crucial for successful task completion. For instance, in keyframe (i), the VLA failed to locate the red cup via its wrist camera after picking up the pen, and erroneously attempted to drop it. At this juncture, the system transitioned to Assist mode, allowing the user to intervene and manually guide the pen directly above the red cup (keyframe (ii)). In an-other instance, after opening the drawer and receiving the new verbal command, “put the grape in the drawer,” the VLA remained fixated on the drawer instead of retracting to grasp the grape. The user promptly assisted the VLA in retreating from the drawer, enabling the robot to approach the grape afterward. This demonstration underscores that seamlessly combining the VLA’s autonomous capabilities with targeted human intervention achieves optimal performance while minimizing con-tinuous human effort. 
+
+5.2 Ablation Study on Policy Blending 
+
+To validate the effectiveness of the proposed posterior policy blending framework, we conduct an ablation study focusing on a single task—placing a grape into a drawer —to isolate the impact of the blending strategy. The Vision-Language-Action (VLA) model is conditioned on the prompt: “Open the drawer, and put the grape in the drawer.” In this setup, the VLA does not operate autonomously; instead, the robot only moves when the user provides low-level commands in the current timestep, which are then augmented by the evaluated policy blending method. We compare our proposed approach (dubbed Posterior ) against two baselines: linear blending (dubbed Linear ) and pure tele-operation (dubbed Direct ). Each participant completed the task twice per method in a randomized, anonymous order following an initial practice session. (a ) (b) 
+
+Figure 6: Comparison of completion time (a) and trajectory length (b) across different control methods. Posterior blend-ing significantly improves performance over the baselines. Fig. 6 illustrates the performance of each method in terms of task com-pletion time and trajectory length. To evaluate statistical significance, we employed the Kruskal-Wallis H-test, followed by pairwise Mann-Whitney U tests with a two-stage Benjamini-Hochberg correction for post-hoc analysis. As shown in Fig. 6(a), the Posterior method sig-nificantly reduces completion time compared to pure Direct (p < 0.05 ). Furthermore, Fig. 6(b) demonstrates that Posterior yields a significantly shorter trajectory length than both 
+
+Direct and Linear blending ( p <
+
+0.05 ). The superior performance of the blending methods over pure Direct stems from their ability to assist users in controlling all of the robot’s degrees of freedom simultaneously, rather than sequentially, naturally leading to faster exe-cution times. Crucially, Posterior outperforms Linear blending because the latter fails to account for the multimodal nature of the VLA’s action distribution. The VLA is trained using flow matching, a generative modeling approach. In straightforward, unimodal scenarios, VLA-generated actions generally align with user intentions, providing effective assistance. However, in highly multimodal situations, the VLA might sample velocity commands that conflict sharply with the user’s input. Under standard linear blending, this divergence leads to a longer completion time and trajectory length. By addressing this limitation, our posterior blending approach ensures more consistent and user-aligned assistance. 
+
+5.3 Interaction Detection Performance 
+
+We evaluate the proposed task-agnostic interaction detector on a dataset containing over 12k wrist-camera frames collected from diverse tebletop tasks, including grasping, placing, insertion, and (ii) (iii) (iv) (i)    
+
+> (a) Open the drawer (b) Put the marker pen in the cup
+> (i)(ii) (iii) (iv)
+
+Figure 7: Temporal visualization of the interaction detection and the transitions of the control state (Auto , Assist , or Voice ) over the duration of the execution The figure illustrates the predicted interac-tion probability pit and the demonstrations of two representative scene recovery tasks: (a) opening a drawer and (b) putting a marker pen into a cup. Keyframes (i)-(iv) correspond to critical moments. articulated manipulation. Ground-truth interaction labels are automatically extracted, where frames within a 2-second temporal window preceding a gripper state change are labeled as positive inter-action samples. Trained solely on 224 × 224 wrist observations, our model achieves 81.2% test accuracy and 84.5% average precision (AP). The high AP underscores the model’s robust recall of positive instances, ensuring the reliable anticipation of critical task bottlenecks. We report imple-mentation details and ablation studies in the Appendix. 
+
+Visualization of Phase Transitions. Fig. 7 illustrates the dynamic control shifts driven by the predicted interaction probability ( pit ). In the drawer-opening task (Fig. 7 (a)), the VLA smoothly executes the macro-reaching motion ( Auto phase). At keyframe (i), visual proximity to the handle drives pit above the 0.5 threshold. However, the system transitions to shared control ( Assist phase) at keyframe (ii) only when the VLA actively initiates a grasp ( |∆˜ agripp | > ϵ ). Because the VLA’s predicted pose is misaligned, the user briefly intervenes to correct the end-effector and secure the handle (ii-iii). Once the user completes the grasp and human actuation stops, the VLA instantly regains authority at (iii) to autonomously pull the drawer (iv). The pen insertion task (Fig. 7 (b)) demonstrates a multi-phase handover. Following a similar initial user intervention to properly grasp the pen (ii), the VLA resumes control for the macro-transport, navigating the object to a vertical position above the cup (iii). Crucially, a second interaction phase is triggered at (iv) just as the VLA prepares to open its gripper. Control shifts back to the user, enabling a precise, manual release that successfully concludes the task without the risk of a premature drop. 
+
+## 6 Conclusion 
+
+In this work, we present Assistron, a shared-autonomy framework that leverages a frozen VLA to assist users in activities of daily living. Rather than re-training or specializing the VLA, Assistron exploits the VLA’s semantic understanding for macro-reaching and solicits the user’s intervention for the localized contact-rich interaction, which preserves the generalization capability of the VLA and compensates for local precision failures. During intervention, users’ commands are incorporated as posterior guidance within the flow-matching action generation process, enabling human corrections to remain dynamically consistent with the latent action manifold of the underlying VLA policy. We validated our approach through a comprehensive scene recovery benchmark encompassing a diverse range of daily manipulation tasks. Empirical results demonstrate that by fusing semantic priors with timely human refinement, Assistron significantly improves task success rates while minimizing operator workload—offering a promising direction for scalable assistive manipulation without task-specific fine-tuning or re-training. 
+
+Limitations (1) Dependence on VLA capabilities. Assistron relies on a frozen VLA policy to pro-vide semantically meaningful macro-actions. As a result, the overall system remains fundamentally bounded by the capabilities of the underlying VLA. Severe semantic failures, such as incorrect in-struction grounding or navigation toward irrelevant regions, cannot be reliably corrected through local shared-control intervention. (2) Assumption on user-policy alignment. Our shared-control for-mulation (4) implicitly assumes that user corrections lie within the action distribution induced by the VLA policy. In practice, human actions may deviate from this distribution, potentially caus-ing conflicts between user intent and VLA priors. Future work may incorporate out-of-distribution detection to identify such cases and fall back to pure teleoperation when necessary. 
+
+## Appendix A Preliminary: Flow Matching 
+
+Continuous Normalizing Flows (CNFs) define a generative process by modeling a continuous-time transformation from a simple prior distribution p0(x0) (e.g., a standard isotropic Gaussian) to a complex data distribution p(x1). This transformation is characterized by an ordinary differential equation (ODE): 
+
+dxt
+
+dt = vt(xt; θ), t ∈ [0 , 1] (7) where vt(xt; θ) is a time-dependent vector field parameterized by a neural network with parameters 
+
+θ.Training a CNF directly via maximum likelihood can be computationally expensive due to the need to simulate the ODE and compute the trace of the Jacobian. Flow Matching provides an efficient, simulation-free alternative. Instead of directly matching the marginal vector fields, Conditional Flow Matching (CFM) constructs conditional probability paths p(xt|x1) and their corresponding conditional vector fields ut(xt|x1) that map noise to a specific data sample x1 ∼ p(x1).The model is trained to match this conditional vector field by minimizing the CFM objective: 
+
+LCFM (θ) = Et,p (x1),p (xt|x1)
+
+h
+
+∥vt(xt; θ) − ut(xt|x1)∥2i
+
+(8) For Gaussian probability paths of the form p(xt|x1) = N (xt; αtx1, σ 2 
+
+> t
+
+I), the optimal conditional vector field ut(xt|x1) is analytically known and relates directly to the derivative of the path. 
+
+## B Derivation of Tweedie’s Formula under Gaussian Probability Paths 
+
+This appendix provides a detailed derivation establishing the relationship between the conditional expectation Ep[x1|xt, y] and the score function ∇xt ln p(xt|y) using Tweedie’s Identity, under a Gaussian probability path conditioned on an observation y.In diffusion and flow models, assuming the true clean data x1 is given, the conditional probability distribution of the forward noised state xt follows an isotropic Gaussian distribution: 
+
+p(xt|x1) = N (xt; αtx1, σ 2 
+
+> t
+
+I)
+
+∝ exp 
+
+
+
+− ∥xt − αtx1∥2
+
+2σ2
+
+> t
+
+ (9) Taking the gradient ∇xt on both sides of the above probability density function yields: 
+
+∇xt p(xt|x1) = p(xt|x1) ·
+
+
+
+− xt − αtx1
+
+σ2
+
+> t
+
+
+
+(10) For convenience in subsequent derivations, we expand and rearrange the terms inside the parenthe-ses: 
+
+∇xt p(xt|x1) = p(xt|x1)
+
+ αtx1 − xt
+
+σ2
+
+> t
+
+
+
+(11) Given the observation condition y, we can obtain the marginal conditional distribution p(xt|y) of 
+
+xt by marginalizing over the unknown clean image x1. Since the forward noising process satisfies the Markov property (i.e., given x1, xt is independent of the observation y, such that p(xt|x1, y) = 
+
+p(xt|x1)), we can write: 
+
+p(xt|y) = 
+
+Z
+
+p(xt|x1)p(x1|y)d x1 (12) Taking the gradient with respect to xt on both sides, we can move the differential operator inside the integral: 
+
+∇xt p(xt|y) = 
+
+Z
+
+∇xt p(xt|x1)p(x1|y)d x1 (13) Substituting Eq. (11) into the above integral yields: 
+
+∇xt p(xt|y) = 
+
+Z
+
+p(xt|x1)
+
+ αtx1 − xt
+
+σ2
+
+> t
+
+
+
+p(x1|y)d x1 (14) In the integrand of Eq. (14), according to Bayes’ theorem, the product of conditional probabilities can be transformed into a joint distribution, and then into a form containing the posterior distribution: 
+
+p(xt|x1)p(x1|y) = p(xt, x1|y) = p(x1|xt, y)p(xt|y) (15) Substituting this relationship back into Eq. (14): 
+
+∇xt p(xt|y) = 
+
+Z
+
+p(x1|xt, y)p(xt|y)
+
+ αtx1 − xt
+
+σ2
+
+> t
+
+
+
+dx1 (16) Since p(xt|y) is independent of the integration variable x1, we can extract it out of the integral: 
+
+∇xt p(xt|y) = p(xt|y)
+
+Z  αtx1 − xt
+
+σ2
+
+> t
+
+
+
+p(x1|xt, y)d x1 (17) Observing the integral, it essentially calculates the expectation with respect to the posterior distri-bution p(x1|xt, y). Since R x1p(x1|xt, y)d x1 = Ep[x1|xt, y] and R xtp(x1|xt, y)d x1 = xt, the above equation simplifies to: 
+
+∇xt p(xt|y) = p(xt|y)
+
+ αt
+
+σ2
+
+> t
+
+Ep[x1|xt, y] − xt
+
+σ2
+
+> t
+
+
+
+(18) Dividing both sides of Eq. (18) by p(xt|y) and applying the property of the logarithmic derivative 
+
+∇xt ln f (xt) = ∇xt f (xt)  
+
+> f(xt)
+
+, the left side of the equation can be transformed into the score function: 
+
+∇xt ln p(xt|y) = αt
+
+σ2
+
+> t
+
+Ep[x1|xt, y] − xt
+
+σ2
+
+> t
+
+(19) Through simple transposition and algebraic rearrangement, we isolate Ep[x1|xt, y ] on the left side: 
+
+αt
+
+σ2
+
+> t
+
+Ep[x1|xt, y] = xt
+
+σ2
+
+> t
+
++ ∇xt ln p(xt|y) (20) Multiplying both sides by σ2 
+
+> t
+> αt
+
+, we finally obtain Tweedie’s Identity under the Gaussian path used in the conditional generation process: 
+
+Ep[x1|xt, y] = xt + σ2 
+
+> t
+
+∇xt ln p(xt|y)
+
+αt
+
+(21) This derivation demonstrates that we do not need to directly compute the complex posterior integral; by simply obtaining the gradient of the current state (the score function), we can analytically derive the posterior expectation of the unnoised true data. 
+
+## C Derivation of the Flow Matching Guidance 
+
+In the forward process of flow matching, a noisy sample at can be sampled according to: 
+
+at = αta1 + σtϵ, (22) where non-negative αt = t and σt = 1 − t are monotonically increasing and decreasing as time t
+
+increases, respectively. By differentiating both sides of Eq. 22, we get: 
+
+dat
+
+dt = dαt
+
+dt a1 + dσt
+
+dt ϵ. (23) Since ϵ is a constant, we can replace it with at−αta1 
+
+> σt
+
+to obtain: 
+
+dat
+
+dt = dαt
+
+dt a1 + dσt
+
+dt
+
+at − αta1
+
+σt
+
+. (24) If we take the expectation with respect to the distribution p(a1|at) on both sides, and replacing dat
+
+> dt
+
+with the flow ˆv(at), we obtain a velocity field of the unconditional flow, as: 
+
+ˆv(at) = dαt
+
+dt Ep[a1|at] + dσt
+
+dt
+
+at − αtEp[a1|at]
+
+σt
+
+. (25) Simplifying this expression, we have: 
+
+ˆv(at) = 
+
+
+
+αt
+
+d ln( αt/σ t)dt
+
+
+
+Ep[a1|at] + d ln σt
+
+dt at. (26) If we take the expectation with respect to the posterior distribution p(a1|at, u) instead of p(a1|at)
+
+for Eq. 24, we can obtain the vector field of the conditional flow, as: 
+
+ˆv(at, u) = 
+
+
+
+αt
+
+d ln( αt/σ t)dt
+
+
+
+Ep[a1|at, u] + d ln σt
+
+dt at. (27) To connect the relation between the unconditional flow and the conditional flow, we need to intro-duce Tweedie’s formula [28], which can be written as: 
+
+Ep[a1|at, u] = ( Ep[a1|at] + σ2 
+
+> t
+
+∇at ln p(at|u)) /α t, (28) Substituting Eq. 28 into Eq. 27 and simplifying gives: 
+
+ˆv(at, u) = 
+
+
+
+αt
+
+d ln( αt/σ t)dt
+
+
+
+Ep[a1|at] + d ln σt
+
+dt at
+
+| {z } 
+
+> unconditional vector field ˆv(at)
+
++g(at, u), (29) 
+
+g(at, u) = 
+
+
+
+σ2
+
+> t
+
+d ln( αt/σ t)dt
+
+
+
+∇at ln p(u|at) (30) Therefore, the conditional flow model can be reformulated as an unconditional flow model plus a guidance term g(at, u). Since p(u|a1) is a Gaussian N (a1, Σu), p(u|at) can be calculated as: 
+
+p(u|at) = 
+
+Z
+
+> a1
+
+p(u|a1)p(a1|at)d a1. (31) We approximate that p(a1|at) = N (ˆ a1, r 2 
+
+> t
+
+I), where ˆa1 is the one-step backward flow approxima-tion of a1, and r2 
+
+> t
+
+= σ2 
+
+> t
+> σ2
+> t+α2
+> t
+
+. Thus, p(u|at) can be approximated as: 
+
+p(u|at) ≈ N (ˆ a1, r 2 
+
+> t
+
+I + Σ u). (32) Substituting Eq. 32 into Eq. 30, we obtain the analytical guidance term: 
+
+g(at, u) ≈
+
+
+
+σ2
+
+> t
+
+d ln( αt/σ t)dt
+
+
+
+(u − ˆa1)T (r2 
+
+> t
+
+I + Σ u)−1 ∂ˆa1
+
+∂at
+
+. (33) To achieve real-time inference during the shared control, we approximate ∂ˆa1 
+
+> ∂at
+
+≈ I to avoid costly Jacobian calculations. Considering r2 
+
+> t
+
+= σ2 
+
+> t
+> σ2
+> t+α2
+> t
+
+, αt = t and σt = 1 − t, Eq. 33 can be rewritten as: 
+
+g(at, u) = 
+
+ 1 − tt
+
+
+
+(u − ˆa1)T
+
+ (1 − t)2
+
+(1 − t)2 + t2 I + Σ u
+
+−1
+
+. (34) 
+
+## D The Setup of Scene Recovery Experiment 
+
+As shown in Fig. 8, we use a Franka Research 3 robot equipped with a Robotiq 2f-85 gripper, a Realsense D435i camera as the left camera, and a Realsense D456 camera as the wrist camera. Users use an XBox joystick and a microphone to provide commands to the robot. The left joystick, left trigger, and bumper are used to control the translation, and the right joystick, trigger, and bumper are used to control the rotation. “A, B” buttons are used to execute the grasp and release the gripper, respectively. Users can hold “X” button to activate verbal commands. Microphone 
+
+> Joystick
+> Realsense D435
+> Realsense D456
+
+Figure 8: The setup of the scene recovery experiment. 
+
+## E User Study Questionnaires 
+
+In our user study, participants were asked to evaluate each of the three tested systems (e.g., Pure Teleoperation, Language-Only VLA, and our proposed Assistron framework) immediately after completing the assigned tasks. The evaluation consisted of a custom user satisfaction survey and the standard NASA Task Load Index (NASA-TLX) workload assessment. For each system, partici-pants also had the opportunity to provide open-ended comments. 
+
+E.1 User Satisfaction Survey 
+
+Participants rated their level of agreement with seven statements regarding the system’s performance, usability, and safety. Responses were recorded on a 7-point Likert scale, ranging from 1 (Strongly Disagree) to 7 (Strongly Agree). The survey items are detailed in Table 1. Table 1: User Satisfaction Survey Items 
+
+ID Statement 
+
+Q1 This system helped me complete the task quickly. Q2 This system did what I wanted. Q3 I would want to reuse this system again for similar tasks. Q4 I would find this algorithm easy to use. Q5 I trust this system. Q6 My overall workload while using the system was low. Q7 I felt that the system’s operations were safe. 
+
+E.2 NASA-TLX Workload Assessment 
+
+To quantitatively assess the physical and cognitive burden imposed by each control paradigm, we utilized the NASA-TLX questionnaire. Each of the six dimensions was rated on a 7-point scale, as outlined in Table 2. 
+
+## F Detailed Algorithm of Assistron 
+
+The complete execution logic of the Assistron framework is detailed in Algorithm 1. At each con-trol iteration, the system retrieves the current multi-modal state observation, including the exterior and wrist camera images ( Ileft , I wrist ), the proprioceptive state ( q), and the language instruction L
+
+transcribed by Whisper [23]. The system evaluates the intervention indicator Iint to dynamically arbitrate between autonomous execution and human-in-the-loop shared control. Table 2: NASA-TLX Workload Dimensions and Scales 
+
+Dimension Description Scale (1–7) Mental Demand How mentally demanding was the task? Low to High 
+
+Physical Demand How physically demanding was the task? Low to High 
+
+Temporal Demand How hurried or rushed was the pace of the task? Low to High 
+
+Performance How successful were you in accomplishing what you were asked to do? Perfect to Failure 
+
+Effort How hard did you have to work to accomplish your level of performance? Low to High 
+
+Frustration How insecure, discouraged, irritated, stressed, and annoyed were you? Low to High !    
+
+> Add Noise
+> "!!#!!
+> Action expert
+> "!#!
+> $
+> Diffusion Assistance Undetermined
+> !
+> "!!
+> "!"
+> ""
+> !!
+> ""
+> !"
+> Forward Process
+> Reverse Process
+> !!=0.3
+> !!=0.7
+
+(a) (b) 
+
+Figure 9: (a) Standard diffusion assistance initializes the denoising process at timestep t′ = 1 − γ by blending the user command u with Gaussian noise. his figure is based on graphical elements shown in Fig. 3 of HAJL [29]. (b) In the π0.5 architecture, the 32-dimensional action chunk is split into executed dimensions a and latent dimensions d. Since the user command only provides a prior for 
+
+at′ , the initial state for the latent dimensions dt′ remains entirely undetermined. Crucially, to mitigate the risk of catastrophic failures stemming from the spatial imprecision of the VLA during contact-rich tasks, we deliberately restrict the VLA’s authority to actuate the gripper directly. Instead, we cache the VLA’s predicted gripper action ( ˜acache grip ). By computing the discrep-ancy ( ∆˜ agrip ) between this cached intent and the current physical gripper state ( qgrip ), the system can detect when the VLA intends to initiate a grasp or release. Once this intent aligns with a visu-ally detected interaction phase ( pit > τ it ), the system automatically transfers control authority to the human operator. This design guarantees that critical grasping or releasing actions are always guided or supervised by the user, ensuring a safe, seamless, and predictable transition between autonomous reaching and manual interaction. Conversely, the transition back to autonomous VLA control emerges naturally from the same logic. Once the human operator actuates the gripper to fulfill the task requirement, the physical state aligns with the VLA’s cached intent, driving the discrepancy |∆˜ agrip | below ϵ. Provided the user releases the manual override ( u = 0) and the task progresses past the high-risk interaction bottleneck ( pit ≤
+
+τit ), the intervention indicator Iint resets to 0. This mechanism seamlessly relinquishes authority back to the VLA for subsequent macro-actions without requiring explicit mode-switching commands from the user. 
+
+## G Implementation Details of Interaction Detector 
+
+The proposed interaction detector is implemented as a lightweight binary image classifier based on a ResNet-18 [30] backbone pretrained on ImageNet. Given a wrist-camera observation resized to 224 × 224 , the model predicts whether the current frame belongs to the imminent interaction phase defined in Sec. 3. The final fully-connected layer of ResNet-18 is replaced with a two-class Algorithm 1 Assistron: Shared Autonomy Framework with VLA 
+
+Require: The flow matching VLA policy πvla , interaction detector fθ , shared policy πshared 
+
+Require: Thresholds τit (visual), ϵ (gripper), user command u 
+
+> 1:
+
+procedure INITIALIZE SHARED STATE  
+
+> 2:
+
+˜acache grip = 0 , ∆˜ agrip = 0  
+
+> 3:
+
+end procedure  
+
+> 4:
+
+procedure SHARED AUTONOMY LOOP  
+
+> 5:
+
+loop  
+
+> 6:
+
+s = ( Ileft , I wrist , q, L ) ← GetSensorData ()  
+
+> 7:
+
+pit ← fθ (Iwrist ) ▷ Detect interaction phase via ResNet-18  
+
+> 8:
+
+∆˜ agrip ← ˜acache grip − qgrip  
+
+> 9:
+
+Iia ← (pit > τ it ) ∧ (|∆˜ agrip | > ϵ ) ▷ Interaction trigger from Eq. 3  
+
+> 10:
+
+Iuser ← I(u̸ = 0) ▷ Manual trigger  
+
+> 11:
+
+Iint ← Iia ∨ Iuser ▷ Final intervention logic from Eq. 2  
+
+> 12:
+
+if Iint = 1 then  
+
+> 13:
+
+aout ← πshared (s, u) ▷ Apply policy blending from Sec. 4  
+
+> 14:
+
+else  
+
+> 15:
+
+˜a ← πvla (s) 
+
+> 16:
+
+˜acache grip = ˜ alast ,grip ▷ ˜alast grip is the last step gripper action  
+
+> 17:
+
+˜agrip ← qgrip ▷ VLA does not have the authority to change gripper state  
+
+> 18:
+
+aout ← ˜a 
+
+> 19:
+
+end if  
+
+> 20:
+
+Execute aout asynchronously  
+
+> 21:
+
+end loop  
+
+> 22:
+
+end procedure 
+
+classification head corresponding to interaction and non-interaction states. During inference, the interaction confidence is computed from the softmax probability of the positive class. Training labels are automatically generated from gripper-state transitions without additional hu-man annotation. Specifically, frames within a 2-second temporal window preceding a gripper state change are labeled as positive interaction samples, while all remaining frames are treated as nega-tive samples. The resulting dataset contains 12,221 labeled wrist-camera frames, including 4,329 positive interaction samples and 7,892 negative samples. We train the detector using the AdamW optimizer with a learning rate of 1 × 10 −4 and weight decay of 1 × 10 −4. The batch size is set to 32 for 10 epochs. Binary classification performance is evaluated using both accuracy and average precision (AP). In practice, we observe that interaction prediction is asymmetric with respect to the gripper state. Predicting grasping events while the gripper is open differs substantially from predicting release events while the gripper is closed. Training a single unified detector for both modes leads to degraded performance due to the differing visual patterns. Therefore, we train two specialized detectors: a close-action detector activated when the gripper is open, and an open-action detector activated when the gripper is closed. This simple design yields better performance than a unified model. To improve robustness under real-world deployment conditions, we further apply lightweight visual augmentations during training, including color jitter, crop-and-scale perturbation, blur, sensor-noise simulation, and partial occlusion augmentation. We additionally evaluate the impact of visual aug-mentation during training, which confirms that it improves both classification accuracy and AP under diverse visual conditions. The quantitative comparison is summarized in Tab. 3. 
+
+## H Discussion on Diffusion Assistance 
+
+Recently, diffusion assistance [31] has gained popularity and has been widely adopted in various shared-control frameworks [29, 32]. These methods utilize noisy user commands as the initialization Table 3: Quantitative evaluation of different interaction detection variants. 
+
+Method Test Acc. (%) Test AP (%) 
+
+Dual Detectors (Ours) 81.2 (Close: 88.1, Open: 74.2) 84.5 (Close: 86.9, Open: 82.1) w/o Augmentation 77.1 (Close: 86.2, Open: 68.0) 78.9 (Close: 83.4, Open: 74.3) Unified Detector 78.8 72.3 Table 4: Smoothness comparison of VLA-predicted velocity chunks. Values are medians over all chunks; p-values are from two-sided Mann–Whitney U tests. Diff. Assist denotes diffusion assis-tance. 
+
+Metric Diff. Assist Ours Ratio p-value 
+
+Vel. magnitude RMS (rad/s) 0.773 0.539 1.4× 8.3×10 −70 
+
+Acceleration RMS (rad/s 2) 12.30 2.97 4.1× 1.8×10 −143 
+
+Jerk RMS (rad/s 3) 301.23 44.94 6.7× 1.6×10 −143 
+
+Inter-chunk jump (rad/s) 1.039 0.357 2.9× 5.1×10 −76 
+
+point for the denoising process. Specifically, as illustrated in Fig. 9(a), diffusion assistance for flow matching injects noise into the user’s command u to initialize the initial noise: 
+
+at′ = u(1 − γ) + γϵ, (35) where ϵ ∼ N (0 , I), and γ ∈ [0 , 1] represents the control ratio. A lower γ aligns the resulting action more closely with the human operator’s intention, whereas a higher γ grants the learned autonomous agent greater influence over the blended action. Consequently, the denoising process begins at timestep t′ = 1 − γ rather than starting from pure noise at t = 1 .However, this standard diffusion assistance cannot be directly applied to architectures like the open-source π0.5 fine-tuned on the Droid dataset [33]. During inference, the action chunk generated by 
+
+π0.5 consists of 32 dimensions, but only the first 8 dimensions (denoted as a1) are executed on the robot, while the remaining dimensions (denoted as d1) are discarded. As depicted in Fig. 9(b), at each step of the flow-matching process, the computation of the subsequent denoised chunk at relies on the concatenated full state [at′ , dt′ ]. Here, dt′ acts as a “latent feature” that is tightly coupled with the actionable dimensions at′ . If we attempt to apply diffusion assistance, the user command 
+
+u only maps to the executed dimensions at′ , leaving the initial noise for the latent dimensions dt′
+
+undetermined. If one simply assigns Gaussian noise to dt′ , it breaks the structural correlation within the chunk, causing the final generated action chunk a1 to be highly erratic and noisy. To empirically validate this structural limitation, we conducted a shared-control experiment on a “open the drawer, and put the grape in the drawer” task. In this paradigm, the VLA model assists the user but does not move autonomously. We compared our proposed policy blending method against the aforementioned diffusion assistance baseline by collecting and analyzing the generated action chunks (295 chunks for our method vs. 822 chunks for diffusion assistance). We evalu-ated execution smoothness using three intra-chunk metrics—velocity magnitude ∥a∥2, acceleration 
+
+∥∆a/∆t∥2, and jerk ∥∆2a/∆t2∥2—alongside inter-chunk discontinuity, which measures the ℓ2
+
+difference between consecutive chunks. All derivatives were computed at the controller frequency of 15 Hz ( ∆t = 1 /15 s). As reported in Table 4, our policy blending method yields substantially smoother action se-quences across all evaluated metrics. The median acceleration RMS is drastically reduced from 12.30 rad/s 2 (Diffusion Assistance) to 2.97 rad/s 2 (Ours), representing a 4.1× improvement. Sim-ilarly, the jerk RMS drops from 301.23 to 44.94 rad/s 3 (6.7× reduction), highlighting a significant decrease in abrupt velocity changes that could cause hardware wear. Furthermore, the inter-chunk discontinuity—which directly reflects execution jitter at the boundaries of successive predictions— decreases from a median of 1.039 to 0.357 rad/s ( 2.9× reduction). All performance gains are sta-tistically significant according to the two-sided Mann–Whitney U test ( p < 10 −69 for all metrics), demonstrating that our method effectively bypasses the latent-dimension corruption inherent to dif-fusion assistance in this architecture. 
+
+## References 
+
+[1] P. Chang, R. Luo, M. Dorostian, and T. Padır. A shared control method for collaborative human-robot plug task. IEEE Robotics and Automation Letters , 6(4):7429–7436, 2021. [2] P. Baksic, H. Courtecuisse, and B. Bayle. Shared control strategy for needle insertion into deformable tissue using inverse finite element simulation. In 2021 IEEE International Confer-ence on Robotics and Automation (ICRA) , pages 12442–12448. IEEE, 2021. [3] P. Song, P. Li, E. Aertbeli¨ en, and R. Detry. Robot trajectron: Trajectory prediction-based shared control for robot manipulation. In Proceedings Of IEEE International Conference on Robotics and Automation , 2024. [4] Y. Xu, H. Zhang, L. Cao, X. Shu, and D. Zhang. A shared control strategy for reach and grasp of multiple objects using robot vision and noninvasive brain–computer interface. IEEE Transactions on Automation Science and Engineering , 19(1):360–372, 2020. [5] A. D. Dragan and S. S. Srinivasa. A policy-blending formalism for shared control. The Inter-national Journal of Robotics Research , 32(7):790–805, 2013. [6] G. Quere, A. Hagengruber, M. Iskandar, S. Bustamante, D. Leidner, F. Stulp, and J. Vogel. Shared control templates for assistive robotics. In 2020 IEEE international conference on robotics and automation (ICRA) , pages 1956–1962. IEEE, 2020. [7] M. S. Marambe, B. S. Duerstock, and J. P. Wachs. Optimization approach for multisensory feedback in robot-assisted pouring task. In Actuators , volume 13, page 152. MDPI, 2024. [8] A. Padalkar, G. Quere, F. Steinmetz, A. Raffin, M. Nieuwenhuisen, J. Silv´ erio, and F. Stulp. Guiding reinforcement learning with shared control templates. In 2023 IEEE International Conference on Robotics and Automation, ICRA 2023 . IEEE, 2023. [9] P. Intelligence, A. Amin, R. Aniceto, A. Balakrishna, K. Black, K. Conley, G. Connors, J. Darpinian, K. Dhabalia, J. DiCarlo, et al. π∗
+
+> 0.6
+
+: a VLA That Learns From Experience. 
+
+arXiv preprint arXiv:2511.14759 , 2025. [10] J. Bjorck, F. Casta˜ neda, N. Cherniadev, X. Da, R. Ding, L. Fan, Y. Fang, D. Fox, F. Hu, S. Huang, et al. Gr00t nl: An open foundation model for generalist humanoid robots, 2025. [11] Q. Li, Y. Liang, Z. Wang, L. Luo, X. Chen, M. Liao, F. Wei, Y. Deng, S. Xu, Y. Zhang, et al. Cogact: A foundational vision-language-action model for synergizing cognition and action in robotic manipulation, 2024. [12] Y. Hu, J.-N. Zaech, N. Nikolov, Y. Yao, S. Dey, G. Albanese, R. Detry, L. Van Gool, and D. Paudel. Ar-vla: True autoregressive action expert for vision-language-action models. arXiv preprint arXiv:2603.10126 , 2026. [13] H. Song, D. Qu, Y. Yao, Q. Chen, Q. Lv, Y. Tang, M. Shi, G. Ren, M. Yao, B. Zhao, et al. Hume: Introducing system-2 thinking in visual-language-action model, 2025. [14] P. Intelligence, K. Black, N. Brown, J. Darpinian, K. Dhabalia, D. Driess, A. Esmail, M. Equi, C. Finn, N. Fusai, et al. π0.5: a Vision-Language-Action Model with Open-World Generaliza-tion. arXiv preprint arXiv:2504.16054 , 2025. [15] Y. Ma, H. He, S. Song, W. Wu, and B. Zhou. Aura: Multimodal shared autonomy for real-world urban navigation. arXiv preprint arXiv:2604.01659 , 2026. [16] T. Tang, X. Ji, W. Xing, C. Hao, W. Xu, L. Shao, C. Lu, Q. Yu, J. Pang, and K. Zhang. To-wards human-like manipulation through rl-augmented teleoperation and mixture-of-dexterous-experts vla. arXiv preprint arXiv:2603.08122 , 2026. [17] Y. Cui, Y. Zhang, L. Tao, Y. Li, X. Yi, and Z. Li. End-to-end dexterous arm-hand vla policies via shared autonomy: Vr teleoperation augmented by autonomous hand vla policy for efficient data collection. arXiv preprint arXiv:2511.00139 , 2025. [18] Y. Liu, Y. Yin, T. Huang, F. Yan, Y. Xu, W. Hong, W. Han, Y. Cao, X. Chen, Z. Fan, et al. Adaptor: Advancing assistive teleoperation with few-shot learning and cross-operator general-ization. arXiv preprint arXiv:2604.09462 , 2026. [19] P. Atreya, K. Pertsch, T. Lee, M. J. Kim, A. Jain, A. Kuramshin, C. Eppner, C. Neary, E. Hu, F. Ramos, et al. Roboarena: Distributed real-world evaluation of generalist robot policies. 
+
+arXiv preprint arXiv:2506.18123 , 2025. [20] A. Pokle, M. J. Muckley, R. T. Chen, and B. Karrer. Training-free linear image inverses via flows. arXiv preprint arXiv:2310.04432 , 2023. [21] J. Song, A. Vahdat, M. Mardani, and J. Kautz. Pseudoinverse-guided diffusion models for inverse problems. In International conference on learning representations , 2023. [22] R. Feng, C. Yu, W. Deng, P. Hu, and T. Wu. On the guidance of flow matching. arXiv preprint arXiv:2502.02150 , 2025. [23] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever. Robust speech recognition via large-scale weak supervision. In International conference on machine learning ,pages 28492–28518. PMLR, 2023. [24] Z. Xue, S. Deng, Z. Chen, Y. Wang, Z. Yuan, and H. Xu. Demogen: Synthetic demonstration generation for data-efficient visuomotor policy learning. arXiv preprint arXiv:2502.16932 ,2025. [25] K. Dreczkowski, P. Vitiello, V. Vosylius, and E. Johns. Learning a thousand tasks in a day. 
+
+Science Robotics , 10(108):eadv7594, 2025. doi:10.1126/scirobotics.adv7594. URL https: //www.science.org/doi/abs/10.1126/scirobotics.adv7594 .[26] P. Song, Y. Du, O. Saussus, S. De Schrijver, I. Caprara, P. Janssen, and R. Detry. Robot trajectron v2: A probabilistic shared control framework for navigation. arXiv preprint arXiv:2509.19954 , 2025. [27] S. Hart. Development of nasa-tlx (task load index): Results of empirical and theoretical re-search. Human mental workload/Elsevier , 1988. [28] H. E. Robbins. An empirical bayes approach to statistics. In Breakthroughs in Statistics: Foundations and basic theory , pages 388–394. Springer, 1992. [29] S. Luo, Q. Peng, J. Lv, K. Hong, K. R. Driggs-Campbell, C. Lu, and Y.-L. Li. Human-agent joint learning for efficient robot manipulation skill acquisition. In 2025 IEEE International Conference on Robotics and Automation (ICRA) , pages 1370–1377. IEEE, 2025. [30] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning for image recognition. 2016 ieee conf. In Comput. Vis. Pattern Recognit , pages 770–778, 2015. [31] T. Yoneda, L. Sun, G. Yang, B. Stadie, and M. Walter. To the noise and back: Diffusion for shared autonomy. arXiv preprint arXiv:2302.12244 , 2023. [32] A. Wang, X. Yan, B. McMahan, M. Zhou, Y. Yuan, J. Y. Lee, A. Shreif, M. Li, Z. Peng, B. Zhou, et al. Disco: Diffusion sequence copilots for shared autonomy. In Proceedings of the 21st ACM/IEEE International Conference on Human-Robot Interaction , pages 982–990, 2026. [33] A. Khazatsky, K. Pertsch, S. Nair, A. Balakrishna, S. Dasari, S. Karamcheti, S. Nasiriany, M. K. Srirama, L. Y. Chen, K. Ellis, et al. Droid: A large-scale in-the-wild robot manipulation dataset. arXiv preprint arXiv:2403.12945 , 2024.

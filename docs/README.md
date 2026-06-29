@@ -6,32 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-28
-- 运行时间：2026-06-28 21:21:41 UTC
+- 最新运行日期：2026-06-29
+- 运行时间：2026-06-29 21:40:30 UTC
 - 运行状态：成功
 - 本次总论文数：3
 - 精读区：0
 - 速读区：3
 
 ### 今日简报（AI）
-今日推荐3篇速读论文，涵盖视觉推理、机器人导航与人机交互。  
-最值得关注的是自引导视觉推理用于细粒度动作理解，以及意图感知场景表示用于人群中的机器人导航。  
-建议对视觉-语言模型与机器人自主决策感兴趣者可深入阅读前两篇。
-- 详情：[/202606/28/README](/202606/28/README)
+1) 今日速读三篇论文，覆盖共享自主权、视觉跨眼动编码、自然阅读中的分层预测处理。
+2) 最值得关注《Assistron》将现成视觉-语言-动作模型与贝叶斯共享自主权结合（7.0分），其次是跨眼动的视觉皮层时空表征新发现。
+3) 建议优先精读高分的Assistron框架，了解如何用非专业模型实现智能协作；后两篇适合拓展对视觉与阅读机制的认知。
+- 详情：[/202606/29/README](/202606/29/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Gold Points Sniper: Self-guided Visual Reasoning in VLM for Fine-grained Action Understanding](/202606/28/2606.22409v1-gold-points-sniper-self-guided-visual-reasoning-in-vlm-for-fine-grained-action-understanding)  
+1. [Assistron: Bayesian Shared Autonomy with Off-the-shelf Vision-Language-Action Models](/202606/29/2606.23147v1-assistron-bayesian-shared-autonomy-with-off-the-shelf-vision-language-action-models)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：贝叶斯共享自主与概率建模，用于前瞻性辅助
+2. [A population readout of extrastriate activity reveals biased and smoothed temporal representations across saccades](/202606/29/biorxiv-10-64898-2026-06-16-732385-v1-a-population-readout-of-extrastriate-activity-reveals-biased-and-smoothed-temporal-representations-across-saccades)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：面向人类动作与意图理解的自引导多模态推理
-2. [Learning Robot Visual Navigation in Crowds via Intention-Aware Scene Representations](/202606/28/2606.26047v1-learning-robot-visual-navigation-in-crowds-via-intention-aware-scene-representations)  
+   evidence：使用统计建模研究眼跳期间的感知时间表征，可用于理解人类目标
+3. [Hierarchical Predictive Processing during Natural Reading](/202606/29/biorxiv-10-64898-2026-06-24-734402-v1-hierarchical-predictive-processing-during-natural-reading)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：意图感知场景表示用于实时导航策略，可应用于实时意图识别算法
-3. [Time space signatures of hybrid search resolution using EEG and eye movements concurrent recordings](/202606/28/biorxiv-10-64898-2026-06-22-733836-v1-time-space-signatures-of-hybrid-search-resolution-using-eeg-and-eye-movements-concurrent-recordings)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：同步脑电与眼动数据的去卷积方法，其多模态解析思路可用于意图预测
+   evidence：利用阅读中的眼动进行分层概率预测
 
 
 <div class="dpr-home-promo-card">
