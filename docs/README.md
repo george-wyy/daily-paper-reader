@@ -6,32 +6,35 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-29
-- 运行时间：2026-06-29 21:40:30 UTC
+- 最新运行日期：2026-06-30
+- 运行时间：2026-06-30 21:47:33 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：0
-- 速读区：3
+- 本次总论文数：5
+- 精读区：1
+- 速读区：4
 
 ### 今日简报（AI）
-1) 今日速读三篇论文，覆盖共享自主权、视觉跨眼动编码、自然阅读中的分层预测处理。
-2) 最值得关注《Assistron》将现成视觉-语言-动作模型与贝叶斯共享自主权结合（7.0分），其次是跨眼动的视觉皮层时空表征新发现。
-3) 建议优先精读高分的Assistron框架，了解如何用非专业模型实现智能协作；后两篇适合拓展对视觉与阅读机制的认知。
-- 详情：[/202606/29/README](/202606/29/README)
+今日精读1篇、速读4篇，聚焦视线估计与人类视觉交互机制。最值得关注的是《Multi-scale Object-Aware Gaze Estimation via Geometric Reasoning》（9.0分），其几何推理思路极具启发性。建议优先研读该文，并延伸到自由浏览数据的聚类分析（7.0分）以拓展应用理解。
+- 详情：[/202606/30/README](/202606/30/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Multi-scale Object-Aware Gaze Estimation via Geometric Reasoning](/202606/30/2606.29334v1-multi-scale-object-aware-gaze-estimation-via-geometric-reasoning)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：注视目标估计预测观察者注视的语义对象，直接建模眼动意图识别
 
 ### 速读区论文标签
-1. [Assistron: Bayesian Shared Autonomy with Off-the-shelf Vision-Language-Action Models](/202606/29/2606.23147v1-assistron-bayesian-shared-autonomy-with-off-the-shelf-vision-language-action-models)  
+1. [Consensus Clustering of Free-Viewing Gaze Data: New Insights into Human-Information Interaction](/202606/30/2606.30035v1-consensus-clustering-of-free-viewing-gaze-data-new-insights-into-human-information-interaction)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：贝叶斯共享自主与概率建模，用于前瞻性辅助
-2. [A population readout of extrastriate activity reveals biased and smoothed temporal representations across saccades](/202606/29/biorxiv-10-64898-2026-06-16-732385-v1-a-population-readout-of-extrastriate-activity-reveals-biased-and-smoothed-temporal-representations-across-saccades)  
+   evidence：自由观看眼动数据聚类分析人-信息交互
+2. [Gaze-related functions driving gaze anchoring in reaching](/202606/30/biorxiv-10-1101-2025-08-20-671334-v3-gaze-related-functions-driving-gaze-anchoring-in-reaching)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：使用统计建模研究眼跳期间的感知时间表征，可用于理解人类目标
-3. [Hierarchical Predictive Processing during Natural Reading](/202606/29/biorxiv-10-64898-2026-06-24-734402-v1-hierarchical-predictive-processing-during-natural-reading)  
+   evidence：目标伸手过程中的注视锚定研究，与眼动追踪意图识别相关
+3. [Dynamic Modulation of Distractor Suppression by Tonic and Trial-Level Alertness Fluctuations: A Pupillometric Study](/202606/30/biorxiv-10-64898-2026-06-24-733323-v1-dynamic-modulation-of-distractor-suppression-by-tonic-and-trial-level-alertness-fluctuations-a-pupillometric-study)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：利用阅读中的眼动进行分层概率预测
+   evidence：利用眼动追踪研究注意力动态，可应用于意图识别
+4. [Changes in perceptual sampling contribute to representational drift](/202606/30/biorxiv-10-64898-2026-06-24-734121-v1-changes-in-perceptual-sampling-contribute-to-representational-drift)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：眼动追踪实验分析注视模式
 
 
 <div class="dpr-home-promo-card">
