@@ -6,32 +6,28 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-01
-- 运行时间：2026-07-01 21:54:49 UTC
+- 最新运行日期：2026-07-02
+- 运行时间：2026-07-02 20:06:40 UTC
 - 运行状态：成功
-- 本次总论文数：4
+- 本次总论文数：2
 - 精读区：1
-- 速读区：3
+- 速读区：1
 
 ### 今日简报（AI）
-今日筛选4篇论文，精读1篇探讨注意力选择的神经经济决策模型。最值得关注精读中“注意力选择是神经经济学决策”的结论，以及速读中基于自由凝视聚类的交互新视角与自然决策中的行动导向价值信号。建议普通读者重点理解注意力的经济权衡本质，并留意逆强化学习在真实决策分析中的潜力。
-- 详情：[/202607/01/README](/202607/01/README)
+关注儿童与AI交互及人类感知不确定性两篇研究，精读论文获9.0高分，速读论文6.0分。  
+最值得看的是《Gaze-Informed Proactive AI Assistance for Children's Picture Exploration》，提出通过眼动信息主动辅助儿童探索图片，交互方向创新性突出。  
+建议优先阅读精读论文以理解眼动驱动的主动AI设计，速读论文则适合对认知模型与置信判断机制感兴趣的读者。
+- 详情：[/202607/02/README](/202607/02/README)
 
 ### 精读区论文标签
-1. [Attentional selection is a neuroeconomic decision](/202607/01/biorxiv-10-64898-2026-05-22-727072-v3-attentional-selection-is-a-neuroeconomic-decision)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：扫视选择遵循成本效益计算，揭示了目标导向的眼动选择
+1. [Gaze-Informed Proactive AI Assistance for Children's Picture Exploration](/202607/02/2607.00445v1-gaze-informed-proactive-ai-assistance-for-childrens-picture-exploration)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：利用儿童注视信息提供主动AI辅助
 
 ### 速读区论文标签
-1. [Consensus Clustering of Free-Viewing Gaze Data: New Insights into Human-Information Interaction](/202607/01/2606.30035v2-consensus-clustering-of-free-viewing-gaze-data-new-insights-into-human-information-interaction)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：对自由观看注视数据进行一致性聚类，以刻画用户行为和刺激类型
-2. [AA: A Multi-view Multimodal Dataset for Screen-based Gaze Estimation](/202607/01/2606.31211v1-aa-a-multi-view-multimodal-dataset-for-screen-based-gaze-estimation)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：多视角多模态屏幕注视估计数据集，支持鲁棒的基于目光的人机交互
-3. [Inverse reinforcement learning reveals action-oriented value signals in naturalistic decision making](/202607/01/biorxiv-10-64898-2026-06-24-733779-v1-inverse-reinforcement-learning-reveals-action-oriented-value-signals-in-naturalistic-decision-making)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：使用逆强化学习从实时行为推断潜在评估状态
+1. [Task-optimized models of sensory uncertainty reproduce human confidence judgments](/202607/02/biorxiv-10-1101-2025-10-31-685933-v3-task-optimized-models-of-sensory-uncertainty-reproduce-human-confidence-judgments)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：任务优化模型生成概率分布
 
 
 <div class="dpr-home-promo-card">
