@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-07-04 <!--dpr-date:20260704-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/04/biorxiv-10-64898-2026-06-29-735201-v1-eyes-on-the-prize-mice-deploy-task-driven-saccades-during-naturalistic-foraging" data-sidebar-item="{&quot;title&quot;: &quot;Eyes on the prize: Mice deploy task-driven saccades during naturalistic foraging&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-06-29-735201-v1-eyes-on-the-prize-mice-deploy-task-driven-saccades-during-naturalistic-foraging&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;小鼠任务驱动扫视，通过眼动理解目标的计算模型&quot;}">Eyes on the prize: Mice deploy task-driven saccades during naturalistic foraging</a>
   * 2026-07-03 <!--dpr-date:20260703-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/03/2607.02083v1-deepgaze35-vl-modeling-scanpaths-via-autoregressive-token-prediction" data-sidebar-item="{&quot;title&quot;: &quot;DeepGaze3.5-VL: Modeling Scanpaths via Autoregressive Token Prediction&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2607.02083v1-deepgaze35-vl-modeling-scanpaths-via-autoregressive-token-prediction&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;扫描路径预测; 自回归令牌预测; 视觉语言模型&quot;}">DeepGaze3.5-VL: Modeling Scanpaths via Autoregressive Token Prediction</a>
