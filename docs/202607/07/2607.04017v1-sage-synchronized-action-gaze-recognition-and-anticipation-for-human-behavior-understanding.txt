@@ -1,0 +1,1886 @@
+Title: SAGE: Synchronized Action-Gaze Recognition and Anticipation for Human Behavior Understanding
+
+URL Source: https://arxiv.org/pdf/2607.04017v1
+
+Published Time: Tue, 07 Jul 2026 01:50:44 GMT
+
+Number of Pages: 41
+
+Markdown Content:
+# SAGE: Synchronized Action-Gaze Recognition and Anticipation for Human Behavior Understanding 
+
+Chenyi Kuang 1,2* and Nakul Agarwal 1† 
+
+> 1
+
+Honda Research Institute, USA 2 Rensselaer Polytechnic Institute 
+
+Abstract. Human object interaction (HOI), gaze pattern, and their an-ticipation are intricately linked, providing valuable insights into cognitive processes, intentions, and behavior. However, most existing models han-dle gaze and actions separately, missing both their interdependence and the advantages of a unified solution. This paper presents a novel uni-fied framework, SAGE ( Synchronized Action-Gaz E), which integrates simultaneous recognition and anticipation of both HOI and human gaze into a single unified end-to-end trainable model. Our approach lever-ages a transformer-based architecture and incorporates gaze data into spatiotemporal attention mechanisms to simultaneously predict current and future human actions and gaze behavior. We explore this bidirec-tional relationship between gaze and actions under different scenarios, whether requiring a close-up, detailed view (egocentric) or a wider, more contextual view (exocentric), making our framework versatile for vari-ous applications. Additionally, due to lack of datasets for comprehensive analysis of both HOI and gaze in exocentric videos, we establish a new benchmark Exo-Cook ‡ to facilitate further research in this domain. Ex-periments on three benchmark datasets—VidHOI, EGTEA Gaze+, and Exo-Cook—show that jointly modeling gaze and actions across current and future frames achieves consistently strong results, often surpassing specialized state-of-the-art models tailored to individual tasks. By uni-fying actions and attention in a comprehensive way, our work lays the groundwork for more intuitive human-machine interaction. 
+
+1 Introduction 
+
+Consider a person preparing a meal with a skillet, as shown in Figure 1. Their gaze remains focused on the skillet while they place an empty bowl on the table. Even before any hand movement begins, this visual attention provides a strong cue that the next action is likely to involve picking up the skillet and transferring the food into the bowl. Their gaze is also expected to remain on the skillet, as it is the object involved in the upcoming action. Humans perform this reason-ing effortlessly. By observing where someone is looking and how they interact  
+
+> *
+
+work done during an internship at Honda Research Institute, USA.  
+
+> †
+
+corresponding author.  
+
+> ‡
+
+https://usa.honda-ri.com/exocook .
+
+> arXiv:2607.04017v1 [cs.CV] 4 Jul 2026
+
+2 C. Kuang, N. Agarwal 𝒕 = −𝟐𝒔  𝒕 = −𝟏𝒔  𝒕 = 𝟎𝒔  𝒕 = 𝟏𝒔   
+
+> Gaze detection for each frame
+> Action Detection
+> <place bowl>
+> Gaze anticipation
+> Action anticipation
+> <pick skillet>
+> Current
+> to
+> Future
+> Gaze -Action are actively correlated
+> 𝒕 =𝟏𝒔
+
+Fig. 1: Illustration of action-gaze correlation over time. Gaze reveals both the current focus of attention and future intention, providing complementary cues for rec-ognizing ongoing actions and anticipating subsequent human-object interactions. 
+
+with objects, we can simultaneously recognize current actions and anticipate future ones. These abilities arise from a unified cognitive process, highlighting the strong interdependence between gaze and action understanding. For intelli-gent systems to interact naturally with people, they must unify perception and prediction—understanding both current and future behavior without relying on separate task-specific pipelines. From assistive robots to driver monitoring and AR assistants, many applications require understanding current actions and an-ticipating future ones. Gaze reveals intention, while human–object interactions capture engagement with the environment. Together, they provide rich insight for understanding human behavior. Yet, most existing approaches treat these tasks separately: some recognize HOI and actions [3, 6, 24, 31, 42, 47, 64, 67] or anticipate them [6, 19, 40, 47, 54, 76], while others model gaze detection [5, 29, 34, 38, 61] or gaze anticipation [35, 73]. Few attempt to integrate both, and those that do either use disjointed pipelines or focus only on egocentric views [28, 37–39, 41, 45, 47, 58]. Importantly, most do not model how gaze and actions evolve together into the future—a key aspect of joint anticipation and intuitive, human-like understanding. We propose SAGE, a unified end-to-end framework that jointly recognizes and anticipates both hu-man gaze and actions. Built on a transformer backbone, SAGE integrates gaze into spatiotemporal attention to learn shared representations that capture the coupling between where people look and what they do. Central to our design are two modules: the Gaze-Conditioned Spatial Attention (GCSA) module, which injects gaze into spatial attention to highlight human–object interaction cues, and the Gaze-Conditioned Temporal Prediction (GCTP) module, which models temporal correlations between future gaze and actions. SAGE can be trained on either egocentric or exocentric views by adapting only the feature construction stage, while the key components GCSA and GCTP remain consistent. However, training and evaluating such models demands appropriate datasets. Most existing datasets focus exclusively on either actions [7,33,36] or gaze [5,60], and the few that include both are primarily limited to first-person perspec-tives [21, 38]. While Ego-Exo4D [20] provides third-person annotations for both gaze and actions, it lacks a benchmark for joint modeling and evaluation. More-over, Ego-Exo4D is not directly usable for this task—it requires preprocessing of annotations, new label creation, modality alignment, and task-specific struc-SAGE 3
+
+turing for joint gaze–action modeling, which is non-trivial (see Section 3). To address this, we introduce Exo-Cook, a third-person benchmark derived from Ego-Exo4D, specifically curated for evaluating unified models of gaze-action recognition and anticipation. Exo-Cook fills a critical gap and, to the best of our knowledge, is the first dataset to enable joint gaze-action research in third-person settings. In summary, our contributions are four fold. First , we propose a unified end-to-end trainable architecture that integrates detection and anticipation of both HOI and gaze, allowing for joint optimization of these tasks for comprehensive human behavior understanding. Second , we introduce a Gaze Conditioned Spa-tial Attention (GCSA) module that provides HOI cues in the spatial domain and a Gaze Conditioned Temporal Prediction (GCTP) module which simultaneously models temporal correlations between future gaze patterns and future actions. 
+
+Third , unlike prior works that focus on either egocentric or exocentric views, our modular framework supports both through separate training, enabling broader applicability across diverse scenarios. Fourth , we demonstrate the efficacy of SAGE against state-of-the-art methods and introduce Exo-Cook, a new bench-mark for evaluating models that integrate HOI and gaze analysis in third-person videos—providing a comprehensive foundation for future research in this area. 
+
+2 Related Works 
+
+2.1 Gaze Detection and Anticipation 
+
+Gaze detection focuses on estimating a person’s current visual attention point and has been studied in both egocentric and exocentric settings. The GazeFol-low dataset [51] laid the foundation for static gaze-following in images and was later extended to videos [5, 52, 61]. Early models typically used two-stream ar-chitectures that fused head pose and saliency cues [4, 26], while recent methods have enhanced gaze localization by incorporating depth information [1, 27, 60] and human pose [23]. While the primary goal of these models is accurate gaze localization, gaze is often used downstream to aid action recognition. In contrast, leveraging action to inform gaze has been rarely explored [28] and may even hurt the performance [37, 38]. In this work, we propose a joint estimation framework to demonstrate that action understanding and gaze detection enhance each other in a complementary manner. Gaze anticipation focuses on forecasting where gaze will shift in the future. This task has been studied exclusively in egocentric settings, where gaze shifts often precede interactions with objects. Existing approaches [35, 73] model gaze trajectories over time by leveraging motion cues and temporal scene context. However, these methods treat gaze anticipation as an isolated task and do not account for its interplay with actions. More importantly, to our knowledge, no existing work has explored gaze anticipation in exocentric videos—leaving a critical gap in third-person behavior modeling. 4 C. Kuang, N. Agarwal 
+
+2.2 Recognizing and Anticipating Actions 
+
+To infer actions from appearance and motion, two-stream models such as I3D-2Stream [38] and R34-2Stream [59] capture RGB and motion cues, while SAP [67], GC-TSM [24], and ACE [17] improve egocentric and procedural understanding. Gaze complements these visual-temporal methods by highlighting task-relevant regions, from early saliency or gaze based approaches with handcrafted fea-tures [2, 44, 56, 65] to recent HOI models that integrate gaze heatmaps into mul-timodal transformers [47]; related attention-based methods instead learn such regions without explicit gaze supervision [57]. Meanwhile, action anticipation aims to forecast future behavior from par-tial observations. Existing methods often model HOIs using spatio-temporal graphs [30, 43, 48, 63, 68], supported by rich datasets [8, 19, 62] and architec-tural advances like RU-LSTM [16], AVT [19], MemViT [15], RAFTformer [18], UADT [22], InAViT [54] as well as several other methods [46, 66, 72, 74]. Recent trends also explore goal-conditioned reasoning [53], motion primitives [9], and multimodal cues such as audio [70]. 
+
+2.3 Joint Action-Gaze Modeling 
+
+Early deep models explored the synergy between gaze estimation and action recognition in first-person video. Li et al. [37, 38] proposed one of the first uni-fied frameworks to jointly predict gaze and actions, where predicted gaze maps are used to spatially reweight visual features for action recognition. The model leverages gaze as an attention cue but focuses primarily on recognition in egocen-tric settings. Huang et al. [28] introduced a mutual context network that jointly estimates gaze and action by exchanging information between the two tasks. In their gaze-guided action module, predicted gaze positions are used to spatially aggregate visual features for improved action recognition. Both approaches are designed for egocentric settings. In exocentric scenarios, however, gaze must be associated with a specific human in the scene. Prior models [28, 37, 38] do not explicitly model human location or orientation, making it difficult to deter-mine which subject the predicted gaze corresponds to. Yet, despite its predictive power, gaze remains underutilized in action anticipation. No existing approach models the temporal link between future gaze and future actions, or between current gaze-action modeling with future gaze-action. 
+
+3 Exo-Cook Dataset 
+
+Very few datasets provide both gaze and action annotations, and those that do are typically limited to egocentric perspectives; moreover, not all scenarios in these datasets are suitable for joint action–gaze analysis. Ego-Exo4D [20] is a notable exception—a large-scale human-activity dataset with egocentric and multiple (4–5) exocentric views across 8 domains, 740 participants, and 123 scenes—offering time-aligned textual action descriptions and dense annotations SAGE 5Label: “category 0” 
+
+> Label: “category 6”
+
+Fig. 2: Left : Exo-Cook labels clustered and projected using t-SNE. Right : Visualiza-tion examples from two clusters (category 0 and 6) with atomic action descriptions and their verb–noun annotations - (Top) C picks a strainer from the countertop with his right hand" [Verb: picks; Noun: strainer]. (Bottom) “C cuts the green onion with a knife on the cutting board” [Verb: cuts; Nouns: green onion, knife, cutting board]. 
+
+(3D pose, gaze, object masks). However, it lacks a benchmark for joint modeling and evaluation. We utilize videos from the cooking domain to create our own benchmark, which exhibits strong gaze–action alignment and variability suited for joint action-gaze analysis. In contrast, other seven domains show weak cor-respondence (e.g., soccer, basketball) or diffused gaze patterns (e.g., music), making them less suitable. This choice is consistent with prior works evaluating exclusively on cooking datasets [28, 38]. Since the Ego-Exo4D annotations are not directly suitable for model training, we systematically construct Exo-Cook through extensive label generation and task-specific adaptation. Specifically, we extract 658 cooking videos and 189,225 textual descriptions from Ego-Exo4D and curate them through a structured data transformation pipeline as follows: 
+
+(a) Human bounding boxes: We use the pipeline in [47] with YOLOv5 [32] to detect full-body and head boxes of the camera wearer in third-person views. (b) Object bounding boxes: Boxes are generated for interactable objects from in-stance masks provided in the Ego-Exo4D metadata. (c) Gaze heatmaps: We go through four steps to generating gaze heatmaps. First, we calculate 3D gaze intersection point Garia  
+
+> 3D
+
+from binocular gaze vectors. Second, transform Garia 
+
+> 3D
+
+to the third-person camera space via the relative pose, yielding  Gcamera  
+
+> 3D
+
+. Third, project  Gcamera  
+
+> 3D
+
+to 2D as  Gcamera  
+
+> 2D
+
+. Fourth, generate a 2D Gaussian heatmap 
+
+M pseudo , centered at  Gcamera  
+
+> 2D
+
+, with standard deviation: σ = Whm +Hhm  
+
+> 2
+
+· 364 where 
+
+(Whm , H hm ) denotes the heatmap size. (d) Action labels: We use spaCy [11] to extract all candidate verbs and nouns from each textual action description. As illustrated in Figure 2, spaCy may return multiple noun options for a single description (e.g., category 6). To identify the most semantically relevant object, we compute the cosine similarity between the BERT [10] embeddings of each verb–noun pair and that of the full sentence. The verb–noun pair with the high-est similarity score is then transformed into a high-dimensional embedding using BERT, which we treat as the action embedding. We apply K-means clustering (K = 10 ), selected via the Elbow Method, to group semantically similar ac-tion embeddings into ten categories (indexed 0–9). The action category labels 6 C. Kuang, N. Agarwal I0
+
+I1
+
+It
+
+> …
+> Feature encoder
+> 𝐱 𝟎
+> 𝐨
+> 𝐱 𝟏
+> 𝐨
+> 𝐱 𝐭
+> 𝐨
+
+…
+
+> 𝐱 𝐭
+> 𝐩
+> Global token
+> Human -object
+> pair token
+
+Gaze -conditioned HOI Detection  Gaze -conditioned HOI Anticipation  
+
+> Scene
+> features
+> Visual
+> encoder
+> Heatmap
+> Decoder
+> Gaze heatmap 𝑔
+
+GCSA  
+
+> Gaze -object Attention
+> Frame 0 (𝑺 𝟎 )
+
+…           
+
+> Object bbox
+> (𝑸 ,𝑲 ,𝑽 )
+> Transformer Encoder, MLP layer
+> HOI detection ෝ𝒚 𝒕
+> Gaze -object attention 𝐬 𝐭 ,𝐣 ,𝒋 ∈[𝟏 ,𝑵 ]
+> Conv MHSA
+> MHCA
+> on Gaze
+> MLP ෝ𝒚 𝒕 +𝟏 :𝒕 +𝑴
+> HOI anticipation
+
+𝑔 𝑡 ,1
+
+…
+
+𝑔 𝑡 ,𝐾  
+
+> Gaze heatmap 𝑔
+
+Monte Carlo 
+
+Sampling 
+
+𝑔 𝑡 ,1
+
+…
+
+𝑔 𝑡 ,𝐾 
+
+❑ Predictive uncertainty 
+
+H 𝑦 𝑡 , 𝑔 𝐼 , H(𝑦 𝑡 +1:𝑡 +𝑀 , 𝑔 |𝐼 )
+
+❑ Mutual Information 
+
+MI 𝑦 𝑡 , 𝑔 𝐼 , MI (𝑦 𝑡 +1:𝑡 +𝑀 , 𝑔 |𝐼 )
+
+(a) SAGE architecture 
+
+(b) Gaze -conditioned Action Uncertainty from SAGE (Inference stage)  
+
+> 𝑠 0,1𝑠 0,𝑁
+
+… 𝑠 𝑡 ,1 𝑠 𝑡 ,𝑁 …    
+
+> Frame t (𝑺 𝒕 )
+> Periodic Positional Encoding
+> Causal MHSA on Future Gaze
+> ෤𝑔 𝑡 ෤𝑔 1෤𝑔 2…
+
+𝑔    
+
+> Scene
+> features
+> ො𝑔 𝑡 +𝑀 ො𝑔 𝑡 +1ො𝑔 𝑡 +2…
+> Add & LN
+> MHCA on Gaze and Action
+> Future action encodings
+
+GCTP Future gaze 
+
+> encodings
+
+GCSA  GCTP ~
+
+ෝ𝒚 1
+
+…
+
+ෝ𝒚 𝐾      
+
+> ෝ𝒂 𝒕 +𝟏 …ෝ𝒂 𝒕 +𝟐 ෝ𝒂 𝒕 +𝑴
+> Gaze -object Attention
+> 𝐬𝐨𝐟𝐭𝐦𝐚𝐱 𝑸 𝑲 𝑻 +𝑺 𝒕
+> 𝒅 𝒌
+> 𝑽
+
+…   
+
+> 𝐬𝐨𝐟𝐭𝐦𝐚𝐱 𝑸 𝑲 𝑻 +𝑺 𝟎
+> 𝒅 𝒌
+> 𝑽
+
+## ~ 
+
+> gaze seq
+> 𝑔 0
+> 𝑔 1
+> 𝑔 𝑡
+> …
+> Prior
+> action
+> 𝒄 𝒕
+> 𝐱 𝟏
+> 𝐩
+> 𝐱 𝟎
+> 𝐩
+> (𝐱 𝒕 ,<𝒊 ,𝒋 >
+> 𝐨 )
+
+Fig. 3: Overview of SAGE. We first present (a) SAGE architecture, which jointly performs gaze detection, HOI detection, and their respective anticipation. A feature encoder extracts human–object interaction tokens, while the gaze detection module predicts a probabilistic heatmap used by GCSA for HOI detection, where GCSA 
+
+replaces the standard multi-head self-attention (MHSA) operation within the Trans-former encoder layer. For forecasting, a Gaze Anticipation module predicts future gaze from observed frames and past gaze, and GCTP models future HOIs conditioned on current interactions and anticipated gaze. We also show (b) gaze-conditioned action uncertainty analysis via sampling from the predicted gaze heatmap at inference. 
+
+are manually verified after clustering. We provide semantic consistency analy-sis of the resulting categories and visualizations of semantic interpretations in section A.2. (e) Label alignment: These labels are aligned with video times-tamps, and we use DeepSORT [69] to track human–object trajectories. Exo-Cook contains 33,321 video clips with atomic action descriptions, from which we re-move samples lacking gaze labels, valid head boxes, or proper alignment. This yields 32,050 valid clips annotated with bounding boxes, gaze, and action labels, with 2562, 2741, 1193, 688, 2675, 4167, 4000, 3530, 5500, and 4994 clips for class indices 0–9, respectively. (f ) Viewpoint Diversity: Exo-Cook includes 8,778, 8,721, 6,429, 6,253, and 1,869 clips from Cam01–Cam05, respectively, fol-lowing the exocentric multi-camera setup of Ego-Exo4D [20]. We split the data into 25,650 training, 3,200 validation, and 3,200 test samples. More details are described in section A.2. 
+
+4 SAGE 
+
+In this section, we present the SAGE framework and describe its training objec-tive, as illustrated in Figure 3 (a). Given a short video clip I0: t where t is the current time step, our objective is to detect the ongoing action at t and antici-pate it M time steps into the future. Denoting the action as y, the problem can be formulated as computing p(yt:t+M |I0: t), where yt:t+M = [ yt, y t+1 , . . . , y t+M ].Note that y in our framework can represent either an HOI triplet or a verb–noun SAGE 7
+
+pair, depending on the viewpoint, as both denote actions . Egocentric datasets (e.g., EGTEA) adopt the verb–noun pair representation since the human actor is not visible, whereas exocentric datasets (e.g., Vid-HOI) employ HOI triplets due to the visible human presence. We introduce gaze variable g0: t+M at cor-responding time stamp and reformulate the problem as gaze-conditioned HOI modeling: 
+
+p(yt:t+M | I0: t) = 
+
+Z
+
+> G
+
+p(yt:t+M , g0: t+M | I0: t) dG 
+
+=
+
+Z
+
+> G
+
+p(yt:t+M | g0: t+M , I 0: t) p(g0: t+M | I0: t) dG. 
+
+(1) where G ≜ g0: t+M represents the gaze variable set. Based on Eq. 1, we di-vide the modeling process into two stages: present (0: t), where video observa-tions are available, and future (t+1: t+M ), where no visual cues are observed. Accordingly, gaze and HOI probabilities are factorized into current and future components. For gaze, we decompose p(g0: t+M | I0: t) = p(g0: t | I0: t) p(gt+1: t+M |
+
+g0: t, I 0: t), where the first term models current gaze and the second predicts fu-ture gaze trajectories. For HOI, we factorize p(yt:t+M | g0: t+M , I 0: t) = p(yt |
+
+g0: t, I 0: t) p(yt+1: t+M | yt, g0: t+M , I 0: t). This formulation leads to four proba-bilistic components in SAGE: gaze detection p(g0: t | I0: t) (SAGE-1), gaze-conditioned HOI detection p(yt | g0: t, I 0: t) (SAGE-2), future gaze prediction 
+
+p(gt+1: t+M | g0: t, I 0: t) (SAGE-3), and gaze-conditioned HOI anticipation (SAGE-4) p(yt+1: t+M | yt, gt+1: t+M , I 0: t) . For model simplification, we assume that fu-ture actions yt+1: t+M are conditionally independent of past gaze g0: t, given fu-ture gaze gt+1: t+M and adopt the approximation: p(yt+1: t+M | yt, g0: t+M , I 0: t) ≈
+
+p(yt+1: t+M | yt, gt+1: t+M , I 0: t). We validate this causal assumption by evaluat-ing a variant that conditions future action prediction on the full gaze sequence (present and future), which actually performs slightly worse (see section A.4). The integral over G in Eq. 1 is intractable, so we approximate the integration by expectation over gaze: p(yt:t+M | I0: t) ≈ Eg0: t,g t+1: t+M [p(yt:t+M | G, I 0: t]) .We approximate the expectation E with K Monte Carlo samples, each sam-ple denoted as Gk = ( gk
+
+> 0: t
+
+, g kt+1: t+M ). Finally, the marginal likelihood for cur-rent and future HOIs are approximated by sample average ¯p(yt:t+M | I0: t) = 
+
+> 1
+> K
+
+PKk=1 p(yt | gk
+
+> 0: t
+
+, I 0: t) p(yt+1: t+M | yt, gkt+1: t+M , I 0: t). In practice, MC sam-pling is enabled during inference to generate multiple gaze perturbations in a single forward pass for action uncertainty estimation and gaze sensitivity analy-sis (Figure 3 (b)). MC Sampling is performed for both current and future gaze; details are provided in section 5.4 and section A.1. 
+
+4.1 Feature Encoding and Viewpoint Adaptability 
+
+We extract human–object pair tokens from the video using human and object bounding box. HOI tokens are defined as xot = [ xt, ⟨1,1⟩, . . . , xt, ⟨i,j ⟩, . . . , xt, ⟨nht ,n ot ⟩],
+
+where nht and not denote the numbers of detected humans and objects, and each token encodes the spatial relationship between a human i and an object j. To capture global context, we introduce a learnable global token xpt and construct 8 C. Kuang, N. Agarwal 
+
+the final input tokens as Xt = [ xot ; xpt ]. Note that unlike prior works [28, 37, 38], SAGE can be applied to both egocentric (FPV) and exocentric (TPV) view-points using the GCSA mechanism in Eq. 2 and Eq. 3. Specifically, for TPV videos, xt, ⟨i,j ⟩ incorporates scene features, human body appearance, body loca-tion, and human–object spatial relations. Multiple subjects may appear in the scene ( i ≥ 1). In FPV videos, global body location is unavailable, so interaction tokens instead encode relationships between the hands and objects, with the human index fixed to nht = 1 . We show details of constructing the human-object pair token in section A.1. 
+
+4.2 Modeling Present: Gaze-Conditioned HOI Detection 
+
+We first introduce how to model the present (SAGE-1 and SAGE-2) by for-mulating HOI detection as a gaze-conditioned problem. Gaze is represented as a dense spatial probability map and explicitly modulates spatial attention for predicting HOIs. Given the observed frames I0: t, the gaze detection module pre-dicts a normalized gaze heatmap gt ∈ R64 ×64 , P 
+
+> h,w
+
+gt(h, w ) = 1 , which represents a probabilistic distribution over gaze locations at time t. We adapt existing gaze detection models [5, 34, 55, 61] into SAGE architecture for predict-ing gaze heatmaps. 
+
+Gaze-Conditioned Spatial Attention (GCSA). Gaze is known as an im-portant human attention cue for analyzing human action and intent. Prior joint gaze–action models [28, 37, 38] typically use gaze heatmaps to spatially reweight visual features at pixel level for action recognition. In contrast, we introduce GCSA, which integrates gaze into transformer attention through object-level 
+
+gaze relations. For each object j in frame t with bounding box, SAGE assigns a gaze relevance score st,j computed as st,j = Norm {P 
+
+> (h,w )∈bbox t,j
+
+gt(h, w )}.
+
+which measures the probability mass of gaze falling inside the object region. Collecting all scores yields a gaze relevance vector st, which is formulated into an additive attention bias matrix St ∈ R(N +1) ×(N +1) , where N is the maxi-mum number of human–object pair tokens. We inject the gaze bias St into the self-attention operation to form Gaze-Conditioned Spatial Attention: 
+
+GCSA( Qt, K t, V t, St) = Softmax 
+
+ QtK⊤ 
+
+> t
+
++ St
+
+√dk
+
+
+
+Vt. (2) By augmenting the attention logits rather than directly masking features [28,37, 38], GCSA biases the model towards interactions involving gaze-relevant objects while still preserving contextual cues from the full scene. GCSA replaces the standard multi-head self-attention (MHSA) operation within each Transformer encoder layer. Specifically, the gaze-conditioned attention bias is added to the attention logits before the softmax operation, allowing gaze–object relations to guide self-attention while preserving the standard Transformer architecture. Our model learns gaze-aware HOI representations by stacking multiple transformer encoder layers (layer number Nd) equipped with GCSA. The TransformerEnc Nd
+
+takes the initial human–object tokens as input, equipped with the GCSA module SAGE 9
+
+in the MHSA layer. The GCSA-equipped Transformer Encoder and the resulting gaze-conditioned HOI feature ct are denoted as 
+
+ct = TransformerEnc Nd (GCSA( Qt, K t, V t, St), Xt) (3) 
+
+HOI Detection. We use one simple transformer encoder layer to model the tem-poral feature in the gaze-aware features {c0, . . . , ct}. Since gaze biases the spatial interactions at each frame, the temporal encoder propagates gaze-informed cues over time. Following by a MLP classifier ϕ(·), the action probability is predicted as p(yt | g0: t, I 0: t) = Softmax( ϕ(TransformerEnc Nd ([ c0, · · · , ct]))) .
+
+4.3 Modeling Future: Gaze-conditioned HOI Anticipation 
+
+Prior joint gaze–action models such as [28, 38] focus on only recognition , that only model the correlation between gaze and HOI at the same time step but do not consider how gaze and HOI jointly evolve over time. In contrast, SAGE models the temporal relation between future gaze and HOI given current action. Under the factorization in Eq. 1, HOI anticipation is modeled as p(yt+1: t+M |
+
+I0: t) = R p(yt+1: t+M | yt, gt+1: t+M , I 0: t) p(gt+1: t+M | g0: t, I 0: t) dG which are de-composed into two steps. 
+
+Future Gaze Modeling. Our first estimate the probability p(gt+1: t+M | g0: t, I 0: t),where we use historical gaze observations and video appearance feature to model future gaze. Each gaze heatmap gk ∈ R64 ×64 is embedded into a latent to-ken representation added by periodic positional encoding (PPE) through ˜gk =Conv( gk) + PPE( k), k = 0 , . . . , t . To model gaze dynamics, we apply a Trans-former Encoder to capture temporal dependencies in gaze trajectories: hg 
+
+> 0: t
+
+=MHSA(˜ g0: t). Importantly, future gaze is influenced by the HOI feature in the video context. We incorporate historical gaze feature and human-object feature through cross-attention layer, followed by a downstream decoder to generate fu-ture gaze heatmaps ˆgt+1: t+M = Dϕ(MHCA( hg
+
+> 0: t
+
+, Xo
+
+> 0: t
+
+)) .
+
+Gaze-Conditioned Temporal Prediction (GCTP). We propose GCTP to parameterize the conditional distribution p(yt+1: t+M | yt, gt+1: t+M , I 0: t) by con-ditioning interaction features on predicted future gaze representations. Given the gaze-conditioned interaction feature ct produced by the GCSA module and predicted future gaze heatmaps, we encode the gaze sequence using a temporal attention module to capture correlations among future gaze shifts. GCTP aligns future gaze representations with the current interaction features through cross-attention, allowing predicted gaze trajectories to guide the an-ticipation of future HOIs. This operation aligns future gaze dynamics with the interaction-aware scene representation, enabling the model to anticipate actions that are consistent with predicted attention shifts. The gaze-conditioned future HOI encodings are represented as: 
+
+ˆat+1: t+M = TransformerEnc Nd (MHCA(MHSA(ˆ gt+1: t+M ), ct). (4) The final future HOI at t + M are produced by a MLP classifier ˆyt+M =Softmax(MLP( ˆat+M )) . By explicitly modeling future gaze as a conditioning vari-able, GCTP bridges current gaze–action recognition with future action anticipa-tion. Similar to GCSA, GCTP mechanism can be applied to both egocentric and 10 C. Kuang, N. Agarwal 
+
+exocentric videos. To the best of our knowledge, this is the first framework that jointly models current and future gaze–action dependencies for HOI anticipation. 
+
+4.4 Loss function Heatmap Loss  Lhm . As we are training a joint model for multiple tasks, we use a simple yet effective pixel-wise MSE (L2) loss for gaze heatmap [60,61] to ensure stable gradients between the predicted heatmap  g and ground truth heatmap 
+
+ggt . Two separate MSE loss terms are applied to gaze detection and anticipation module, respectively: Lhm ,1 = Ptm=0 ∥ˆgm − ggt  
+
+> m
+
+∥22, Lhm ,2 = Pt+Mm=t+1 ∥ˆgm − ggt  
+
+> m
+
+∥22.
+
+Action Loss  Lact . We apply Cross-Entropy loss for HOI detection Lact ,1 =
+
+−ygt m log ˆ ym, , and it is similarly defined and summed over intermediate frames for HOI anticipation Lact ,2 = − Pt+Mm=t+1 ygt m log ˆ ym.
+
+In-Out Loss  Lio . For exocentric cases, SAGE predicts a variable o ∈ R1 along with the gaze heatmap at each future step, representing the probability of gaze located within the frame in the future. The in-out loss is defined as the binary Cross-Entropy between the predicted ˆo and the ground truth label  ogt  for future gaze Lio = Pt+Mm=t+1 −ogt  
+
+> m
+
+log(ˆ om) − (1 − ogt 
+
+> m
+
+) log(1 − ˆom).The total loss function for training SAGE model formulates as L = λ1Lhm, 1 +
+
+λ2Lhm, 2 + λ3Lio + λ4Lact, 1 + λ5Lact, 2.
+
+5 Experiments 
+
+Datasets & Metrics. To evaluate our framework, we use three datasets. Vid-HOI [3], an exocentric dataset for video-based HOI detection and anticipation, provides annotated sequences of human–object interactions. EGTEA Gaze+ [37], widely used for egocentric gaze and action tasks, contains over 28 hours of video across 86 action classes from 32 participants. Exo-Cook , introduced in this work, is the first exocentric dataset curated for joint HOI and gaze analysis. Following [47], we evaluate HOI detection and anticipation on Vid-HOI and Exo-Cook using mean average precision (mAP), top-5 recall, precision, accu-racy, and F1-score. For egocentric action recognition, we report Top-1 Accuracy on split 3 and the average on all three splits [24] for fair comparison. For ac-tion anticipation, we report mean class accuracy [54], while gaze detection and anticipation are evaluated with F1-score, recall, and precision. Training proceeds in two stages: we first train SAGE-12 for 5 epochs using gaze and action annotations from the current sequence, then initialize SAGE with these weights and continue training using future gaze and action labels. The complete model is trained for 25 epochs in total. Although efficiency is not our focus, SAGE achieves strong recognition and anticipation accuracy while maintaining high computational efficiency, processing a 20-frame input sequence in just 0.63s on an NVIDIA RTX A6000. Further implementation details and efficiency comparisons are provided in section A.1 and section A.4, respectively. SAGE 11 
+
+Table 1: Ablation study of GCSA and GCTP under task-based supervision on EGTEA Gaze+. "w/o" and "w/" denote without and with the module, respectively. Models Gaze Detection Action Recognition Gaze Anticipation Action Anticipation F1 Rec Prec Acc F1 Rec Prec Acc Current  SAGE-1 44.8 61.2 35.3 - - - - -SAGE-2 - - - 63.1 - - - -SAGE-12 (w/o GCSA) 44.8 61.4 35.3 63.0 - - - -SAGE-12 (w/ GCSA) 46.3 61.9 36.4 63.9 Future  SAGE-3 - - - - 35.4 49.5 28.2 -SAGE-4 - - - - - - - 47.3 SAGE-34 (w/o GCTP) - - - - 34.8 49.4 27.4 44.6 SAGE-34 (w/ GCTP) - - - - 35.2 49.4 27.5 52.6 SAGE (w/o GCSA, GCTP) 44.8 61.4 35.3 63.1 34.5 48.8 26.7 44.0 SAGE (w/ GCSA, GCTP) 46.8 62.1 36.8 65.0 37.0 54.9 32.7 58.4 
+
+5.1 Ablation Study 
+
+We conduct an ablation study on EGTEA Gaze+ in Table 1 to disentangle the effects of joint supervision and the proposed GCSA and GCTP modules. Be-sides the original SAGE components SAGE-1–4, SAGE-12, SAGE-34 and the full SAGE model, we further construct joint-training baselines by removing GCSA and GCTP while keeping identical multi-task supervision. This isolates whether the gains arise from the proposed gaze-conditioned mechanisms rather than joint optimization alone. For current gaze–action modeling, SAGE-12 without GCSA jointly optimizes gaze detection and action recognition but does not explicitly model their dependency. Introducing GCSA improves both gaze detection (F1: 44.8 →46.3) and action recognition (Acc: 63.0 →63.9), demonstrating the benefit of gaze-conditioned spatial reasoning beyond joint supervision. Similarly, SAGE-34 without GCTP jointly learns future gaze and action independently. Incorpo-rating GCTP substantially improves action anticipation (Acc: 44.6 →52.6) while slightly improving gaze anticipation, showing that conditioning future actions on predicted future gaze provides informative temporal cues. Finally, we compare the full SAGE model with a joint-training baseline that removes both GCSA and GCTP while retaining all four task losses. Despite identical supervision, the proposed modules consistently improve gaze detection (F1: 44.8 →46.8), action recognition (Acc: 63.1 →65.0), gaze anticipation (F1: 34.5 →37.0), and action an-ticipation (Acc: 44.0 →58.4). These results demonstrate that the improvements are not merely due to multi-task training, but stem from explicitly modeling gaze–action dependencies through GCSA and GCTP. 
+
+5.2 SAGE on Exocentric Videos Exo-Cook Dataset. We evaluate SAGE on four tasks, as summarized in Ta-ble 2. Since no existing methods directly benchmark on this dataset, we create multiple baseline models by adapting existing models on Exo-Cook. We estab-lish three baselines for gaze detection and anticipation, by training & evaluating three state-of-the-art gaze detection models VideoAttn [5], Sharingan [61] and Gaze-LLE [55] on Exo-Cook. Among them, VideoAttn [5] and Sharingan [61] are 12 C. Kuang, N. Agarwal 
+
+Table 2: SAGE results on Exo-Cook dataset. †adapted for gaze anticipation. Method τa                                                                                                                                                                       
+
+> Gaze Detection HOI Detection Gaze Anticipation HOI Anticipation F1 Rec Prec mAP Rec Prec Acc F1 F1 Rec Prec mAP Rec Prec Acc F1 VideoAttn [5] -55.6 72.8 54.8 -------------Sharingan [61] -56.6 72.8 55.3 -------------Gaze-LLE [55] -56.8 72.4 55.0 -------------ST-Gaze [47] ----42.5 77.0 61.9 59.0 66.9 --------VideoAttn [5] †---------42.2 54.6 42.5 -----Sharingan [61] †---------40.1 52.7 40.4 -----Gaze-LLE [55] †---------38.6 50.3 36.2 -----ST-Gaze [47] 1-----------41.1 76.2 58.2 53.7 66.1 SAGE (VideoAttn) 155.8 73.2 55.7 44.2 79.0 62.6 58.5 68.9 48.5 62.1 49.6 42.4 76.6 59.0 54.6 66.9 SAGE (Sharingan) 157.7 73.4 55.5 44.6 79.4 63.1 60.2 69.4 49.2 62.8 50.0 42.5 76.8 59.2 54.8 67.2
+
+incoporated into SAGE architecture, noted as SAGE (VideoAttn) and SAGE (Sharingan). We run ST-Gaze model [47] on Exo-Cook to establish the first baseline for HOI detection and anticipation. For anticipation setting, we set the anticipation horizon τa = 1 s and present results for additional horizons in sec-tion A.4. SAGE (Sharingan) outperforms ST-Gaze on HOI detection by +2.1 mAP and +1.0 accuracy and achieves highest F1 score (69.4). Similarly, on HOI anticipation, SAGE (Sharingan) has the best overall performance, with an F1 score of 67.2 and mAP of 42.5—surpassing the ST-Gaze baseline (F1: 66.1, mAP: 41.1). In the gaze detection task, SAGE (Sharingan) achieves the highest F1 score (57.7), slightly outperforming the best baseline Sharingan (56.6) by +1.1 points. While precision is similar (55.5 vs. 55.3), SAGE shows a modest gain in recall (+0.6). For gaze anticipation, SAGE (Sharingan) achieves highest F1 score of 49.2, recall of 62.8, and precision of 50.0, outperforming the closest baseline (ST-Gaze). By comparing SAGE (VideoAttn) and SAGE (Sharingan), we show that integrating more advanced gaze model architecture helps improve the joint model performances. We show some qualitative results in Figure 4, and provide more detailed qualitative results in section A.5. 
+
+Vid-HOI Dataset. We take ST-Gaze [47] and STTran [6] as baseline models for HOI detection and anticipation in Table 3 and Table 4. Gaze is not eval-uated on Vid-HOI as no gaze labels are provided. For HOI detection, SAGE achieves the best mAP, precision and F1 values. The improved performance of ST-Gaze ∗ [47] in recall and Accuracy is attributed to the use of word embed-dings as an additional input modality. We individually analyze the impact of GCSA in section A.4. For HOI anticipation, SAGE outperforms STTran [6] and ST-Gaze [47] across all anticipation horizons (1s, 3s, 5s) for mAP, precision, Accuracy and F1. 
+
+5.3 SAGE on Egocentric Videos 
+
+We conduct a comprehensive evaluation on the EGTEA Gaze+ dataset [37] in Table 5, covering four tasks as described below. For the anticipation setup, we use the standard horizon of τa = 0 .5s and report results for additional horizons in section A.4. SAGE 13 
+
+Table 3: HOI detection in Oracle mode on Vid-HOI dataset. * includes word em-bedding module. Method τa mAP Rec Prec Acc F1 STTran [6] - 28.32 - - - -ST-Gaze* [47] - 38.46 73.62 59.16 53.76 60.57 SAGE (Ours) 1 38.65 72.44 59.22 52.22 61.96 3 38.18 72.21 59.95 52.18 62.02 
+
+5 38.13 72.01 59.92 52.18 61.88 
+
+Table 4: HOI anticipation in Ora-cle mode on Vid-HOI dataset. * includes word embedding module. Method τa mAP Rec Prec Acc F1 STTran [6] 1 29.09 74.76 41.36 36.61 50.48 3 27.59 74.79 40.86 36.42 50.16 5 27.32 75.65 41.18 36.92 50.66 ST-Gaze* [47] 1 35.71 71.28 59.38 51.06 62.06 3 32.19 71.09 60.17 51.63 62.39 5 32.30 70.67 58.99 50.79 61.59 SAGE (Ours) 1 37.71 72.88 60.24 51.86 62.72 
+
+3 34.22 72.36 60.98 52.88 63.05 
+
+5 32.64 71.96 59.88 51.46 62.14 SAGE Results 
+
+Input Frame  GT Future Frame 
+
+𝜏 𝑎 = 1𝑠 
+
+GT Action :
+
+<category “2”> 
+
+GT Action +1s :
+
+<category “2”> 
+
+GT Action :
+
+<category “2”> 
+
+GT Action +1s :
+
+<category “0”> 
+
+SAGE Results 
+
+Pred Action :
+
+<category “2”> 
+
+Pred Action +1s :
+
+< category “2”> 
+
+Gaze detection: 
+
+Pred Action :
+
+<category “2”> 
+
+Pred Action +1s :
+
+< category “0”> 
+
+Gaze anticipation +1s : 
+
+Input Frame  GT Future Frame 
+
+𝜏 𝑎 = 1𝑠 
+
+Gaze detection:  Gaze anticipation +1s : 
+
+SAGE Results   
+
+> GT Action :
+> <take cooking_utensil >
+> GT Action +0.5s :
+> <put cooking_utensil >
+
++0.5s      
+
+> Pred Action :
+> <take cooking_utensil >
+> Pred Action +0.5s :
+> <put cooking_utensil >
+
+0.5s 
+
+0s 
+
+Input Frame 
+
+> GT Action :
+> <take cucumber>
+
++0.5s 
+
+> GT Action +0.5s :
+> <cut cucumber>
+
+GT Future Frame 
+
+𝜏 𝑎 = 0.5𝑠  
+
+> Pred Action :
+> <take cucumber>
+> Pred Action +0.5s :
+> cut cucumber>
+
+Input Frame  GT Future Frame 
+
+𝜏 𝑎 = 0.5𝑠 
+
+SAGE Results 
+
+0s  0.5s  0s  0.5s    
+
+> Gaze detection: Gaze anticipation +0.5s: Gaze detection: Gaze anticipation +0.5s:
+
+0s  1s  0s  1s 
+
+0s  1s  0s  1s 
+
+0s SAGE Results                               
+
+> Input Frame GT Future Frame
+> 𝜏 𝑎 =1𝑠
+> GT Action :
+> <category “2”>
+> GT Action +1s :
+> <category “2”>
+> GT Action :
+> <category “2”>
+> GT Action +1s :
+> <category “0”>
+> SAGE Results
+> Pred Action :
+> <category “2”>
+> Pred Action +1s :
+> < category “2”>
+> Gaze detection:
+> Pred Action :
+> <category “2”>
+> Pred Action +1s :
+> < category “0”>
+> Gaze anticipation +1s :
+> Input Frame GT Future Frame
+> 𝜏 𝑎 =1𝑠
+> Gaze detection: Gaze anticipation +1s :
+> SAGE Results
+> GT Action :
+> <take cooking_utensil >
+> GT Action +0.5s :
+> <put cooking_utensil >
+> +0.5s
+> Pred Action :
+> <take cooking_utensil >
+> Pred Action +0.5s :
+> <put cooking_utensil >
+> 0.5s
+> 0s
+> Input Frame
+> GT Action :
+> <take cucumber>
+> +0.5s
+> GT Action +0.5s :
+> <cut cucumber>
+> GT Future Frame
+> 𝜏 𝑎 =0.5𝑠
+> Pred Action :
+> <take cucumber>
+> Pred Action +0.5s :
+> cut cucumber>
+> Input Frame GT Future Frame
+> 𝜏 𝑎 =0.5𝑠
+> SAGE Results
+> 0s 0.5s 0s 0.5s
+> Gaze detection: Gaze anticipation +0.5s: Gaze detection: Gaze anticipation +0.5s:
+
+0s  1s  0s  1s 
+
+0s  1s  0s  1s 
+
+> 0s
+
+Fig. 4: Qualitative results. SAGE on EGTEA Gaze + (left) and Exo-Cook (right), including action and gaze predictions for current and future frames for two samples each. The green dot in first rwo represents ground truth gaze. 
+
+Gaze Detection & Anticipation. We compare our gaze estimation perfor-mance against existing egocentric gaze estimation models, including GLC [34], MViT [12], and I3D-R50 [14]. As shown in Table 5, SAGE achieves the best F1 score of 46.8, significantly surpassing GLC (44.8), MViT (43.0), and I3D-R50 (40.9). It also achieves the highest recall at 62.1 and the top precision at 36.8. We improve GLC with 0.9 and 1.5 gain in recall and precision, respectively. For gaze anticipation task, as no existing baseline exists on EGTEA Gaze+, we established four baseline models by re-training GLC, MViT, I3D-R50 and CSTS-Visual [35]) with ground-truth future gaze heatmaps. In the sixth row of Table 5, our method achieves the higher F1 score (37.0), recall (54.9), and precision (32.7) than four of the baseline models. These results highlight the advantage of integrating gaze modeling with action understanding under joint training framework. SAGE can serve as a strong baseline model for gaze an-ticipation on EGTEA Gaze+. We also study the sensitivity of SAGE to gaze modules in section A.4. 
+
+Action Recognition. In Table 5, we compare SAGE performances with other state-of-the-art methods on the EGTEA Gaze+ dataset in terms of average ac-curacy across three test splits. On the third test set (S3), SAGE achieves an accuracy of 63.1, surpassing the performance of GC-TSM [24], which reports 62.6. Overall, SAGE obtains an average accuracy of 65.0, which is comparable 14 C. Kuang, N. Agarwal 
+
+Table 5: SAGE results on EGTEA Gaze+. †adapted for gaze anticipation. Method Gaze Detection Action Recognition Gaze Anticipation Action Anticipation F1 Rec Prec S1 S3 (Top-1) Avg. (Top-1) F1 Rec Prec Mean-cls Acc. I3D-R50 [14] 40.9 57.2 31.8 - - - - - - -MViT [12] 43.0 57.8 35.4 - - - - - - -GLC [34] 44.8 61.2 35.3 - - - - - - -I3D-2Stream [38] - - - - 53.6 54.2 - - -R34-2Stream [59] - - - - 58.6 60.8 - - - -SAP [67] - - - - 62.0 62.7 - - - -GC-TSM [24] - - - - 62.6 65.1 - - - -I3D-R50 [14] † - - - - - - 34.3 46.5 29.6 -MViT [12] † - - - - - - 31.5 44.8 28.5 -CSTS-Visual [35] - - - - - - 31.3 46.2 28.1 -GLC [34] † - - - - - - 32.8 48.5 28.7 -AFFT [76] - - - - - - - - - 35.2 AVT [19] - - - - - - - - - 35.2 MF [49] - - - - - - - - - 56.9 ORVIT-MF [25] - - - - - - - - - 57.2 InAViT [54] - - - - - - - - - 58.2 MCN [28] - - - 55.7 - - - - - -EGTEA [38] 33.84 41.93 28.41 57.2 - - - - - -TSF-B [75] - - - - - 65.6 - - - -Ego-VPA [71] - - - - - 73.4 - - - -LaViLa-L [50] - - - - - 76.0 - - - -LaViLa [75] - - - - - 81.8 - - - -EgoVideo-G [50] - - - - - 80.0 - - - -SAGE (Ours) 46.8 62.1 36.8 61.8 63.1 65.0 37.0 54.9 32.7 58.4 
+
+to GC-TSM’s top score of 65.1, while outperforming other recent baselines such as SAP (62.7) and R34-2Stream (60.8). Since SAGE does not leverage foun-dation models (LLMs or VLMs) or large-scale external pretraining, we exclude recent models (e.g., LaViLa [75], Ego-VPA [71], EgoVideo [50] etc) from direct comparison, but still report it in Table 5 for completeness. Furthermore, unlike SAGE, these approaches are limited to action recognition and do not report re-sults on additional tasks. 
+
+Action Anticipation. The full SAGE model outperforms prior models includ-ing AVT [19], and InAViT [54], achieving the highest mean-class accuracy of 58.4, surpassing the latest work InAViT (58.2). Compared to transformer-based methods such as MF (56.9) and AVT (35.2), SAGE demonstrates a clear advan-tage in capturing gaze-conditioned temporal dependencies for anticipation. We show qualitative results on EGTEA Gaze+ in Figure 4. 
+
+5.4 Action Uncertainty from Gaze 
+
+The first work to model uncertainty in gaze measurements for action recognition is [38]. However, [38] considers only uncertainty in the gaze distribution, while uncertainty in action prediction is not explicitly modeled. Moreover, the method focuses solely on uncertainty of gaze for estimating the current action and does not model how it influences future action predictions. In contrast, SAGE quan-tifies uncertainty for both current and future actions. As shown in Figure 3 SAGE 15 Pred: <take cucumber>  
+
+> p2=0.75, H2= 0.45
+> Pred: <take knife>
+> p3=0.70, H3= 0.13
+> Gaze samples
+> +0.5s
+> Yellow dot:
+> gaze samples 𝒈 𝒕 ,𝒌
+> 𝒈 𝒕 ,𝟏
+> 𝒈 𝒕 ,𝟑
+> 𝒈 𝒕 ,𝟐
+
++0.5s                          
+
+> 𝒑 𝟏 𝒚 𝒕 =take cucumber =0.82,
+> 𝐻 1= 0.53
+> 𝒑 𝟐 𝒚 𝒕 =take cucumber =0.75,
+> H2= 1.15
+> sample #1
+> sample #2
+> sample #3
+> 𝒑 𝟏 𝒚 𝒕 +𝟎 .𝟓𝒔 =cut cucumber =0.92,
+> 𝐻 1= 0.21
+> 𝒑 𝟑 𝒚 𝒕 +𝟎 .𝟓𝒔 =cut cucumber =0.88
+> 𝐻 3= 0.44
+> 𝒑 𝟐 𝒚 𝒕 +𝟎 .𝟓𝒔 =cut cucumber =0.55
+> 𝐻 2= 2.18
+
+Current action  Future action      
+
+> 𝒚 𝒕
+> 𝒈𝒕 =[take cucumber], 𝒚 𝒕 +𝟎 .𝟓𝒔
+> 𝒈𝒕 =[cut cucumber]
+
+Gaze -conditioned 
+
+> 𝒈 𝒕 ,𝟏
+> 𝒈 𝒕 ,𝟑 𝒈 𝒕 ,𝟐
+
++1s                            
+
+> 𝒚 𝒕
+> 𝒈𝒕 ∈category 0 𝒚 𝒕 +𝟏𝒔
+> 𝒈𝒕 ∈category 2
+> 𝒑 𝟏 (𝒚 𝒕 =[category 0]) =0.94
+> H1= 0.09
+> 𝒑 𝟐 (𝒚 𝒕 =[category 0]) =0.88
+> H2= 0.35
+> 𝒑 𝟑 (𝒚 𝒕 =[category 0]) =0.9 0
+> H3= 0.29
+> 𝒑 𝟑 𝒚 𝒕 =take cucumber =0.70,
+> H3= 0.98
+> 𝑝 1(𝒚 𝒕 +𝟏𝒔 =“2” )=0.84,
+> H1= 0.51
+
+Current action  Future action Gaze     
+
+> 𝑝 2(𝒚 𝒕 +𝟏𝒔 =“2” )=0.90,
+> H2= 0.37
+> 𝑝 3(𝒚 𝒕 +𝟏𝒔 =“2” )=0.94,
+> H3= 0.11
+> Atomic action : [ “add skillet”] Atomic action : [ “pick jar”]
+
+Fig. 5: Gaze-conditioned action uncertainty. We show two examples of uncer-tainty quantification for current action yt and future action yt+M . Sampling three gaze locations produces varying probabilities and entropies: in EGTEA Gaze+ (left), both current and future HOIs are gaze-sensitive, whereas in Exo-Cook predictions remain relatively stable, indicating robust action inference. 
+
+(b), gaze locations are sampled through Monte Carlo sampling and propagate to action detection and anticipation through GCSA and GCTP module. Action uncertainty can be computed by marginalizing over the gaze samples. Given K
+
+Monte Carlo gaze samples {gk}Kk=1 from predicted gaze heatmap, we obtain ac-tion distributions pk = p(y | gk, I ) and compute conditional entropy H(y | I)
+
+and mutual information MI( y, g | I) for action. (1) The predictive distribution is approximated as ¯p = 1
+
+K
+
+PKk=1 pk. The total predictive uncertainty is measured by the entropy: H(y | I) = − P
+
+c ¯pc log ¯ pc. (2) The mutual information (MI) of HOI predictions over gaze, represents how sensitive HOI prediction is to gaze uncertainty: E[H] = 1
+
+K
+
+PKk=1 (− P
+
+c pkc log pkc ), MI( y, g | I) = H(y | I) − E[H].
+
+In Figure 5, we provide two examples of sampling multiple gaze location from gaze heatmap and obtain corresponding gaze-conditioned uncertainty Hy for current action yt and future action yt+M . In the EGTEA Gaze+ example, small changes in gaze location lead to variations in both prediction confidence and entropy for the current and future actions. In contrast, the Exo-Cook example exhibits substantially lower action sensitivity to gaze. We show more uncertainty quantification details in section A.5. 
+
+6 Conclusion 
+
+We presented SAGE, a unified end-to-end framework for simultaneous recogni-tion and anticipation of human-object interactions and gaze. By introducing the proposed GCSA and GCTP modules, SAGE explicitly models the syn-ergy between gaze and actions across both current and future time horizons, enabling more comprehensive human behavior understanding. Its modular de-sign supports both egocentric and exocentric settings, and is validated on Vid-HOI, EGTEA Gaze+, and our new Exo-Cook benchmark. Extensive experi-ments demonstrate that jointly modeling gaze and actions consistently matches or surpasses specialized state-of-the-art methods across multiple tasks. By uni-fying human attention and actions within a single framework, SAGE provides a promising foundation for future research in human behavior analysis and intu-itive human–machine interaction. 16 C. Kuang, N. Agarwal 
+
+A Supplementary 
+
+A.1 Implementation Details Human-object-Pair Feature Extraction We refer to ST-Gaze [47] to pre-process Vid-HOI and Exo-Cooking datasets. An object module is applied to process the video sequence and detects N bounding boxes  {bt,j } along with their corresponding classes. Human bounding boxes are also detected. In addition, human head are detected by YOLO-v5 model [32] and paired with their body bounding boxes. DeeoSort model is applied to associate these detections with previous detections to establish trajectories for each detected human  {Hi} and object  {Oj }. Video feature are extracted by ResNet. 
+
+Viewpoint adaptability As mentioned in main paper (section 4.1), SAGE can adapt to egocentric and exocentric viewpoint with differing feature construction process. Egocentric (FPV) and exocentric (TPV) scenarios have typically been studied separately in gaze and action understanding, as their visual characteris-tics differ substantially and are rarely addressed within a single model. Conse-quently, prior work does not report results across both settings. To the best of our knowledge, SAGE is the first framework that supports both FPV and TPV within a unified architecture for four tasks: gaze detection, HOI detection, gaze anticipation, and HOI anticipation. The framework adapts viewpoint-specific modalities during feature encoding and gaze estimation while maintaining a consistent network flow and output representation. Note that this work does not claim cross-view generalization between FPV and TPV domains. During feature encoding, the key difference between FPV and TPV arises in the construction of human–object interaction tokens. For each frame t, we extract human and object bounding boxes and construct human–object pair tokens 
+
+xot = [ xt, ⟨1,1⟩, . . . , xt, ⟨i,j ⟩, . . . , xt, ⟨nht ,n ot ⟩],
+
+where nht and not denote the numbers of detected humans and objects. Each token xt, ⟨i,j ⟩ encodes the interaction between human i and object j, including appearance features and spatial relationships. The representation of xt, ⟨i,j ⟩ dif-fers slightly between viewpoints. In TPV videos, multiple subjects may appear in the scene ( i ≥ 1), and the token encodes scene appearance, human body fea-tures, body location, and the spatial relationship between humans and objects. These cues are important for recognizing interactions from a third-person per-spective. In contrast, FPV videos lack explicit global body location because the camera is attached to the actor. Instead, interaction tokens encode the spatial relationships between detected hands and objects, with the human index fixed to 
+
+nht = 1 . Another difference arises in gaze estimation. In TPV videos, SAGE pre-dicts gaze using head appearance and orientation features following prior work such as [5]. In FPV videos, gaze is interpreted as an attention region within the egocentric scene, and the gaze model predicts a spatial attention distribution from scene features. Despite these viewpoint-specific adaptations, the subsequent SAGE 17 
+
+gaze-conditioned reasoning modules (GCSA and GCTP) remain identical across FPV and TPV, enabling a unified framework for joint gaze–action modeling. 
+
+Model Architecture SAGE jointly performs four tasks and the detailed SAGE architecture can be divided into four parts. 
+
+SAGE-1 for Gaze Detection. We integrate existing gaze detection models into SAGE framework to produce differentiable gaze heatmaps. The gaze detec-tion module comprises a visual encoder and a decoder that outputs gaze fixation heatmaps. The input sequence is divided into non-overlapping patches and each patch is flattened and projected into a D-dimensional embedding space via a lin-ear mapping. These video tokens are then processed by transformer layers com-posed of multiple self-attention blocks. To generate gaze heatmaps, a transformer decoder—based on multiscale self-attention blocks from MViT [12]—upsamples the encoded features. The decoder outputs feature maps of shape T ′H′W ′ × D′,followed by a softmax operation over the last dimension to obtain the final gaze heatmap g0: t. For the egocentric setting, we adopt the GLC [34] model as our gaze detection architecture. For exocentric videos, we use the architecture pro-posed by [5], initializing our model with their pretrained weights. 
+
+SAGE-2 for HOI Detection. Let Xt ∈ R(N +1) ×D denote the input tokens at frame t, consisting of N human–object pair tokens and one global token, where 
+
+D is the model dimension. The spatial encoder contains Nd Transformer layers. Let H(0)  
+
+> t
+
+= Xt. For layer l = 1 , . . . , N d, the projections are 
+
+Qlt = H(l−1)  
+
+> t
+
+W lQ, Klt = H(l−1)  
+
+> t
+
+W lK , V lt = H(l−1)  
+
+> t
+
+W lV , (5) where W lQ, W lK , W lV ∈ RD×D. For H attention heads, each head has dimension 
+
+dk = D/H . The gaze bias matrix is St. Each Transformer layer updates the token representations with the GCSA operation: 
+
+GCSA( Qlt, K lt , V lt , St) = Softmax 
+
+ Qlt(Klt )⊤ + St
+
+√dk
+
+
+
+V lt . (6) 
+
+eHlt = LN 
+
+
+
+H(l−1)  
+
+> t
+
++ GCSA( Qlt, K lt , V lt , St)
+
+
+
+, (7) 
+
+Hlt = LN 
+
+ eHlt + FFN l( eHlt)
+
+
+
+, (8) where FFN l : RD → RDff → RD is a feed-forward network. After Nd layers, the spatial encoder outputs Ct = H(Nd) 
+
+> t
+
+∈ R(N +1) ×D . The frame-level gaze-aware HOI feature is obtained from the global token ct ∈ RD . Given the sequence of frame features [c0, . . . , ct] ∈ R(t+1) ×D , we apply a temporal Transformer encoder with one layer 
+
+z0: t = TransformerEnc 1([ c0, . . . , ct]) ∈ R(t+1) ×D . (9) 18 C. Kuang, N. Agarwal 
+
+Let zt ∈ RD denote the final token corresponding to time t. The HOI detection head is an MLP ϕ : RD → RCy , where Cy is the number of HOI classes. The action probability is predicted as 
+
+p(yt | g0: t, I 0: t) = Softmax( ϕ(zt)) . (10) 
+
+SAGE-3 for Gaze Anticipation. Each gaze heatmap gk ∈ R64 ×64 is em-bedded into a latent token with periodic position encoding (PPE) [13] : ˜gk =Conv( gk) + PPE( k), where ˜gk ∈ RD , D is the model dimension and P P E (·) is denoted as: 
+
+P P E (t, 2i) = sin(( t mod P )/(10000) 2t/d )
+
+P P E (t, 2i+1) = cos(( t mod P )/(10000) 2t/d ) (11) Stacking all tokens yields the gaze sequence [˜ g0, . . . , ˜gt] ∈ R(t+1) ×D . We use a Transformer encoder with Ng layers to model the temporal dependencies of gaze trajectories: 
+
+hg 
+
+> 0: t
+
+= TransformerEnc Ng ([˜ g0, . . . , ˜gt]) ∈ R(t+1) ×D. (12) Let Xo 
+
+> 0: t
+
+∈ R(t+1) ×N ×D denote the human–object interaction tokens, Hg =
+
+{hg
+
+> 0: t
+
+}. A Cross-attention layer is applied to integrate video interaction context with gaze features: 
+
+zg 
+
+> 0: t
+
+= MHCA( Hg , Xo
+
+> 0: t
+
+) ∈ R(t+1) ×D. (13) The future gaze heatmaps are generated by a decoder 
+
+ˆgm = Dϕ(zgt ), m = t + 1 , . . . , t + M,  (14) 
+
+SAGE-4 for HOI Anticipation. Let ˆG = {ˆgt+1: t+M } ∈ RM ×D denote the embedded future gaze tokens, where M is the prediction horizon and D is the model dimension. Temporal correlations among future gaze shifts are modeled by a MHSA layer. For the l-th layer, the projections are 
+
+Ql = ˆG(l−1) W lQ, Kl = ˆG(l−1) W lK , V l = ˆG(l−1) W lV , (15) where W lQ, W lK , W lV ∈ RD×D. For H attention heads, each head has dimension 
+
+dk = D/H . The self-attention output is 
+
+MHSA( ˆG(l−1) ) = Softmax 
+
+ Ql(Kl)⊤
+
+√dk
+
+
+
+V l. (16) The historical temporal gaze representation is Al = LN 
+
+ ˆG(l−1) + MHSA( ˆG(l−1) )
+
+
+
+.
+
+To condition future HOI prediction on the current interaction context, we apply cross-attention between the gaze tokens and the current gaze-conditioned HOI feature ct ∈ RD , with Qc = AlW cQ, Kc = ctW cK , Vc = ctW cV , The MHCA is calculated as: 
+
+MHCA( Al, ct) = Softmax 
+
+ QcK⊤
+
+> c
+
+√dk
+
+
+
+Vc; ˆAl = LN  Al + MHCA( Al, ct) . (17) SAGE 19 
+
+In conclusion, the gaze-conditioned temporal representation (matrix ˆat+1: t+M
+
+denoted as ˆA) for future HOI feature is generated from 
+
+ˆA = TransformerEnc Na ( ˆG, ct) ∈ RM ×D . (18) and the anticipated HOI at step t + M is predicted by 
+
+ˆyt+M = Softmax(MLP(ˆ at+M )) . (19) 
+
+Monte Carlo Gaze Sampling To propagate gaze uncertainty into both cur-rent and future action prediction, we approximate the marginal likelihood in Eq.1 (main paper) using Monte Carlo sampling over gaze trajectories. The gaze detec-tor predicts a heatmap for each observed frame independently. Let ˆgτ ∈ RHg ×Wg
+
+denote the predicted gaze heatmap at time τ , where τ = 0 , . . . , t . We first nor-malize each heatmap into a spatial distribution 
+
+pτ (h, w ) = ˆgτ (h, w )
+
+P 
+
+> h′,w ′
+
+ˆgτ (h′, w ′) . (20) Assuming conditional independence across observed frames, the present gaze distribution is 
+
+p(g0: t | I0: t) = 
+
+> t
+
+Y 
+
+> τ=0
+
+p(gτ | Iτ ). (21) For each Monte Carlo sample k ∈ { 1, . . . , K }, we independently sample one gaze fixation location from each frame-wise distribution, The sampled present gaze trajectory is then 
+
+gk 
+
+> 0: t
+
+=  gk 
+
+> 0
+
+, g k 
+
+> 1
+
+, . . . , g kt
+
+. (22) Conditioned on the sampled present gaze trajectory gk 
+
+> 0: t
+
+and observed video features, the gaze anticipation module predicts future gaze heatmaps 
+
+ˆgkt+1: t+M ∼ p(gt+1: t+M | gk
+
+> 0: t
+
+, I 0: t). (23) For each future step t + m, we again normalize the predicted heatmap into a 2D gaussian distribution, sample one gaze location. Combining Eq 22 and Eq 23 yields a full sampled gaze trajectory 
+
+Gk =  gk
+
+> 0: t
+
+, gkt+1: t+M
+
+. (24) For each sampled trajectory Gk, the current and future action probabilities are evaluated as 
+
+f (Gk) = p(yt | gk
+
+> 0: t
+
+, I 0: t) p(yt+1: t+M | yt, gkt+1: t+M , I 0: t). (25) The marginal likelihood is approximated by 
+
+bp(yt:t+M | I0: t) = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+f (Gk). (26) 20 C. Kuang, N. Agarwal 
+
+During training, since the gaze detection model is loaded from a pre-trained model, we use a small number of samples ( K = 1 ) for efficiency. During in-ference, we can sample multiple gaze trajectories ( K ≥ 2 )for analyzing action uncertainty conditioning on gaze. 
+
+Training Details Based on the complexity of the full SAGE model and the difficulty in training for all the tasks. We initialize some models with pre-trained model and multi-stage training process. 
+
+– The Gaze detection module is initialized with the pre-trained model from VideoAttn [5] (on Vid-HOI dataset) or GLC [34]. 
+
+– We first train joint model SAGE-12 for 5 epochs with gaze labels and action labels for the current sequence. 
+
+– Then we load the weights from SAGE-12 and train the full model SAGE with future gaze and action annotations. We train 25 epochs in total. 
+
+– In the loss function L = λ1Lhm, 1 + λ2Lhm, 2 + λ3Lio + λ4Lact, 1 + λ5Lact, 2,we set λ1 = 1 .0, λ 2 = 1 .0, λ 3 = 0 .5, λ 4 = 1 .5, λ 5 = 1 .5. Note that λ3 = 0 
+
+in egocentric case. These values were determined empirically through initial tuning experiments and remained fixed for all reported results. 
+
+A.2 Exo-Cook Benchmark Creation Cam01  Cam02  Cam03  Cam04 
+
+> Time stamp: 183.30927
+> Time stamp: 432.88395
+
+Fig. 6: Visualization of the best exocentric views (based on Ego-Exo4D annotations) at different timestamps in one cooking scenario with four camera views. We show that at two different stamps (183.30927s and 432.88395s), the best exocentric views (highlighted in red) come from Cam02 and Cam03 respectively. We generate Exo-Cook clips based on the best exocentric views. 
+
+We construct a benchmark based on a subset from Ego-Exo 4D. We describe more details for pre-processing and generating the labels in this section. On SAGE 21  
+
+> Fig. 7: Individual examples (six) of created ground-truth gaze heatmap from Exo-Cook.
+
+cooking videos, we try BERT model [10] to generate sentence embedding and cluster text into action categories. We extract the text descriptions from Ego-Exo 4D cooking videos and generate 30250 video clips and the corresponding action descriptions. We generate text embeddings for each video clip and apply K-means algorithm to perform action clustering based on the semantic meaning of the text. 
+
+View Diversity of Exo-Cook The original Ego-Exo4D [20] provide multiple (4-5) exocentric videos from tripods placed around the subject. All views are time-synchronized. Exo-Cook is sampled from Ego-Exo4D cooking videos based on the atomic action descriptions that specify what occurs at a single time point. The timestamp in the description is linked to a best_exo field, which denotes the exocentric camera view that provides the clearest visual evidence of the event. Exo-Cook clips are sampled from the best exocentric capturing using the atomic action timestamp. In all, Exo-Cook includes 8,778, 8,721, 6,429, 6,253, and 1,869 clips from Cam01–Cam05 respectively. We show an example of Exo-Cook clips from different view points in Figure 6. For each cooking scene, we sample 20 frames at different timestamps from the best exocentric view with valid action annotations, which will be used as the input sequence for SAGE. Each Exo-Cook clip contains a input sequence and future segments. For the anticipation task, we sample 4 frames within future 1 second. We generate annotations for each clip, including gaze heatmap, human and object bounding boxes and action labels. We introduce the annotation pipeline in the following sections. 
+
+Gaze Label Creation Ego-Exo 4D provide raw gaze annotations from the eye-tracking device (Project Aria). To generate 2D gaze labels for third-person views in Exo-Cook, we follow a calibrated projection pipeline that transforms 22 C. Kuang, N. Agarwal 
+
+the 3D gaze direction from the eye-tracking device (Project Aria) into 2D image coordinates of external cameras. 
+
+Gaze Ray Extraction. For each frame, we extract the 3D gaze origin and direction vectors from the left and right eyes using Aria’s ‘scene gaze‘ and ‘eye gaze‘ streams. These are defined in the Aria scene camera coordinate system and describe binocular gaze rays: 
+
+Ray L = ( oL, dL), Ray R = ( oR, dR)
+
+3D Gaze Estimation in Aria Frame. Each frame of Project Aria includes left and right eye gaze vectors with respect to the device’s coordinate frame. We estimate the 3D point of gaze Garia  
+
+> 3D
+
+by computing the 3D intersection (or midpoint approximation) of the two gaze rays Ray L and Ray R.
+
+Coordinate Transformation. To localize the gaze in the third-person camera frame, we use the known extrinsic calibration between the Aria device and each external camera. Let Taria →cam denote the 6DoF pose of the Aria glasses with respect to a third-person camera. We transform the 3D gaze point into the third-person coordinate system via: 
+
+Gcam  
+
+> 3D
+
+= Taria →cam · Garia 
+
+> 3D
+
+3D-to-2D Projection. Given the intrinsic camera matrix K of the third-person camera and the transformed gaze point Gcam  
+
+> 3D
+
+, we project the gaze to the image plane: 
+
+Gcam  
+
+> 2D
+
+= Π(K, Gcam  
+
+> 3D
+
+)
+
+where Π denotes the standard perspective projection. This gives us the 2D gaze fixation point in pixel coordinates. 
+
+Heatmap Generation. Following prior work [5], we convert each gaze fixation point into a 2D Gaussian heatmap M pseudo ∈ RH×W . The heatmap is centered at Gcam  
+
+> 2D
+
+with an isotropic Gaussian kernel: 
+
+σ = Whm + Hhm 
+
+2 · 364 
+
+where Whm and Hhm are the dimensions of the heatmap. For a 64 × 64 heatmap, this yields σ = 3 pixels. We show examples of generated gaze heatmaps in Figure. 7. To handle occlusions or failed triangulation cases, we discard gaze points where the intersection error between eye rays exceeds a threshold. Additionally, all transformations and projections are timestamp-aligned to ensure synchro-nization between Aria and third-person views. 
+
+Action Label Creation Action Description Alignment. Each atomic de-scription is associated with the following key metadata: 
+
+– start_frame and end_frame : specifying the frame-level temporal bound-aries of the described action. SAGE 23 
+
+Table 6: Verb-object extraction and semantic object selection using spaCy and BERT. In the third column, we show the cosine similarity between the spaCy object and the object name mentioned in Exo-Cook raw annotation.            
+
+> Sentence Verb Object spaCy Object List Object Name
+> C places the spoon in the bowl in his right hand. places, spoon spoon (0.652), bowl (1.000), hand (0.437) Bowl C slices the garlic on the chopping board with his right hand. slices, garlic garlic (0.424), board (0.869), hand (0.341) Chopping board C adds the sliced garlic into the fry-ing pan with his right hand. adds, garlic garlic (0.461), pan (1.000), hand (0.378) Pan C adds oil into the frying pan with the oil bottle in his left hand. adds, oil oil (0.552), pan (0.449), bottle (1.000), hand (0.437) Bottle
+
+– source_view : indicating which third-person or egocentric camera the anno-tation corresponds to. 
+
+– text : raw textual description of the action. To align each action with global time stamp, we use the provided frame indices and convert them to time given the video frame rate. We first sample the video frames near the start_frame for action recognition. Then we define a time offset 
+
+τa = 1 s beyond the end_frame to define the target for action anticipation. 
+
+Action Simplification with spaCy. We use spaCy [11] to perform syntactic parsing and extract verb-object pairs from each sentence. For example, given the description “C slices the garlic on the chopping board with his right hand” ,spaCy identifies slices as the verb and garlic as the primary object. In more complex sentences containing multiple noun phrases (e.g., “C adds the sliced garlic into the frying pan with his right hand”), spaCy is used to list all candidate objects (e.g., garlic , pan , hand ). To identify the most semantically relevant object, we compute the cosine similarity between the BERT [10] embedding of each (verb,noun) pair and the embedding of the full sentence. The object with the highest similarity is selected as the primary target. For instance, in the garlic example, pan receives the highest score, thus being identified as the object most aligned with the described action context. In Table. 6, we show the Cosine Similarity between different sentences extracted from the annotation file of Ego-Exo 4D. 
+
+Action Clustering As described above, we repeat the action description align-ment and simplification process for all the samples we cropped from Exo-Cook. After applying spaCy for extracting essential semantic components for each clip, we employ the pre-trained BERT [10] model to transform these extracted com-ponents into high-dimensional text embeddings. Once text embeddings for all sequences are obtained, we apply K-means clustering to group similar embed-dings. To determine the optimal number of clusters, we use the Elbow Method by analyzing the inertia, defined as the sum of squared distances between each data point and the centroid of its assigned cluster. The inertia values across different choices of K are illustrated in Figure 9. Based on this analysis, we set the number of clusters to K = 10 and therefore, we have 10 categories of actions in Exo-Cook. In Figure 8, we present two representative examples from every 24 C. Kuang, N. Agarwal Category 2        
+
+> Category 1
+> Category 4
+> Category 9 Category 7 Category 8
+> Category 3
+> Category 5
+> Category 0
+> Category 6 “take strainer”
+> “cut onion”
+> “pick carrot packet”
+> “lift skillet ”
+> “place cutting board ”
+> “hold knife” “hold mesh strainer”
+> “place cloth”
+> “turn bowl” “stir saucepan” “stir bowl”
+> “slice tomato”
+> “open kettle” “open noodles”
+> “pass spatula ”“transfer bowl ”
+> “add oil” “pour salt bottle”
+> “wipe knife ”
+> “turn spatula”
+
+Fig. 8: We illustrate the semantic interpretations of the clusters in the Exo-Cook dataset through some representative samples across 10 action categories. The clusters are obtained using K-Means on the (verb, noun) embeddings. 
+
+category, accompanied by their respective (verb, noun) pairs, illustrating how each cluster category captures distinct semantic interpretations. To further evaluate the semantic consistency of the resulting categories, we embed each action label (verb–noun pair) using a pretrained Sentence-BERT model (all-mpnet-base-v2) and compute pairwise cosine similarities. The aver-age intra-category similarity (0.61) is substantially higher than the inter-category similarity (0.22), yielding a separation gap of 0.39 (2.77 ×) with statistical sig-nificance ( p < 10 −4, permutation test). 
+
+Bounding Box for Human and Object We follow the pipeline in [47] and use YOLOv5 [32] to detect full-body and head bounding boxes of the camera wearer in third-person views. 
+
+Bounding Box Detection. The first row of Figure 10 illustrates examples of head bounding box detections (highlighted in green) within Exo-Cook images, capturing every person appeared in the scene. Similarly, the second row presents object bounding box detections, marked in yellow, covering all relevant objects within the scene. 
+
+Bounding Box Matching As our primary interest is the activity of the "major participant" equipped with the Project Aria device, we implement bounding box matching based on the projected location of the device. Specifically, the head bounding box containing the 2D projection of the Project Aria’s center SAGE 25      
+
+> Fig. 9: The inertia plot from the Elbow Method applied to all text embeddings from cooking video clips indicates the selection of K= 10 clusters.
+> Fig. 10: Examples (three) of bounding box detection for human head and object in Exo-Cook images. The first row represents head bounding box (green color) detection for all subjects in the scene. The second row shows the head bounding box for the key participant and the objct bounding boxes (yellow color).
+
+is designated as the major participant. Consequently, as depicted in the second row of Figure 10, any unrelated head bounding boxes will be removed. 
+
+A.3 Baseline Model for Gaze Anticipation Exocentric View Due to lack of baseline methods on Gaze Anticipation task, we propose to adapt existing models as baseline. In Table 1 of the main paper, we evaluate gaze anticipation performance on the Exo-Cook dataset by adapting two baseline models: VideoAttn [5] and Sharingan [61]. These baseline models, initially designed for gaze detection tasks, were modified and retrained to predict gaze heatmaps at a future timestamp (1 second ahead) based solely on the last frame of a given sequence. The results show the advantage of employing the 26 C. Kuang, N. Agarwal 
+
+temporal modeling in our SAGE model. Specifically, our temporal-aware SAGE significantly outperforms the adapted baseline models across all gaze anticipation metrics. For instance, the SAGE model (with Sharingan as its gaze detection backbone) achieves an F1 score of 49.2, notably higher than adapted VideoAttn (42.2) and adapted Sharingan (40.1). Similarly, recall (62.8 vs. 54.6 and 52.7) and precision (50.0 vs. 42.5 and 40.4) metrics also show substantial improvements. 
+
+Egocentric View Similarly, we show comparison results in Table 4 of the main paper. CSTS [35] is the state-of-the art model for egocentric gaze anticipation. However, CSTS [35] is not trained/evaluated on EGTEA Gaze+ as they require audio data. We adapt their backbone model, denoted as “CSTS-Visual [35]" in Table. 4 to gaze anticipation task on EGTEA Gaze+. In addition to CSTS-Visual, we adapt another three existing models for gaze anticipation, denoted as GLC † [34], MViT † [12] and I3D-R50 † [14]. These models were retrained to predict gaze heatmaps at 0.5 seconds into the future. We re-train the four models by using the grounf-truth heatmaps at the 0.5 seconds later. However, their performance was substantially lower compared to SAGE. 
+
+A.4 Extensive Experimental Analysis Model Efficiency. Although efficiency is not our focus, SAGE achieves strong recognition and anticipation accuracy while maintaining high computational ef-ficiency, processing a 16-frame input sequence (on EGTEA Gaze+) in just 0.63 s on an NVIDIA RTX A6000. The full SAGE (egocentric) model contains 333.2M parameters, representing only a modest 3% increase compared to the combined next-best task-specific baselines (GLC, GC-TSM, GLC-adapted, and InAViT), despite jointly addressing all four tasks within a single architecture. In addition, SAGE exhibits comparable inference efficiency, with a slightly faster runtime (by 2%) than independently executing the four task-specific models. We also compare the computational complexity for one round of iterative inference of SAGE vs other SOTA methods in terms of GFLOPS (Giga Floating-Point Op-erations Per Second) in Table 7. As shown, the proposed model achieves higher accuracy while reducing computational complexity by 11.3% compared to the 
+
+combined next-best task-specific baselines. This demonstrates an improved ac-curacy–compute tradeoff, delivering better predictive performance at lower com-putational cost, enabling enhanced suitability for real-world deployment under compute and power constraints. 
+
+Sensitivity of SAGE to Gaze Model. In the main paper, we compare the performance of SAGE with state-of-the-art models across different task domains. In the exocentric view, the effectiveness of gaze is more apparent, as the gaze model can explicitly identify the visual target of the person within the scene. Intuitively, the gaze-based attention closely aligns with the object being inter-acted with, making it a strong prior for modeling human-object interactions. In Table 1 of the main paper, we show the sensitivity of SAGE performance to the SAGE 27                                       
+
+> Table 7: Comparison of computational cost (GFLOPs). SAGE achieves an 11.3% reduction in total GFLOPs compared to the combined cost of prior SOTA models. Model GFLOPS Individual Total GLC [34] 72.2 601.5 GC-TSM [24] 66.5 GLC [34] 70.8 InAViT [54] 392 SAGE (Ours) 533.4 533.4 ↓11 .3%
+> Table 8: Sensitivity of SAGE to gaze modules on the EGTEA Gaze+ dataset Model Gaze Model Gaze Detection Action Recogn. Gaze Anticipation Action Anticipation F1 Rec Prec Top-1 Acc F1 Rec Prec Mean-cls Acc SAGE I3D-R50 [14] 42.2 58.5 33.2 64.6 34.7 47.4 30.2 57.8 MViT [12] 44.5 58.8 35.5 64.6 38.8 54.2 32.5 58.0 GLC [34] 46.8 62.1 36.8 65.0 37.0 54.9 32.7 58.4
+
+accuracy of gaze model. We incorporate two different gaze backbone model, de-noted as SAGE (Gaze Detection Model: VideoAttn) and SAGE (Gaze Detection Model: Sharingan) in Table 1, into SAGE architecture. The results show that better gaze detection model in SAGE enhances performances for other three tasks. Similarly, to explore the sensitivity of SAGE to the quality of gaze estimation in egocentric videos, we compare three different gaze backbones in Table 8: I3D-R50 [14], MViT [12], and GLC [34]. We observe that improvements in gaze detection performance consistently lead to better action recognition and antic-ipation results. For instance, GLC achieves the best gaze detection F1 score (46.8), which corresponds to the highest top-1 accuracy in action recognition (65.0) and action anticipation (58.4). In contrast, models with weaker gaze de-tection performance, such as I3D-R50 (F1 = 42.2), yield the lowest accuracy in both action recognition and anticipation. These results suggest that precise gaze localization is crucial for enhancing action detection and anticipation in egocen-tric settings. Intuitively, gaze reflects the subject’s focus of interest and serves as an informative prior for modeling human-object interactions. The results in Table 8 prove that better gaze attention enhances the performance for each task. It validates the effectiveness of our GCSA module. 
+
+Sensitivity of SAGE to Anticipation Horizon. Following InAViT [54], we explore SAGE performance on longer time horizons. In Table 9, we train SAGE on different time horizons {0.5s, 1s, 1.5s, 2s}. Notably, SAGE consistently outperforms InAViT on all time horizons. As the anticipation horizon increases, there are greater uncertainty for future action prediction. The Top-1 accuracy of 28 C. Kuang, N. Agarwal 
+
+action anticipation in InAViT decreases from 67.8 to 64.1 when the anticipation time increases to 2.0s. As SAGE is anticipating future actions with multiple intermediate time stamps (i.e., [yt+1 , · · · , y t+M ]), SAGE maintains more stable performance over longer time spans.                                        
+
+> Table 9: Top-1 accuracy for SAGE at longer anticipation horizon on the EGTEA Gaze+ dataset. Method τa
+> 0.5 1.0 1.5 2.0 InAViT [54] 67.8 66.9 65.8 64.1 SAGE (Ours) 68.0 67.3 66.2 64.5 Table 10: HOI detection in Oracle mode on Vid-HOI dataset [3]. * includes word embedding module. Method τamAP Rec Prec Acc F1 STTran [6] -28.32 ----ST-Gaze* [47] -38.46 73.62 59.16 53.76 60.57 ST-Gaze Spatial* [47] -36.29 71.03 59.38 51.72 61.24 SAGE-12 (Ours) -38.08 72.11 59.90 52.12 62.03
+> SAGE (Ours) 138.65 72.44 59.22 52.22 61.96 338.18 72.21 59.95 52.18 62.02 538.13 72.01 59.92 52.18 61.88
+
+Extensive Results On Vid-HOI. In Table 10, we benchmark HOI detection performance on the Vid-HOI dataset using ST-Gaze [47] and STTran [6] as base-lines. Since Vid-HOI does not provide gaze labels, gaze evaluation is omitted. To specifically evaluate the impact of Gaze-Conditioned Attention in the spatial domain, we introduce a spatial-only variant of ST-Gaze by removing its tempo-ral layer (referred to as ST-Gaze Spatial). Additionally, we include SAGE-12 in the comparison. Notably, SAGE-12 achieves the highest F1 score (62.03), un-derscoring the importance of integrating gaze-based attention mechanisms into HOI recognition tasks. Furthermore, our full SAGE model attains the best mAP (38.65) and Recall (72.44) scores at the 1-second anticipation setting, and the highest Precision (59.95) at the 3-second setting. 
+
+SAGE Ablation Study In the main paper, we show ablation study of model combination on an egocentric dataset, i.e. EGTEA Gaze+ dataset. In this sec-SAGE 29 
+
+tion, we provide a more comprehensive analysis of different component of SAGE. We first introduce different combination of SAGE modules. In Section 4 of the main paper, we decompose the problem of joint estimation of current and future action as: 
+
+p(yt:t+M | I0: t) = 
+
+Z
+
+> G
+
+p(yt:t+M , g0: t+M | I0: t) dG 
+
+=
+
+Z
+
+> G
+
+p(yt:t+M | g0: t+M , I 0: t) p(g0: t+M | I0: t) dG 
+
+=
+
+Z
+
+> G
+
+p(yt | g0: t, I 0: t) p(yt+1: t+M | yt, gt+1: t+M , I 0: t)
+
+· p(g0: t | I0: t) p(gt+1: t+M | g0: t, I 0: t) dG 
+
+(27) 
+
+Causal Assumption. In Section 4 of the main paper, we adopt a simplifying causal assumption that future actions yt+1: t+M are conditionally independent of past gaze g0: t given the predicted future gaze gt+1: t+M . This leads to the approximation 
+
+p(yt+1: t+M | yt, g0: t+M , I 0: t) ≈ p(yt+1: t+M | yt, gt+1: t+M , I 0: t).
+
+The assumption is introduced to prevent an unnecessarily larger model archi-tecture, as it removes the need to explicitly propagate the full historical gaze sequence into the action anticipation module. Intuitively, once the current action representation and the predicted future gaze trajectory are available, historical gaze observations provide limited additional information for predicting future actions. To validate this assumption, we evaluate a variant that conditions future action prediction on the full gaze sequence g0: t+M . As shown in Table 11, the variant (denoted as SAGE ∗) performs slightly worse than the proposed SAGE model in both gaze anticipation and action anticipation, while introducing ad-ditional model complexity. Therefore, in our final implementation, the action anticipation module only conditions on future gaze encodings. 
+
+Table 11: Empirical validation of the conditional independence assumption between past gaze and future actions. Models Gaze Detection Action Recogn. Gaze Anticipation Action Anticipation F1 Rec Prec Acc F1 Rec Prec Acc SAGE ∗ (yt+1: t+M |g0: t+M , y t) 46.6 62.0 36.5 65.0 36.3 54.2 32.3 57.7 SAGE ( yt+1: t+M |gt+1: t+M , y t) 46.8 62.1 36.8 65.0 37.0 54.9 32.7 58.4 
+
+In the main paper, we analyze the distinct effects of the GCSA and GCTP modules by reporting the performance of SAGE-12 and SAGE-34. Beyond these settings, SAGE can also be configured in additional combinations to perform 30 C. Kuang, N. Agarwal 
+
+specific tasks with or without the GCSA and GCTP components. Here, we ex-tend the ablation study from the main paper by exploring two additional SAGE configurations. 
+
+– SAGE-123: The model recognizes current actions conditioned on current gaze and additionally predicts future gaze based on the observed gaze trajec-tory. However, as formulated in Eq. 27, the future gaze variables gt+1: t+M are redundant for the action recognition task, since we assume that given g0: t,the current action yt is conditionally independent of gt+1: t+M . We include this configuration to investigate the potential correlation between future gaze and future actions. 
+
+– SAGE-124: The model recognizes both current and future actions con-ditioned on current gaze, without involving gaze anticipation. The GCTP module is not activated. Given the formulation of Eq 27, we need to com-pute future actions conditioning on current action and current gaze features. We random initialize a list of learnable tokens to replace the future gaze en-coding in the GCTP module.                                   
+
+> Table 12: SAGE ablations of GCSA and GCTP on EGTEA Gaze+ dataset. Models Gaze Detection Action Recogn. Gaze Anticipation Action Anticipation F1 Rec Prec Acc F1 Rec Prec Acc SAGE-1 44.8 61.2 35.3 -----SAGE-2 ---63.1 ----SAGE-12 46.3 61.9 36.4 63.9 SAGE-123 46.2 61.5 36.2 64.1 36.5 54.3 32.1 -SAGE-124 45.8 61.7 36.3 64.4 ---56.3 SAGE 46.8 62.1 36.8 65.0 37.0 54.9 32.7 58.4
+
+Ablation Study on EGTEA Gaze+. In Table 12, we conduct ablations on an egocentric dataset, i.e. EGTEA Gaze+ dataset. 
+
+GCSA effectiveness. Incorporating the GCSA module significantly improves both gaze detection and action recognition in Table 12. Compared to SAGE-2, which performs action recognition without gaze conditioning, SAGE-12 achieves higher accuracy (63.9% vs. 63.1%) and better gaze detection (46.3 F1 vs. 44.8). This demonstrates that gaze attention provides discriminative spatial priors for action understanding and further stabilizes gaze localization. 
+
+GCTP effectiveness. In Table 12, we compare SAGE-124 with the full SAGE model (with GCTP). While SAGE consistently outperforms SAGE-124 across all tasks, the improvement is particularly notable for action anticipation. This shows that the GCTP module effectively captures predictive temporal depen-dencies between future gaze and future actions. In addition, we also study how SAGE 31 
+
+Table 13: Effectiveness of GCTP on EGTEA Gaze+ across different anticipation horizons τa.Models τa                                            
+
+> Gaze Detection Action Recogn. Action Anticipation F1 Rec Prec Acc Acc SAGE-124 0.5 45.8 61.7 36.3 64.4 56.3 1.0 45.6 61.5 36.2 64.1 55.7 1.5 45.9 61.8 36.5 64.1 54.6 2.0 45.6 61.2 36.3 63.6 53.2 SAGE 0.5 46.8 62.1 36.8 65.0 58.4 1.0 46.7 62.0 36.7 64.7 57.4 1.5 46.2 61.9 36.2 64.1 56.3 2.0 46.5 62.5 36.5 63.7 56.2
+
+Table 14: SAGE Ablations on EGTEA Gaze+ of how gaze anticipation performance affected by future actions across different anticipation horizons τa.Models τa                                                              
+
+> Gaze Detection Action Recogn. Gaze Anticipation F1 Rec Prec Acc F1 Rec Prec SAGE-123 0.5 46.2 61.5 36.2 64.1 36.5 54.3 32.1 1.0 46.1 61.4 36.2 63.8 35.7 53.7 31.5 1.5 45.6 61.5 36.2 63.2 35.1 52.8 31.0 2.0 45.6 61.5 36.2 62.6 34.4 51.9 30.2 SAGE 0.5 46.8 62.1 36.8 65.0 37.0 54.9 32.7 1.0 46.7 62.0 36.7 64.7 36.1 54.0 32.0 1.5 46.2 61.9 36.2 64.1 35.5 53.6 31.8 2.0 46.5 62.5 36.5 63.7 34.9 52.2 30.6
+
+future gaze contributes to action anticipation on longer time horizons. We com-pare the results of SAGE-124 with the full SAGE model on additional τa (1.0s, 1.5s and 2.0s) as shown in Table 13. As τa increases, action anticipation accu-racy decreases notably for both SAGE-124 and SAGE, reflecting the growing uncertainty of long-term prediction. Nevertheless, using future gaze for action anticipation in SAGE consistently achieves better performances than SAGE-124 across all horizons, validating the contribution of GCTP module. We also analyze how gaze anticipation performance is affected by the pres-ence of the action anticipation task across different anticipation horizons τa in Table 14. In SAGE-123, no action anticipation is performed, and the gaze an-ticipation module learns independently of future action supervision. In contrast, SAGE jointly optimizes both gaze and action anticipation, where the action anticipation module is conditioned on the future gaze encoding, allowing the action loss to propagate gradients back through the gaze anticipation pathway. This joint optimization through SAGE provides an additional supervisory signal that slightly improves gaze anticipation quality over SAGE-123 (e.g., F1 of 37.0 32 C. Kuang, N. Agarwal 
+
+vs. 36.5 at τa = 0 .5s). Additionally, as τa increases, the uncertainty in long-term temporal prediction of future gaze grows, leading to degraded gaze anticipation performance for both SAGE and SAGE-123.                                    
+
+> Table 15: SAGE ablations of GCSA and GCTP on Exo-Cook Dataset. Models Gaze Detection HOI Detn. Gaze Anticipation HOI Anticipation F1 Rec Prec Acc F1 Rec Prec Acc SAGE-1 56.6 72.8 55.3 -----SAGE-2 ---58.9 ----SAGE-12 57.5 73.6 56.0 59.9 SAGE-123 57.5 73.2 55.4 60.2 48.8 62.4 49.8 -SAGE-124 57.5 73.2 55.6 59.9 ---52.5 SAGE 57.7 73.4 55.5 60.2 49.2 62.8 50.0 54.8
+
+Ablation Study on Exo-Cook In Table 15, we conduct similar ablations on an exocentric dataset, i.e. Exo-Cook dataset. We use Sharingan [61] as the gaze model (SAGE-1). 
+
+GCSA effectiveness. SAGE-1 and SAGE-2 perform gaze detection and HOI detection (oracle mode) independently and we observe that combining them into the joint model SAGE-12 through GCSA leads to consistent improvements in both the tasks, which effectively integrates gaze into spatial attention, allowing the model to better capture human-object interactions. 
+
+GCTP effectiveness. We observe that SAGE outperforms SAGE-124 in action anticipation, indicating that the GCTP module effectively captures predictive temporal dependencies between future gaze and future actions. We also find that SAGE achieves slightly better gaze anticipation results than SAGE-123, owing to the joint optimization of both future gaze and future action—consistent with the trend observed on the EGTEA Gaze+ dataset (Table 14). It should be noted that since the optimal SAGE model is selected based on best HOI detection performance, the checkpoint yielding the best gaze detection result may differ. As shown in Table 5, the F1 and Recall of SAGE are slightly lower than those of SAGE-12, which also suggests that gaze tends to be noisier and less directly linked to actions in exocentric videos. Overall, the progressive improvements from SAGE-1/2 to SAGE-12 and finally to the full SAGE model demonstrates that both GCSA and GCTP are essential for fully leveraging the bidirectional relationship between gaze and HOIs in both current and future frames. 
+
+A.5 Qualitative Results of SAGE 
+
+Figure 11 provides qualitative comparisons of our proposed model SAGE with four competitive baselines—GC-TSM [24], GLC [34], GLC (anticipation), and SAGE 33 GT Action :
+
+<take cooking_ 
+
+utensil> 
+
+GT Action +0.5s :
+
+<put cooking_ 
+
+utensil> 
+
++0.5s 0s 
+
+0.5s 
+
+0s 
+
+Input 
+
+GT Action :
+
+<take cucumber> 
+
++0.5s 
+
+GT Action +0.5s :
+
+<cut cucumber> 
+
+Pred Action :
+
+<take cucumber> 
+
+Pred Action +0.5s :
+
+cut cucumber> 
+
+Pred Action :
+
+<take cooking_ 
+
+utensil > 
+
+Pred Action +0.5s :
+
+<put cooking_ 
+
+utensil > 
+
+0𝑠 
+
+GT Future Frame 
+
+𝜏 𝑎 = 0.5𝑠 
+
+Input  GT Future Frame 
+
+𝜏 𝑎 = 0.5𝑠 
+
+Gaze detection :
+
+<None> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action :
+
+<take cucumber> 
+
+Pred Action +0.5s :
+
+<None> 
+
+Gaze detection :
+
+<None> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action :
+
+<take cooking_ 
+
+utensil > 
+
+Pred Action +0.5s :
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
+0𝑠 
+
+Pred Action :
+
+<None> 
+
+Gaze detection: 
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
++0.5𝑠 
+
+SAGE 
+
+GLC 
+
+InAViT 
+
+GLC 
+
+(anticipation) 
+
+GC -TSM 
+
+Pred Action +0.5s :
+
+<cut cucumber> 
+
+Gaze detection: 
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Pred Action +0.5s :
+
+< put cooking 
+
+_utensil > 
+
+Gaze detection: 
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Gaze detection: 
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
++0.5𝑠 
+
+0𝑠 
+
+0𝑠 
+
++0.5𝑠  +0.5𝑠   
+
+> Gaze detection Gaze anticipation
+> Gaze detection
+> Gaze anticipation
+> Gaze detection Gaze anticipation
+> Gaze anticipation
+> Gaze detection
+
+0s 
+
+GT Action :
+
+<take bread> 
+
++0.5s 
+
+GT Action +0.5s :
+
+<take bread> 
+
+0𝑠 
+
+Pred Action :
+
+<take bread> 
+
+Pred Action +0.5s :
+
+<take bread> 
+
+Pred Action :
+
+<take bread> 
+
+Gaze detection: 
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
+0𝑠 
+
+Pred Action :
+
+<None> 
+
+Gaze detection: 
+
+<None> 
+
+Pred Action +0.5s :
+
+<None> 
+
++0.5𝑠 
+
++0.5𝑠 
+
+Pred Action +0.5s :
+
+<take bread> 
+
+Gaze detection: 
+
+<None> 
+
+Gaze anticipation: 
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Input  GT Future Frame 
+
+𝜏 𝑎 = 0.5𝑠 
+
+Fig. 11: Visualization of SAGE results on the EGTEA Gaze+ dataset, illustrating action and gaze estimation for both current and future frames. The leftmost column displays checkbox representation corresponding to each method, indicating the output settings available. Our method (SAGE) supports all four prediction settings: gaze de-tection, action recognition, gaze anticipation, and action anticipation. 
+
+InAViT [54]—on the EGTEA Gaze+ dataset. The evaluation covers four tasks: gaze detection, gaze anticipation, action recognition, and action anticipation, with an anticipation horizon of τa = 0 .5 seconds. Each column shows the last frame (at 0s) in the input sequence and its corresponding ground-truth future frame at +0 .5s. The left example illustrates a two-step activity transition from 
+
+taking a cucumber to cutting the cucumber . The middle example captures the ac-tion progression from taking a cooking utensil to putting it down , while the right 34 C. Kuang, N. Agarwal GT Action :
+
+<category “2”> 
+
+GT Action +1s :
+
+<category “2”> 
+
+GT Action :
+
+<category “2”> 
+
+GT Action +1s :
+
+<category “0”> 
+
+Input  GT Future Frame 
+
+𝜏 𝑎 = 1𝑠  Input  GT Future Frame 
+
+𝜏 𝑎 = 1𝑠 
+
+SAGE 
+
+ST -Gaze 
+
+(HOI detection) 
+
+ST -Gaze 
+
+(HOI anticipation) 
+
+Sharingan 
+
+(adapted for gaze 
+
+anticipation) 
+
+VideoAttn 
+
+Pred Action :
+
+<category “2”> 
+
+Pred Action +1s :
+
+< category “2”> 
+
+Gaze detection  Gaze anticipation 
+
+Pred Action :
+
+<category “2”> 
+
+Pred Action +1s :
+
+< category “0”> 
+
+Gaze detection  Gaze anticipation 
+
+Gaze detection 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Pred Action :
+
+<None 
+
+Gaze detection 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Pred Action :
+
+<None 
+
+Pred Action :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Gaze Detection :
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Gaze Detection :
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<category “1”> 
+
+Gaze Detection :
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<category “2”> 
+
+Gaze Detection :
+
+<None> 
+
+Pred Action :
+
+<category “2”> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Gaze Detection :
+
+<None> 
+
+Pred Action :
+
+<category “2”> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Gaze Detection :
+
+<None> 
+
+Input  GT Future Frame 
+
+𝜏 𝑎 = 1𝑠 
+
+0𝑠  +1𝑠 
+
+GT Action +1s :
+
+<category “3”> 
+
+GT Action +1s :
+
+<category “6”> 
+
+0𝑠  +1𝑠  0𝑠  +1𝑠 
+
+Gaze detection  Gaze anticipation 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Pred Action :
+
+<None 
+
+Gaze detection 
+
+0𝑠  0𝑠  0𝑠 
+
+Pred Action :
+
+<category “3”> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Gaze Detection :
+
+<None> 
+
+Gaze anticipation 
+
++1𝑠 
+
+Pred Action :
+
+<None> 
+
+Pred Action +1s :
+
+<None> 
+
+Gaze Detection :
+
+<None> 
+
+Pred Action :
+
+<None> 
+
+Gaze anticipation :
+
+<None> 
+
+Pred Action +1s :
+
+<category “0”> 
+
+Gaze Detection :
+
+<None> 
+
++1𝑠 +1𝑠 
+
+Pred Action :
+
+<category “3”> 
+
+Pred Action +1s :
+
+< category “6”> 
+
+Gaze anticipation  Gaze anticipation 
+
+Fig. 12: Visualization of SAGE results on Exo-Cook, including action and gaze results for current and future frames. The leftmost column displays checkbox representation corresponding to each method, indicating the output settings available. Our method (SAGE) supports all four prediction settings: gaze detection, action recognition, gaze anticipation, and action anticipation. 
+
+example depicts a temporally stable action— taking bread . SAGE can performs all four tasks. The gaze heatmap predicted from SAGE for current and future frame is well-aligned with the interaction object in the scene. In the meantime, SAGE can predict current and future actions. GC-TSM does not model gaze and only predicts the current action, failing to anticipate future actions. GLC pro-duces accurate gaze detection at 0s, while GLC (anticipation) provides plausible future gaze at +0 .5s; however, neither model completes all four tasks jointly. Notably, both variants fail in action anticipation. InAViT does not model gaze and can predict future actions. SAGE 35 Future action 
+
+Gaze trajectory sample 𝒈 (𝟏 )
+
+Gaze trajectory sample 𝒈 (𝟐 )
+
+Gaze trajectory sample 𝒈 (𝟑 )
+
+𝒚 𝒕  
+
+> 𝒈𝒕
+
+= [Put condiment_container ], 𝒚 𝒕 +𝟎 .𝟓𝒔  
+
+> 𝒈𝒕
+
+= [Take milk_container ]
+
+Current action                         
+
+> 𝒑 𝟏 𝒚 𝒕 =Put condiment_container =0.77, 𝐻 1= 0.82
+> 𝒑 𝟐 𝒚 𝒕 =Put condiment_container =0.78, 𝐻 2= 0.84
+> 𝒑 𝟑 𝒚 𝒕 =Put condiment_container =0.57,
+> 𝒑 𝟑 𝒚 𝒕 =Take peanut_butter_container_lid =0.33, 𝐻 3= 1.88
+> 𝒑 𝟏 (
+> )
+> 𝒚 𝒕 +𝟎 .𝟓𝒔 =
+
+Take 
+
+milk_container =0.88, 𝐻 1= 0.67   
+
+> 𝒑 𝟐 (
+> )
+> 𝒚 𝒕 +𝟎 .𝟓𝒔 =
+
+Take 
+
+milk_container =0.85, 𝐻 2= 0.71     
+
+> 𝒑 𝟑 (
+> )
+> 𝒚 𝒕 +𝟎 .𝟓𝒔 =Take
+> peanut_butter_container_lid =
+> 0.74, 𝐻 3= 0.91
+
+Gaze -conditioned 
+
++0.5S 
+
++0.5S 
+
++0.5S 
+
+(a) Gaze-conditional action uncertainty example from EGTEA Gaze+. Future action Current action Gaze -conditioned 
+
+Gaze trajectory sample 𝒈 (𝟏 )
+
+Gaze trajectory sample 𝒈 (𝟐 )
+
+Gaze trajectory sample 𝒈 (𝟑 )   
+
+> 𝒑 𝟏 𝒚 𝒕 =
+
+category “𝟐” =0.87, 𝐻 1= 0.51    
+
+> 𝒑 𝟐 𝒚 𝒕 =
+
+category “𝟏” =0.68, 𝐻 2= 1.57    
+
+> 𝒑 𝟑 𝒚 𝒕 =
+
+category “𝟐” =0.74, 𝐻 3= 1.06 
+
+𝒚 𝒕  
+
+> 𝒈𝒕
+
+= [category “𝟐” ] 𝒚 𝒕 +𝟏𝒔  
+
+> 𝒈𝒕
+
+= [category “𝟑” ]
+
+“pick spoon” “hold spoon”        
+
+> 𝒑 𝟏 𝒚 𝒕 +𝟏𝒔 =”𝟑” =0.86,
+> 𝐻 1= 0.42
+> 𝒑 𝟐 𝒚 𝒕 +𝟏𝒔 =
+
+”𝟏” =0.78,     
+
+> 𝐻 2= 1.12
+> 𝒑 𝟑 𝒚 𝒕 +𝟏𝒔 =“𝟑” =0.80,
+> 𝐻 3= 0.95
+
++1S 
+
++1S 
+
++1S 
+
+(b) Gaze-conditional action uncertainty example from Exo-Cook. 
+
+Fig. 13: Qualitative visualization of gaze-conditioned action sensitivity. For each clip, three sampled gaze trajectories are used to predict the current action yt and future action yt+M , with corresponding probabilities and entropy H. (a) On EGTEA Gaze+, action predictions vary noticeably with gaze, with certain gaze samples increasing un-certainty and causing confusion between similar actions. (b) On Exo-Cook, different gaze samples lead to distinct predictions; misleading intermediate fixations can result in incorrect current and future action predictions. 
+
+In Figure 12, we compare SAGE with four state-of-the-art models in different task domain—VideoAttn [5], ST-Gaze [47], and Sharingan [61]—using identical input video sequences. Notably, ST-Gaze provides two separate pipelines for HOI detection and HOI anticipation. While these baseline models are typically de-signed for individual tasks such as gaze detection or HOI classification, SAGE is 36 C. Kuang, N. Agarwal 
+
+the only model can jointly performing all four tasks. The figure showcases three representative examples from the Exo-Cook dataset, displaying the last frame at the current time ( 0s) and a future frame at the anticipation horizon τa = 1 s. The leftmost example illustrates a stable action sequence, while the middle and right examples involve action transitions. Since actions are labeled with categorical in-dices, we compare category predictions across models. As discussed in the main paper, no existing model is specifically designed for exocentric gaze anticipation; hence, we adapt Sharingan [61] for this task. Sharingan is the SOTA model for exocentric gaze target detection in images. However, the adapted Sharingan fails to accurately predict future gaze heatmaps across all three examples. Meanwhile, ST-Gaze can perform either HOI detection or anticipation, but not both simulta-neously, and it fails to predict the correct HOI category in the rightmost example. These results highlight the advantage of SAGE in jointly modeling spatial and temporal dynamics for comprehensive human activity understanding. 
+
+Action Uncertainty from Gaze We visualize how variations in gaze affect both current action recognition and future action anticipation. For each input clip, we draw K = 3 gaze samples from the predicted gaze distribution and feed them into the current-action and future-action modules. We then compare the resulting action probabilities p(yt | gk
+
+> 0: t
+
+, I 0: t) and p(yt+M | yt, g kt+1: t+M , I 0: t)
+
+across samples. Figure 13 illustrates how variations in gaze influence both current action recognition and future action anticipation. For each clip, we sample multiple gaze trajectories from the predicted gaze distribution and evaluate the corresponding action probabilities. In Fig. 13 (a), the predicted actions are sensitive to gaze variations. Different gaze samples produce different probability distributions and entropy values. In particular, when the sampled gaze trajectory falls on the peanut butter con-tainer (in sample g(3) ), the model becomes uncertain and may confuse between 
+
+Take-peanut-butter-container-lid and Take-milk-container for the future action. This example shows that gaze provides an important cue for disambiguating object-level interactions. Figure 13 (b) demonstrates action-gaze dependency in the exocentric setting. When the sampled gaze trajectory temporarily shifts to the recipe sheet (sample g(2) ), the model predicts an incorrect action category for both the current and future actions. This indicates that misleading gaze observations can propagate through the interaction reasoning process and af-fect action inference. The examples demonstrate that SAGE captures how gaze variations influence action predictions and provides an interpretable estimate of gaze-conditioned uncertainty for both action recognition and anticipation. 
+
+References 
+
+> 1. Bao, J., Liu, B., Yu, J.: Escnet: Gaze target detection with the understanding of 3d scenes. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 14126–14135 (2022)
+
+SAGE 37 2. Chen, W., Xiong, C., Xu, R., Corso, J.J.: Actionness ranking with lattice condi-tional ordinal random fields. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 748–755 (2014) 3. Chiou, M.J., Liao, C.Y., Wang, L.W., Zimmermann, R., Feng, J.: St-hoi: A spatial-temporal baseline for human-object interaction detection in videos. In: Proceedings of the 2021 ACM Workshop on Intelligent Cross-Data Analysis and Retrieval. pp. 9–17 (2021) 4. Chong, E., Ruiz, N., Wang, Y., Zhang, Y., Rozga, A., Rehg, J.M.: Connecting gaze, scene, and attention: Generalized attention estimation via joint modeling of gaze and scene saliency. In: European Conference on Computer Vision. pp. 383–398 (2018) 5. Chong, E., Wang, Y., Ruiz, N., Rehg, J.M.: Detecting attended visual targets in video. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 5396–5406 (2020) 6. Cong, Y., Liao, W., Ackermann, H., Rosenhahn, B., Yang, M.Y.: Spatial-temporal transformer for dynamic scene graph generation. In: IEEE/CVF International Con-ference on Computer Vision. pp. 16372–16382 (2021) 7. Damen, D., Doughty, H., Farinella, G.M., Fidler, S., Furnari, A., Kazakos, E., Moltisanti, D., Munro, J., Perrett, T., Price, W., et al.: Scaling egocentric vision: The epic-kitchens dataset. In: European Conference on Computer Vision. pp. 720– 736 (2018) 8. Damen, D., et al.: Rescaling egocentric vision: collection, pipeline and challenges for epic-kitchens-100. International Journal of Computer Vision 130 , 33–55 (2022) 9. Dessalene, E., et al.: Cherbligs in action: Video understanding through motion primitives. In: IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion. pp. 10618–10626 (2023) 10. Devlin, J., Chang, M.W., Lee, K., Toutanova, K.: Bert: Pre-training of deep bidi-rectional transformers for language understanding. In: Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: human language technologies, volume 1 (long and short papers). pp. 4171–4186 (2019) 11. Explosion: spacy: Industrial-strength natural language processing in python. 
+
+https://github.com/explosion/spaCy (2024), accessed: 2025-08-02 12. Fan, H., Xiong, B., Mangalam, K., Li, Y., Yan, Z., Malik, J., Feichtenhofer, C.: Multiscale vision transformers. In: IEEE/CVF International Conference on Com-puter Vision. pp. 6824–6835 (2021) 13. Fan, Y., Lin, Z., Saito, J., Wang, W., Komura, T.: Faceformer: Speech-driven 3d facial animation with transformers. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 18770–18780 (2022) 14. Feichtenhofer, C., Fan, H., Malik, J., He, K.: Slowfast networks for video recogni-tion. In: IEEE/CVF International Conference on Computer Vision. pp. 6202–6211 (2019) 15. Fu, C.Y., et al.: Memvit: Memory-augmented multiscale vision transformer for efficient long-term video scene graph generation. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 20133–20142 (2022) 16. Furnari, A., et al.: Rulstm: An efficient architecture for video understanding. In: IEEE/CVF International Conference on Computer Vision. pp. 7623–7632 (2019) 17. Ghoddoosian, R., Agarwal, N., Dwivedi, I., Dariush, B.: Ace: Action concept en-hancement of video-language models in procedural videos. In: IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 9503–9513 (2025) 38 C. Kuang, N. Agarwal 18. Girase, H., Agarwal, N., Choi, C., Mangalam, K.: Latency matters: Real-time action forecasting transformer. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 18759–18769 (2023) 19. Girdhar, R., Grauman, K.: Anticipative video transformer. In: IEEE/CVF Inter-national Conference on Computer Vision. pp. 13505–13515 (2021) 20. Grauman, K., Westbury, A., Torresani, L., Kitani, K., Malik, J., Afouras, T., Ashutosh, K., Baiyya, V., Bansal, S., Boote, B., et al.: Ego-exo4d: Understand-ing skilled human activity from first-and third-person perspectives. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 19383–19400 (2024) 21. Grauman, K., et al.: Ego4d: Around the world in 3,000 hours. IEEE Transactions on Pattern Analysis and Machine Intelligence (2022) 22. Guo, H., Agarwal, N., Lo, S.Y., Lee, K., Ji, Q.: Uncertainty-aware action decoupling transformer for action anticipation. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 18644–18654 (2024) 23. Gupta, A., Tafasca, S., Odobez, J.M.: A modular multimodal architecture for gaze target prediction: Application to privacy-sensitive settings. In: IEEE/CVF Con-ference on Computer Vision and Pattern Recognition. pp. 5041–5050 (2022) 24. Hao, Y., Zhang, H., Ngo, C.W., He, X.: Group contextualization for video recog-nition. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 928–938 (2022) 25. Herzig, R., Ben-Avraham, E., Mangalam, K., Bar, A., Chechik, G., Rohrbach, A., Darrell, T., Globerson, A.: Object-region video transformers. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 3148–3159 (2022) 26. Horanyi, N., Zheng, L., Chong, E., Leonardis, A., Chang, H.J.: Where are they looking in the 3d space? In: IEEE/CVF Conference on Computer Vision and Pat-tern Recognition. pp. 2677–2686 (2023) 27. Hu, Z., Yang, Y., Zhai, X., Yang, D., Zhou, B., Liu, J.: Gfie: A dataset and baseline for gaze-following from 2d to 3d in indoor environments. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 8907–8916 (June 2023) 28. Huang, Y., Cai, M., Li, Z., Lu, F., Sato, Y.: Mutual context network for jointly estimating egocentric gaze and action. IEEE Transactions on Image Processing 29 ,7795–7806 (2020) 29. Huang, Y., Cai, M., Li, Z., Sato, Y.: Predicting gaze in egocentric video by learning task-dependent attention transition. In: European Conference on Computer Vision. pp. 754–769 (2018) 30. Jain, A., Zamir, A.R., Savarese, S., Saxena, A.: Structural-rnn: Deep learning on spatio-temporal graphs. In: IEEE/CVF Conference on Computer Vision and Pat-tern Recognition. pp. 5308–5317 (2016) 31. Ji, J., Desai, R., Niebles, J.C.: Detecting human-object relationships in videos. In: IEEE/CVF International Conference on Computer Vision. pp. 8106–8116 (2021) 32. Jocher, G., Chaurasia, A., Stoken, A., Borovec, J., NanoCode012, Kwon, Y., TaoXie, Fang, J., imyhxy, Michael, K., Lorna, V., Montes, D., Nadar, J., Laugh-ing, tkianai, yxNONG, Skalski, P., Wang, Z., Hogan, A., Fati, C., Mammana, L., AlexWang1900, Patel, D., Yiwei, D., You, F., Hajek, J., Diaconu, L., Minh, M.: Yolov5. https://github.com/ultralytics/yolov5/ (2022) 33. Kuehne, H., Arslan, A., Serre, T.: The language of actions: Recovering the syntax and semantics of goal-directed human activities. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 780–787 (2014) 34. Lai, B., Liu, M., Ryan, F., Rehg, J.M.: In the eye of transformer: Global–local correlation for egocentric gaze estimation and beyond. International Journal of Computer Vision 132 (3), 854–871 (2024) SAGE 39 35. Lai, B., Ryan, F., Jia, W., Liu, M., Rehg, J.M.: Listen to look into the future: Audio-visual egocentric gaze anticipation. In: European Conference on Computer Vision. pp. 192–210. Springer (2024) 36. Lea, C., Vidal, R., Hager, G.D.: Learning convolutional action primitives for fine-grained action recognition. In: IEEE International Conference on Robotics and Automation. pp. 1642–1649. IEEE (2016) 37. Li, Y., Liu, M., Rehg, J.M.: In the eye of beholder: Joint learning of gaze and actions in first person video. In: European Conference on Computer Vision. pp. 619–635 (2018) 38. Li, Y., Liu, M., Rehg, J.M.: In the eye of the beholder: Gaze and actions in first person video. IEEE Transactions on Pattern Analysis and Machine Intelligence 
+
+45 (6), 6731–6747 (2021) 39. Li, Y., Ye, Z., Rehg, J.M.: Delving into egocentric actions. In: IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition. pp. 287–295 (2015) 40. Liu, M., Tang, S., Li, Y., Rehg, J.M.: Forecasting human-object interaction: joint prediction of motor attention and actions in first person video. In: European Con-ference on Computer Vision. pp. 704–721. Springer (2020) 41. Ma, M., Fan, H., Kitani, K.M.: Going deeper into first-person activity recogni-tion. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1894–1903 (2016) 42. Mascaro, E.V., Sliwowski, D., Lee, D.: Hoi4abot: Human-object interaction antici-pation for human intention reading collaborative robots. In: Conference on Robot Learning (2023) 43. Materzynska, J., Xiao, T., Herzig, R., Xu, H., Wang, X., Darrell, T.: Something-else: Compositional action recognition with spatial-temporal interaction networks. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1049–1059 (2020) 44. Mathe, S., Sminchisescu, C.: Dynamic eye movement datasets and saliency models for visual action recognition. In: European Conference on Computer Vision. pp. 842–856 (2012) 45. Min, K., Corso, J.J.: Integrating human gaze into attention for egocentric activ-ity recognition. In: IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 1069–1078 (2021) 46. Mittal, H., Agarwal, N., Lo, S.Y., Lee, K.: Can’t make an omelette without break-ing some eggs: Plausible action anticipation using large video-language models. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 18580– 18590 (2024) 47. Ni, Z., Mascaró, E.V., Ahn, H., Lee, D.: Human–object interaction prediction in videos through gaze following. Computer Vision and Image Understanding 233 ,103741 (2023) 48. Ou, Y., Mi, L., Chen, Z.: Object-relation reasoning graph for action recognition. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 20133– 20142 (2022) 49. Patrick, M., Campbell, D., Asano, Y., Misra, I., Metze, F., Feichtenhofer, C., Vedaldi, A., Henriques, J.F.: Keeping your eye on the ball: Trajectory attention in video transformers. In: Advances in Neural Information Processing Systems. vol. 34, pp. 12493–12506 (2021) 50. Pei, B., Huang, Y., Xu, J., Chen, G., He, Y., Yang, L., Wang, Y., Xie, W., Qiao, Y., Wu, F., et al.: Modeling fine-grained hand-object dynamics for egocentric video representation learning. In: International Conference on Learning Representations (2025) 40 C. Kuang, N. Agarwal 51. Recasens, A., Khosla, A., Vondrick, C., Torralba, A.: Where are they looking? In: Advances in Neural Information Processing Systems. vol. 28 (2015) 52. Recasens, A., Vondrick, C., Khosla, A., Torralba, A.: Following gaze in video. In: IEEE/CVF International Conference on Computer Vision. pp. 1435–1443 (2017) 53. Roy, D., Fernando, B.: Predicting the next action by modeling the abstract goal. In: International Conference on Pattern Recognition (2024) 54. Roy, D., Rajendiran, R., Fernando, B.: Interaction region visual transformer for egocentric action anticipation. In: IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 6740–6750 (2024) 55. Ryan, F., Bati, A., Lee, S., Bolya, D., Hoffman, J., Rehg, J.M.: Gaze-lle: Gaze target estimation via large-scale learned encoders. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition (2025) 56. Shapovalova, N., Raptis, M., Sigal, L., Mori, G.: Action is in the eye of the beholder: Eye-gaze driven model for spatio-temporal action localization. In: Advances in Neural Information Processing Systems. pp. 2407–2415 (2013) 57. Sharma, S., Kiros, R., Salakhutdinov, R.: Action recognition using visual attention. In: International Conference on Learning Representations Workshops (2016) 58. Singh, S., Arora, C., Jawahar, C.: First person action recognition using deep learned descriptors. In: IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion. pp. 2620–2628 (2016) 59. Sudhakaran, S., Lanz, O.: Attention is all we need: Nailing down object-centric attention for egocentric activity recognition. In: British Machine Vision Conference (2018) 60. Tafasca, S., Gupta, A., Odobez, J.M.: Childplay: A new benchmark for under-standing children’s gaze behaviour. In: IEEE/CVF International Conference on Computer Vision. pp. 20935–20946 (2023) 61. Tafasca, S., Gupta, A., Odobez, J.M.: Sharingan: A transformer architecture for multi-person gaze following. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 2008–2017 (2024) 62. Teed, Z., Deng, J.: Raft: Recurrent all-pairs field transforms for optical flow. In: European Conference on Computer Vision. pp. 402–419 (2020) 63. Teng, Y., Wang, L., Li, Z., Wu, G.: Target adaptive context aggregation for video scene graph generation. In: IEEE/CVF International Conference on Computer Vision. pp. 13688–13697 (2021) 64. Tu, D., Sun, W., Min, X., Zhai, G., Shen, W.: Video-based human-object interac-tion detection from tubelet tokens. In: Advances in Neural Information Processing Systems. vol. 35, pp. 23345–23357 (2022) 65. Wang, L., Qiao, Y., Tang, X., Van Gool, L.: Actionness estimation using hybrid fully convolutional networks. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 2708–2717 (2016) 66. Wang, S., Zhao, Q., Do, M.Q., Agarwal, N., Lee, K., Sun, C.: Vamos: Versatile action models for video understanding. In: European Conference on Computer Vision. pp. 142–160 (2024) 67. Wang, X., Wu, Y., Zhu, L., Yang, Y.: Symbiotic attention with privileged infor-mation for egocentric action recognition. In: AAAI Conference on Artificial Intel-ligence. vol. 34, pp. 12249–12256 (2020) 68. Wang, X., Gupta, A.: Videos as space-time region graphs. In: European Conference on Computer Vision. pp. 399–417 (2018) 69. Wojke, N., Bewley, A., Paulus, D.: Simple online and realtime tracking with a deep association metric. In: IEEE International Conference on Image Processing. pp. 3645–3649. IEEE (2017) SAGE 41 70. Wu, C., et al.: Long-term anticipation of actions in video. In: IEEE/CVF Interna-tional Conference on Computer Vision. pp. 1234–1243 (2021) 71. Wu, T.Y., Min, K., Tripathi, S., Vasconcelos, N.: Ego-vpa: Egocentric video under-standing with parameter-efficient adaptation. In: IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 9258–9268. IEEE (2025) 72. Zhang, C., Fu, C., Wang, S., Agarwal, N., Lee, K., Choi, C., Sun, C.: Object-centric video representation for long-term action anticipation. In: IEEE/CVF Winter Con-ference on Applications of Computer Vision. pp. 6751–6761 (2024) 73. Zhang, M., Teck Ma, K., Hwee Lim, J., Zhao, Q., Feng, J.: Deep future gaze: Gaze anticipation on egocentric videos using adversarial networks. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 4372–4381 (2017) 74. Zhao, Q., Wang, S., Zhang, C., Fu, C., Do, M.Q., Agarwal, N., Lee, K., Sun, C.: Antgpt: Can large language models help long-term action anticipation from videos? In: International Conference on Learning Representations. vol. 2024, pp. 56677–56697 (2024) 75. Zhao, Y., Misra, I., Krähenbühl, P., Girdhar, R.: Learning video representations from large language models. In: IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 6586–6597 (2023) 76. Zhong, Z., Schneider, D., Voit, M., Stiefelhagen, R., Beyerer, J.: Anticipative fea-ture fusion transformer for multi-modal action anticipation. In: IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 6068–6077 (2023)

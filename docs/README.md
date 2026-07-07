@@ -6,26 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-06
-- 运行时间：2026-07-06 21:13:36 UTC
+- 最新运行日期：2026-07-07
+- 运行时间：2026-07-07 21:52:08 UTC
 - 运行状态：成功
-- 本次总论文数：2
-- 精读区：1
+- 本次总论文数：3
+- 精读区：2
 - 速读区：1
 
 ### 今日简报（AI）
-今日精读1篇高分论文（8分），聚焦通过句法元素眼动转换识别程序理解策略；速读1篇探讨听力难度与眼动努力的关系。最值得关注：精读论文揭示注视句法元素的转换模式能有效评估程序理解效果。建议普通读者可进一步关注眼动追踪在认知任务评估中的应用实践。
-- 详情：[/202607/06/README](/202607/06/README)
+今日聚焦人类行为理解与意图推断，精读两篇高分论文。最值得关注的是满分论文《SAGE》中同步行为-注视识别与预测的新方法，以及9分《PAGE》中实用化注视目标估计技术。建议普通读者关注注视与交互意图结合的落地应用方向。
+- 详情：[/202607/07/README](/202607/07/README)
 
 ### 精读区论文标签
-1. [Identifying Effective Program Comprehension Strategies through Gaze Transitions over Syntactic Elements](/202607/06/2607.01042v1-identifying-effective-program-comprehension-strategies-through-gaze-transitions-over-syntactic-elements)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：眼动追踪用于程序理解意图识别
+1. [SAGE: Synchronized Action-Gaze Recognition and Anticipation for Human Behavior Understanding](/202607/07/2607.04017v1-sage-synchronized-action-gaze-recognition-and-anticipation-for-human-behavior-understanding)  
+   标签：评分：10.0/10、query:gaze-intent
+   evidence：同步动作-注视识别与预测
+2. [PAGE: Towards Practical Human-level Gaze Target Estimation](/202607/07/2607.04860v1-page-towards-practical-human-level-gaze-target-estimation)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：注视目标估计模型，用于理解人类注意和意图
 
 ### 速读区论文标签
-1. [The Listening Effort Profile of Eye Movements: Easy, Difficult, and Impossible Speech Comprehension](/202607/06/biorxiv-10-64898-2026-06-30-735702-v1-the-listening-effort-profile-of-eye-movements-easy-difficult-and-impossible-speech-comprehension)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：眼动作为语音理解中听力努力的测量
+1. [From Interaction to Intent: Inferring User Objectives from Provenance Logs](/202607/07/2607.04501v1-from-interaction-to-intent-inferring-user-objectives-from-provenance-logs)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：从交互日志推断用户意图，支持主动交互系统
 
 
 <div class="dpr-home-promo-card">
