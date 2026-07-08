@@ -6,29 +6,33 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-07
-- 运行时间：2026-07-07 21:52:08 UTC
+- 最新运行日期：2026-07-08
+- 运行时间：2026-07-08 21:49:32 UTC
 - 运行状态：成功
 - 本次总论文数：3
-- 精读区：2
-- 速读区：1
+- 精读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今日聚焦人类行为理解与意图推断，精读两篇高分论文。最值得关注的是满分论文《SAGE》中同步行为-注视识别与预测的新方法，以及9分《PAGE》中实用化注视目标估计技术。建议普通读者关注注视与交互意图结合的落地应用方向。
-- 详情：[/202607/07/README](/202607/07/README)
+今日聚焦单相机单光源下的双眼视线估计新方案，并探讨注视控制中心理与语义因素的贡献，以及人类在物体旋转中的最优眼动策略。
+
+精读论文（8.0分）提出仅用单相机单光源即可实现双眼视线估计，大幅简化设备需求；速读论文分别揭示注视由显著性与语义共同驱动，以及人类在心理旋转中会主动选择最佳眼动路径。
+
+若对视线追踪技术感兴趣，建议优先精读第一篇；另两篇则适合希望理解眼动与认知决策关系的读者。
+- 详情：[/202607/08/README](/202607/08/README)
 
 ### 精读区论文标签
-1. [SAGE: Synchronized Action-Gaze Recognition and Anticipation for Human Behavior Understanding](/202607/07/2607.04017v1-sage-synchronized-action-gaze-recognition-and-anticipation-for-human-behavior-understanding)  
-   标签：评分：10.0/10、query:gaze-intent
-   evidence：同步动作-注视识别与预测
-2. [PAGE: Towards Practical Human-level Gaze Target Estimation](/202607/07/2607.04860v1-page-towards-practical-human-level-gaze-target-estimation)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：注视目标估计模型，用于理解人类注意和意图
+1. [Binocular Gaze Estimation with Single Camera and Single Light Source](/202607/08/2607.05473v1-binocular-gaze-estimation-with-single-camera-and-single-light-source)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：提出一种使用最少硬件的注视估计方法，直接适用于基于注视的人机交互
 
 ### 速读区论文标签
-1. [From Interaction to Intent: Inferring User Objectives from Provenance Logs](/202607/07/2607.04501v1-from-interaction-to-intent-inferring-user-objectives-from-provenance-logs)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：从交互日志推断用户意图，支持主动交互系统
+1. [Judging the reasons for fixations: A direct experimental method to assess the contribution of saliency and semantic factors to gaze control](/202607/08/biorxiv-10-64898-2026-07-01-735892-v1-judging-the-reasons-for-fixations-a-direct-experimental-method-to-assess-the-contribution-of-saliency-and-semantic-factors-to-gaze-control)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：评估注视控制中显著性vs语义因素，对计算眼动模型有用
+2. [Humans use optimal eye movements to facilitate mental rotation of objects](/202607/08/biorxiv-10-64898-2026-07-02-736101-v1-humans-use-optimal-eye-movements-to-facilitate-mental-rotation-of-objects)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：研究心理旋转过程中的最优眼动以理解认知目标
 
 
 <div class="dpr-home-promo-card">
