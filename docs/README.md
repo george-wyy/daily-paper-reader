@@ -6,33 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-08
-- 运行时间：2026-07-08 21:49:32 UTC
+- 最新运行日期：2026-07-09
+- 运行时间：2026-07-09 21:28:05 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
-- 速读区：2
+- 本次总论文数：4
+- 精读区：3
+- 速读区：1
 
 ### 今日简报（AI）
-今日聚焦单相机单光源下的双眼视线估计新方案，并探讨注视控制中心理与语义因素的贡献，以及人类在物体旋转中的最优眼动策略。
-
-精读论文（8.0分）提出仅用单相机单光源即可实现双眼视线估计，大幅简化设备需求；速读论文分别揭示注视由显著性与语义共同驱动，以及人类在心理旋转中会主动选择最佳眼动路径。
-
-若对视线追踪技术感兴趣，建议优先精读第一篇；另两篇则适合希望理解眼动与认知决策关系的读者。
-- 详情：[/202607/08/README](/202607/08/README)
+1) 今日精读两篇核心论文：探讨多人多视角协作理解与低视力人群AR交互，速读一篇自然注视行为研究。  
+2) 最值得关注：多视角协作理解（CoMind）展现感知融合新思路；低视力AR中“头部注视”优于眼动与手指，为无障碍交互提供关键参考。  
+3) 建议优先精读《CoMind》与“Head, Gaze, or Finger”两篇，并关注自然注视行为中眨眼与头部运动的耦合机制，以拓展交互设计视角。
+- 详情：[/202607/09/README](/202607/09/README)
 
 ### 精读区论文标签
-1. [Binocular Gaze Estimation with Single Camera and Single Light Source](/202607/08/2607.05473v1-binocular-gaze-estimation-with-single-camera-and-single-light-source)  
+1. [CoMind: Understanding Collaborative Human Activity from Multiple Minds and Views](/202607/09/2607.06691v1-comind-understanding-collaborative-human-activity-from-multiple-minds-and-views)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：提出一种使用最少硬件的注视估计方法，直接适用于基于注视的人机交互
+   evidence：包含眼动追踪的多模态协作意图理解数据集
+2. [Head, Gaze, or Finger? Comparing Object Selection Techniques in Augmented Reality for People with Low Vision](/202607/09/2607.06778v1-head-gaze-or-finger-comparing-object-selection-techniques-in-augmented-reality-for-people-with-low-vision)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：比较注视作为增强现实中物体选择的输入方式
+3. [Spontaneous eye blinks as temporal markers of internal attention](/202607/09/biorxiv-10-64898-2026-07-06-736774-v1-spontaneous-eye-blinks-as-temporal-markers-of-internal-attention)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：利用自发性眨眼时间推断内部注意焦点
 
 ### 速读区论文标签
-1. [Judging the reasons for fixations: A direct experimental method to assess the contribution of saliency and semantic factors to gaze control](/202607/08/biorxiv-10-64898-2026-07-01-735892-v1-judging-the-reasons-for-fixations-a-direct-experimental-method-to-assess-the-contribution-of-saliency-and-semantic-factors-to-gaze-control)  
+1. [Blinks are strategically coupled with head movements in unconstrained natural gaze behavior](/202607/09/biorxiv-10-64898-2026-06-29-731833-v1-blinks-are-strategically-coupled-with-head-movements-in-unconstrained-natural-gaze-behavior)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：评估注视控制中显著性vs语义因素，对计算眼动模型有用
-2. [Humans use optimal eye movements to facilitate mental rotation of objects](/202607/08/biorxiv-10-64898-2026-07-02-736101-v1-humans-use-optimal-eye-movements-to-facilitate-mental-rotation-of-objects)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：研究心理旋转过程中的最优眼动以理解认知目标
+   evidence：研究自然注视行为中眨眼与头部运动的耦合，为基于注视的交互设计提供启示
 
 
 <div class="dpr-home-promo-card">
