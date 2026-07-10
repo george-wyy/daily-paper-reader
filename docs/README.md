@@ -6,34 +6,38 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-09
-- 运行时间：2026-07-09 21:28:05 UTC
+- 最新运行日期：2026-07-10
+- 运行时间：2026-07-10 21:38:33 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：3
-- 速读区：1
+- 本次总论文数：6
+- 精读区：1
+- 速读区：5
 
 ### 今日简报（AI）
-1) 今日精读两篇核心论文：探讨多人多视角协作理解与低视力人群AR交互，速读一篇自然注视行为研究。  
-2) 最值得关注：多视角协作理解（CoMind）展现感知融合新思路；低视力AR中“头部注视”优于眼动与手指，为无障碍交互提供关键参考。  
-3) 建议优先精读《CoMind》与“Head, Gaze, or Finger”两篇，并关注自然注视行为中眨眼与头部运动的耦合机制，以拓展交互设计视角。
-- 详情：[/202607/09/README](/202607/09/README)
+今日精读社交互动中注视与决策线索的整合研究，速读涵盖眼动追踪轻量扩展、手眼协调记忆及特征预期影响等方向。最值得关注的是社会认知中注视推断偏好的机制，以及高性价比眼动追踪优化技术。建议后续关注轻量级眼动追踪在实际场景中的部署可行性。
+- 详情：[/202607/10/README](/202607/10/README)
 
 ### 精读区论文标签
-1. [CoMind: Understanding Collaborative Human Activity from Multiple Minds and Views](/202607/09/2607.06691v1-comind-understanding-collaborative-human-activity-from-multiple-minds-and-views)  
+1. [Humans integrate gaze and decision cues for inferring preferences in social interactions](/202607/10/biorxiv-10-64898-2026-07-09-737460-v1-humans-integrate-gaze-and-decision-cues-for-inferring-preferences-in-social-interactions)  
    标签：评分：8.0/10、query:gaze-intent
-   evidence：包含眼动追踪的多模态协作意图理解数据集
-2. [Head, Gaze, or Finger? Comparing Object Selection Techniques in Augmented Reality for People with Low Vision](/202607/09/2607.06778v1-head-gaze-or-finger-comparing-object-selection-techniques-in-augmented-reality-for-people-with-low-vision)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：比较注视作为增强现实中物体选择的输入方式
-3. [Spontaneous eye blinks as temporal markers of internal attention](/202607/09/biorxiv-10-64898-2026-07-06-736774-v1-spontaneous-eye-blinks-as-temporal-markers-of-internal-attention)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：利用自发性眨眼时间推断内部注意焦点
+   evidence：使用眼动追踪和层次推理模型，从注视和决策线索推断人类偏好
 
 ### 速读区论文标签
-1. [Blinks are strategically coupled with head movements in unconstrained natural gaze behavior](/202607/09/biorxiv-10-64898-2026-06-29-731833-v1-blinks-are-strategically-coupled-with-head-movements-in-unconstrained-natural-gaze-behavior)  
+1. [LEXIC: Lightweight Eye-tracking eXtension via Injected Complexity](/202607/10/2607.08152v1-lexic-lightweight-eye-tracking-extension-via-injected-complexity)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：眼动追踪用于阅读理解预测；纯凝视模型
+2. [Eye-hand coordination beyond vision: preceding gaze history shapes reaching memories](/202607/10/biorxiv-10-1101-2025-11-11-687771-v3-eye-hand-coordination-beyond-vision-preceding-gaze-history-shapes-reaching-memories)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：先前的注视历史塑造了伸手记忆
+3. [Dissociable effects of feature expectation on saccades and presaccadic perception](/202607/10/biorxiv-10-64898-2026-07-05-735520-v1-dissociable-effects-of-feature-expectation-on-saccades-and-presaccadic-perception)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：研究眼动与知觉预期，与基于注视的意图理解相关
+4. [Ego-Human Motion Prediction with 3D-Aware LLM](/202607/10/2607.07001v1-ego-human-motion-prediction-with-3d-aware-llm)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：研究自然注视行为中眨眼与头部运动的耦合，为基于注视的交互设计提供启示
+   evidence：用于前瞻性辅助的多模态人体运动预测
+5. [VEGAS: Human-Aligned Video Caption Evaluation via Gaze](/202607/10/2607.08489v1-vegas-human-aligned-video-caption-evaluation-via-gaze)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：基于注视的度量用于人机对齐的视频字幕
 
 
 <div class="dpr-home-promo-card">

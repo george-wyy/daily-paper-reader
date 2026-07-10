@@ -1,0 +1,29 @@
+---
+title: "Eye-hand coordination beyond vision: preceding gaze history shapes reaching memories"
+title_zh: 超越视觉的眼手协调：先前的注视历史塑造伸手记忆
+authors: "Abekawa, N., Gomi, H."
+date: 2026-07-03
+pdf: "https://www.biorxiv.org/content/10.1101/2025.11.11.687771v3.full.pdf"
+tags: ["query:gaze-intent"]
+score: 7.0
+evidence: 先前的注视历史塑造了伸手记忆
+tldr: 以往研究关注静态注视在手眼协调中的作用，但忽视了前导眼动本身对伸手记忆的影响。本研究通过视觉运动旋转任务，让受试者在不同前导眼动条件下学习两种冲突的映射。结果发现，前导眼动的动态状态可作为情境线索，使原本相互干扰的映射得以同时学习。泛化实验进一步表明，伸手学习的泛化模式可由时间加权计算的眼动状态距离解释，说明前导眼动历史是塑造灵活伸手记忆的关键。该发现扩展了手眼协调的功能，揭示了其在运动记忆形成中的重要作用。
+source: biorxiv
+selection_source: fresh_fetch
+figures_json: "[{\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-001.webp\", \"caption\": \"\", \"page\": 0, \"index\": 1, \"width\": 1477, \"height\": 2160, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-002.webp\", \"caption\": \"\", \"page\": 0, \"index\": 2, \"width\": 906, \"height\": 1061, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-003.webp\", \"caption\": \"\", \"page\": 0, \"index\": 3, \"width\": 1303, \"height\": 1640, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-004.webp\", \"caption\": \"\", \"page\": 0, \"index\": 4, \"width\": 1248, \"height\": 1209, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-005.webp\", \"caption\": \"\", \"page\": 0, \"index\": 5, \"width\": 1565, \"height\": 2347, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-006.webp\", \"caption\": \"\", \"page\": 0, \"index\": 6, \"width\": 2011, \"height\": 2934, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-007.webp\", \"caption\": \"\", \"page\": 0, \"index\": 7, \"width\": 1367, \"height\": 1589, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-008.webp\", \"caption\": \"\", \"page\": 0, \"index\": 8, \"width\": 1664, \"height\": 2102, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-009.webp\", \"caption\": \"\", \"page\": 0, \"index\": 9, \"width\": 1681, \"height\": 1619, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/fig-010.webp\", \"caption\": \"\", \"page\": 0, \"index\": 10, \"width\": 1583, \"height\": 2989, \"label\": \"Figure\"}]"
+tables_json: "[{\"url\": \"assets/tables/biorxiv/biorxiv-10-1101-2025-11-11-687771-v3/table-001.webp\", \"caption\": \"\", \"page\": 0, \"index\": 1, \"width\": 1563, \"height\": 460, \"label\": \"Table\"}]"
+motivation: 探索前导眼动动态状态（而非静态注视）是否影响伸手记忆的形成和检索。
+method: 采用视觉运动旋转任务，让受试者学习与不同前导眼动关联的顺时针和逆时针旋转映射。
+result: 前导眼动动态状态作为情境线索，使冲突映射同时学习；泛化模式由时间加权的眼动状态距离决定。
+conclusion: 伸手记忆与前导眼动历史紧密编码，手眼协调对灵活运动学习至关重要。
+---
+
+## 摘要
+熟练的伸手行为，例如抓取杯子或接球，需要根据错误信号进行适应性变化。在自然行为中，伸手通常与先前朝向目标的眼动相协调。尽管具有这种行为相关性，但先前的眼动本身（而非静态注视位置）与伸手记忆形成之间的潜在联系在很大程度上被忽视了。在这里，我们使用视觉运动旋转任务来研究近期动态注视状态如何促进伸手记忆的形成和检索。我们表明，在通常会导致相互干扰的两种冲突性视觉运动映射（即顺时针和逆时针旋转）的学习中，不仅是注视与目标之间的静态空间关系，而且眼动本身的动态状态也可以作为情境线索促进学习。我们进一步表明，不同注视条件下伸手学习的泛化模式可以通过使用时间加权计算的注视状态距离来解释。这些发现表明，伸手记忆与先前注视状态的近期历史紧密关联编码。我们的结果扩展了眼手协调超越视觉引导的功能角色，揭示了其在协调灵活运动学习中的重要性。
+
+重要声明在日常行为中，目标导向的手臂运动通常先有眼动，而眼手协调一直主要被视为视觉引导动作的功能机制。本研究通过展示先前的注视状态也塑造大脑如何学习和检索伸手的运动记忆，扩展了这一观点。我们证明，通常因记忆干扰而难以学习的冲突性视觉运动映射，在与不同的先前眼动相关联时可以同时学习。此外，泛化实验表明，伸手学习取决于伸手开始前短暂时间窗口内注视状态的近期历史。这些发现表明，先前的注视历史在塑造灵活伸手记忆中发挥着重要作用。
+
+## Abstract
+Skilled reaching behaviors, such as grasping a cup or catching a ball, require adaptive changes in response to error signals. In natural behavior, reaches are typically coordinated with preceding eye movements toward the target. Despite this behavioral relevance, the potential linkage between preceding eye movements themselves, rather than static gaze positions, and memory formation for reaching has been largely overlooked. Here, we used a visuomotor rotation task to investigate how recent dynamic gaze states contribute to the formation and retrieval of reaching memories. We show that, in the learning of two conflicting visuomotor maps that would normally interfere with one another (namely, clockwise and counterclockwise rotation), not only the static spatial relationship between the gaze and the target but also the dynamic state of the eye movements themselves can serve as contextual cues that enable learning. We further show that the generalization pattern of reach learning across different gaze conditions can be explained by the gaze states distance computed with temporal weighting. These findings indicate that reaching memories are encoded in tight association with the recent history of preceding gaze states. Our results expand the functional role of eye-hand coordination beyond visual guidance, revealing its importance in orchestrating flexible motor learning.
+
+Significant StatementIn everyday behavior, goal-directed arm movements are typically preceded by eye movements, and eye-hand coordination has been regarded mainly as a functional mechanism for visual guidance of action. This study expands that view by showing that preceding gaze states also shape how the brain learns and retrieves motor memories of reaches. We demonstrate that conflicting visuomotor maps, which are usually difficult to learn because of memory interference, can be learned simultaneously when they are associated with different preceding eye movements. Furthermore, generalization experiments show that reach learning depends on the recent history of gaze states within a brief time window before reach onset. These findings indicate that preceding gaze history plays a significant role in shaping flexible reach memories.

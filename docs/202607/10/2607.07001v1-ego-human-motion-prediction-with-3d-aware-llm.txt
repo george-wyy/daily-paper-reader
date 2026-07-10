@@ -1,0 +1,924 @@
+Title: Ego-Human Motion Prediction with 3D-Aware LLM
+
+URL Source: https://arxiv.org/pdf/2607.07001v1
+
+Published Time: Thu, 09 Jul 2026 00:27:34 GMT
+
+Number of Pages: 36
+
+Markdown Content:
+# Ego-Human Motion Prediction with 3D-Aware LLM 
+
+Yujin Bae ⋆, Jaewoo Jeong ⋆, Hyeonseong Kim ⋆, and Kuk-Jin Yoon 
+
+Visual Intelligence Lab., KAIST, Korea 
+
+{yujinbae,jeong207,brian617,kjyoon}@kaist.ac.kr 
+
+Abstract. Anticipating human motion from an egocentric perspective is fundamental for proactive assistance in AR/VR, human-robot collab-oration, and embodied AI. While recent works incorporate language as a semantic prior to reduce the ill-posed nature of egocentric forecasting, they largely neglect the 3D spatial and semantic context that governs how motion unfolds, and treat pose and language prediction as separate inference streams. We introduce Ego3DLM, built on two core principles: accurate motion forecasting requires explicit spatial and semantic under-standing of the 3D environment, and pose and language must be predicted holistically in a single pass, since motion is inherently tied to the semantic interpretation of actions being performed. Given three-point tracking, 3D scene features, and egocentric video, Ego3DLM simultaneously de-codes past pose, future pose, past narration, and future narration in a single autoregressive pass, grounding predicted poses and descriptions in one another to enforce cross-modal and temporal consistency. We adopt a three-stage training scheme: (1) spatial-semantic scene awareness pretraining; (2) holistic instruction tuning over all four outputs in a single pass; and (3) GRPO-based reinforcement finetuning with intra-and inter-modal rewards that directly optimize pose-language fidelity. Experiments on the Nymeria benchmark demonstrate that Ego3DLM achieves state-of-the-art performance across future motion prediction, past motion tracking, and motion description, showing that 3D scene grounding and holistic cross-modal prediction yield physically plausible and semantically coherent motion forecasts. The project page is available at https://jaewoo97.github.io/Ego3DLM/ .
+
+Keywords: Egocentric Vision · Human Motion Forecasting · Multi-modal Large Language Models 
+
+## 1 Introduction 
+
+Predicting human motion from an egocentric perspective is fundamental for proac-tive, real-time assistance in AR/VR, human–robot collaboration, and embodied AI [28,50,51,57,73,76,77,79]. Unlike third-person footage, egocentric observations reflect the wearer’s true field of view and thus encode intent, affordances, and  
+
+> ⋆
+
+Equal contribution. arXiv:2607.07001v1 [cs.CV] 8 Jul 2026 2 Bae et al. Language  Model           
+
+> “Perform motion tracking and motion
+> forecasting based on the given 2D
+> video/3D scene and three -point … ”
+> 3D Pose Text Text
+> Person is running … Person then sits on …
+> 3D Pose
+> Prompt Three -Point Tracking 3D Scene 2D Video
+> Tracking (Past) Forecasting (Future)
+> Fig. 1: Our Ego3DLM incorporates the semantic context of the surrounding 3D envi-ronment along with 2D egocentric video and three-point tracking data to generate past and future poses and their corresponding language motion descriptions.
+
+near-field interactions that matter for planning [23, 24, 41]. Yet forecasting from this viewpoint is inherently ill-posed: the camera captures little of the body, only sparse wearable cues are available, and the same partial observation is consistent with many plausible future motions. Resolving this ambiguity requires grounding predictions in semantic context: understanding not merely the kinematic state of the body, but the underlying intent and action semantics that govern how motion will unfold. Towards this end, recent works have sought to reduce forecast ambiguity by in-corporating language as a semantic prior on human intention, demonstrating that treating motion as a tokenized sequence enables unified reasoning across vision, language, and pose [32, 38]. Motion-language models such as MotionGPT [38] and EgoLM [32] cast 3D human motion as “motion tokens” for joint modeling with text, while pose-language systems such as ChatPose [22] and PoseScript [15] demonstrate that large language models can understand and generate fine-grained 3D human poses from textual descriptions. However, most existing methods em-phasize reconstruction, captioning, or editing of observed motion rather than prediction, and often operate on third-person videos or canonicalized motion capture rather than egocentric inputs. Forecasting works on egocentric motion, such as EgoCast [19] and UniEgoMo-tion [56], focus on pose prediction from egocentric videos and sparse proprioceptive signals. However, these methods typically omit explicit 3D scene representations whose spatial and semantic context is crucial for resolving the ambiguity of future motion in cluttered, contact-rich environments. While FIction [1] and HMD 2 [29] employ an explicit 3D scene representation for pose prediction and motion generation, they inject these features directly into the model, which does not guarantee that the model acquires genuine 3D reasoning capabilities. Furthermore, prior works treat pose and language as separate inference streams, forgoing the cross-modal consistency that arises from holistic predictions and Ego3DLM 3
+
+missing the opportunity to leverage semantic reasoning as a direct inductive bias during forecasting. We address these limitations with Ego3DLM, built on two core principles. First, accurate human motion prediction requires explicit spatial and semantic understanding of the 3D environment, which defines the physical constraints, free space, and object-level affordances that govern possible movements. Second, pose and language must be predicted holistically in a single pass rather than indepen-dently, since human motion is inherently tied to the semantic interpretation of the actions being performed. To this end, our model takes three-point tracking (i.e . head and hand poses), 3D scene features, and egocentric video as input, and simultaneously decodes past pose, future pose, past text, and future text in a single forward pass (Fig. 1), grounding predicted poses and descriptions in one another to improve cross-modal and temporal consistency. These principles directly motivate our three-stage training scheme. In Stage I, we ground the language model (LM) in the 3D environment by pretraining on automatically generated spatial and semantic question-answer (QA) pairs from 3D scenes, instilling obstacle awareness and object-level semantics before introducing motion reasoning. In Stage II, the scene-aware LM is instruction-tuned to holistically generate all four outputs in a single autoregressive pass, with an explicit spatial scene reasoning step prepended so that spatial understanding propagates through pose prediction and into language narration. In Stage III, Group Relative Policy Optimization (GRPO) with intra- and inter-modal rewards directly optimizes for pose and language accuracy and their fidelity, which likelihood-based training alone cannot enforce. This stage fully leverages cross-modal coherence between pose and language to encourage the model toward predictions that are both physically plausible and semantically consistent. We validate Ego3DLM on the Nymeria [49] egocentric motion benchmark, which provides synchronized egocentric videos, language descriptions, and recon-structed 3D scenes. Our model achieves state-of-the-art performance across all metrics for future motion prediction and past motion tracking, along with their corresponding language descriptions, demonstrating comprehensive cross-modal understanding of human motion and intent. Our contributions are three-fold: 
+
+– 3D scene-aware egocentric motion prediction: a unified framework that jointly forecasts language and 3D pose for both past and future from three-point cues, egocentric video, and explicit 3D scene features. 
+
+– Simultaneous four-output decoding: a single-pass generation of past pose, past text, future pose, and future text that enforces temporal and cross-modal coherence, improving fidelity between predicted motion and language. 
+
+– Multi-stage training: a three-stage training scheme that progressively builds from 3D spatial-semantic scene understanding to holistic egocentric motion tracking and forecasting with joint pose-language supervision. 4 Bae et al. 
+
+## 2 Related Works 
+
+2.1 Multi-Modal Language Models 
+
+Recent large language models (LLMs) have expanded beyond text and RGB images to operate on diverse modalities such as event streams [45, 60, 74, 85, 86], point clouds [7, 10, 14, 25, 33, 34, 40, 78, 84], and 3D human pose [8, 20, 22, 38, 68, 83, 88]. EventGPT [45] extends LLMs to event cameras via spatio-temporal aggregation, while 3D-oriented models align point cloud encoders with language models [10, 25, 33]. Other approaches [32, 38, 88] tokenize SMPL [46] parameters as pose tokens [35,70], and EgoLM [32] models the joint distribution of egocentric motion and language for wearable settings. Moreover, discrete motion tokens have been treated as a foreign “language”, enabling unified motion-language reasoning [38]. While these works show that heterogeneous inputs (events, points, pose) can be projected into a shared token space, most focus on understanding or reconstruction, with limited attention to forecasting multi-modal futures from explicit 3D scene geometry. Building upon them, we incorporate 3D scene-conditioned forecasting to predict human motion guided by semantic objectives. 
+
+2.2 Human Motion Understanding & Forecasting 
+
+Text-motion models [2, 26, 27, 58, 59, 69, 75, 80 –82] have explored bidirectional mappings between natural language and 3D human motion. TEACH [2] composes long motions from paragraphs by stitching atomic actions, while diffusion-based models such as MDM [69] and MotionDiffuse [81] generate realistic and diverse motions from text by viewing motion synthesis as a denoising process in pose space. MotionGPT [38] unifies multiple motion-language tasks (captioning, text-driven generation, prediction) under a single LLM-style architecture by discretizing motion into tokens. These approaches show that language supervision can ground high-level semantics of human motion, but they typically operate in third-person views. EgoLM [32] extends motion-language modeling to the egocentric setting by jointly leveraging egocentric video and three-point tracking data. Nevertheless, these works do not explicitly account for the surrounding 3D scene, limiting their ability to anticipate scene-dependent contacts and physical constraints. Human motion forecasting targets future 3D body pose [6, 9, 13, 37, 50, 52, 64, 66, 72, 79, 87], hand pose, or trajectory [3, 4, 12, 36, 39, 53, 55, 61]. In the egocentric setting, EgoCast [19] and UniEgoMotion [56] forecast 3D body pose, while hand-centric models such as HOI-Forecast [44] and EgoH4 [30] predict 3D hand motion and contact hotspots. Yet these methods typically predict either pose or hand trajectories alone and lack rich language descriptions. A separate line of work, FIction [1] and HMD 2 [29], grounds motion prediction and tracking in 3D scenes, but injects scene geometry directly and encodes it implicitly, without explicit scene reasoning. In contrast, our model jointly predicts 3D pose and textual descriptions of both past and future from egocentric video and sparse three-point tracking, while reasoning explicitly over 3D scene geometry. This encourages diverse yet physically and semantically coherent motion-language futures that respect scene layout, obstacles, and affordances. Ego3DLM 5Stage Ⅰ Spatial -Semantic Scene Awareness LM Pretraining  
+
+> (Sec. 3.3 )
+
+Stage Ⅱ Multi -Modal Multi -Task Instruction Tuning (Sec. 3.4 )   
+
+> “Is there any
+> obstacle in front?”
+> “There is an
+> obstacle in front
+> (Low clearance)”
+> “What is on the
+> countertop?”
+> “A microwave.”
+> 2D Feature 3D Scene Ego Trajectory
+> Voxelize
+> 3D Positional
+> Encoding 3D Feature
+> Video Projection
+> Scene Embeddings
+> 3D Scene Encoder
+> Q-Former
+> Ego -Scene
+> Alignment
+> Scene Projection
+
+3D Scene Feature Extraction (Sec. 3.2 )
+
+> Spatial Awareness
+> Semantic Awareness
+
+Stage IIⅠ Multi -Modal 
+
+Reward GRPO (Sec. 3.5 )                  
+
+> Language
+> Model
+> Scene Three -Point Tracking Prompt
+> 2D Feature
+> Encoder
+> 2D Embedding
+> 2D 3D
+> 3D Embedding
+> Past Future
+> Pred
+> GT
+> C is running …
+> Cis walking …
+> Cthen sits on …
+> Cstarts running …
+> 𝑅𝑒𝑤𝑎𝑟𝑑
+> =𝑅 𝑚𝑜𝑡𝑖𝑜𝑛
+> +𝑅 𝑡𝑒𝑥𝑡
+> +𝑅 𝑚𝑎𝑡𝑐ℎ𝑖𝑛𝑔
+> +𝑅 𝑓𝑜𝑟𝑚𝑎𝑡𝑡𝑖𝑛𝑔
+> Language
+> Model
+> 𝑅𝑒𝑤𝑎𝑟𝑑
+> Past Motion Narration
+> Language Model
+> Motion Prediction Future Motion Description
+> C is running … Cthen sits on …
+> Past Future
+> Motion Tracking
+> Optimization
+
+…𝑅 𝑚𝑜𝑡𝑖𝑜𝑛 
+
+> 𝑅 𝑚𝑎𝑡𝑐ℎ𝑖𝑛𝑔
+> 𝑅 𝑡𝑒𝑥𝑡
+> 𝑅 𝑓𝑜𝑟𝑚𝑎𝑡𝑡𝑖𝑛𝑔
+
+Fig. 2: Overview of the Ego3DLM framework. Our model consists of three stages. 
+
+3D Scene Feature Extraction (Sec. 3.2): 2D semantic features are extracted from egocentric video frames and lifted onto the 3D point cloud. The feature-enhanced point cloud is fed into a Q-Former to produce compact scene query embeddings (top left). 
+
+LM Training: (I) Pre-training (Sec. 3.3) aligns scene, motion, and language via two complementary objectives; (II) Instruction Tuning (Sec. 3.4) trains simultaneous single-pass generation of all four outputs, comprising past and future poses and descrip-tions (top right); (III) GRPO (Sec. 3.5) refines the model with intra- and inter-modal rewards for pose-language fidelity (bottom). 
+
+## 3 Method 
+
+We posit that predicting future human motion requires spatial and semantic understanding of the surrounding 3D environment, which defines the physical constraints and affordances of possible movements. Furthermore, human motion is inherently tied to the semantic interpretation of actions being performed, necessitating joint reasoning over motion and language rather than treating them independently. Grounded in this principle, we introduce Ego3DLM trained on three stages, as shown in Fig. 2. Spatial-Semantic Scene Awareness LM Pretraining (Stage I) encodes 3D scene context and injects it into the LM (Sec. 3.2) and trains spatial and semantic scene awareness (Sec. 3.3). Multi-Modal Multi-Task Instruction Tuning (Stage II) trains holistic motion tracking and prediction alongside past motion narration and future motion description (Sec. 3.4). Finally, Multi-Modal Reward GRPO (Stage III) boosts the accuracy and cross-modal coherence of generated pose and text (Sec. 3.5). 6 Bae et al. 
+
+3.1 Preliminaries Problem Formulation. Given three-point motion tracking features from 6D poses P, egocentric video embeddings V, and 3D scene embeddings S, our Ego3DLM jointly predicts four outputs in a single autoregressive pass: past pose tokens xpast , future pose tokens xfut , past motion narration ypast , and future motion description yfut . Each pose sequence x ∈ { xpast , x fut } is represented as discrete motion tokens decoded into joint positions J ∈ R23 ×3. Both past narra-tion and future descriptions y ∈ { ypast , y fut } are natural language description of the corresponding motion segment. Our Ego3DLM produces a structured output sequence in a single autoregressive pass: (xpast , x fut , y past , y fut ) = fθ (P, V, S),where fθ is the language model. 
+
+Pose Representation and Tokenization. Following EgoLM [32], human motion is modeled as a 23-joint kinematic tree with 6D rotation parameterization. Pose of each frame t is represented as Mt = [ V rt , R rt , R rv t , R jt , R jv t ] ∈ R279 , from which joint positions J ∈ R23 ×3 are recovered via forward kinematics. To enable discrete generation, we train a PQ-VAE that maps pose sequences to indices over 
+
+C = 4096 codebooks, extending the LM’s vocabulary with pose tokens {x}Cc=1 
+
+and allowing the model to reason over pose and language in a unified token space. Further details are found in the supplementary materials. 
+
+Language Model. We build on a GPT-style causal LM (GPT-2, Qwen 2.5) [5,63] trained primarily with next-token prediction. The LM comprises (i) a token embedding table (codebook), (ii) a Transformer [71] backbone, and (iii) an output projection layer that maps hidden states to vocabulary logits. Non-text inputs (P, V, S) are injected as conditioning embeddings, enabling the model to exploit external context while preserving its linguistic priors. For motion tracking and forecasting, we use tokenized pose sequences, enabling the LM to generate motion outputs as discrete tokens. 
+
+3.2 3D Scene Feature Extraction 
+
+We design a pipeline that injects semantic information from egocentric video into the 3D scene point cloud. Following 3D-LLM [33], we generate dense frame-wise 2D semantic features using Mask2Former [11] instance masks and EVA-ViT-G [21] to fuse global and object-centric features. These are lifted onto the 3D point cloud using per-frame camera poses and a best-view selection policy, retaining features from the closest camera viewpoint for each 3D point to mitigate occlusion errors. The point cloud is transformed into the ego initial frame for alignment, voxelized for efficiency, and encoded with egocentric 3D sinusoidal positional encodings. A Q-Former [42] then compresses the scene into K=32 query embeddings. In parallel, per-frame CLIP [62] image embeddings are linearly projected into the LM embedding space. The video and 3D scene query embeddings together form the final scene conditioning for Ego3DLM. Ego3DLM 7Number Color                    
+
+> Object nature
+> Other
+> 3D Scene Egocentric Video
+> Object
+> Q: What is on the dining table? A: A plant and cups.
+> Place
+> Q: Where is the laptop? A: On the stool.
+> Object nature
+> Q: What is the laptop doing? A: Displaying a video.
+> Color
+> Q: What color is the laptop? A: Black.
+> Number
+> Q: What is the number of chairs around the table? A: Six.
+> Other
+> Q: Is there a knife block on the counter? A: No.
+> Place Object
+> 30% 30%
+> Type Distribution
+> 10% 10% 10% 10%
+> Q: What obstacles are around the person?
+> A:Front: blocked ( MID clearance).
+> Left: blocked ( LOW clearance).
+> Right: clear ( HIGH clearance).
+> Best direction: right.
+> Front
+> Left
+> Right
+> Low
+> Mid
+> High
+> Direction Clearance
+> Semantic Awareness Spatial Awareness
+
+Fig. 3: Spatial-semantic scene awareness QA dataset generation. Semantic Awareness: For each 3D scene, we use egocentric videos to automatically generate question-answer pairs that describe and reason about the environment. We define six types of QA pairs targeting semantic understanding, and show their frequency distribution across the constructed data (left). Spatial Awareness: We partition the environment into three angular sectors (front, left, and right) and generate QA pairs to predict directional clearance levels and the most navigable direction (right). 
+
+3.3 Stage I: Spatial-Semantic Scene Awareness Pretraining 
+
+Human behavior is fundamentally constrained by environmental structure; there-fore, understanding objects, their relations, and navigable free space is essential for downstream reasoning about human activity. In this light, we initialize the language model with strong scene understanding by training it to reason over the spatial layout and semantic attributes of the surrounding 3D environment. Given 3D scene embeddings S and egocentric video embeddings V, we construct a dataset for spatial-semantic scene awareness by parsing the inputs into structured queries and answers as in Fig. 3. We then train the LM to jointly interpret semantic scene content ( e.g . objects, attributes, and places) and spatial structure (e.g . obstacle layout and directional clearance). This stage equips the LM with a spatial-semantic prior over environments before introducing human motion reasoning in later stages. 
+
+Spatial Awareness ( Qspa ). We partition the environment into three angular sectors (front, left, and right) and train the model to predict directional clear-ance levels (low, mid, high), obstruction state (blocked, clear), and the most navigable direction (front, left, right), encouraging the LM to internalize obstacle layouts from egocentric observations. Semantic Scene Awareness ( Qsem ). We automatically generate scene-centric QA pairs capturing object identity, place relations, attributes, color, and counting using VLM [5], augmenting Nymeria [49] which lacks explicit scene descriptions. We filter samples relying on unreliably reconstructed structures and remove human-centric attributes. 8 Bae et al. 
+
+Overall, the resulting dataset contains approximately 535K spatial QA pairs and 115K semantic QA pairs across 208 scenes. Further details on the dataset construction process for both are found in the supplementary materials. Given 
+
+E = ( S, V) and a semantic query q, the LM predicts the answer sequence a:
+
+LPre = − X
+
+> i
+
+"
+
+log pθ (asem  
+
+> i
+
+| asem  
+
+> <i
+
+, q sem , E)
+
+| {z }
+
+> Qsem
+
++ log pθ
+
+ aspa  
+
+> i
+
+| aspa  
+
+> <i
+
+, q spa , E| {z }
+
+> Qspa
+
+#
+
+, (1) where semantic awareness queries and answers are denoted as (qsem , a sem ) and spatial awareness queries and answers as (qspa , a spa ), respectively. This encourages the LM to internalize both semantic scene knowledge and spatial layout reasoning. This spatial-semantic prior forms the foundation for subsequent stages that require reasoning about human behavior within the environment. 
+
+3.4 Stage II: Multi-Modal Multi-Task Instruction Tuning 
+
+We train the model using a unified instruction-tuning objective that jointly supervises four outputs: past motion, past motion description, future motion, and future motion description. Rather than predicting these outputs independently, the model generates them in a single autoregressive sequence, enabling shared reasoning across time and modalities. A key design choice is to prepend an explicit spatial scene reasoning step before any motion or language output. This encourages the model to first analyze spatial constraints in the environment, such as obstacles, free space, and navigable directions, before committing to predictions. The resulting generation process follows a chain-of-thought-like structure [31], where spatial reasoning informs motion prediction, and motion prediction subsequently informs semantic description. Conditioned on 3D scene embeddings S, egocentric video embeddings V, and three-point tracking features P, the model produces outputs in the following structured order: [spatial scene description] →[past & future motion] 
+
+→ [past & future motion description] . By generating a spatial scene de-scription, motions, and motion descriptions in a single autoregressive pass, the model propagates structured context across the full output sequence, promot-ing three complementary forms of reasoning: spatial understanding , where the model infers scene constraints to guide subsequent motion prediction; tempo-ral understanding , where past and future motion are jointly modeled so that observed trajectories directly inform future prediction; and semantic ground-ing , where simultaneously predicting motions and descriptions enforces that the physical realization of a motion and its semantic description remain mutually consistent. Given input (S, V, P) and a spatial query qspa , we construct an in-struction prompt I, as detailed in the supplementary materials. Given targets 
+
+(aspa , x past , x fut , y past , y fut ), we optimize a unified objective that jointly supervises Ego3DLM 9
+
+all output components: 
+
+LIT = log pθ
+
+ aspa  
+
+> i
+
+| aspa  
+
+> <i
+
+, I + log pθ
+
+ xpast  
+
+> i
+
+| xpast  
+
+> <i
+
+, a spa , I
+
++ log pθ
+
+ xfut  
+
+> i
+
+| xfut  
+
+> <i
+
+, x past , a spa , I + log pθ
+
+ ypast  
+
+> i
+
+| ypast  
+
+> <i
+
+, x fut , x past , a spa , I
+
++ log pθ
+
+ yfut  
+
+> i
+
+| yfut  
+
+> <i
+
+, y past , x fut , x past , a spa , I
+
+(2) 
+
+3.5 Stage III: Multi-Modal Reward GRPO 
+
+Supervised instruction tuning optimizes the likelihood of ground-truth outputs but does not directly encourage cross-modal coherence between simultaneously generated motions and descriptions. To address this, we introduce a reinforce-ment learning stage using Group Relative Policy Optimization (GRPO) [67], which optimizes the model toward outputs that are simultaneously accurate and internally consistent across modalities. 
+
+GRPO Objective. For each prompt I, GRPO samples a group of G candidate outputs {oi}Gi=1 from the old policy πθold , assigns each a scalar reward ri, and updates the policy by maximizing: 
+
+JGRPO (θ) = E 1
+
+G
+
+> G
+
+X
+
+> i=1
+
+1
+
+|oi|
+
+> |oi|
+
+X
+
+> t=1
+
+(
+
+min 
+
+h
+
+ρi,t ˆAi,t , clip( ρi,t , 1−ε, 1+ ε) ˆAi,t 
+
+i
+
+− β DKL [πθ ∥ πref ]
+
+)
+
+,
+
+(3) where ρi,t = πθ (oi,t |oi,<t , I) / π θref (oi,t |oi,<t , I) is the importance ratio and the group-relative advantage is: 
+
+ˆAi,t = ri − mean( r)std( r) , r = {r1, . . . , r G}. (4) This eliminates the need for a separate value network, as outputs scoring above the group mean are reinforced purely through within-group reward comparisons. 
+
+Multi-Modal Reward. The scalar reward ri decomposes into intra-modal and inter-modal signals, applied symmetrically over both past and future outputs: 
+
+r = wm · max(0 , 1 − JPE) 
+
+| {z }
+
+> Rmotion
+
++wt · BLEU | {z } 
+
+> Rtext
+
++wd · Rmatching + Rformat . (5) 
+
+JPE (global Joint Position Error) and BLEU -4 are intra-modal rewards that independently measure motion accuracy and description quality against ground truth. Rformat penalizes outputs that violate the structured output template. w
+
+is the weighting constant between rewards. The inter-modal reward Rmatching is the key signal that supervised training cannot provide, directly measuring fidelity between the simultaneously predicted motion and description: 
+
+Rmatching = −
+
+h
+
+dgp 
+
+ etgt , empred 
+
+ + dpg 
+
+ etpred , emgt 
+
+ + dpp 
+
+ etpred , empred 
+
+ i
+
+, (6) 10 Bae et al. 
+
+where d(·, ·) is Euclidean distance in a shared embedding space projected by modality-specific encoders [26], and et, em denote text and motion embeddings respectively. Each term penalizes inconsistency between: (i) ground-truth de-scription and predicted motion ( dgp ), (ii) predicted description and ground-truth motion ( dpg ), and (iii) the simultaneously predicted motion-description pair ( dpp ). Together, they encourage the model to produce motion and description that are mutually grounded, a signal that likelihood-based training alone cannot provide. 
+
+## 4 Experiments 
+
+4.1 Experimental Setup Dataset. We conduct experiments on the Nymeria dataset [49], a large-scale in-the-wild egocentric human motion corpus recorded with Project Aria devices [18], containing language narrations, egocentric video, and 3D point clouds. We parse each recording into narrated motion segments and form past-future pairs by linking successive 5-second segments at 10 FPS. The earlier segment serves as past context, and the subsequent segment as the future target. We split the data at the scene level so that training and validation sets do not share environments, and we stratify scenes by dominant motion pattern (largely static vs. dynamic human motion) to maintain a similar static/dynamic ratio in both splits. Further details are found in the supplementary materials. 
+
+Baselines. We compare ours with 3 baseline methods: EgoLM [32], FIction [1], and UniEgoMotion [56], all of which predict future pose sequences. EgoLM separately generates text narration for past motion tracking along with human poses. Other baselines only generate motion without language. All baseline methods utilize three-point tracking and egocentric video, and FIction and UniEgoMotion additionally utilize a 3D scene. Results for EgoLM with a 3D scene can be found in the supplementary materials. 
+
+Metrics. APE, JPE, and ADE are pose-related metrics that respectively mea-sure the local joint pose accuracy, global joint pose accuracy, and global head pose accuracy. 2s denotes the accuracy of the first 2 seconds. For tracking we additionally use Upper and Lower for upper body and lower body APE, along with joint angle (J. A.) and Root. Joint angle (J.A.) measures the mean angular error across all body joints, and Root measures the positional error of the root joint which captures global translation accuracy. For text, we use Bleu [54], Rouge L [43], SBert score [65], and R-precision. R@N denotes top-N R-precision accuracy of narration. Motion-description matching distance metrics dgp , dpg ,and dpp are defined as L2 distances in the embedding space produced by modality specific encoders [26], computed between ground truth description and predicted motion ( dgp ), predicted description and ground truth motion ( dpg ), and the predicted motion-description pair ( dpp ), respectively. dfpp and dppp denote the motion-description matching distances for the future and past. For pretraining on 
+
+Qspa , collision (obstruction) and freespace metrics measure the mean accuracy of all directions. Further details are found in the supplementary materials. Ego3DLM 11 
+
+Table 1: Comparison of prediction and tracking results on motion and text metrics. x-y
+
+Align. denotes motion and text alignment. Embedding distance functions ( dgp , d pg , d pp )are defined in Sec. 3.5. Best are denoted in bold . Arrow denotes better. Method Motion Prediction (3 modes) Motion Tracking APE ↓ JPE ↓ ADE ↓ ADE 2s ↓ FDE ↓ FDE 2s ↓ FID ↓ Diversity ↑ APE ↓ Upper ↓ Lower ↓ J.A. ↓ Root ↓                                                                                                                             
+
+> Fiction [1] 206.2 564.7 558.3 416.7 904.3 494.9 0.3275 0.7432 181.1 114.0 282.3 31.28 34.81 EgoLM [32] (GT motion) 168.8 583.9 540.0 299.0 1,059.5 494.8 1.3840 0.0055 -----EgoLM [32] (Inst. tuning) 184.9 579.4 552.6 329.9 983.6 519.2 0.2137 0.6142 161.9 95.6 265.6 33.63 24.01 UniEgoMotion [56] 151.5 424.3 409.7 223.9 720.5 360.4 0.1530 0.9022 152.2 79.4 233.3 26.48 22.71
+> Ours (Ego3DLM) 147.9 364.5 343.9 205.9 648.1 312.6 0.0160 1.0624 96.4 53.1 152.7 22.30 19.57
+> Method Future Motion Description Past Motion Narration x-yAlign. Bleu-4 ↑Bleu-1 ↑Rogue-L ↑SBert ↑R@3 ↑dpg ↓Bleu-4 ↑Bleu-1 ↑Rogue-L ↑SBert ↑R@3 ↑dpg ↓dpp ↓
+> LLM (Qwen 2.5 7B [5]) 0.0202 0.0970 0.2343 0.6120 0.1940 6.6730 0.0232 0.1477 0.2267 0.6183 0.1944 6.9648 -EgoLM [32] (Inst. tuning) ------0.0649 0.3002 0.2642 0.5900 0.2639 6.8992 9.8686
+> Ours (Ego3DLM) 0.1039 0.3839 0.3004 0.6206 0.2911 6.3507 0.1107 0.3966 0.3195 0.6458 0.4264 4.9470 4.2571
+
+Implementation Details. We use a GPT-2 medium as the language model backbone. Full training settings, additional details, including pretraining and instruction templates, 3D scene QA dataset generation, and additional results with Qwen 2.5 backbone, are provided in the supplementary materials. 
+
+4.2 Quantitative Prediction 
+
+As shown in Table 1, Ego3DLM achieves state-of-the-art performance across all motion prediction and tracking metrics. For prediction, our model outperforms the strongest baseline UniEgoMotion across all metrics, reducing APE by 2.4% ,JPE by 14 .1% , ADE 2s by 8.0% , and FDE 2s by 13 .3% , while also achieving the best FID and highest diversity, indicating that our predictions are both accurate and diverse. The improvement is even more pronounced for motion tracking, where Ego3DLM reduces APE by 36 .7% and upper/lower body APE by 33 .1% /34 .5% over UniEgoMotion, demonstrating that joint past-and-future reasoning with explicit 3D scene conditioning yields a substantially more accurate understanding of observed motion. One aspect to note is that Ego3DLM’s holistic prediction is superior to modality-specific or separately generated outputs. Methods that predict only motion (FIction, UniEgoMotion) forgo language entirely, while a general-purpose LLM (Qwen 2.5 7B) produces text without any motion grounding, and EgoLM, despite generating both modalities, does so through separate decoding streams. In contrast, our single-pass joint decoding achieves substantially higher scores across all text metrics, improving future motion description Bleu-4 by 60 .0% and past motion narration Bleu-4 by 70 .4% over EgoLM. Most strikingly, the motion-description embedding distance ( x-y Align.) improves by 56 .8% , indicating that our simultaneously predicted motion and descriptions are tightly aligned in a shared semantic space. This demonstrates that Ego3DLM produces physically plausible motions whose simultaneously generated motion descriptions faithfully reflect the underlying motion dynamics, confirming that holistic joint prediction yields semantically coherent motion-language outputs. 12 Bae et al. ① ② ③ ④ ⑤ ⑥                 
+
+> GT UniEgoMotion EgoLM
+> Egocentric video of past pose
+> 0s
+> ⑤
+> Ours w/o 3D Scene Ours (Ego3DLM)
+> Ours :C adjusts his stance in the bedroom , turns left, takes a few steps forward, slightly turns left , and then slightly turns right .
+> GT: C is walking across the bedroom, turns to the left as he walks out of the bedroom and into the hallway, and then turns to the le ft.
+> Qwen2.5 -VL -7B : C sits up straighter on the bed, then leans forward slightly to adjust something on the nightstand.
+> 5s
+> past motion(GT)
+> future motion
+> (model output)
+> Door Wall penetrated
+> penetrated
+> Wall
+> Bed
+> ①③
+
+Fig. 4: Qualitative results for motion forecasting and tracking. The ground-truth (GT) past motion trajectory is shown in red , and the predicted future motion is visualized in blue . For future motion narration below the figure, green highlights correct phrases matching the GT, while red highlights incorrect or mismatched descriptions. 
+
+4.3 Qualitative Prediction 
+
+Figure 4 presents qualitative comparisons among UniEgoMotion, EgoLM, and our Ego3DLM with and without 3D scene. For motion forecasting, ours without 3D scene fails to incorporate the room layout and collides with a wall. While UniEgoMotion leverages 3D scene to avoid collision, it generates a contextually irrelevant motion that abruptly stops. As EgoLM does not leverage 3D scene, the predicted motion results in collision. Our method generates an accurate sequence that predicts walking motion around the bed to the door. Notably, the future motion description accurately depicts the predicted motion, demonstrating a comprehensive knowledge of human motion intent in both motion and language domain. Overall, our model produces motions that best conform to both physical constraints and past motion context, outperforming baselines with or without 3D spatial context. 
+
+4.4 Ablation Study Pretraining. Table 2 ablates the effect of input modality and pretraining target on scene understanding. First, combining both video and 3D scene inputs consistently improves performance over video alone across most metrics for both semantic awareness Qsem and spatial awareness Qspa , confirming that 3D scene Ego3DLM 13 
+
+Table 2: Ablation on pretraining. The effects of input modality (video, 3D scene) and pretraining objective ( Qsem , Qspa ) are analyzed. Objective Video 3D Scene Bleu-1 ↑ Bleu-4 ↑ SBert ↑ Rouge-L ↑ Collision mean ↑ Freespace mean ↑Qsem ✓ 0.5298 0.2116 0.7403 0.5244 - -                               
+
+> ✓✓0.5330 0.2478 0.7393 0.5219 --
+> Qspa ✓----0.7387 0.8720
+> ✓✓----0.7428 0.8728
+> Qsem +Qspa ✓✓0.5399 0.2469 0.7438 0.5278 0.7764 0.8848
+
+Table 3: Ablation on instruction tuning. The effects of pretraining ( Qsem , Qspa ), use of spatial scene reasoning (SSR) and 3D scene ( S) are compared. Method Motion Prediction (3 modes) Future Motion Description APE ↓ JPE ↓ ADE 2s ↓ FDE 2s ↓ FID ↓ Diversity R@3 ↑ R@2 ↑ R@1 ↑ dpg ↓
+
+Ours SFT only 148.5 368.3 208.8 317.9 0.0190 0.9358 0.2706 0.1903 0.1072 6.4837 w/o Qsem 153.5 381.1 221.9 335.9 0.0336 0.9644 0.2558 0.1760 0.0987 6.5460 w/o Qspa 152.9 378.3 214.3 329.5 0.0335 1.0122 0.2453 0.1725 0.0894 6.7133 w/o SSR 151.5 376.6 213.4 325.3 0.0231 1.0830 0.2638 0.1859 0.1021 6.4494 
+
+w/o S 156.2 388.5 220.8 334.3 0.0426 0.9352 0.2574 0.1809 0.0945 6.6789 Method Motion Tracking Past Motion Narration x-y Align. APE ↓ Upper ↓ Lower ↓ J.A. ↓ Root ↓ R@3 ↑ R@2 ↑ R@1 ↑ dpg ↓ dpp ↓
+
+Ours SFT only 98.3 53.4 155.3 22.52 19.62 0.4157 0.3022 0.1693 5.0049 5.9170 
+
+w/o Qsem 122.1 69.6 190.1 27.84 25.40 0.3960 0.2961 0.1674 5.1349 5.9190 w/o Qspa 99.3 53.6 158.7 22.79 19.93 0.3987 0.2971 0.1697 5.2278 6.1612 w/o SSR 99.4 53.1 159.8 22.64 19.25 0.4090 0.3069 0.1661 5.0103 6.3930 w/o S 105.8 57.5 168.8 24.03 20.92 0.3955 0.2837 0.1566 5.2103 6.3012 
+
+features provide complementary spatial information beyond what egocentric video alone can convey. Second, jointly training on both spatial and semantic QA objectives yields the best results across all metrics, with Bleu-1, SBert, and Rouge L all reaching their peak while simultaneously achieving the highest Collision and Freespace scores. Notably, adding spatial awareness improves semantic understanding beyond training on semantic awareness alone, and vice versa, suggesting that the two objectives are mutually reinforcing rather than competing. This indicates that reasoning about spatial layout and semantic scene content are complementary skills, and that exposure to both during pretraining allows Ego3DLM to acquire a thorough understanding of the 3D environment. 
+
+Instruction Tuning. Table 3 ablates the contribution of each component during instruction tuning across all four tasks. Removing 3D scene input causes the most consistent and severe degradation across all tasks, confirming that explicit 3D scene conditioning is the single most important factor for accurate motion predic-tion, as the model cannot adequately infer physical constraints from egocentric video alone. Removing semantic QA pretraining leads to a substantial drop in mo-14 Bae et al. 
+
+Table 4: Ablation on GRPO finetuning. A more comprehensive reward signal results in overall improvement, especially the semantic understanding of past and future motion. dfpp and dppp each denote the embedding distance between generated motion and description for future and past, respectively. Reward Motion Prediction (3 modes) Motion Tracking                                                                                                                                
+
+> Rmotion Rtext Rmatching APE ↓JPE ↓ADE 2s↓FDE 2s↓FID APE ↓Upper ↓Lower ↓J.A. ↓Root ↓
+> SFT only 148.5 368.3 208.8 317.9 0.0190 98.3 53.4 155.3 22.52 19.62
+> ✓148.1 364.2 204.8 310.5 0.0149 96.6 53.1 153.2 22.43 19.80
+> ✓✓148.7 369.6 206.2 313.8 0.0177 97.4 53.4 153.6 22.55 19.60
+> ✓✓✓147.9 364.5 205.9 312.6 0.0160 96.4 53.1 152.7 22.30 19.57
+> Reward Future Motion Description Past Motion Narration x-yAlign.
+> Rmotion Rtext Rmatching Bleu-4 ↑Bleu-1 ↑R@3 ↑dpg ↓Bleu-4 ↑Bleu-1 ↑R@3 ↑dpg ↓dfpp ↓dppp ↓
+> SFT only 0.1036 0.3789 0.2706 6.4837 0.1126 0.3930 0.4157 5.0049 5.9170 4.2861
+> ✓0.1019 0.3716 0.2792 6.3974 0.1148 0.3936 0.4206 4.9424 5.9181 4.3260
+> ✓✓0.1037 0.3815 0.2726 6.4560 0.1160 0.3944 0.4071 5.0080 5.8519 4.3583
+> ✓✓✓0.1039 0.3839 0.2911 6.3507 0.1107 0.3966 0.4264 4.9470 5.8063 4.2571
+
+tion tracking performance, suggesting that semantic scene understanding provides crucial context for interpreting observed body motion relative to the environment. Removing spatial QA similarly degrades both motion prediction and cross-modal alignment, indicating that spatial awareness of navigable directions and clearance is particularly important for generating physically plausible future motion and grounding them in language. Together, these results corroborate the pretraining ablation findings: semantic and spatial understanding are complementary, and both contribute to downstream prediction quality. Finally, removing spatial scene reasoning (SSR) leads to notable degradation in motion-description alignment and future motion description quality. This demonstrates that the structured scene reasoning step does not merely reformat outputs; it actively elicits spatially grounded reasoning that propagates through the generation process, improving the semantic coherence between predicted motions and their descriptions. 
+
+GRPO Finetuning. Table 4 validates the contribution of each reward compo-nent. As expected, adding Rmotion primarily improves motion prediction (JPE by 1.1% , FID by 21 .6% ), and further adding Rtext improves narration quality (Bleu-4 by 3.0% ), confirming that intra-modal rewards effectively sharpen their respective output modalities. Notably, incorporating the inter-modal match-ing reward Rmatching yields broad improvements across both motion and text metrics simultaneously, including motion prediction, narration Bleu scores, and motion-description alignment distances ( dfpp by 0.8% , dppp by 2.3% over the previ-ous stage). This reciprocal improvement demonstrates that explicitly rewarding motion-description consistency encourages the model to develop a comprehensive and semantically grounded understanding of human motion intent. By enforcing Ego3DLM 15 
+
+predicted motions and descriptions to be mutually coherent, the model learns richer cross-modal representations that benefit each modality independently. 
+
+## 5 Conclusion 
+
+We present Ego3DLM, a unified 3D-aware framework for holistic tracking and forecasting of all four outputs in a single autoregressive pass: past motion, future motion, past narration, and future description. By leveraging three-point tracking, egocentric video, and explicit 3D scene features, Ego3DLM establishes a new state-of-the-art across all motion prediction, tracking, and language description benchmarks. This is achieved by spatial-semantic scene awareness pretraining, holistic multi-task instruction tuning, and multi-modal reward GRPO finetuning that directly optimizes motion-language fidelity. Our experiments demonstrate consistent improvements over baselines, particularly in the tight coupling of predicted motion and its description, marking a step toward more anticipatory, interpretable, and interactive embodied AI systems. 
+
+Limitations and Future Works. Since most human activities take place in familiar venues where users spend substantial time and accumulate rich 3D spatial knowledge, we assume the 3D scene feature is given. While reasonable for most XR applications, reliance on a precomputed 3D scene remains a limitation. This opens up promising future work toward a language model that can incrementally register 3D knowledge of newly observed scenes on the fly and reason about how a human will interact within them. 
+
+## Acknowledgements 
+
+This work was supported by the Institute of Information & communications Technology Planning & Evaluation (IITP) grant funded by the Korea govern-ment(MSIT) (No. RS-2024-00457882, AI Research Hub Project), by Center for Advanced Urban Systems (CAUS) of Korea Advanced Institute of Science and Technology (KAIST) funded by GS E&C, and by the InnoCORE program of the Ministry of Science and ICT(N10250156). 
+
+## References    
+
+> 1. Ashutosh, K., Pavlakos, G., Grauman, K.: Fiction: 4d future interaction prediction from video. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 17613–17625 (2025) 2. Athanasiou, N., Petrovich, M., Black, M.J., Varol, G.: Teach: Temporal action composition for 3d humans. In: 2022 International Conference on 3D Vision (3DV). pp. 414–423. IEEE (2022) 3. Aydemir, G., Akan, A.K., Güney, F.: Adapt: Efficient multi-agent trajectory predic-tion with adaptation. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 8295–8305 (2023)
+
+16 Bae et al. 4. Bahari, M., Saadatnejad, S., Farsangi, A.A., Moosavi-Dezfooli, S.M., Alahi, A.: Certified human trajectory prediction. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 12301–12311 (2025) 5. Bai, S., Chen, K., Liu, X., Wang, J., Ge, W., Song, S., Dang, K., Wang, P., Wang, S., Tang, J., et al.: Qwen2.5-vl technical report. arXiv preprint arXiv:2502.13923 (2025) 6. Bouazizi, A., Holzbock, A., Kressel, U., Dietmayer, K., Belagiannis, V.: Motionmixer: Mlp-based 3d human body pose forecasting. arXiv preprint arXiv:2207.00499 (2022) 7. Cao, Y., Yihan, Z., Xu, H., Xu, D.: Coda: Collaborative novel box discovery and cross-modal alignment for open-vocabulary 3d object detection. Advances in Neural Information Processing Systems 36 , 71862–71873 (2023) 8. Chen, L.H., Lu, S., Zeng, A., Zhang, H., Wang, B., Zhang, R., Zhang, L.: Mo-tionllm: Understanding human behaviors from human motions and videos. IEEE Transactions on Pattern Analysis and Machine Intelligence (2025) 9. Chen, L.H., Zhang, J., Li, Y., Pang, Y., Xia, X., Liu, T.: Humanmac: Masked motion completion for human motion prediction. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 9544–9555 (2023) 10. Chen, S., Chen, X., Zhang, C., Li, M., Yu, G., Fei, H., Zhu, H., Fan, J., Chen, T.: Ll3da: Visual interactive instruction tuning for omni-3d understanding reasoning and planning. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 26428–26438 (2024) 11. Cheng, B., Misra, I., Schwing, A.G., Kirillov, A., Girdhar, R.: Masked-attention mask transformer for universal image segmentation (2022), https://arxiv.org/ abs/2112.01527 
+
+12. Choi, S., Kim, J., Yun, J., Choi, J.W.: R-pred: Two-stage motion prediction via tube-query attention-based trajectory refinement. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 8525–8535 (2023) 13. Choudhury, R., Kitani, K.M., Jeni, L.A.: Tempo: Efficient multi-view pose estima-tion, tracking, and forecasting. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 14750–14760 (2023) 14. Delitzas, A., Parelli, M., Hars, N., Vlassis, G., Anagnostidis, S., Bachmann, G., Hofmann, T.: Multi-clip: Contrastive vision-language pre-training for question answering tasks in 3d scenes. arXiv preprint arXiv:2306.02329 (2023) 15. Delmas, G., Weinzaepfel, P., Lucas, T., Moreno-Noguer, F., Rogez, G.: Posescript: Linking 3d human poses and natural language. IEEE transactions on pattern analysis and machine intelligence (2024) 16. Devlin, J., Chang, M.W., Lee, K., Toutanova, K.: Bert: Pre-training of deep bidirectional transformers for language understanding. In: Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: human language technologies, volume 1 (long and short papers). pp. 4171–4186 (2019) 17. Dhariwal, P., Jun, H., Payne, C., Kim, J.W., Radford, A., Sutskever, I.: Jukebox: A generative model for music. arXiv preprint arXiv:2005.00341 (2020) 18. Engel, J., Somasundaram, K., Goesele, M., Sun, A., Gamino, A., Turner, A., Talattof, A., Yuan, A., Souti, B., Meredith, B., et al.: Project aria: A new tool for egocentric multi-modal ai research. arXiv preprint arXiv:2308.13561 (2023) 19. Escobar, M., Puentes, J., Forigua, C., Pont-Tuset, J., Maninis, K.K., Arbelaez, P.: Egocast: Forecasting egocentric human pose in the wild. In: 2025 IEEE/CVF Winter Conference on Applications of Computer Vision (WACV). pp. 5831–5841. IEEE (2025) Ego3DLM 17 20. Fan, K., Lu, S., Dai, M., Yu, R., Xiao, L., Dou, Z., Dong, J., Ma, L., Wang, J.: Go to zero: Towards zero-shot motion generation with million-scale data. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 13336–13348 (2025) 21. Fang, Y., Wang, W., Xie, B., Sun, Q., Wu, L., Wang, X., Huang, T., Wang, X., Cao, Y.: Eva: Exploring the limits of masked visual representation learning at scale. arXiv preprint arXiv:2211.07636 (2022) 22. Feng, Y., Lin, J., Dwivedi, S.K., Sun, Y., Patel, P., Black, M.J.: Chatpose: Chatting about 3d human pose. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 2093–2103 (2024) 23. Friesen, C.K., Kingstone, A.: The eyes have it! reflexive orienting is triggered by nonpredictive gaze. Psychonomic bulletin & review 5(3), 490–495 (1998) 24. Frischen, A., Bayliss, A.P., Tipper, S.P.: Gaze cueing of attention: visual attention, social cognition, and individual differences. Psychological bulletin 133 (4), 694 (2007) 25. Fu, R., Liu, J., Chen, X., Nie, Y., Xiong, W.: Scene-llm: Extending language model for 3d visual understanding and reasoning. arXiv preprint arXiv:2403.11401 (2024) 26. Guo, C., Zou, S., Zuo, X., Wang, S., Ji, W., Li, X., Cheng, L.: Generating diverse and natural 3d human motions from text. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 5152–5161 (2022) 27. Guo, C., Zuo, X., Wang, S., Cheng, L.: Tm2t: Stochastic and tokenized modeling for the reciprocal generation of 3d human motions and texts. In: European Conference on Computer Vision. pp. 580–597. Springer (2022) 28. Guo, W., Du, Y., Shen, X., Lepetit, V., Alameda-Pineda, X., Moreno-Noguer, F.: Back to mlp: A simple baseline for human motion prediction. In: Proceedings of the IEEE/CVF winter conference on applications of computer vision. pp. 4809–4819 (2023) 29. Guzov, V., Jiang, Y., Hong, F., Pons-Moll, G., Newcombe, R., Liu, C.K., Ye, Y., Ma, L.: Hmd 2: Environment-aware motion generation from single egocentric head-mounted device. In: 2025 International Conference on 3D Vision (3DV). pp. 1394–1405. IEEE (2025) 30. Hatano, M., Zhu, Z., Saito, H., Damen, D.: The invisible egohand: 3d hand fore-casting through egobody pose estimation. arXiv preprint arXiv:2504.08654 (2025) 31. Ho, N., Schmid, L., Yun, S.Y.: Large language models are reasoning teachers. In: Proceedings of the 61st annual meeting of the association for computational linguistics (volume 1: long papers). pp. 14852–14882 (2023) 32. Hong, F., Guzov, V., Kim, H.J., Ye, Y., Newcombe, R., Liu, Z., Ma, L.: Egolm: Multi-modal language model of egocentric motions. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR). pp. 5344–5354 (2025) 33. Hong, Y., Zhen, H., Chen, P., Zheng, S., Du, Y., Chen, Z., Gan, C.: 3d-llm: Injecting the 3d world into large language models. Advances in Neural Information Processing Systems 36 , 20482–20494 (2023) 34. Huang, H., Chen, Y., Wang, Z., Huang, R., Xu, R., Wang, T., Liu, L., Cheng, X., Zhao, Y., Pang, J., et al.: Chat-scene: Bridging 3d scene and large language models with object identifiers. Advances in Neural Information Processing Systems 37 ,113991–114017 (2024) 35. Huang, L., Qiu, Q., Sapiro, G.: Pq-vae: Learning hierarchical discrete representations with progressive quantization. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 7550–7558 (2024) 18 Bae et al. 36. Jeong, J., Lee, S., Park, D., Lee, G., Yoon, K.J.: Multi-modal knowledge distillation-based human trajectory forecasting. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 24222–24233 (2025) 37. Jeong, J., Park, D., Yoon, K.J.: Multi-agent long-term 3d human pose forecasting via interaction-aware trajectory conditioning. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1617–1628 (2024) 38. Jiang, B., Chen, X., Liu, W., Yu, J., Yu, G., Chen, T.: Motiongpt: Human motion as a foreign language. Advances in Neural Information Processing Systems 36 ,20067–20079 (2023) 39. Jiang, C., Cornman, A., Park, C., Sapp, B., Zhou, Y., Anguelov, D., et al.: Motion-diffuser: Controllable multi-agent motion prediction using diffusion. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 9644–9653 (2023) 40. Kang, W., Huang, H., Shang, Y., Shah, M., Yan, Y.: Robin3d: Improving 3d large language model via robust instruction tuning. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 3905–3915 (2025) 41. Land, M.F., Hayhoe, M.: In what ways do eye movements contribute to everyday activities? Vision research 41 (25-26), 3559–3565 (2001) 42. Li, J., Li, D., Savarese, S., Hoi, S.: Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models. In: International conference on machine learning. pp. 19730–19742. PMLR (2023) 43. Lin, C.Y.: Rouge: A package for automatic evaluation of summaries. In: Text summarization branches out. pp. 74–81 (2004) 44. Liu, S., Tripathi, S., Majumdar, S., Wang, X.: Joint hand motion and interaction hotspots prediction from egocentric videos. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 3282–3292 (2022) 45. Liu, S., Li, J., Zhao, G., Zhang, Y., Meng, X., Yu, F.R., Ji, X., Li, M.: Eventgpt: Event stream understanding with multimodal large language models. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 29139–29149 (2025) 46. Loper, M., Mahmood, N., Romero, J., Pons-Moll, G., Black, M.J.: Smpl: A skinned multi-person linear model. In: Seminal Graphics Papers: Pushing the Boundaries, Volume 2, pp. 851–866 (2023) 47. Loshchilov, I., Hutter, F.: Sgdr: Stochastic gradient descent with warm restarts. In: International Conference on Learning Representations (2017) 48. Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. In: International Conference on Learning Representations (2019) 49. Ma, L., Ye, Y., Hong, F., Guzov, V., Jiang, Y., Postyeni, R., Pesqueira, L., Gamino, A., Baiyya, V., Kim, H.J., et al.: Nymeria: A massive collection of multimodal egocentric daily motion in the wild. In: European Conference on Computer Vision. pp. 445–465. Springer (2024) 50. Mao, W., Hartley, R.I., Salzmann, M., et al.: Contact-aware human motion fore-casting. Advances in Neural Information Processing Systems 35 , 7356–7367 (2022) 51. Mao, W., Liu, M., Salzmann, M.: Generating smooth pose sequences for diverse hu-man motion prediction. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 13309–13318 (2021) 52. Mao, W., Liu, M., Salzmann, M., Li, H.: Learning trajectory dependencies for human motion prediction. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 9489–9497 (2019) Ego3DLM 19 53. Mao, W., Xu, C., Zhu, Q., Chen, S., Wang, Y.: Leapfrog diffusion model for stochastic trajectory prediction. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 5517–5526 (2023) 54. Papineni, K., Roukos, S., Ward, T., Zhu, W.J.: Bleu: a method for automatic evaluation of machine translation. In: Proceedings of the 40th annual meeting of the Association for Computational Linguistics. pp. 311–318 (2002) 55. Park, D., Jeong, J., Yoon, S.H., Jeong, J., Yoon, K.J.: T4p: Test-time training of trajectory prediction via masked autoencoder and actor-specific token memory. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 15065–15076 (2024) 56. Patel, C., Nakamura, H., Kyuragi, Y., Kozuka, K., Niebles, J.C., Adeli, E.: Uniego-motion: A unified model for egocentric motion reconstruction, forecasting, and generation. In: Proceedings of the IEEE/CVF International Conference on Com-puter Vision. pp. 10318–10329 (2025) 57. Peng, X., Mao, S., Wu, Z.: Trajectory-aware body interaction transformer for multi-person pose forecasting. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 17121–17130 (2023) 58. Pinyoanuntapong, E., Saleem, M.U., Wang, P., Lee, M., Das, S., Chen, C.: Bamm: bidirectional autoregressive motion model. In: European Conference on Computer Vision. pp. 172–190. Springer (2024) 59. Pinyoanuntapong, E., Wang, P., Lee, M., Chen, C.: Mmm: Generative masked motion model. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1546–1555 (2024) 60. Qin, H., Hu, C., Magno, M.: Event-priori-based vision-language model for efficient visual understanding. In: International Joint Conference on Artificial Intelligence. pp. 16–30. Springer (2025) 61. Qiu, R., Gong, J., Zhang, X., Luo, S., Zhang, B., Cen, Y.: Adapting to observation length of trajectory prediction via contrastive learning. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 1645–1654 (2025) 62. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., et al.: Learning transferable visual models from natural language supervision. In: International conference on machine learning. pp. 8748–8763. PmLR (2021) 63. Radford, A., Wu, J., Child, R., Luan, D., Amodei, D., Sutskever, I., et al.: Language models are unsupervised multitask learners. OpenAI blog 1(8), 9 (2019) 64. Rahman, M.R.U., Scofano, L., De Matteis, E., Flaborea, A., Sampieri, A., Galasso, F.: Best practices for 2-body pose forecasting. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 3614–3624 (2023) 65. Reimers, N., Gurevych, I.: Sentence-bert: Sentence embeddings using siamese bert-networks. In: Proceedings of the 2019 conference on empirical methods in natural language processing and the 9th international joint conference on natural language processing (EMNLP-IJCNLP). pp. 3982–3992 (2019) 66. Saadatnejad, S., Rasekh, A., Mofayezi, M., Medghalchi, Y., Rajabzadeh, S., Mordan, T., Alahi, A.: A generic diffusion-based approach for 3d human pose prediction in the wild. In: 2023 IEEE International Conference on Robotics and Automation (ICRA). pp. 8246–8253. IEEE (2023) 67. Shao, Z., Wang, P., Zhu, Q., Xu, R., Song, J., Bi, X., Zhang, H., Zhang, M., Li, Y., Wu, Y., et al.: Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 (2024) 20 Bae et al. 68. Tevet, G., Gordon, B., Hertz, A., Bermano, A.H., Cohen-Or, D.: Motionclip: Exposing human motion generation to clip space. In: European Conference on Computer Vision. pp. 358–374. Springer (2022) 69. Tevet, G., Raab, S., Gordon, B., Shafir, Y., Cohen-Or, D., Bermano, A.H.: Human motion diffusion model. arXiv preprint arXiv:2209.14916 (2022) 70. Van Den Oord, A., Vinyals, O., et al.: Neural discrete representation learning. Advances in neural information processing systems 30 (2017) 71. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N., Kaiser, Ł., Polosukhin, I.: Attention is all you need. Advances in neural information processing systems 30 (2017) 72. Wang, C., Wang, Y., Huang, Z., Chen, Z.: Simple baseline for single human motion forecasting. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 2260–2265 (2021) 73. Wang, T., Song, Z., Lou, Z., Cui, Q., Zhang, L., Cheng, C., Wang, H., Tang, X., Li, H., Zhou, H.: Harmonizing stochasticity and determinism: Scene-responsive diverse human motion prediction. Advances in Neural Information Processing Systems 37 ,39784–39811 (2024) 74. Wu, Z., Liu, X., Gilitschenski, I.: Eventclip: Adapting clip for event-based object recognition. arXiv preprint arXiv:2306.06354 (2023) 75. Xie, Y., Jampani, V., Zhong, L., Sun, D., Jiang, H.: Omnicontrol: Control any joint at any time for human motion generation. arXiv preprint arXiv:2310.08580 (2023) 76. Xu, C., Tan, R.T., Tan, Y., Chen, S., Wang, Y.G., Wang, X., Wang, Y.: Eqmotion: Equivariant multi-agent motion prediction with invariant interaction reasoning. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 1410–1420 (2023) 77. Xu, Q., Mao, W., Gong, J., Xu, C., Chen, S., Xie, W., Zhang, Y., Wang, Y.: Joint-relation transformer for multi-person motion prediction. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 9816–9826 (2023) 78. Xu, R., Wang, X., Wang, T., Chen, Y., Pang, J., Lin, D.: Pointllm: Empowering large language models to understand point clouds. In: European Conference on Computer Vision. pp. 131–147. Springer (2024) 79. Yue, J., Li, B., Pettré, J., Seyfried, A., Wang, H.: Human motion prediction under unexpected perturbation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1501–1511 (2024) 80. Zhang, J., Zhang, Y., Cun, X., Zhang, Y., Zhao, H., Lu, H., Shen, X., Shan, Y.: Generating human motion from textual descriptions with discrete representations. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 14730–14740 (2023) 81. Zhang, M., Cai, Z., Pan, L., Hong, F., Guo, X., Yang, L., Liu, Z.: Motiondiffuse: Text-driven human motion generation with diffusion model. IEEE transactions on pattern analysis and machine intelligence 46 (6), 4115–4128 (2024) 82. Zhang, M., Guo, X., Pan, L., Cai, Z., Hong, F., Li, H., Yang, L., Liu, Z.: Remodiffuse: Retrieval-augmented motion diffusion model. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 364–373 (2023) 83. Zhang, M., Jin, D., Gu, C., Hong, F., Cai, Z., Huang, J., Zhang, C., Guo, X., Yang, L., He, Y., et al.: Large motion model for unified multi-modal motion generation. In: European Conference on Computer Vision. pp. 397–421. Springer (2024) 84. Zheng, D., Huang, S., Wang, L.: Video-3d llm: Learning position-aware video representation for 3d scene understanding. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 8995–9006 (2025) Ego3DLM 21 85. Zhou, J., Zheng, X., Lyu, Y., Wang, L.: Eventbind: Learning a unified representation to bind them all for event-based open-world understanding. In: European Conference on Computer Vision. pp. 477–494. Springer (2024) 86. Zhou, J., Zheng, X., Lyu, Y., Wang, L.: Exact: Language-guided conceptual rea-soning and uncertainty estimation for event-based action recognition and more. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 18633–18643 (2024) 87. Zhou, Y., Shao, H., Wang, L., Waslander, S.L., Li, H., Liu, Y.: Smartrefine: A scenario-adaptive refinement framework for efficient motion prediction. In: Proceed-ings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 15281–15290 (2024) 88. Zhou, Z., Wan, Y., Wang, B.: Avatargpt: All-in-one framework for motion un-derstanding planning generation and beyond. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1357–1366 (2024) 22 Bae et al. 
+
+# Supplementary Materials for Ego-Human Motion Prediction with 3D-Aware LLM 
+
+## A Overview 
+
+Our supplementary material provides further clarification of the proposed method and offers additional insights and in-depth discussions on areas not extensively covered in the main paper: 
+
+– Corrections to Minor Errors in Main Paper (Sec. B). 
+
+– Implementation Details (Sec. C). 
+
+– Additional Experimental Results (Sec. D). 
+
+– Additional Qualitative Results (Sec. E). 
+
+## B Corrections to Minor Errors in Main Paper 
+
+The caption of Fig. 2 in the main paper contains a minor error. In particular, the description of the pretraining process (stage I) was inaccurate. Our pretraining learns spatial and semantic awareness in 3D scenes through two complementary objectives. We apologize for any confusion caused by this error. 
+
+## C Implementation Details 
+
+C1 Model Architecture and Training Details 
+
+We use a GPT-2 medium backbone for the language model as in EgoLM [32]. For motion tokenization, we use a product-quantized VAE (PQ-VAE) following EgoLM, employing a convolutional encoder–decoder architecture with a temporal downsampling rate of 4, a codebook of 4096 entries with 64 -dimensional codes, and exponential moving average updates with codebook reset [17]. We use two codebooks for the PQ-VAE. Motion sequences are sampled at 10 Hz and have lengths between 45 and 300 frames. For scenes, we retain maximum  10 ,000  points after voxelization and sampling. The Q-Former is initialized from pretrained BERT-base [16] and uses 32 learned query tokens. For modality-specific projection layers, we use a linear layer for 3D scene embeddings, a small MLP for three-point tracking features, and another small MLP for video frame embeddings. The three-point tracking features are constructed by concatenating the 3D translation, 6D rotation, 3D translation velocity, and 6D rotation velocity for all three points along the channel dimension, resulting in a 54-dimensional representation. In both pre-training and instruction tuning, we train with AdamW [48] opti-mizer (learning rate 1 × 10 −4) and a cosine-annealing learning rate scheduler [47], Ego3DLM 23 
+
+using a batch size of 16 . During the multi-modal reward GRPO-based reinforce-ment finetuning, G is set to 6, and the reward weights are established at wm = 1 .0,
+
+wt = 0 .8, and wd = 0 .02 . The clipping parameter ϵ and KL coefficient β are assigned values of 0.2 and 0.001 , respectively. Regarding Rformat , a score of 0 is granted if the generated output follows the structure described in Sec. C4; otherwise, a penalty of up to −3 is applied. Finally, the learning rate and batch size are set to 1 × 10 −6 and 4, respectively. 
+
+C2 Pose Representation Details 
+
+Human motion is modeled as a kinematic tree of body joints with a root joint that carries global translation and rotation over time. We adopt a kinematic tree comprising 23 joints and a 6D rotation representation for stable regression while capturing dynamics. At time t, the pose state comprises (i) root translational velocity V rt ∈ R3, (ii) root rotation Rrt ∈ R6, (iii) root rotational velocity Rrv t ∈
+
+R6, (iv) joint rotations Rjt ∈ R22 ×6, and (v) joint rotational velocities Rjv t ∈ R22 ×6.Concatenating these terms yields a vector Mt = [ V rt , R rt , R rv t , R jt , R jv t ] ∈ R279 ,and a sequence M = {Mt}Tt=1 represents a motion clip. Joint positions J ∈ R23 ×3
+
+are recovered via forward kinematics from {Mt}.
+
+C3 Pretraining Templates 
+
+For spatial-semantic scene awareness LM pretraining, we design a pair of prompt templates for spatial and semantic reasoning to enhance scene understanding. The exact templates are as follows. The 3D scene and video embeddings shared by all tasks are injected via <3D_Scene_Placeholder > and <Video_Placeholder >.The natural language query and response are placed at <Question_Placeholder >
+
+and <Answer_Placeholder >, respectively. These placeholders standardize how 
+
+scene and video embeddings and text are concatenated and fed into the LM, enabling consistent training across pretraining objectives.              
+
+> Spatial Scene Awareness Input: Answer the question with <3D_Scene_Placeholder >scene and the cor-responding <Video_Placeholder >video frames: What obstacles are around the person in the current frame?
+> Output: <Answer_Placeholder >
+> Semantic Scene Awareness Input: Answer the question with <3D_Scene_Placeholder >scene and the corre-sponding <Video_Placeholder >video frames: <Question_Placeholder >
+> Output: <Answer_Placeholder >
+
+C4 Instruction Tuning Templates 
+
+The instruction template for a unified instruction tuning objective that jointly outputs motion tracking, motion forecasting, past motion description, and future 24 Bae et al. 
+
+motion description is shown below. The 3D scene embeddings and video embed-dings are inserted into <3D_Scene_Placeholder > and <Video_Placeholder >,respectively. Similarly, the embeddings for three-point motion tracking are placed at <TP_Placeholder >. The output targets, including the spatial reasoning an-swer, past motion, future motion, past motion description, and future motion description, are tokenized and inserted into their corresponding placeholders. Delimiter tokens are used to structure prompts across tasks and modalities, but are omitted from the template below for simplicity.      
+
+> Multi-Modal Multi-Task Instruction Tuning Instruction: Perform human motion tracking and prediction. First, analyze the spatial constraints (front, left, right) and the optimal direction from the scene. Then, output current and future human motion token sequences, and describe current and future human motion conditioned on the given scene, observed video CLIP embeddings, and observed three-points features. Input scene: <3D_Scene_Placeholder >.Input video CLIP embeddings: <Video_Placeholder >.Input three-points features: <TP_Placeholder >.
+> Output: <Answer_Placeholder >< Past_Motion_Placeholder >< Future_Motion_ Placeholder >< Past_Description_Placeholder >< Future_Description_Placeholder >
+
+C5 3D Scene QA Dataset Generation Semantic Awareness ( Qsem ) Dataset Generation. We construct a semantic awareness QA dataset using Qwen2.5-VL-7B [5]. Given a 3D scene, we sample a short sequence of egocentric frames from each video segment that observes the scene and feed these frames to the model with an instruction prompt as shown below. For every frame, the model produces  k QA items, which we later aggregate over all segments to form a single QA set per scene. The instruction includes (i) a target distribution over QA types ( e.g . object, color, object nature, place, number, other), (ii) specificity rules that reduce ambiguity by requiring concrete object names, informative modifiers (color/material/shape/size/state), and explicit locator phrases (relation + anchor/reference), and (iii) constraints that exclude humans and human-related attributes. For clarity and consistency, the prompt also provides a few illustrative examples for each QA type. Finally, all QA items generated for the segments associated with a scene are merged and lightly filtered to yield the scene-level semantic QA set. Representative examples of the resulting QA sets are shown in Fig. A.     
+
+> Semantic Awareness Dataset Generation Instruction: Given the following frames of a 3D scene, generate question–answer (QA) items about the scene. Create kitems in total. Requirements:
+> –QA type distribution goal: 30% object, 10% color, 10% object nature, 30% place, 10% number, 10% other.
+
+Ego3DLM 25 
+
+– QA specificity: Use concrete object names and, when helpful, modifiers (color/material/shape/size/state) and explicit locator phrases (relation + anchor/reference) to uniquely identify the target. 
+
+## ...
+
+– Exclude humans: If humans appear in the frame, ignore them and focus on non-human objects. Examples: 
+
+– Object 
+
+Q:“What is on <Anchor > beside <Reference >?" A: “ <Target >"Q:“What is on <Anchor > to the left of <Reference >?" A: “ <Target >"
+
+– Place 
+
+Q:“Where is <Target >?" A: “On <Anchor > beside <Reference >"Q:“Where is <Target > on <Anchor >?" A: “Left of <Reference >"
+
+– Color 
+
+Q:“What color is <Target >?" A: “ <Color >
+
+– Object nature 
+
+Q:“What material is <Target >?" A: “ <Material >
+
+Q:“What state is <Target >?" A: “ <State >
+
+– Number 
+
+Q:“How many <Target > are near <Reference >?" A: “ <Number >
+
+– Other 
+
+Q:“Is there a <Target > on <Anchor >?" A: “ <Yes / No >
+
+Output: k QA items 
+
+Spatial Awareness ( Qspa ) Dataset Generation. The spatial awareness dataset characterizes the navigatable environment around the human by quan-tifying directional clearance and collision risk. For each observation frame, the dataset provides categorical free-space labels for the front, left, and right direc-tions, corresponding binary collision flags, and a best direction label indicating the least obstructed direction available for locomotion. Each scene is represented by a set of voxels, a grid origin coordinate, and a uniform voxel resolution of 0.15m . The head pose from three point tracking provides, for every temporal frame, a 3D translation vector and a 3×3 rotation matrix. Dataset generation proceeds in two stages. First, a proximity filter retains only scene voxels whose vertical offset from the head position falls within 26 Bae et al. Q1 : "Where is the laptop?“ A : “on the stool”          
+
+> Q2 : "What color is the laptop?“ A: “black”
+> Q3 : “What color is the clock?” A: “silver”
+> Q4 : "What is on the countertop behind the laptop?“ A: “plant”
+
+3D Scene  Ego Video  QA Set                         
+
+> Q1 : "Where is the air conditioner?" A: "under the television“
+> Q2 : "What is on the coffee table?" A: "board game“
+> Q3 : "What color is the curtain?" A: "beige“
+> Q4 : "What is the state of the door?“ A: "closed"
+> Q1 : "What color is the exercise bike?" A: “black“
+> Q2 : "Where is the TV?" A: "above the fireplace“
+> Q3 : "What is on the coffee table?" A: "a bowl and a laptop“
+> Q4 : "Where is the treadmill?" A: "near the window"
+
+Fig. A: Examples of generated semantic awareness dataset. 3D scene (left), corresponding egocentric video frames (middle), and example QA items (right). The resulting dataset comprises rich contextual samples that are capable of training the LM to learn the 3D semantics. Egocentric view image  Egocentric voxel view  Top -view voxel view 
+
+Caption: “ Front is clear with MID clearance. Left is blocked with LOW clearance. Right is blocked with LOW clearance. The optimal direction to move is front .
+
+Fig. B: Visualization of spatial awareness dataset generation. For each egocentric frame, the surrounding environment is parsed into three directional cone sectors (front, left, right) over the height-filtered 3D voxel reconstruction, and the minimum free-space distance within each cone is discretized into categorical clearance levels ( LOW , MID ,
+
+HIGH ) based on the distance to its closest obstacle in each cone sector. The resulting spatial caption describes the clearance state and optimal navigation direction, providing structured supervision for the LM to internalize obstacle layouts. 
+
+±1.0m , restricting the search to body relevant geometry. Second, for each of the four directions (front, left, right, and back), a cone query selects voxels whose horizontal bearing lies within a cone with a half angle of 60 ◦, and the minimum Euclidean distance to the selected voxels defines the free space distance for that direction. Free-space distances are discretized into three categorical levels: LOW Ego3DLM 27 
+
+Algorithm 1 Spatial Awareness Dataset Generation 
+
+Require: Scene point cloud S ⊂ R3, head position p ∈ R3, rotation matrix R ∈ SO (3) ,and horizontal projection Π
+
+Ensure: Labels {FREE_FRONT , FREE_LEFT , FREE_RIGHT , COLLIDE_FRONT , COLLIDE_LEFT ,
+
+COLLIDE_RIGHT , BEST_DIR }
+
+1: f ← Π(R[: , 1]) , r ← Π(R[: , 0])  ▷ Horizontal projections of forward/right axes 2: D ← { f , −r, r, −f } ▷ FRONT, LEFT, RIGHT, BACK unit vectors 3: S′ ← { s ∈ S : |sz − pz | < δ h} ▷ Height filter: δh = 1 .0 m 
+
+4: for each direction d ∈ D do 
+
+5: ri ← si − p, di ← ∥ ri∥ ∀ si ∈ S ′
+
+6: ˆrhi ← Π(ri) / ∥Π(ri)∥ ▷ Horizontal unit direction to voxel 7: C ← { i : ˆ rhi · d > cos θc, 0.05 < d i < d max } ▷ Cone filter: θc = 60 ◦
+
+8: free( d) ← min i∈C di (or dmax if C = ∅)9: category( d) ←
+
+
+
+LOW if free( d) < 1.0
+
+MID if 1.0 ≤ free( d) < 3.0
+
+HIGH otherwise 10: p′ ← p + ∆s d ▷ Simulated step: ∆s = 0 .5 m 
+
+11: collide( d) ← ∃ s ∈ S : ∥Π(s − p′)∥ < r b ∧ | sz − p′ 
+
+> z
+
+| < δ h ▷ rb = 0 .3 m 
+
+12: end for 
+
+13: Best_Dir ← arg max d∈D free( d)
+
+14: return categorical labels and collision flags for FRONT/LEFT/RIGHT, Best_Dir 
+
+(d < 1.0m ), MID (1.0 ≤ d < 3.0m ), and HIGH (d ≥ 3.0m ). A complementary collision check simulates a 0.5m step in each direction and tests whether any voxel falls within a cylindrical body proxy of radius 0.3m and half-height 1.0m 
+
+centered at the projected position. The direction with the greatest free space distance is designated as the best direction label ( Best_Dir ). The resulting caption summarizes this information in a single sentence, as shown in Fig. B. Full algorithmic details are provided in Algorithm 1. 
+
+C6 Data Split 
+
+We conduct training and evaluation on the Nymeria dataset [49], using the provided human motion, three-point trackings, motion descriptions, 3D scene point clouds, and egocentric video frames. As Nymeria does not offer an official split , we construct splits based on scenes containing narration annotations. We stratify scenes by dominant motion pattern (largely static vs. dynamic human motion) to maintain a similar static/dynamic ratio in both splits, based on Nymeria’s scene activity tags (action scripts); for example, static activities include 
+
+simon says , laundry , and cooking , while dynamic activities include housekeeping ,
+
+welcome to my place , and where is X . We set a ratio of 4:1 between training and validation scenes. The exact split specification will be released alongside our code. 28 Bae et al. 
+
+C7 Baseline Models EgoLM. We adapt EgoLM [32], originally designed for egocentric motion tracking and narration, to motion forecasting. Because EgoLM does not directly support forecasting instructions, we instead use its motion-to-motion (M2M) pretraining, in which the language model backbone is trained to autoregressively generate motion sequences. We consider two EgoLM baselines that differ in how the past motion condition is obtained. EgoLM (GT motion) uses the M2M pretrained checkpoint and conditions forecasting on the ground truth past motion. EgoLM (Inst. tuning) 
+
+first uses the instruction tuned EgoLM checkpoint to reconstruct past motion from sparse three point tracking, and then feeds the reconstructed past motion to the same M2M pretrained checkpoint to forecast the future. For both variants of the inference, directly prompting the model with the full past sequence often leads to early termination and truncated outputs. To mitigate this implicit length bias and generate the full prediction horizon, we use a recursive two-step generation strategy. We first condition on the latter half of the past motion to generate the first half of the future motion, and then condition on the generated segment to produce the remaining second half of the future. 
+
+FIction. FIction [1] originally predicts future 3D human pose sequence from past 3D human pose sequence, given past sequence of egocentric video and 3D scene represented as voxel. We modify this framework to our setting, namely: (i) predicting future 3D human pose sequence from past three-point tracking data and (ii) tracking past 3D pose sequence from three-point tracking data, where egocentric video and 3D scene representations are provided. Therefore, we modify the encoder to encode three-point tracking data instead of the past 3D human pose sequence via an MLP network. Also, we additionally add a past 3D pose sequence tracking head decoder that still samples based on CVAE, as in the original future pose prediction head. 
+
+UniEgoMotion. UniEgoMotion [56] is a unified conditional motion diffusion model that reconstructs, forecasts, and generates scene-aware 3D human body motion from egocentric images alone. We re-implement UniEgoMotion to take 3D scene and three-point tracking data as input in a similar manner as FIction and our Ego3DLM. Also, past egocentric video is given as input instead of single image. 
+
+LLM Narration. As no works exist that predict future motion in text modality as in our predictive setting, we compare with the zero-shot capability of Qwen2.5-VL-7B [5]. We provide uniformly sampled 10 egocentric video frames from the past sequence and prompt the model to predict the future motion description with the following prompt.            
+
+> Instruction: You are given RGB frames from sequence <source_seq >of scene
+> <scene_name >.Predict what is most likely to happen in the immediate next sequence <target_seq >.Focus on motion and scene dynamics, not static descriptions. Ego3DLM 29
+> Study the following ground-truth style examples and mimic their tone, tense, and specificity: <examples_block >
+> Style constraints:
+> –Always describe the actor as“C" ( e.g . “C is standing in the hallway...").
+> –Use present/progressive tense to mirror GT descriptions (avoid “will/going to").
+> –Include concrete verbs and referenced objects/surfaces whenever visible.
+> –1-3 sentences maximum; no bullet lists.
+
+For the <examples_block >, we provide the following GT sequences to provide context for the LLM to generate responses with a similar style of text as the GT: 
+
+– “C is standing in the hallway, then leans to her right to reach for the door before opening it with her right hand." 
+
+– “C walks into the kitchen, rests her left hand on the counter, and bends to peer into the refrigerator." 
+
+– “C steps toward the sofa, lowers herself into a seated position, and keeps talking to the person next to her." 
+
+C8 Evaluation Metric 
+
+All metrics calculated in the embedding space (FID, Diversity, dgp , d pg , d pp ) are first obtained the motion and text embedding with respective encoders trained as in [26] on our training split of the Nymeria dataset. 
+
+Common Motion Metric. As local motion plausibility plays a critical role in both motion forecasting and tracking, we employ APE as a shared metric to effectively measure the local positional accuracy of the generated motions. 
+
+– APE (Aligned mean per-joint Position Error): APE measures local pose accuracy as the mean ℓ2 distance between predicted and ground-truth joint positions after aligning the head position of both predicted and ground-truth skeletons, evaluating articulated motion independent of global translation. 
+
+Motion Forecasting Metric. For the future motion prediction, we generate three modes and select the best one based on the lowest JPE, since it compre-hensively captures both global translation and local joint articulation errors. To evaluate joint positional accuracy, we calculate APE, JPE, and ADE, alongside FDE to assess the precision of the final displacement. For both ADE and FDE, we also provide short-term evaluations restricted to the first 2 seconds. Additionally, we compute FID and Diversity to evaluate the statistical realism and variation of the generated motion distributions. 
+
+– JPE (Joint Position Error): JPE measures global pose accuracy as the mean ℓ2 distance between predicted and ground-truth joint positions in the world frame, penalizing errors in both body placement and joint configuration. 30 Bae et al. 
+
+– ADE (Average Displacement Error of head position): ADE is the average Euclidean distance between predicted and ground-truth head posi-tions over all forecast timesteps, analogous to the standard ADE metric in trajectory prediction. ADE 2s refers to ADE of the first 2 seconds. 
+
+– FDE (Final Displacement Error of head position): FDE is the Eu-clidean distance between predicted and ground-truth head positions at the final forecast timestep, emphasizing long-horizon accuracy. FDE 2s refers to FDE at 2 seconds. 
+
+– FID (Fréchet Inception Distance on pose sequences): FID is computed between multivariate Gaussian fits of ground-truth and generated pose-sequence embeddings (random 300 validation samples), with lower values indicating a closer match between real and generated motion distributions. 
+
+– Diversity (pose-sequence embedding diversity): Diversity is the mean 
+
+ℓ2 distance between randomly sampled pairs of pose-sequence embeddings (up to 300 pairs), where higher values indicate a richer, more varied set of generated motions. 
+
+Motion Tracking Metric. For motion tracking evaluation, we evaluate posi-tional accuracy using the overall APE, as well as the regional Upper and Lower body APE. Furthermore, we assess rotational accuracy by calculating the root joint angular error and the mean rotation error across all articulated joints. 
+
+– Upper and Lower (Upper & Lower body APE): Upper and Lower measure local pose accuracy by calculating the mean APE for specific body parts. Upper is the mean APE of 14 joints, including the root joint and those located above it, while Lower is the mean APE of 10 joints, including the root joint and those located below it. 
+
+– Root (Root Angle): Root angle is the mean geodesic angular error between the root orientations of the aligned predicted past poses and the ground-truth past poses, reflecting how accurately the pelvis/torso facing direction is recovered. 
+
+– J.A. (Joint Angle): Joint angle is the mean rotation error over all articulated joints: each child-parent bone is converted to a local 6D rotation and compared with the corresponding ground-truth joint frame, measuring how well limb and joint orientations match independently of the root pose. 
+
+Text Metric. In motion description evaluation, we use widely adopted metrics for generated text quality, including Bleu, Rouge L, SBert, and R@N. 
+
+– Bleu and Rouge L: Bleu [54] measures n-gram overlap between predicted and ground-truth texts to quantify lexical precision, scaled from 0 to 1. Rouge L [43] evaluates the Longest Common Subsequence (LCS) between predicted texts and the ground truth, effectively capturing similarities in word order and overall sentence structure. Please refer to the corresponding papers for detailed mathematical formulations. Ego3DLM 31 
+
+– SBert (SBert similarity between sentences): SBert [65] measures the semantic alignment between predicted and ground-truth texts by computing the mean cosine similarity of their sentence embeddings encoded via a pre-trained SBERT model. 
+
+– R@N (top-N R-precision accuracy): R@N evaluates the Euclidean distances between predicted text embeddings and ground-truth motion em-beddings within a fixed-size subset of size 300. It represents the proportion of instances where the true corresponding ground-truth motion embedding is ranked within the top N closest matches to the predicted text embedding, with higher values indicating stronger semantic alignment between the text and motion modalities. 
+
+Motion-Text Alignment Metric. To evaluate the semantic consistency and cross-modal alignment between textual descriptions and generated motions, we utilize narration-motion matching distances. 
+
+– dgp , dpg , dpp (Narration-motion matching distance): Narration-motion matching distance measures the cross-modal alignment as the mean ℓ2 dis-tance between narration and motion embeddings. It evaluates the semantic correspondence across different pairings: ground-truth narration versus pre-dicted motion ( dgp ), predicted narration versus ground-truth motion ( dpg ), and the self-consistency of jointly predicted narration-motion pairs ( dpp ). 
+
+## D Additional Experimental Results 
+
+In this section, we provide additional analyses of our design choices and the effects of 3D scene conditioning. We compare baselines with and without 3D scene inputs, and ablate joint decoding across motion and text as well as across past and future tasks, highlighting consistent gains from unified generation. We further evaluate long-term forecasting and multi-hypothesis future prediction to assess effectiveness across extended horizons and generation diversity. Ego3DLM †
+
+denotes our model trained up to instruction tuning only, without the GRPO reinforcement learning stage, to directly isolate and clarify the impact of our core model design. 
+
+Additional Baselines with/without 3D Scene Conditioning. Table A evaluates all methods with and without 3D scene input on motion prediction and tracking. While all baselines show modest JPE improvements from 3D scene conditioning, with Fiction reducing JPE by 3.9% and UniEgoMotion by 3.5% ,these gains are limited by the absence of dedicated scene understanding, as scene features are injected without prior spatial or semantic grounding. In contrast, Ego3DLM † achieves a larger JPE reduction of 5.2% with scene conditioning and reaches a JPE of 368 .3, a 13 .2% improvement over the strongest baseline, UniEgoMotion with 3D scene ( 424 .3). We attribute this gain to our spatial-semantic pretraining, which explicitly trains the model to reason about object-level geometry and semantics before motion prediction is introduced, enabling 32 Bae et al. 
+
+Table A: Ablation on the effect of 3D scene conditioning across all methods on motion prediction and tracking. While all methods benefit from 3D scene input, Ego3DLM †
+
+achieves the largest and most consistent gains. Method 3D Scene Motion Prediction (3 modes) Motion Tracking APE ↓ JPE ↓ ADE ↓ FDE ↓ FID ↓ Diversity ↑ APE ↓ Upper ↓ Lower ↓ J.A. ↓ Root ↓                                                                                        
+
+> Fiction 209.5 587.5 582.5 949.6 0.3691 0.7381 187.5 117.6 285.7 32.94 35.11
+> ✓206.2 564.7 558.3 904.3 0.3275 0.7432 181.1 114.0 282.3 31.28 34.61 EgoLM (Inst. tune) 184.9 579.4 552.6 963.6 0.2137 0.6142 161.9 95.6 265.6 33.63 24.01
+> ✓174.2 493.1 471.2 925.2 0.2184 0.5176 148.5 83.7 232.6 34.14 30.64 UniEgoMotion 157.5 439.5 430.4 740.6 0.1494 0.9171 156.2 82.7 248.5 28.52 23.96
+> ✓151.5 424.3 409.7 720.5 0.1530 0.9022 152.2 79.4 233.3 26.48 22.71 Ego3DLM †156.2 388.5 363.9 678.4 0.0426 0.9352 105.8 57.5 168.8 24.03 20.92
+> ✓148.5 368.3 346.3 645.4 0.0190 0.9358 98.3 53.4 155.3 22.52 19.62
+
+the model to translate 3D scene geometry into physically informed and spatially coherent body motion predictions. 
+
+Separate Motion/Text Decoding. Table B shows that jointly decoding motion and text in a single autoregressive sequence consistently improves accuracy and narration quality over separate motion and text decoding. Compared to the separated variant, joint decoding reduces motion prediction errors by 0.67% in APE, 0.51% in JPE, and 2.26% in FDE. It also improves future motion description, increasing Bleu-4 by 3.19% and Rouge L by 2.42%, with retrieval gains of 1.96% in R@3 and 4.59% in R@1. Critically, narration motion alignment strengthens, with dpg decreasing by 1.35% and dpp dropping by 9.25%, supporting that joint generation yields more mutually grounded pose narration pairs. 
+
+Separate Past/Future Decoding. Table C shows that jointly decoding past and future tasks improves both forecasting and tracking compared to separate decoding. For motion prediction, joint decoding reduces JPE by 7.18%, with consistent improvements across the other forecasting metrics. For motion tracking, it yields larger gains, reducing APE by 28.04%, with consistent gains across the other tracking metrics. These results suggest that training the model to produce past and future motion within a unified generation process encourages shared temporal representations that benefit both tracking fidelity and forecasting per-formance. This joint supervision appears to strengthen the model’s understanding of motion dynamics, improving the fidelity of generated motion and enabling forecasting that more effectively leverages past observations to produce feasible future predictions. 
+
+Long-Term Motion Forecasting. Table D evaluates all methods on long-term motion prediction, where the increased temporal horizon amplifies the compounding effect of errors and scene-dependency of future motion. Ego3DLM †
+
+consistently outperforms all baselines across every metric, reducing JPE by 18 .7% 
+
+and ADE by 19 .2% over the strongest baseline UniEgoMotion, demonstrating that our scene-aware training is particularly beneficial as the prediction horizon grows. Notably, EgoLM variants perform poorly even with ground-truth past motion as input, suggesting that neither language grounding nor GT conditioning Ego3DLM 33 
+
+Table B: Ablation study on joint vs. separate motion and text decoding. Joint decoding consistently improves motion prediction accuracy and future motion description quality, while also strengthening pose-narration alignment. Method Motion Prediction (3 modes) Future motion description x-y align APE ↓ JPE ↓ ADE ↓ FDE ↓ FID ↓ Diversity ↑ Bleu-4 ↑ Rogue L ↑ R@3 ↑ R@1 ↑ dpg ↓ dpp ↓                        
+
+> Ego3DLM †
+> (sep. motion/text) 149.5 370.2 348.7 660.3 0.0116 1.0260 0.1004 0.2971 0.2654 0.1025 6.5723 6.5201 Ego3DLM †148.5 368.3 346.3 645.4 0.0190 0.9358 0.1036 0.3043 0.2706 0.1072 6.4837 5.917
+
+Table C: Ablation study on joint vs. separate past and future task decoding. Joint decoding consistently improves both motion prediction and tracking. Method Motion prediction (3 modes) Motion tracking APE ↓ JPE ↓ ADE ↓ FDE ↓ FID ↓ Diversity ↑ APE ↓ Upper ↓ Lower ↓ J.A. ↓ Root ↓                      
+
+> Ego3DLM †
+> (sep. past/future) 159.9 396.8 370.5 705.0 0.0335 0.9876 136.6 77.5 213.2 31.08 29.00 Ego3DLM †148.5 368.3 346.3 645.4 0.0190 0.9358 98.3 53.4 155.3 22.5 19.62
+
+GT  Forecasted sequences 
+
+Past motion 
+
+Predicted motion  
+
+> ①
+> ②
+> ③
+> ③
+> ①②
+
+①
+
+①
+
+②
+
+② ③
+
+③
+
+Fig. C: Examples of multi-hypothesis predictions. GT motion sequence (left), forecasted motion sequences (middle & right). All our predictions demonstrate feasible motion based on the 3D scene. 
+
+alone is sufficient for accurate long-term forecasting without explicit 3D scene understanding. 
+
+Multi-Hypothesis Motion Forecasting. Figure C visualizes the multi-hypothesis predictions generated by our model. Human motion is inherently non-deterministic, as a person may exhibit different plausible behaviors given the same past motion depending on their underlying intent. To address this property, we sample three distinct future predictions from the same model and examine the 3D human motion fidelity of each. Across all samples, the predicted trajectories remain plausible within the 3D scene, maneuvering through the indoor environment while avoiding or interacting with objects. These results indicate that our model effectively captures the non-deterministic nature of 34 Bae et al. 
+
+Table D: Long-term motion prediction results across all methods. Ego3DLM † achieves state-of-the-art performance across all metrics, with the performance gap over baselines widening compared to the standard horizon. Method Prediction (3 modes) APE ↓ JPE ↓ ADE ↓ FDE ↓ FID Diversity Fiction 256.1 831.1 825.7 1,083.9 0.0896 0.3815 EgoLM (GT) 242.2 917.1 884.2 1,469.3 0.1086 0.2275 EgoLM (Inst. tune.) 238.6 922.3 887.4 1,472.9 0.1095 0.2231 UniEgoMotion 201.7 784.7 765.1 1,183.4 0.0858 0.3981 Ego3DLM † 172.2 638.5 618.3 1,079.8 0.0325 0.4141 
+
+human motion intentions, enabled by its ability to leverage the rich semantic cues provided by the 3D scene information. 
+
+## E Additional Qualitative Results 
+
+We present an additional qualitative comparison of our method against the ablation variant (Ours w/o 3D Scene) and baselines across diverse scenarios in Fig. D and Fig. E. The forecasted motion sequences from t = 0 s to t = 5 sare color-coded to indicate temporal progression, transitioning from white to blue, with the past motion shown in red. Ego3DLM demonstrates a robust understanding of environmental constraints. By explicitly conditioning on 3D scene features, our model predicts trajectories that capture the semantic intent while respecting spatial boundaries. As shown in the Fig. E (bottom), the predicted motion paths accurately curve around obstacles and navigate through doorways, maintaining physically plausible distances from surrounding structures. In contrast, our ablation variant, which lacks explicit 3D scene conditioning, generates motions that are kinematically co-herent but environmentally inconsistent. EgoLM often produces trajectories that drift into obstacles, failing to align the agent’s orientation with the available free space. Similarly, while UniEgoMotion generates semantically plausible motions, it ignores the structural layout, leading to collisions. These results collectively highlight the superiority of Ego3DLM in forecasting future behaviors that are not only semantically aligned with the past egocentric video but also geometrically consistent with the complex 3D environment. Ego3DLM 35 Egocentric video of past pose 
+
+0s 
+
+5s 
+
+①
+
+③
+
+⑤
+
+① ② ③ ④ ⑤
+
+Ours (Ego3DLM) GT  UniEgoMotion Ours w/o 3D Scene 
+
+⑥
+
+> past motion(GT)
+> future motion
+> (model output)
+
+Couch 
+
+EgoLM 
+
+> Couch
+> Table
+> Sofa
+
+Sofa 
+
+Table 
+
+penetrated penetrated ① ②① ③ ④ ⑤ ⑥
+
+③⑥  
+
+> GT Ours w/o 3D Scene Ours (Ego3DLM) EgoLM UniEgoMotion
+
+0s 
+
+5s 
+
+> Past motion (GT)
+> Future motion (model output)
+
+chair 
+
+chair 
+
+> Egocentric video of past pose
+
+Fig. D: Qualitative results of motion prediction and future motion description .We visualize predicted motions from white to blue with temporal progression. Ego3DLM generates plausible trajectories that respect spatial boundaries, whereas baselines and the ablation variant frequently collide with scene geometry. 36 Bae et al. Egocentric video of past pose 
+
+> 0s
+> 5s
+
+① ③ ⑤
+
+① ② ③ ④ ⑤
+
+> past motion(GT)
+> future motion
+> (model output)
+> Edge of the table
+> floated
+> penetrated
+
+⑥
+
+GT  UniEgoMotion  EgoLM Ours w/o 3D Scene Ours (Ego3DLM) 
+
+> penetrated
+
+Egocentric video of past pose 
+
+> 0s
+> 5s
+
+① ③
+
+⑤
+
+① ② ③ ④ ⑤ ⑥
+
+Ours (Ego3DLM)  EgoLM 
+
+> future motion
+> (model output)
+
+GT  UniEgoMotion Ours w/o 3D Scene 
+
+> past motion(GT)
+
+Wall 
+
+Door 
+
+penetrated 
+
+penetrated 
+
+Fig. E: Qualitative results of motion prediction and future motion description .We visualize predicted motions from white to blue with temporal progression. Ego3DLM produces plausible trajectories that adhere to scene boundaries, while the baselines and ablated variant frequently intersect or collide with the surrounding geometry.
