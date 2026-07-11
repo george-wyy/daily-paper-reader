@@ -6,38 +6,28 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-10
-- 运行时间：2026-07-10 21:38:33 UTC
+- 最新运行日期：2026-07-11
+- 运行时间：2026-07-11 20:16:44 UTC
 - 运行状态：成功
-- 本次总论文数：6
+- 本次总论文数：2
 - 精读区：1
-- 速读区：5
+- 速读区：1
 
 ### 今日简报（AI）
-今日精读社交互动中注视与决策线索的整合研究，速读涵盖眼动追踪轻量扩展、手眼协调记忆及特征预期影响等方向。最值得关注的是社会认知中注视推断偏好的机制，以及高性价比眼动追踪优化技术。建议后续关注轻量级眼动追踪在实际场景中的部署可行性。
-- 详情：[/202607/10/README](/202607/10/README)
+今日精读高分论文《Seamless interaction in VR: decoding user intent with eye gaze and passive brain-computer interfaces》，速读一篇关于无人驾驶中人类意图理解的框架。  
+最值得关注的方向：利用眼动与被动脑机接口解码用户意图，实现更自然、无感的VR交互；同时适用无人驾驶场景下的人机意图协同。  
+建议普通读者：未来VR可能不再需要手柄，单纯通过眼球运动和脑电波即可控制操作，可留意相关技术落地动态。
+- 详情：[/202607/11/README](/202607/11/README)
 
 ### 精读区论文标签
-1. [Humans integrate gaze and decision cues for inferring preferences in social interactions](/202607/10/biorxiv-10-64898-2026-07-09-737460-v1-humans-integrate-gaze-and-decision-cues-for-inferring-preferences-in-social-interactions)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：使用眼动追踪和层次推理模型，从注视和决策线索推断人类偏好
+1. [Seamless interaction in VR: decoding user intent with eye gaze and passive brain-computer interfaces](/202607/11/biorxiv-10-64898-2026-07-06-736575-v1-seamless-interaction-in-vr-decoding-user-intent-with-eye-gaze-and-passive-brain-computer-interfaces)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：在VR中使用眼动和被动脑机接口解码用户意图
 
 ### 速读区论文标签
-1. [LEXIC: Lightweight Eye-tracking eXtension via Injected Complexity](/202607/10/2607.08152v1-lexic-lightweight-eye-tracking-extension-via-injected-complexity)  
+1. [Who Responds When the Driver Is Gone? A Framework for Human Intent Understanding](/202607/11/2607.04670v1-who-responds-when-the-driver-is-gone-a-framework-for-human-intent-understanding)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：眼动追踪用于阅读理解预测；纯凝视模型
-2. [Eye-hand coordination beyond vision: preceding gaze history shapes reaching memories](/202607/10/biorxiv-10-1101-2025-11-11-687771-v3-eye-hand-coordination-beyond-vision-preceding-gaze-history-shapes-reaching-memories)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：先前的注视历史塑造了伸手记忆
-3. [Dissociable effects of feature expectation on saccades and presaccadic perception](/202607/10/biorxiv-10-64898-2026-07-05-735520-v1-dissociable-effects-of-feature-expectation-on-saccades-and-presaccadic-perception)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：研究眼动与知觉预期，与基于注视的意图理解相关
-4. [Ego-Human Motion Prediction with 3D-Aware LLM](/202607/10/2607.07001v1-ego-human-motion-prediction-with-3d-aware-llm)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：用于前瞻性辅助的多模态人体运动预测
-5. [VEGAS: Human-Aligned Video Caption Evaluation via Gaze](/202607/10/2607.08489v1-vegas-human-aligned-video-caption-evaluation-via-gaze)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：基于注视的度量用于人机对齐的视频字幕
+   evidence：面向自动驾驶的实时人类意图理解框架
 
 
 <div class="dpr-home-promo-card">
