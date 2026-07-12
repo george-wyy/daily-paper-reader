@@ -6,28 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-11
-- 运行时间：2026-07-11 20:16:44 UTC
+- 最新运行日期：2026-07-12
+- 运行时间：2026-07-12 20:15:32 UTC
 - 运行状态：成功
 - 本次总论文数：2
-- 精读区：1
-- 速读区：1
+- 精读区：0
+- 速读区：2
 
 ### 今日简报（AI）
-今日精读高分论文《Seamless interaction in VR: decoding user intent with eye gaze and passive brain-computer interfaces》，速读一篇关于无人驾驶中人类意图理解的框架。  
-最值得关注的方向：利用眼动与被动脑机接口解码用户意图，实现更自然、无感的VR交互；同时适用无人驾驶场景下的人机意图协同。  
-建议普通读者：未来VR可能不再需要手柄，单纯通过眼球运动和脑电波即可控制操作，可留意相关技术落地动态。
-- 详情：[/202607/11/README](/202607/11/README)
+今日聚焦两篇7分论文，探讨视觉注意如何影响前额叶决策信号及延迟提示对注意力分配的作用。
+前额叶皮层中注意信号直接调控决策，而延迟目标识别可促进注意更分散、高效的分配。
+若想优化日常任务中的注意力策略，建议阅读这两篇文章，了解时间控制与神经机制的双重启示。
+- 详情：[/202607/12/README](/202607/12/README)
 
 ### 精读区论文标签
-1. [Seamless interaction in VR: decoding user intent with eye gaze and passive brain-computer interfaces](/202607/11/biorxiv-10-64898-2026-07-06-736575-v1-seamless-interaction-in-vr-decoding-user-intent-with-eye-gaze-and-passive-brain-computer-interfaces)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：在VR中使用眼动和被动脑机接口解码用户意图
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Who Responds When the Driver Is Gone? A Framework for Human Intent Understanding](/202607/11/2607.04670v1-who-responds-when-the-driver-is-gone-a-framework-for-human-intent-understanding)  
+1. [Overt visual attention modulates decision-related signals in the frontal cortex](/202607/12/biorxiv-10-1101-2024-10-25-620227-v3-overt-visual-attention-modulates-decision-related-signals-in-the-frontal-cortex)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：面向自动驾驶的实时人类意图理解框架
+   evidence：使用眼动追踪研究注意力引导的决策过程及神经相关性
+2. [Delaying the onset of aided target recognition highlights allows for a more dispersed allocation of overt attention](/202607/12/biorxiv-10-64898-2026-06-30-735590-v1-delaying-the-onset-of-aided-target-recognition-highlights-allows-for-a-more-dispersed-allocation-of-overt-attention)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：研究延迟目标识别高亮对视觉搜索中显性注意力分配的影响
 
 
 <div class="dpr-home-promo-card">
