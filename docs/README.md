@@ -6,29 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-12
-- 运行时间：2026-07-12 20:15:32 UTC
+- 最新运行日期：2026-07-13
+- 运行时间：2026-07-13 20:37:26 UTC
 - 运行状态：成功
 - 本次总论文数：2
 - 精读区：0
 - 速读区：2
 
 ### 今日简报（AI）
-今日聚焦两篇7分论文，探讨视觉注意如何影响前额叶决策信号及延迟提示对注意力分配的作用。
-前额叶皮层中注意信号直接调控决策，而延迟目标识别可促进注意更分散、高效的分配。
-若想优化日常任务中的注意力策略，建议阅读这两篇文章，了解时间控制与神经机制的双重启示。
-- 详情：[/202607/12/README](/202607/12/README)
+今天精选2篇论文，聚焦闭眼状态下fMRI眼动追踪优化与额叶眼区在抽象决策中的主导作用。  
+最值得一看：闭眼眼动解码技术提升fMRI实验精度；额叶眼区驱动分布式眼动回路完成分类决策。  
+建议关注闭眼眼动追踪方法对fMRI研究的实用价值，或额叶眼区如何影响日常决策过程。
+- 详情：[/202607/13/README](/202607/13/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Overt visual attention modulates decision-related signals in the frontal cortex](/202607/12/biorxiv-10-1101-2024-10-25-620227-v3-overt-visual-attention-modulates-decision-related-signals-in-the-frontal-cortex)  
+1. [Optimizing MR-based gaze-decoding for eyes-closed eye-tracking in fMRI](/202607/13/biorxiv-10-64898-2026-07-07-736972-v1-optimizing-mr-based-gaze-decoding-for-eyes-closed-eye-tracking-in-fmri)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：使用眼动追踪研究注意力引导的决策过程及神经相关性
-2. [Delaying the onset of aided target recognition highlights allows for a more dispersed allocation of overt attention](/202607/12/biorxiv-10-64898-2026-06-30-735590-v1-delaying-the-onset-of-aided-target-recognition-highlights-allows-for-a-more-dispersed-allocation-of-overt-attention)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：研究延迟目标识别高亮对视觉搜索中显性注意力分配的影响
+   evidence：基于MR信号的眼动解码提升眼动追踪
+2. [Frontal Eye Field Leads a Distributed Oculomotor Circuit for Abstract Categorical Decisions](/202607/13/biorxiv-10-64898-2026-06-30-735630-v1-frontal-eye-field-leads-a-distributed-oculomotor-circuit-for-abstract-categorical-decisions)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：眼动决策的神经环路研究，有助于通过眼球运动理解目标
 
 
 <div class="dpr-home-promo-card">
