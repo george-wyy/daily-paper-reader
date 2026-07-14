@@ -6,29 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-13
-- 运行时间：2026-07-13 20:37:26 UTC
+- 最新运行日期：2026-07-14
+- 运行时间：2026-07-14 21:39:27 UTC
 - 运行状态：成功
 - 本次总论文数：2
-- 精读区：0
-- 速读区：2
+- 精读区：2
+- 速读区：0
 
 ### 今日简报（AI）
-今天精选2篇论文，聚焦闭眼状态下fMRI眼动追踪优化与额叶眼区在抽象决策中的主导作用。  
-最值得一看：闭眼眼动解码技术提升fMRI实验精度；额叶眼区驱动分布式眼动回路完成分类决策。  
-建议关注闭眼眼动追踪方法对fMRI研究的实用价值，或额叶眼区如何影响日常决策过程。
-- 详情：[/202607/13/README](/202607/13/README)
+今日精读聚焦两大视觉注意力模型：TextGaze（9分）与TDSal（8分）。  
+其中TextGaze利用文本场景线索提升注视目标估计精度，值得重点关注。  
+建议优先精读TextGaze，了解多模态提示在视觉任务中的应用。
+- 详情：[/202607/14/README](/202607/14/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [TextGaze: Prompting Gaze Target Estimation with Textual Scene Cues](/202607/14/2607.10130v1-textgaze-prompting-gaze-target-estimation-with-textual-scene-cues)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：用文本线索进行注视目标估计以理解人类目标
+2. [TDSal: Task-Based Top-Down Saliency Prediction Model](/202607/14/2607.09827v1-tdsal-task-based-top-down-saliency-prediction-model)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：基于任务的自然语言描述调节注意力的显著性预测模型
 
 ### 速读区论文标签
-1. [Optimizing MR-based gaze-decoding for eyes-closed eye-tracking in fMRI](/202607/13/biorxiv-10-64898-2026-07-07-736972-v1-optimizing-mr-based-gaze-decoding-for-eyes-closed-eye-tracking-in-fmri)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：基于MR信号的眼动解码提升眼动追踪
-2. [Frontal Eye Field Leads a Distributed Oculomotor Circuit for Abstract Categorical Decisions](/202607/13/biorxiv-10-64898-2026-06-30-735630-v1-frontal-eye-field-leads-a-distributed-oculomotor-circuit-for-abstract-categorical-decisions)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：眼动决策的神经环路研究，有助于通过眼球运动理解目标
+- 本次无速读推荐。
 
 
 <div class="dpr-home-promo-card">
