@@ -1,0 +1,25 @@
+---
+title: Modeling human echolocation using a Kalman filter
+title_zh: 使用卡尔曼滤波器建模人类回声定位
+authors: "Krasovskaya, S., Coughlan, J. M., Teng, S."
+date: 2026-07-07
+pdf: "https://www.biorxiv.org/content/10.64898/2026.07.01.735693v1.full.pdf"
+tags: ["query:gaze-intent"]
+score: 6.0
+evidence: 卡尔曼滤波器用于实时概率信念更新
+tldr: 本文针对盲人通过回声定位感知环境的问题，提出基于卡尔曼滤波器的计算模型。模型模拟发声、回声反馈和头部运动，融合ITD估计、概率更新和运动控制。实验表明该模型能重现回声引导下的主动感知和学习过程，为开发生物合理模型提供框架。
+source: biorxiv
+selection_source: fresh_fetch
+figures_json: "[{\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-001.webp\", \"caption\": \"\", \"page\": 0, \"index\": 1, \"width\": 888, \"height\": 505, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-002.webp\", \"caption\": \"\", \"page\": 0, \"index\": 2, \"width\": 722, \"height\": 982, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-003.webp\", \"caption\": \"\", \"page\": 0, \"index\": 3, \"width\": 1076, \"height\": 1514, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-004.webp\", \"caption\": \"\", \"page\": 0, \"index\": 4, \"width\": 894, \"height\": 377, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-005.webp\", \"caption\": \"\", \"page\": 0, \"index\": 5, \"width\": 906, \"height\": 334, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-006.webp\", \"caption\": \"\", \"page\": 0, \"index\": 6, \"width\": 905, \"height\": 343, \"label\": \"Figure\"}, {\"url\": \"assets/figures/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/fig-007.webp\", \"caption\": \"\", \"page\": 0, \"index\": 7, \"width\": 886, \"height\": 518, \"label\": \"Figure\"}]"
+tables_json: "[{\"url\": \"assets/tables/biorxiv/biorxiv-10-64898-2026-07-01-735693-v1/table-001.webp\", \"caption\": \"\", \"page\": 0, \"index\": 1, \"width\": 1800, \"height\": 1021, \"label\": \"Table\"}]"
+motivation: 通过计算建模揭示人类回声定位过程中认知与神经机制的动态特性。
+method: 构建包含回声ITD模拟、卡尔曼滤波器概率更新和头部运动控制的主动感知模型。
+result: 模型成功再现了回声引导下目标定位的关键行为特征及不确定性驱动的学习过程。
+conclusion: 该框架可用于开发更逼真的生物模型，改进盲人导航干预策略。
+---
+
+## 摘要
+一些盲人使用回声定位技能，通过自身发出的口点击声从周围表面反射的回声来更好地导航环境。回声定位涉及感官积累、信息处理、动态预测、运动规划和实时执行的复杂交互。计算建模提供了一种有价值的方法来理解回声定位表现背后的认知和神经机制，特别是过程的时间动态。我们提出了一个基于卡尔曼滤波器的人类回声定位行为计算模型，将回声定位者视为一个主动传感器，它保持对目标位置的内部信念，并通过回声反馈不断细化。该模型基于对盲人专家回声定位的观察，模拟了在不同条件下使用口点击声和返回回声来定位和朝向目标的过程。实验中，目标被放置在额状面的随机方位角上。回声定位者向不同方向发出一系列口点击声，并利用从点击回声接收的声学信息推断目标方位角。系统整合了三个主要组件：(1) 模拟回声声学耳间时间差（ITD）以估计相对头-目标角度；(2) 处理这些ITD的卡尔曼滤波器，以迭代更新关于目标位置及相关不确定性的概率信念；(3) 根据当前信念状态调节头部运动的运动控制系统。卡尔曼滤波器作为观察者内部状态的表示，其信念驱动头部旋转方向，其不确定性估计驱动头部速度调整。模型性能表明，简单的预测计算方法可以再现回声引导的感觉运动学习的关键方面，提供了一个可用于开发生物合理性模型、增进对最佳实践的理解，并可能改进干预策略的框架。
+
+## Abstract
+Some blind individuals use echolocation, a skill that allows them to better navigate their environment using echoes from self-generated mouth clicks reflected off surrounding surfaces. Echolocation involves a complex interplay of sensory accumulation, information processing, dynamic prediction, motor planning and execution in real-time. Computational modeling offers a valuable approach to understanding the cognitive and neural mechanisms underlying echolocation performance, in particular the temporal dynamics of the process. We present a computational model of human echolocation behavior based on a Kalman filter, where we treat the echolocator as an active sensor that maintains an internal belief about the targets location and continuously refines it via echo feedback. The model, based on observations of echolocation in blind human experts, simulates the use of mouth clicks and returning echoes to localize and orient toward a target under varying conditions. In the experiment, the target is placed at a random azimuth in the frontal plane. An echolocator aims a series of mouth clicks in various directions and infers the target azimuth using acoustic information received from the click echoes. The system integrates three major components: (1) a simulation of echoacoustic interaural time differences (ITD) to estimate the relative head-target angle; (2) a Kalman filter that processes these ITDs to iteratively update probabilistic beliefs about target location and associated uncertainty; and (3) a motor control system that modulates head movements with the current belief state. The Kalman filter serves as a representation of the internal state of the observer, where its beliefs drive the direction of head rotation, and its uncertainty estimates drive head velocity adjustments. Model performance demonstrates that simple predictive computational approaches can reproduce key aspects of echo-guided sensorimotor learning, providing a framework that may be leveraged to develop biologically plausible models, advance understanding of best practices, and potentially improve intervention strategies.

@@ -1,0 +1,547 @@
+Title: Adaptive Cross-Modal Fusion with Sparse Attention for Pedestrian Crossing Intention Prediction
+
+URL Source: https://arxiv.org/pdf/2607.12293v1
+
+Published Time: Wed, 15 Jul 2026 12:00:29 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Adaptive Cross-Modal Fusion with Sparse Attention for Pedestrian Crossing Intention Prediction 
+
+# Md Mahfuzur Rahman 1, Pengzhan Zhou 2, A. F. M. Abdun Noor 3, Md Imam Ahasan 4, Kah Ong Michael Goh 5, S. M. Hasan Mahmud 6, Md Mustafizur Rahman 7, and Kaixin Gao 8
+
+> 1, 2, 4, 7, 8
+
+College of Computer Science, Chongqing University, Chongqing, China 
+
+> 3, 6
+
+Department of Software Engineering, Daffodil International University, Bangladesh 
+
+> 5
+
+Faculty of Information Science & Technology, Multimedia University, Malaysia 
+
+Corresponding author: Pengzhan Zhou, Kah Ong Michael Goh Email address: pzzhou@cqu.edu.cn, michael.goh@mmu.edu.my 
+
+# ABSTRACT 
+
+Predicting pedestrian crossing intention is a safety-critical task for autonomous vehicles, yet existing methods rely on single-modal inputs or suboptimal fusion strategies that fail to model complementary visual and kinematic cues under varying traffic conditions. Most multimodal approaches apply dense cross-modal attention indiscriminately, introducing inter-modal noise from uninformative modality pairings and limiting deployment efficiency. We present ADAPT (Adaptive Domain-Aware Pedestrian crossing Transformer), a multimodal framework that jointly models local and global visual context alongside temporal kinematic dynamics over a 16-frame observation window at a 1-2 second time to event horizon. ADAPT processes four spatially registered image modalities alongside ego-vehicle speed, bounding boxes, and skeleton pose descriptors through five specialized modules: a weight-shared Swin Transformer V2 Tiny backbone for visual feature extraction, a Cross-Modality Guided Attention module that fuses local and global visual streams via hierarchical channel-spatial attention with a learnable adaptive routing gate, a two-layer Mamba State Space Model for linear-complexity kinematic encoding, a Sparse Cross-Modal Attention module that retains only top-k inter-modal attention paths to suppress uninformative modality interactions, and a ViT-style Temporal Feature Fusion module for clip-level aggregation. On the JAAD benchmark, ADAPT achieves AUC of 0.73 on JAAD beh and 0.85 on JAAD all , surpassing all evaluated baselines. On PIE, it attains an accuracy of 0.92 and AUC of 0.90, exceeding the prior SOTA methods by up to 0.03 points. At 17.23 ms per sample, ADAPT reduces inference latency by 2-4× relative to architecturally comparable methods, establishing a strong balance between predictive accuracy and deployment efficiency. 
+
+# 1 INTRODUCTION 
+
+In recent years, advances in artificial intelligence and sensor technology have accelerated the development of autonomous vehicles (AV), especially in urban environments Chen et al. (2021). Despite this progress, AVs still struggle to interact with other road users as effectively as experienced human drivers Crosato et al. (2022). One critical capability is predicting whether a pedestrian intends to cross the street. Accurate prediction allows AVs to anticipate pedestrian actions earlier and plan safer and smoother responses Rasouli et al. (2017a). However, predicting pedestrian intention remains challenging. Pedestrian behavior varies widely and depends on many contextual and social factors Rasouli and Tsotsos (2019); Sharma et al. (2022). These factors include the surrounding environment, such as road layout and traffic conditions, as well as interactions with other road users. Early studies mainly relied on single-modal inputs, such as pedestrian images Rasouli et al. (2017b) or pose keypoints Fang and L ´opez (2019). However, using only one modality often leads to unreliable predictions because pedestrian behavior depends on multiple signals. For example, models that rely only on pedestrian images cannot capture how arXiv:2607.12293v1 [cs.CV] 14 Jul 2026 nearby vehicles or other traffic participants influence pedestrian decisions. 
+
+Figure 1. Overview of the proposed ADAPT framework for pedestrian crossing intention prediction. The model takes a sequence of observed frames and processes four spatially aligned visual modalities (RGB, global depth, global semantic map, and local depth) along with kinematic signals (ego-vehicle speed, pedestrian bounding boxes, and skeleton pose). Visual features are extracted via the Visual Feature Encoding (VFE) module and refined using Cross-Modality Guided Attention (CMGA). Motion dynamics are encoded by the Motion Feature Encoding (MFE) module. A Sparse Cross-Modal Attention (SCMA) module selectively integrates visual and motion representations, and the Temporal Feature Fusion (TFF) module aggregates temporal information to predict the crossing intention. Recent work addresses this limitation by combining information from multiple modalities. Researchers have introduced additional visual inputs, such as semantic maps Yang et al. (2022) and optical flow Bai et al. (2022), as well as motion-related data like bounding boxes Kotseruba et al. (2021) and vehicle speed Rasouli et al. (2020). These modalities help capture both pedestrian-specific cues and the broader traffic context. Many studies process each modality with a separate branch that extracts features from the full observation sequence. The model then fuses these features to predict pedestrian intention. For example, Global PCPA Yang et al. (2022); Abdun Noor et al. (2025) uses convolutional neural networks (CNNs) to extract visual features from image-based inputs. The model then combines these features with motion data and encodes them using separate gated recurrent units (GRUs) for temporal modeling. A modality-level attention module integrates the resulting features before prediction. Other approaches follow a similar strategy. In Yang et al. (2022); Wang and Lai (2023), the transformers perform temporal modeling for each modality independently. The model then combines the features through multiscale stacking or transformer-based modality attention. Transformers have recently shown strong performance in sequential modeling and vision tasks, which has led to several Transformer-based multimodal fusion approaches. Action-ViT Zhao et al. (2021) stacks visual modalities along the temporal dimension and converts nonvisual modalities into pseudo-images. A pretrained Vision Transformer processes these inputs to extract temporal features, followed by modality attention. In Wang and Lai (2023), separate Transformers model driving behavior, traffic context, pedestrian actions, and visual information. The model then merges the features using multiscale stacking. Other studies focus on modeling relationships across modalities. Lorenzo et al. Lorenzo et al. (2021) and Osman et al. Osman et al. (2024) introduce Transformer-based modality attention to learn depen-dencies between modalities through attention scores. Inspired by neuroscience, PIT Zhou et al. (2023) proposes a progressive interaction framework that models dynamic relationships using Transformer atten-tion and temporal fusion blocks. TAMformer Osman et al. (2023) introduces a multimodal Transformer architecture that learns attention masks to capture temporal dependencies. A later extension Osman et al. (2024) adds language inputs through modality distillation, using textual descriptions to improve contextual understanding. RAIDN Yang et al. (2024b) models pedestrian behavior and interactions with traffic participants using a multiscale graph Transformer combined with an interactive relational graph 
+
+> 2/17
+
+convolutional network. IntentFormer Sharma et al. (2025) proposes a co-learning Transformer architecture that integrates multiple modalities through a multistage encoder with shared-weight attention, enabling hierarchical cross-modal interaction. To address these limitations, we present ADAPT (Adaptive Domain-Aware Pedestrian crossing Transformer), a multimodal framework for pedestrian crossing intention prediction that jointly models local and global visual context alongside temporal kinematic dynamics. ADAPT processes four spatially registered image modalities RGB crops, local depth, global semantic segmentation, and global depth alongside three kinematic signals comprising ego-vehicle speed, pedestrian bounding boxes, and skeleton pose descriptors, over a 16-frame observation window at a time-to-event horizon of 1-2 seconds. Visual representations are extracted by a weight-shared Swin Transformer V2 Tiny backbone through a Visual Feature Encoding (VFE) module and refined through a Cross-Modality Guided Attention (CMGA) module, which applies hierarchical channel-spatial attention to fuse local and global visual streams via a learnable adaptive routing gate. Motion dynamics are encoded by a Motion Feature Encoding (MFE) module comprising a two-layer Mamba State Space Model, capturing long-range temporal kinematic dependencies with linear complexity. The resulting visual and motion representations are selectively integrated by a Sparse Cross-Modal Attention module (SCMA), which retains only the top-k inter-modal attention paths to suppress noise from uninformative modality pairings. Finally, a ViT-style Temporal Feature Fusion module (TFF) aggregates frame-level representations over the full clip and produces the crossing-probability estimate. Extensive experiments on the JAAD and PIE benchmarks demonstrate that ADAPT achieves state-of-the-art accuracy while maintaining a competitive inference latency of 17.23 ms per sample, establishing a favourable balance between representational capacity and deployment efficiency. The main contributions of this work are as follows. • We propose a hierarchical channel-spatial attention module that fuses complementary local (RGB + local depth) and global (semantic segmentation + global depth) visual streams. An adaptive routing gate dynamically weights the contribution of each stream on a per-sample basis, enabling the model to emphasize the most informative scene granularity under varying traffic conditions. • We introduce a top-k sparsity mask over pairwise inter-modal attention scores that selectively integrates visual and motion representations while discarding uninformative modality pairings. This principled sparsity constraint yields consistent gains over dense inter-modal attention across all evaluated benchmarks, confirming that selective fusion outperforms unrestricted attention when modalities carry heterogeneous information density. • By pairing a lightweight Swin-V2-T backbone with a Mamba-based motion encoder, ADAPT achieves state-of-the-art accuracy on JAAD beh (0.73) and PIE (0.92) while operating at 17.23 ms per sample with a 2-4 × latency reduction relative to architecturally comparable methods. Our results demonstrate that high predictive accuracy and deployment efficiency are simultaneously attainable in pedestrian intention prediction. 
+
+# 2 METHODOLOGY 
+
+2.1 Problem Formulation 
+
+Let a pedestrian observation be represented as a clip of N consecutive video frames extracted from a forward-facing onboard camera, where N = 16 in all experiments. Each frame t ∈ { 1, . . . , N} contributes four spatially registered visual modalities: a local RGB crop Irgb  
+
+> t
+
+∈ R3×H×W centered on the pedestrian bounding box, a local depth map Idl  
+
+> t
+
+∈ R3×H×W , a global semantic segmentation map Igs  
+
+> t
+
+∈ R3×H×W , and a global depth map Igd  
+
+> t
+
+∈ R3×H×W , where H = W = 256 . Three kinematic signals are available per frame: ego-vehicle speed st ∈ R, pedestrian bounding box coordinates bt ∈ R4, and a body-pose descriptor 
+
+pt ∈ R36 encoding the two-dimensional positions and confidence scores of 17 skeletal keypoints. The crossing-intention prediction task is formulated as binary sequence classification. Given the multimodal clip observation 
+
+X =
+
+n
+
+Irgb  
+
+> t
+
+, Idl  
+
+> t
+
+, Igs  
+
+> t
+
+, Igd  
+
+> t
+
+, st , bt , pt
+
+oNt=1 , (1) the objective is to learn a mapping fθ : X 7 → ˆy ∈ { 0, 1}, where ˆy = 1 denotes the pedestrian’s intention to cross the road within a time-to-event (TTE) horizon of 1-2 seconds, and ˆy = 0 otherwise. The parameters 
+
+> 3/17
+
+θ are optimized on a labelled training set {(Xi, yi)}Mi=1 under a composite loss described in Sec. 2.6. The overall architecture, illustrated in Figure 2, processes X through a sequential pipeline of five modules. The Visual Feature Encoding module (VFE) extracts per-frame spatial representations from the four image modalities using a weight-shared hierarchical backbone. The Motion Feature Encoding module (MFE) encodes temporal kinematic dynamics from the concatenated scalar and vector motion signals. The Cross-Modality Guided Attention module (CMGA) fuses local and global visual streams through hierarchical channel-spatial attention with an adaptive routing gate, while the Sparse Cross-Modal Attention module (SCMA) selectively integrates visual and motion representations. Finally, the Temporal Feature Fusion module (TFF) aggregates frame-level features over the full clip to produce a scalar crossing-probability estimate. 
+
+Figure 2. Architecture of ADAPT: VFE extracts per-modality spatial features, CMGA fuses local and global visual streams, MFE encodes motion dynamics via Mamba SSM, SCMA performs sparse cross-modal attention ( k=2), and TFF aggregates temporal features via a ViT-style encoder to predict crossing probability ˆ p.
+
+2.2 Visual Feature Encoding 
+
+The VFE module extracts a shared spatial representation from each of the four image modalities indepen-dently. A single Swin Transformer V2 Tiny (Swin-V2-T) backbone Liu et al. (2022) is shared across all four modalities and configured with image resolution 256 × 256 , window size 16, embedding dimension 96, depth sequence [2, 2, 6, 2], and head counts [3, 6, 12 , 24 ] across the four hierarchical stages. The final stage produces feature channels of dimension Cswin = 96 × 23 = 768 , yielding approximately 28 million backbone parameters, a 68% reduction relative to the Swin-V2-B configuration (embed dim = 128 ,depths [2, 2, 18 , 2], ≈88M parameters), achieved primarily by reducing the stage-3 block count from 18 to 6 and lowering the initial embedding dimension from 128 to 96. The backbone is initialized from SimMIM Xie et al. (2022) pretrained weights. The self-supervised masked image modelling objective encourages the backbone to capture generalizable spatial structure rather than label-discriminative features, improving robustness to the diverse illumination and scene conditions present in both JAAD and PIE. For a single modality input It ∈ R3×256 ×256 , the Swin-V2-T feature extractor produces a patch token sequence 
+
+Zt ∈ RL×Cswin , where L = 64 denotes the spatial token count. These tokens are reshaped into a feature map ˆZt ∈ RCswin ×√L×√L and projected to a lower-dimensional representation via a 1 × 1 convolution followed by batch normalization and ReLU activation: 
+
+Ft = BN  Conv 1×1( ˆZt ) ∈ R256 ×8×8, (2) where the projection reduces the channel dimension from 768 to 256 while preserving the 8 × 8 spatial grid structure. This shared output dimensionality ensures that all downstream modules operate identically regardless of the backbone variant employed. Processing all N frames in a batch is accomplished by merg-ing the batch and temporal axes prior to backbone inference. For a modality tensor I ∈ RB×N×3×256 ×256 ,
+
+> 4/17
+
+the input is reshaped to (BN ) × 3 × 256 × 256 , processed through Eq. (2), and subsequently restored to 
+
+RB×N×256 ×8×8. Applying this procedure to all four modalities yields the per-frame feature map set 
+
+n
+
+Frgb , Fdl , Fgs , Fgd o
+
+, F(·) ∈ RB×N×256 ×8×8, (3) which serve as inputs to the subsequent cross-modal fusion stages. To stabilize training, the patch embedding layer and the first two Swin-V2-T hierarchical stages are frozen throughout all training phases, while the higher-level stages are progressively unfrozen according to the multi-stage schedule described. 
+
+2.3 Motion Feature Encoding 
+
+The MFE module encodes the temporal dynamics of pedestrian kinematics and ego-vehicle motion from the per-frame motion signals. For each frame t, the speed scalar st ∈ R, bounding box vector bt ∈ R4,and pose descriptor pt ∈ R36 are concatenated to form a joint motion vector mt ∈ R41 . The scalar speed channel is normalized to [0, 1] by dividing by the dataset-specific maximum speed (60 km/h for JAAD, 70 km/h for PIE), and the bounding box coordinates are normalized by the image spatial dimension 
+
+H = W = 256 . Over the clip, the full motion sequence is M ∈ RB×N×41 . The sequence M is projected into a dm = 256 dimensional latent space via a linear embedding layer followed by layer normalization: 
+
+E = LayerNorm (MW e), We ∈ R41 ×256 , E ∈ RB×N×256 . (4) Temporal modelling is performed by a two-layer Mamba State Space Model (SSM) Gu and Dao (2024). Each Mamba layer operates with a selective scan mechanism that parameterizes the hidden state transition matrices A, B, C, and the feedthrough operator D as functions of the input, enabling the model to selectively propagate or suppress information across time steps. This selective mechanism captures long-range dependencies between ego-vehicle deceleration cues and pedestrian bounding box displacement trajectories while maintaining linear O(N) time complexity with respect to sequence length, in contrast to the O(N2) complexity of a comparable Transformer encoder. Each Mamba layer is configured with state dimension dstate = 16 , convolutional kernel size dconv = 4 , and expansion factor E = 2. Letting Mamba l (·) denote the l-th Mamba layer, the two-layer encoding with residual connections is expressed as 
+
+H(l) = Mamba l
+
+
+
+H(l−1)
+
++ H(l−1), l ∈ { 1, 2}, H(0) = E, (5) and the final motion feature sequence is produced by layer normalization of the output of the second layer: 
+
+FM = LayerNorm 
+
+
+
+H(2)
+
+∈ RB×N×256 . (6) The motion feature tensor FM encodes the complete temporal trajectory of the kinematic state and is subsequently fused with visual representations in the SCMA module. 
+
+2.4 Cross-Modal Fusion: CMGA and SCMA 
+
+Cross-Modality Guided Attention: The CMGA module fuses the four visual feature maps produced by the VFE into two compact frame-level descriptors: a local visual feature FL ∈ RB×N×256 and a global visual feature FG ∈ RB×N×256 , through a hierarchical channel-spatial attention mechanism augmented with an adaptive routing gate. The fusion proceeds through two parallel pathways operating on complementary scene granularities. The local pathway processes the pair (Frgb , Fdl ), which encode pedestrian appearance and foreground depth, while the global pathway processes the pair (Fgs , Fgd ), which encode scene-level semantic context and background geometry. Within each pathway, a CMGAPair block applies cross-modality guided channel attention (CMGCA), guided spatial attention (CMGSA), and adaptive fusion (CMGAF) sequentially. The CMGCA sub-module produces a channel-wise attention map that recalibrates feature Fi conditioned on the complementary modality Fj. Given two input maps Fi, Fj ∈ RC×H′×W ′
+
+where 
+
+C = 256 and H′ = W ′ = 8, the channel descriptor for the guide Fj is formed by combining global average pooling and global max pooling: 
+
+d j = 1
+
+H′W ′ ∑
+
+> h,w
+
+Fh,wj + max  
+
+> h,w
+
+Fh,wj ∈ RC. (7) This descriptor is passed through a two-layer MLP with intermediate dimension C/r (reduction ratio 
+
+r = 16 ) and sigmoid activation to produce a channel weight vector α j ∈ (0, 1)C, and the attended feature map is ˜Fch  
+
+> i
+
+= Fi ⊙ α j, (8) 
+
+> 5/17
+
+where ⊙ denotes element-wise multiplication broadcast over spatial dimensions. The CMGCA operation is applied in both directions, yielding ˜Fch  
+
+> i
+
+and ˜Fch  
+
+> j
+
+. The CMGSA sub-module subsequently applies a spatially selective mask to each channel-attended feature, conditioned on the complementary modality. For input ˜Fch  
+
+> i
+
+guided by ˜Fch  
+
+> j
+
+, a two-channel spatial descriptor is formed by concatenating the channel-mean and channel-max projections of the guide: 
+
+Dsp  
+
+> j
+
+=
+
+h
+
+AvgPool C
+
+ ˜Fch 
+
+> j
+
+
+
+∥ MaxPool C
+
+ ˜Fch 
+
+> j
+
+i 
+
+∈ R2×H′×W ′
+
+, (9) where ∥ denotes channel concatenation. A 3 × 3 convolutional layer with sigmoid activation maps Dsp  
+
+> j
+
+to a spatial attention map β j ∈ (0, 1)H′×W ′
+
+, and the spatially attended feature is computed as ˜Fsp  
+
+> i
+
+= ˜Fch  
+
+> i
+
+⊙ β j + Fi, (10) where the residual term Fi preserves gradient flow. The CMGAF sub-module then produces the fused pair feature map via additive and multiplicative fusion paths: 
+
+Fpair =
+
+h
+
+Conv 
+
+ ˜Fsp  
+
+> i
+
++ ˜Fsp 
+
+> j
+
+
+
+∥ Conv 
+
+ ˜Fsp  
+
+> i
+
+⊙ ˜Fsp 
+
+> j
+
+i 
+
+∈ R256 ×H′×W ′
+
+, (11) where each Conv is a 3 × 3 convolution followed by batch normalization and ReLU, reducing the channel dimension to 128 before concatenation. Applying CMGAPair independently to the local and global streams yields feature maps Flocal map , Fglobal map ∈ R(BN )×256 ×8×8. Global average pooling collapses the spatial dimensions: 
+
+fℓ = 1
+
+H′W ′ ∑
+
+> h,w
+
+Flocal map  
+
+> h,w
+
+∈ RBN ×256 , fg = 1
+
+H′W ′ ∑
+
+> h,w
+
+Fglobal map  
+
+> h,w
+
+∈ RBN ×256 . (12) An adaptive routing gate g ∈ R2 is computed from the concatenated pooled descriptors via a linear layer followed by softmax: 
+
+g = softmax (Wg [ fℓ ∥ fg]) , Wg ∈ R2×512 , (13) where g = [ g1, g2]⊤ with g1 + g2 = 1. The gate dynamically modulates the contribution of each stream on a per-sample basis. The output local feature FL is produced by a weighted combination followed by a linear projection: 
+
+FL = Wo(g1 · fℓ + g2 · fg) ∈ RB×N×256 , Wo ∈ R256 ×256 . (14) The global visual feature is computed as an unweighted additive fusion: 
+
+FG = fℓ + fg ∈ RB×N×256 . (15) 
+
+Sparse Cross-Modal Attention: The SCMA module selectively integrates the three per-frame feature streams FL, FG ∈ RB×N×256 and FM ∈ RB×N×256 into a unified cross-modal representation. Let 
+
+{F1, F2, F3} = {FL, FG, FM }. For each stream i, dedicated projection matrices W Qi ,W Ki ,WVi ∈ R256 ×dp
+
+with dp = 128 produce query, key, and value representations: 
+
+Qi = FiW Qi , Ki = FiW Ki , Vi = FiWVi , Qi, Ki,Vi ∈ RB×N×dp . (16) A 3×3 pairwise score matrix S ∈ RB×N×3×3 is constructed by computing the scaled inner product between each query-key pair: 
+
+Si j = Qi · K⊤
+
+> j
+
+pdp
+
+, i, j ∈ { 1, 2, 3}. (17) A binary sparsity mask Msp ∈ { 0, 1}B×N×3×3 is derived by retaining only the top-k entries in S along the key dimension for each query row ( k = 2): 
+
+Msp  
+
+> i j
+
+=
+
+(1 if j ∈ top-k
+
+
+
+{Si j }3
+
+> j=1
+
+
+
+,
+
+0 otherwise. (18) Scores at masked positions are set to −∞ before softmax normalization: 
+
+A = softmax (S ⊙ Msp + ( 1 − Msp ) · (−∞)) ∈ RB×N×3×3. (19) The attended value representations for each stream are obtained by weighting the stacked value matrix 
+
+Vstack ∈ RB×N×3×dp :˜Vi =
+
+> 3
+
+# ∑
+
+> j=1
+
+Ai j Vj ∈ RB×N×dp , (20) 
+
+6/17 and the three attended representations are concatenated to form the SCMA output: 
+
+FSCMA =  ˜V1 ∥ ˜V2 ∥ ˜V3
+
+ ∈ RB×N×3dp , (21) where 3dp = 384 . The sparsity mask Msp is retained as a model output for attention visualization and interpretability analysis. By restricting each query stream to attend over only its two highest-scoring key streams, SCMA eliminates attention paths that carry low mutual information between modalities, a property empirically validated through the ablation study in Sec. 4.2. 
+
+2.5 Temporal Feature Fusion 
+
+The TFF module aggregates the per-frame cross-modal representations FSCMA ∈ RB×N×384 over the clip dimension through a ViT-style Transformer encoder and produces a scalar crossing-probability estimate. A learnable classification token ecls ∈ R1×384 is prepended to the frame sequence, and a learnable positional embedding P ∈ R(N+1)×384 is added to encode frame order: 
+
+X(0) = [ ecls ∥ FSCMA ] + P ∈ RB×(N+1)×384 . (22) Both ecls and P are initialized by truncated normal sampling with standard deviation 0.02. The sequence 
+
+X(0) is processed by a four-layer Transformer encoder with eight attention heads, MLP expansion ratio 4, and dropout rate 0.1, followed by layer normalization: 
+
+X(L) = LayerNorm 
+
+
+
+TransEnc 
+
+
+
+X(0) 
+
+, L = 4. (23) The CLS token aggregates global temporal context, and the final crossing probability is obtained by passing the CLS representation through a two-layer MLP classifier: ˆp = σ
+
+
+
+W2 ReLU 
+
+
+
+W1 X(L)[:,0,:] + b1
+
+
+
++ b2
+
+
+
+, (24) where W1 ∈ R128 ×384 , W2 ∈ R1×128 , dropout with rate 0.3 is applied between the two linear layers, and 
+
+σ (·) denotes the sigmoid function. The final prediction is ˆ y = 1[ ˆp ≥ 0.5].
+
+2.6 Loss Function and Training Protocol 
+
+Loss Function: Training is performed under a composite loss 
+
+L = Lintent + μ Lreg , (25) where μ = 10 −3 controls the regularization strength. The primary term Lintent is a class-weighted binary cross-entropy: 
+
+Lintent = − 1
+
+B
+
+> B
+
+# ∑
+
+> i=1
+
+wi [yi log ˆ pi + ( 1 − yi) log (1 − ˆpi)] , (26) where wi is the per-sample class weight assigned according to the inverse-frequency scheme wc = M/(2nc),with M the total training sample count and nc the count of samples in class c ∈ { 0, 1}. The regularization term Lreg is the squared Frobenius norm of the weight matrices in the intent head MLP: 
+
+Lreg = ∑ 
+
+> W∈Θhead
+
+∥W ∥2 
+
+> F
+
+, (27) where Θhead denotes the set of weight matrices (excluding biases) in the TFF classifier head. 
+
+Training Protocol: The model is trained using a three-stage progressive fine-tuning protocol. In Stage 1 (epochs 1-20), the entire VFE backbone is frozen; only the MFE, CMGA gate, SCMA, and TFF parameters are updated, with the Adam optimizer at learning rate 2 × 10 −5 and zero backbone learning rate. In Stage 2 (epochs 21-80), the last two Swin-V2-T hierarchical stages are unfrozen with a reduced backbone learning rate of 2 × 10 −6, while the remaining modules retain their Stage 1 learning rate. In Stage 3 (epochs 81-150), all backbone stages are unfrozen, and at epoch 100 all learning rates are decayed by a factor of 0.1. Gradient norms are clipped to a maximum of 1.0 throughout all stages. Training employs FP16 automatic mixed precision (AMP) with PyTorch’s GradScaler and is distributed across four GPUs using DistributedDataParallel (DDP) with SyncBatchNorm. The total batch size is 32 (8 per GPU). A WeightedRandomSampler is applied in non-distributed settings to counteract class imbalance at the sampling level, complementing the per-sample loss weighting in Eq. (26). Early stopping with patience 25 epochs is applied based on the validation AUC metric. The JAAD and PIE datasets are trained and evaluated independently, with no cross-dataset knowledge transfer. 
+
+> 7/17
+
+Table 1. Quantitative evaluation of ADAPT against existing pedestrian intention prediction methods on JAAD beh and JAAD all splits. Bold denotes the best result per column.                                                                                                                                    
+
+> Models JAAD beh JAAD all
+> Acc AUC F1 Precision Recall Acc AUC F1 Precision Recall
+> SF-GRU Rasouli et al. (2020) 0.58 0.56 0.65 0.68 0.62 0.76 0.77 0.53 0.40 0.79 FUSSI Piccoli et al. (2020) 0.59 0.58 0.69 0.66 0.73 0.60 0.72 0.40 0.27 0.73 SingleRNN Kotseruba et al. (2020) 0.60 0.54 0.70 0.65 0.76 0.78 0.77 0.54 0.42 0.75 PCPA Kotseruba et al. (2021) 0.56 0.54 0.63 0.66 0.60 0.77 0.79 0.52 0.42 0.83 Global PCPA Yang et al. (2022) 0.62 0.54 0.74 0.65 0.85 0.83 0.82 0.63 0.51 0.81 V-PedCross Bai et al. (2022) 0.61 0.50 0.75 0.71 0.80 0.82 0.74 0.64 0.58 0.63 MMTN Wang and Lai (2023) 0.68 0.63 0.76 0.71 0.81 0.89 0.78 0.66 0.72 0.61 PIT Zhou et al. (2023) 0.70 0.65 0.81 0.71 0.93 0.87 0.87 0.66 0.54 0.85 STTF-MANet Zhang et al. (2024) 0.66 0.58 0.77 0.67 0.89 0.89 0.80 0.67 0.68 0.67 RAIDN Yang et al. (2024b) 0.70 0.69 0.75 0.73 0.78 0.89 0.80 0.66 0.65 0.72 MTC Li and M¨ uller (2025b) 0.71 0.65 0.80 0.72 0.90 0.90 0.82 0.70 0.70 0.70
+> ADAPT (our) 0.74 0.70 0.83 0.76 0.92 0.91 0.85 0.76 0.74 0.78
+
+# 3 EXPERIMENTAL SETUP 
+
+3.1 Datasets 
+
+Experiments are conducted on two publicly available benchmarks for pedestrian crossing intention prediction: the Joint Attention in Autonomous Driving dataset (JAAD) 1 Rasouli et al. (2017b) and the Pedestrian Intention Estimation dataset (PIE) 2 Rasouli et al. (2019). Each dataset is treated as an independent experimental setting, with ADAPT trained and evaluated separately on each to ensure comparability with prior work under established benchmark protocols. 
+
+JAAD: The JAAD dataset comprises 346 video sequences recorded from a forward-facing monocular camera mounted on an ego-vehicle navigating urban intersections. It provides per-pedestrian bounding box annotations, crossing behaviour labels, and contextual attributes including traffic signal state, occlu-sion level, and pedestrian motion direction. The dataset is partitioned following the benchmark protocol established by Kotseruba et al. Kotseruba et al. (2021), which allocates 177 videos for training, 29 for validation, and 117 for testing. Two evaluation subsets are defined: JAAD BEH , comprising pedestrians annotated with explicit behaviour labels, and JAAD ALL , encompassing all annotated pedestrians regard-less of behavioural annotation availability. Following the MTC experimental protocol Li and M ¨uller (2025b), observation clips are extracted with a fixed temporal window of N = 16 frames at a temporal overlap ratio of 80% , corresponding to a stride of ⌊N(1 − 0.8)⌋ = 3 frames. The observation window spans 0.5 seconds of ego-vehicle motion, and clips are retained only when the time-to-event (TTE) satisfies 1 s ≤ TTE ≤ 2 s , ensuring that predictions are made sufficiently in advance of the pedestrian’s crossing action to be actionable for downstream vehicle control. Ego-vehicle speed is normalised to the unit interval [0, 1] using a dataset-specific upper bound of 60 km/h, and bounding box coordinates are normalised by the image dimensions H = W = 256 pixels to produce scale-invariant representations. 
+
+PIE: The PIE dataset consists of continuous driving sequences recorded across six data collection sets ( set01 -set06 ) under diverse traffic conditions, including varying illumination, ego-vehicle speed profiles, and pedestrian behaviours. Unlike JAAD, PIE provides dense ego-motion telemetry synchronised with video frames, offering richer ego-speed signal. The dataset split follows the protocol adopted by the MFT baseline Li et al. (2025): sets set01 , set02 , and set06 constitute the training partition; sets 
+
+set04 and set05 serve as the validation partition; and set03 constitutes the held-out test partition. Clip extraction applies the same temporal configuration as JAAD ( N = 16 , 80% overlap, TTE ∈ [1, 2] s). Ego-vehicle speed is normalised using an upper bound of 70 km/h, reflecting the higher velocity range       
+
+> 1JAAD dataset. DOI: https://doi.org/10.48550/arXiv.1609.04741 . Website: https://data.nvision2. eecs.yorku.ca/JAAD_dataset/ .
+> 2PIE dataset. DOI: https://doi.org/10.1109/ICCV.2019.00636 .Website: https://data.nvision2. eecs.yorku.ca/PIE_dataset/ .
+> 8/17
+
+observed in PIE’s continuous-driving scenarios compared to JAAD’s intersection-focused recordings. 
+
+Figure 3. Comparison of ADAPT with state-of-the-art methods on (a) JAAD beh and (b) JAAD all .Methods sorted by JAAD beh AUC (ascending). Dashed lines mark ADAPT’s scores per metric. Best results in bold; ‘-’ indicates unreported values. 
+
+3.2 Implementation Details 
+
+All experiments are conducted independently on two publicly available benchmarks the Joint Attention in Autonomous Driving (JAAD) Rasouli et al. (2017b) dataset and the Pedestrian Intention Estimation (PIE) Rasouli et al. (2019) dataset with no cross-dataset training or knowledge transfer between the two. Following the protocol of Kotseruba et al. (2021), JAAD is partitioned into 177 training, 29 validation, and 117 test video sequences, while PIE is split by recording session, with set01 , set02 ,and set06 for training, set04 and set05 for validation, and set03 for evaluation; in both cases, clips are extracted with a 16-frame observation window, 80% temporal overlap, and a time-to-event (TTE) constraint of 1-2 seconds. All visual inputs are resized to 256 × 256 pixels; RGB and semantic frames are normalized to [0, 1] and standardized with ImageNet channel statistics ( μ = [ 0.485 , 0.456 , 0.406 ],
+
+σ = [ 0.229 , 0.224 , 0.225 ]), single-channel depth maps are replicated across three channels and normalized identically, bounding box coordinates are divided by the image spatial dimension to yield values in [0, 1],and ego-vehicle speed is clipped and normalized by the dataset-specific maximum (60 km/h for JAAD; 70 km/h for PIE). During training, a consistent random horizontal flip with probability 0.5 is applied simultaneously across all four visual modality sequences within a clip to preserve spatial registration; no augmentation is used at validation or test time. The proposed model is implemented in PyTorch Imambi et al. (2021) ( ≥2.1.0) with the timm library ( ≥0.9.12) supplying the Swin Transformer V2 backbone and the mamba-ssm package ( ≥1.2.0) providing the selective state space model layers. Training is distributed across four NVIDIA GPUs via DistributedDataParallel (DDP) with NCCL backend and SyncBatchNorm, with FP16 automatic mixed precision (AMP) enabled throughout. The total batch size is 32 (8 per GPU), and the Adam optimizer Zhang (2018) is employed with weight decay set to zero and gradient norms clipped to 1.0. The VFE backbone is initialized from a SimMIM-pretrained Swin-V2-B checkpoint; all remaining modules use PyTorch default initialization. Training proceeds for up to 150 epochs under the three-stage progressive fine-tuning schedule described, with early stopping applied after 25 consecutive epochs without improvement in validation AUC; the checkpoint attaining the highest validation AUC is selected for final test evaluation. Class imbalance is addressed jointly through a WeightedRandomSampler at the data loading level and through per-sample inverse-frequency weights within the loss function. The regularization coefficient is fixed at μ = 10 −3, the SCMA sparsity parameter at k = 2, the MFE Mamba encoder at 2 layers with state dimension dstate = 16 , convolutional kernel dconv = 4 , and expansion factor 
+
+> 9/17
+
+E = 2 , and the TFF Transformer at 4 layers with 8 attention heads, MLP expansion ratio 4, and classifier dropout rate 0.3. 
+
+Table 2. Quantitative evaluation of ADAPT against existing pedestrian intention prediction methods on the PIE dataset. Bold denotes the best result per column. Models Acc AUC F1 Precision Recall PCPA Kotseruba et al. (2021) 0.87 0.85 0.78 0.76 0.81 Global PCPA Yang et al. (2022) 0.89 0.86 0.80 0.79 0.81 TrouSPI-Net Gesnouin et al. (2021) 0.88 0.88 0.80 0.73 0.89 V-PedCross Bai et al. (2022) 0.89 0.88 0.67 0.74 0.84 STTF-MANet Zhang et al. (2024) 0.89 0.88 0.82 0.79 0.85 MTMGN Yang et al. (2024a) 0.90 0.87 0.92 0.95 0.90 PFRN Lv et al. (2024) 0.90 0.85 0.77 0.81 0.74 Dual-STGAT Lian et al. (2025) 0.86 0.87 0.91 0.92 0.90 LSOP-Net Liu et al. (2025) 0.89 0.87 0.81 0.80 0.82 
+
+ADAPT (Ours) 0.92 0.90 0.83 0.84 0.81 
+
+3.3 Evaluation Metrics 
+
+Model performance is assessed using five complementary metrics that together characterize both discrimi-native capacity and classification quality under class imbalance. All metrics are computed on the held-out test split of each dataset. The decision threshold for converting predicted crossing probabilities ˆp to binary labels ˆ y is fixed at 0.5 for all threshold-dependent metrics. 
+
+Accuracy (Acc) measures the proportion of correctly classified samples over the full test set: Acc = TP + TN TP + TN + FP + FN , (28) where TP, TN, FP, and FN denote the counts of true positives, true negatives, false positives, and false negatives, respectively. While accuracy provides a compact summary statistic, its interpretation is sensitive to class distribution and is therefore reported alongside the following complementary measures. 
+
+Area Under the ROC Curve (AUC) evaluates the model’s ability to discriminate between the crossing and non-crossing classes across all decision thresholds, and is computed as the area under the receiver operating characteristic curve. AUC is independent of the classification threshold and insensitive to class imbalance, making it a primary ranking metric for the pedestrian intention estimation task. It is defined as: AUC = 
+
+> Z10
+
+TPR (τ) d FPR (τ), (29) where TPR (τ) and FPR (τ) denote the true positive rate and false positive rate at decision threshold τ,respectively. F1 Score (F1) is the harmonic mean of precision and recall: F1 = 2 · Precision · Recall Precision + Recall = 2 TP 2 TP + FP + FN . (30) The F1 score provides a balanced assessment of the classifier’s performance on the positive (crossing) class and is particularly informative in the presence of label imbalance. 
+
+Precision (Prec) quantifies the fraction of predicted crossing instances that correspond to true crossing events: Precision = TP TP + FP , (31) and reflects the model’s propensity to generate false positive crossing alarms, which is of direct relevance to autonomous vehicle safety systems. 
+
+Recall (Rec) measures the fraction of true crossing events that are correctly detected by the model: Recall = TP TP + FN , (32) and captures the model’s sensitivity to the safety-critical positive class. A high recall ensures that the system does not fail to anticipate crossing pedestrians, which constitutes the more consequential error 
+
+> 10/17
+
+mode in the context of collision avoidance. The five metrics collectively provide a multidimensional characterization of model behavior. AUC serves as the primary criterion for model selection during training and for comparative evaluation against prior methods, as it is threshold-independent and robust to dataset-level class imbalance. Accuracy, F1, precision, and recall are reported to enable a complete comparison with existing works that adopt different primary metrics. 
+
+3.4 Baselines 
+
+ADAPT is evaluated against twenty state-of-the-art pedestrian crossing-intention prediction methods drawn from Tables 1 and 2, spanning a range of architectural paradigms from early recurrent models to recent graph- and transformer-based approaches. SF-GRU Rasouli et al. (2020) encodes pedestrian pose and scene context via stacked gated recurrent units, establishing a widely adopted sequential baseline. FUSSI Piccoli et al. (2020) and SingleRNN Kotseruba et al. (2020) extend single-stream recurrent modeling with additional sensory cues, while PCPA Kotseruba et al. (2021) and its extended variant Global PCPA Yang et al. (2022) introduce multi-branch context aggregation over pedestrian, vehicle, and scene channels. V-PedCross Bai et al. (2022) adopts a video-based dual-stream architecture that jointly processes appearance and optical flow. MMTN Wang and Lai (2023) applies a multi-modal transformer with explicit inter-modality attention, and PIT Zhou et al. (2023) incorporates pedestrian interaction tokens to model group-level crossing dynamics. STTF-MANet Zhang et al. (2024) employs a spatio-temporal transformer fused with multi-scale attention, RAIDN Yang et al. (2024b) addresses real-time constraints through an intention-driven network with lightweight feature routing, and MTC Li and M ¨uller (2025b) introduces multi-temporal context aggregation to capture crossing cues at varying observation horizons. On the PIE benchmark, three additional recent methods are included: TrouSPI-Net Gesnouin et al. (2021), which combines trajectory and social force cues via parallel input streams; LSOP-Net Liu et al. (2025), which models long-short-term scene-object interactions through dual-branch graph convolution; MTMGN Yang et al. (2024a), which constructs an explainable multi-task multi-graph network over body keypoints and scene semantics; PFRN Lv et al. (2024), which employs a progressive feature refinement network under partial observation; and Dual-STGAT Lian et al. (2025), which encodes pedestrian-vehicle spatial relations through dual spatio-temporal graph attention. Together, these baselines provide a broad and representative coverage of the methodological landscape, encompassing recurrent, attention-based, graph-based, and multi-task learning strategies across varying degrees of input modality richness and temporal complexity. 
+
+Figure 4. Comparison of ADAPT with state-of-the-art methods on PIE. (a) Precision–Recall bubble chart; bubble area proportional to AUC. Only ADAPT and its three nearest competitors are annotated. Dashed quadrant lines mark median competitor scores. (b) Accuracy and AUC comparison sorted by Accuracy. Dashed lines mark ADAPT’s scores for reference. 
+
+> 11/17
+
+# 4 RESULTS AND ANALYSIS 
+
+4.1 Comparison with State-of-the-Art 
+
+Results on JAAD beh . On the behaviorally annotated JAAD beh split (Table 1, columns 2-6; Figure 3, top-left and bottom-left), ADAPT achieves an accuracy of 0.74, an AUC of 0.70, an F1-score of 0.83, a precision of 0.76, and a recall of 0.92, uniformly surpassing all evaluated baselines across every metric. Relative to the strongest prior single-metric contenders, ADAPT improves accuracy by 0.03 points over both RAIDN Yang et al. (2024b) and MTC Li and M¨ uller (2025b) (each at 0.70), and advances AUC by 0.01 point over RAIDN (0.69), which previously recorded the highest AUC on this split. The F1-score gain of 0.02 over PIT Zhou et al. (2023) (0.81) is particularly informative: PIT attains a precision of 0.71 with a recall of 0.93, whereas ADAPT raises precision to 0.76 while reducing recall by only 0.01 to 0.92, indicating a more balanced detection boundary that avoids the high-recall, low-precision regime common to temporal attention models. As confirmed by the ADAPT reference lines in Figure 3 (top-left: accuracy 0.74, AUC 0.70, F1-score 0.83; bottom-left: recall 0.92, precision 0.76), the model’s advantage is consistent across all five metrics rather than being driven by a single operating-point choice. The stepped progression from recurrent baselines (SF-GRU Rasouli et al. (2020), SingleRNN Kotseruba et al. (2020), FUSSI Piccoli et al. (2020): accuracy 0.58-0.60, AUC 0.54-0.58) through attention-based methods (MMTN Wang and Lai (2023), PIT, RAIDN, MTC: accuracy 0.68-0.71, AUC 0.63-0.69) to ADAPT suggests that temporal modeling refinements alone yield diminishing returns, and that the domain-adaptive gradient reversal mechanism contributes the marginal gain observed between the strongest attention-based baseline and ADAPT. 
+
+Results on JAAD all . On JAAD all , which includes pedestrians not engaged in crossing-related behavior and therefore poses a more demanding class-imbalance challenge (Table 1, columns 7-11; Figure 3, top-right and bottom-right), ADAPT records an accuracy of 0.91, an AUC of 0.85, an F1-score of 0.76, a precision of 0.74, and a recall of 0.78. The accuracy of 0.91 exceeds the previous best of 0.90 (MTC Li and M ¨uller (2025b)) by 0.01 point, while the AUC of 0.85 improves upon PIT Zhou et al. (2023) (0.87) by - and surpasses every other evaluated method on this split by at least 0.03 points. The F1-score advance of 0.06 over MTC (0.70) is accompanied by simultaneous gains in both precision (0.04 over MTC at 0.70) and recall (0.08 over MTC at 0.70), confirming that the improvement reflects a genuinely stronger posterior distribution over the crossing-intent class rather than a threshold-level shift. The bottom-right panel of Figure 3 makes this particularly evident: FUSSI Piccoli et al. (2020) and PCPA Kotseruba et al. (2021) achieve nominal recall values of 0.73 and 0.83 respectively, yet their precision drops to 0.27 and 0.42, a divergence characteristic of models trained on balanced splits that expand their positive predictive distribution to cover ambiguous non-crossing instances when evaluated on the full annotation set. By contrast, ADAPT’s recall (0.78) and precision (0.74) remain within 0.04 of each other, reflecting the ability of the domain-adaptive component to suppress spurious positive activations in visually ambiguous or context-mismatched scenes. MMTN Wang and Lai (2023) exhibits the opposite imbalance precision 0.72 versus recall 0.61 consistent with an over suppression of marginal positive states under its temporal fusion scheme; ADAPT improves recall over MMTN by 0.17 while maintaining a comparable precision advantage of 0.02, as visible from the reference lines in the bottom-right panel of Figure 3. 
+
+Results on PIE: Table 2 and Figure 4 report results on PIE, which features longer observation horizons and richer ego-motion cues than JAAD. ADAPT achieves an accuracy of 0.92, an AUC of 0.90, an F1-score of 0.83, a precision of 0.84, and a recall of 0.81. As shown in Figure 4(b), the accuracy of 0.92 exceeds the previous best value of 0.90 shared by MTMGN Yang et al. (2024a) and PFRN Lv et al. (2024) by 0.02 points, and the AUC of 0.90 surpasses MTMGN (0.87), Dual-STGAT Lian et al. (2025) (0.87), and TrouSPI-Net Gesnouin et al. (2021) (0.88) by 0.03, 0.03, and 0.02 points, respectively. The ADAPT accuracy and AUC reference lines in Figure 4(b) lie above the corresponding bars for all nine baselines, confirming that the performance gain is distributed across both threshold-specific (accuracy) and threshold-independent (AUC) criteria. The precision-recall dynamics on PIE, visualised in the bubble chart of Figure 4(a), reveal a structural trade-off between ADAPT and the two highest-precision methods. MTMGN records a precision of 0.95 and recall of 0.90 (F1 = 0.92), and Dual-STGAT records a precision of 0.92 and recall of 0.90 (F1 = 0.91); both methods cluster in the upper-left quadrant of Figure 4(a), reflecting operating points optimised for positive predictive value at the cost of a narrowed true-positive rate relative to ADAPT. ADAPT’s precision of 0.84 is lower than MTMGN by 0.11 and Dual-STGAT by 0.08, yet its AUC of 0.90 exceeds both (MTMGN: 0.87; Dual-STGAT: 0.87) by 0.03 points, indicating that ADAPT’s discriminative boundary is better calibrated across the full operating range rather than tuned 
+
+> 12/17
+
+to a single threshold. This is corroborated in Figure 4(a) by the AUC-proportional bubble area of ADAPT (0.90), which is visually the largest among all plotted methods. Methods positioned at the left edge of the chart, namely PFRN and Global PCPA (Recall ≈ 0.73-0.74), exhibit the most conservative recall behavior, consistent with their compact temporal receptive fields and limited scene-context integration relative to ADAPT’s multimodal cross-attention architecture. 
+
+Table 3. Ablation study evaluating the contribution of each component in the proposed ADAPT framework. Each variant replaces a single module while keeping the remaining architecture unchanged. Experiments are conducted on JAAD BEH , JAAD ALL , and PIE. The best result in each column is shown in bold , and the second-best is underlined. Variant Modification JAAD BEH JAAD ALL PIE Acc AUC F1 Acc AUC F1 Acc AUC F1 v1 ImageNet-22K VFE a 0.70 0.69 0.76 0.89 0.79 0.73 0.89 0.87 0.80 v2 Transformer MFE b 0.72 0.71 0.78 0.90 0.81 0.75 0.91 0.89 0.82 v3 Dense IMA c 0.70 0.68 0.75 0.88 0.79 0.72 0.89 0.87 0.80 v4 Fixed routing gate d 0.71 0.70 0.77 0.90 0.80 0.74 0.90 0.88 0.81 ADAPT Full model 0.73 0.72 0.79 0.91 0.82 0.76 0.92 0.90 0.83 
+
+4.2 Ablation Study 
+
+To isolate the contribution of each architectural component, four controlled variants of ADAPT are evaluated across all three benchmarks by replacing one module at a time while holding the remainder fixed; results are reported in Table 3 and visualised as per-cell deviations from the full model in Figure 5. Replacing the visual feature extractor with an ImageNet-22K pretrained backbone (v1) reduces accuracy, AUC, and F1 by 0.03 points each on JAAD beh , by 0.02, 0.03, and 0.03 points on JAAD all , and by 0.03 points uniformly on PIE, indicating that domain-specific visual pretraining contributes a consistent gain in pedestrian-relevant feature discrimination. Substituting the multimodal feature encoder with a standard Transformer MFE (v2) incurs a smaller but systematic penalty of 0.01 across all three metrics on every benchmark, confirming that the original encoder’s cross-modal interaction scheme provides a marginal yet consistent representational advantage over isotropic self-attention. The most pronounced degradation is produced by replacing the sparse Interaction-aware Modality Aggregation module with a dense all-to-all variant (v3): AUC drops by 0.04 on JAAD beh (0.68 vs. 0.72) and F1 drops by 0.04 on both JAAD beh (0.75 vs. 0.79) and JAAD all (0.72 vs. 0.76). As corroborated by the deepest red cells in Figure 5, v3 and v1 produce the largest absolute deviations from the full model across all three datasets, suggesting that dense aggregation over all modality pairs introduces inter-modal noise that degrades the fused representation, whereas the selective routing of the sparse IMA suppresses irrelevant cross-modal interactions. Among all variants, v4 which replaces the learned dynamic routing gate with a fixed parameter-free counterpart yields a uniform reduction of 0.02 points in accuracy, AUC, and F1 on JAAD beh and PIE, and reductions of 0.01, 0.02, and 0.02 on JAAD all , establishing that adaptive modality weighting is a necessary condition for the full model’s performance. The second-best results across all benchmarks are consistently held by v2 (JAAD beh : Acc 0.72, AUC 0.71, F1 0.78; JAAD all : Acc 0.90, AUC 0.81, F1 0.75; PIE: Acc 0.91, AUC 0.89, F1 0.82), indicating that the Transformer MFE is the least critical of the four components under investigation and that the architecture is more sensitive to the quality of spatial feature extraction (v1) and modality aggregation design (v3, v4) than to the specific form of the temporal encoder. Collectively, these results confirm that each module in ADAPT contributes positively and independently to overall performance, with the sparse IMA and domain-adaptive visual backbone exerting the largest individual influence on the learned crossing-intention representation. 
+
+4.3 Computational Cost 
+
+Table 4 reports the model size, parameter count, and per-sample inference latency of ADAPT alongside nine baseline methods. The comparison spans a broad range of architectural scales, from compact models such as FUSSI (1.00M parameters, 8.40 MB) and MFT (0.95M parameters, 9.40 MB) to larger multimodal 
+
+> 13/17
+
+Figure 5. Ablation heatmap across JAAD beh , JAAD all , and PIE. Each cell shows the absolute score (bold) and delta relative to the full ADAPT model (parentheses). Colour intensity encodes |∆| (white →
+
+deep red); the full model row (purple) is the zero-delta reference. The largest drop occurs at v3 (Dense IMA) on JAAD beh AUC ( ∆ = −0.04), confirming SCMA as the most critical component. frameworks including Global PCPA (60.92M parameters, 374.20 MB) and PCPA (31.17M parameters, 118.80 MB). ADAPT occupies an intermediate position in terms of model size and parameter count, at 37.64M parameters and 146.73 MB, which reflects the adoption of the lightweight Swin-V2-T backbone in the VFE module in place of a heavier visual encoder. With respect to inference latency, ADAPT records 17.23 ms per sample, which is the second lowest among all methods for which timing is reported, exceeded only by VMI at 11.03 ms. Relative to methods of comparable or greater architectural complexity MTC (36.23 ms), ACIT (43.93 ms), PCPA (38.60 ms), and Global PCPA (70.83 ms) ADAPT reduces inference time by a factor of approximately 2-4 ×. Notably, MFT achieves a lower parameter count (0.95M) and smaller model size (9.40 MB) than ADAPT, yet incurs higher inference latency (23.20 ms), suggesting that parameter count alone does not determine runtime efficiency and that the architectural design of ADAPT’s inference pipeline contributes to its favourable latency profile. The models for which size and parameter count are unreported (MFFN, MTMGN) exhibit inference latencies of 46.20 ms and 56.00 ms respectively, both substantially higher than ADAPT. These results indicate that ADAPT achieves a competitive balance between representational capacity and computational efficiency, making it suitable for latency-sensitive deployment contexts in intelligent transportation systems. 
+
+Table 4. Computational cost comparison of ADAPT against selected baseline methods. ↓ denotes lower is better. 
+
+Model Size (MB) ↓ Params (M) ↓ Inference (ms) ↓
+
+FUSSI Piccoli et al. (2020) 8.40 1.00 34.92 MFT Li et al. (2025) 9.40 0.95 23.20 VMI Sharma et al. (2023) 19.07 - 11.03 ACIT Li and M¨ uller (2025a) 62.50 5.15 43.93 MTC Li and M¨ uller (2025b) 99.70 8.25 36.23 PCPA Kotseruba et al. (2021) 118.80 31.17 38.60 MFFN Ni et al. (2023) - - 46.20 MTMGN Yang et al. (2024a) - - 56.00 Global PCPA Yang et al. (2022) 374.20 60.92 70.83 
+
+ADAPT (Ours) 146.73 37.64 17.23 
+
+> 14/17
+
+# 5 CONCLUSION 
+
+This paper presented ADAPT (Adaptive Domain-Aware Pedestrian crossing Transformer), a multimodal framework for pedestrian crossing intention prediction that jointly models local and global visual context alongside temporal kinematic dynamics. To address the limitations of existing methods, which either rely on single-modal inputs or apply dense cross-modal attention indiscriminately, ADAPT introduces four tightly integrated architectural contributions: a Cross-Modality Guided Attention module that fuses complementary visual streams through hierarchical channel-spatial attention with a learnable adaptive routing gate, a Mamba-based Motion Feature Encoding module that captures long-range temporal kinematic dependencies with linear complexity, a Sparse Cross-Modal Attention module that imposes a top-k sparsity constraint to selectively integrate visual and motion representations while suppressing uninformative modality interactions, and a ViT-style Temporal Feature Fusion module that aggregates frame-level representations over the full observation clip. Experiments on JAAD and PIE demonstrate that ADAPT achieves state-of-the-art performance across all evaluated metrics, attaining an AUC of 0.73 on JAAD beh , 0.85 on JAAD all , and 0.90 on PIE, while reducing inference latency by 2- 4× relative to architecturally comparable methods at 17.23 ms per sample. Despite these advances, ADAPT relies on four synchronized visual modalities and is sensitive to depth estimation quality and sensor noise, which may limit robustness under adverse real-world acquisition conditions. Future work will investigate self-supervised and weakly supervised training strategies to reduce annotation dependency, as well as the integration of large language and vision-language models to enrich scene-level contextual understanding for pedestrian intention prediction. 
+
+# ACKNOWLEDGEMENTS 
+
+The authors used ChatGPT (OpenAI (2025)) for general purposes such as grammar refinement, structural organization, and documentation formatting. All scientific content, data processing, and results were independently verified and approved by the authors. 
+
+# CODE AVAILABILITY 
+
+The implementation of ADAPT used in this study is publicly available. The source code can be accessed through GitHub at: https://github.com/imamahasane/ADAPT An archived and citable version of the code has been deposited in Zenodo and is available at: https://zenodo.org/records/19360718 
+
+# REFERENCES 
+
+Abdun Noor, A., Ahasan, M. I., Khan, M. A., and Yang, G. (2025). Geglunet: Structural retinal vessel segmentation via attention-gated geglu and contrastive supervision. In Chinese Conference on Pattern Recognition and Computer Vision (PRCV) , pages 494–507. Springer. Bai, J., Fang, X., Fang, J., Xue, J., and Yuan, C. (2022). Deep virtual-to-real distillation for pedestrian crossing prediction. In 2022 IEEE 25th International Conference on Intelligent Transportation Systems (ITSC) , pages 1586–1592. IEEE. Chen, J., Li, S. E., and Tomizuka, M. (2021). Interpretable end-to-end urban autonomous driving with latent deep reinforcement learning. IEEE Transactions on Intelligent Transportation Systems ,23(6):5068–5078. Crosato, L., Shum, H. P., Ho, E. S., and Wei, C. (2022). Interaction-aware decision-making for automated vehicles using social value orientation. IEEE Transactions on Intelligent Vehicles , 8(2):1339–1349. Fang, Z. and L ´opez, A. M. (2019). Intention recognition of pedestrians and cyclists by 2d pose estimation. 
+
+IEEE transactions on intelligent transportation systems , 21(11):4773–4783. Gesnouin, J., Pechberti, S., Stanciulcscu, B., and Moutarde, F. (2021). Trouspi-net: Spatio-temporal attention on parallel atrous convolutions and u-grus for skeletal pedestrian crossing prediction. In 2021 16th IEEE International Conference on Automatic Face and Gesture Recognition (FG 2021) , pages 01–07. IEEE. Gu, A. and Dao, T. (2024). Mamba: Linear-time sequence modeling with selective state spaces. In First conference on language modeling .Imambi, S., Prakash, K. B., and Kanagachidambaresan, G. (2021). Pytorch. In Programming with TensorFlow: solution for edge computing applications , pages 87–104. Springer. 
+
+> 15/17
+
+Kotseruba, I., Rasouli, A., and Tsotsos, J. K. (2020). Do they want to cross? understanding pedestrian intention for behavior prediction. In 2020 IEEE Intelligent Vehicles Symposium (IV) , pages 1688–1693. IEEE. Kotseruba, I., Rasouli, A., and Tsotsos, J. K. (2021). Benchmark for evaluating pedestrian action prediction. In Proceedings of the IEEE/CVF winter conference on applications of computer vision ,pages 1258–1268. Li, Y. and M ¨uller, S. (2025a). Acit: Attention-guided cross-modal interaction transformer for pedestrian crossing intention prediction. arXiv preprint arXiv:2511.20020 .Li, Y. and M ¨uller, S. (2025b). Mtc: Multimodal transformer with cross-modality guided attention for pedestrian crossing intention prediction. IEEE Sensors Journal , 25(24):44929–44939. Li, Y., Zhong, H., and M ¨uller, S. (2025). Multi-context fusion transformer for pedestrian crossing intention prediction in urban environments. arXiv preprint arXiv:2511.20011 .Lian, J., Luo, Y., Wang, X., Li, L., Guo, G., Ren, W., and Zhang, T. (2025). Dual-stgat: Dual spatio-temporal graph attention networks with feature fusion for pedestrian crossing intention prediction. 
+
+IEEE Transactions on Intelligent Transportation Systems .Liu, H., Liu, C., Chang, F., Lu, Y., and Liu, M. (2025). Long–short observation-driven prediction network for pedestrian crossing intention prediction with momentary observation. Neurocomputing ,614:128824. Liu, Z., Hu, H., Lin, Y., Yao, Z., Xie, Z., Wei, Y., Ning, J., Cao, Y., Zhang, Z., Dong, L., et al. (2022). Swin transformer v2: Scaling up capacity and resolution. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 12009–12019. Lorenzo, J., Parra, I., and Sotelo, M. (2021). Intformer: Predicting pedestrian intention with the aid of the transformer architecture. arXiv preprint arXiv:2105.08647 .Lv, N., Huang, Y., Zhang, H., and Wu, F. (2024). Pedestrian crossing prediction with pathwise feature fusion and stacked gate recurrent unit. IEEE Sensors Letters , 8(2):1–4. Ni, R., Yang, B., Wei, Z., Hu, H., and Yang, C. (2023). Pedestrians crossing intention anticipation based on dual-channel action recognition and hierarchical environmental context. IET Intelligent Transport Systems , 17(2):255–269. OpenAI (2025). Chatgpt (gpt-5). https://chat.openai.com/ . Large language model developed by OpenAI. Accessed: November 11, 2025. Osman, N., Camporese, G., and Ballan, L. (2023). Tamformer: Multi-modal transformer with learned attention mask for early intent prediction. In ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE. Osman, N., Camporese, G., and Ballan, L. (2024). Multi-modal transformer with language modality distillation for early pedestrian action anticipation. Computer Vision and Image Understanding ,249:104144. Piccoli, F., Balakrishnan, R., Perez, M. J., Sachdeo, M., Nunez, C., Tang, M., Andreasson, K., Bjurek, K., Raj, R. D., Davidsson, E., et al. (2020). Fussi-net: Fusion of spatio-temporal skeletons for intention prediction network. In 2020 54th asilomar conference on signals, systems, and computers , pages 68–72. IEEE. Rasouli, A., Kotseruba, I., Kunic, T., and Tsotsos, J. K. (2019). Pie: A large-scale dataset and models for pedestrian intention estimation and trajectory prediction. In Proceedings of the IEEE/CVF international conference on computer vision , pages 6262–6271. Rasouli, A., Kotseruba, I., and Tsotsos, J. K. (2017a). Agreeing to cross: How drivers and pedestrians communicate. In 2017 IEEE Intelligent Vehicles Symposium (IV) , pages 264–269. IEEE. Rasouli, A., Kotseruba, I., and Tsotsos, J. K. (2017b). Are they going to cross? a benchmark dataset and baseline for pedestrian crosswalk behavior. In Proceedings of the IEEE international conference on computer vision workshops , pages 206–213. Rasouli, A., Kotseruba, I., and Tsotsos, J. K. (2020). Pedestrian action anticipation using contextual feature fusion in stacked rnns. arXiv preprint arXiv:2005.06582 .Rasouli, A. and Tsotsos, J. K. (2019). Autonomous vehicles that interact with pedestrians: A survey of theory and practice. IEEE transactions on intelligent transportation systems , 21(3):900–918. Sharma, N., Dhiman, C., and Indu, S. (2022). Pedestrian intention prediction for autonomous vehicles: A comprehensive survey. Neurocomputing , 508:120–152. Sharma, N., Dhiman, C., and Indu, S. (2023). Visual–motion–interaction-guided pedestrian intention 
+
+> 16/17
+
+prediction framework. IEEE Sensors Journal , 23(22):27540–27548. Sharma, N., Dhiman, C., and Indu, S. (2025). Predicting pedestrian intentions with multimodal intent-former: A co-learning approach. Pattern Recognition , 161:111205. Wang, T. W. and Lai, S.-H. (2023). Pedestrian crossing intention prediction with multi-modal transformer-based model. In 2023 Asia Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC) , pages 1349–1356. IEEE. Xie, Z., Zhang, Z., Cao, Y., Lin, Y., Bao, J., Yao, Z., Dai, Q., and Hu, H. (2022). Simmim: A simple framework for masked image modeling. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9653–9663. Yang, B., Fan, Z., Hu, H., Hu, C., and Ni, R. (2024a). Explainable pedestrian crossing intention prediction based on multi-task mutual guidance network. IEEE Transactions on Intelligent Vehicles .Yang, B., Wei, Z., Hu, C., Cai, Y., Wang, H., and Hu, H. (2024b). Real-time pedestrian crossing anticipation based on an action–interaction dual-branch network. IEEE Transactions on Intelligent Transportation Systems , 25(12):21021–21034. Yang, D., Zhang, H., Yurtsever, E., Redmill, K. A., and ¨Ozg ¨uner, ¨U. (2022). Predicting pedestrian crossing intention with feature fusion and spatio-temporal attention. IEEE Transactions on Intelligent Vehicles ,7(2):221–230. Zhang, X., Wang, X., Zhang, W., Wang, Y., Liu, X., and Wei, D. (2024). Multi-attention network for pedestrian intention prediction based on spatio-temporal feature fusion. Proceedings of the Institution of Mechanical Engineers, Part D: Journal of Automobile Engineering , 238(13):4202–4215. Zhang, Z. (2018). Improved adam optimizer for deep neural networks. In 2018 IEEE/ACM 26th international symposium on quality of service (IWQoS) , pages 1–2. Ieee. Zhao, S., Li, H., Ke, Q., Liu, L., and Zhang, R. (2021). Action-vit: Pedestrian intent prediction in traffic scenes. IEEE Signal Processing Letters , 29:324–328. Zhou, Y., Tan, G., Zhong, R., Li, Y., and Gou, C. (2023). Pit: Progressive interaction transformer for pedestrian crossing intention prediction. IEEE Transactions on Intelligent Transportation Systems ,24(12):14213–14225.
