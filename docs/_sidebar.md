@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-07-16 <!--dpr-date:20260716-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/16/2607.14078v1-a-modular-state-space-model-of-human-perception-cognition-and-decision-dynamics" data-sidebar-item="{&quot;title&quot;: &quot;A modular state-space model of human perception, cognition, and decision dynamics&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2607.14078v1-a-modular-state-space-model-of-human-perception-cognition-and-decision-dynamics&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;用于意图形成和决策动态的状态空间模型&quot;}">A modular state-space model of human perception, cognition, and decision dynamics</a>
   * 2026-07-15 <!--dpr-date:20260715-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/15/2607.12181v1-analysis-of-mutual-and-referential-human-and-robot-gazes-in-a-collaborative-word-association-game" data-sidebar-item="{&quot;title&quot;: &quot;Analysis of Mutual and Referential Human and Robot Gazes in a Collaborative Word Association Game&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2607.12181v1-analysis-of-mutual-and-referential-human-and-robot-gazes-in-a-collaborative-word-association-game&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;分析人机协作中的相互与参考性注视，直接相关于基于注视的人机交互&quot;}">Analysis of Mutual and Referential Human and Robot Gazes in a Collaborative Word Association Game</a>
