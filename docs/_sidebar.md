@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-07-20 <!--dpr-date:20260720-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/20/biorxiv-10-64898-2026-07-13-737665-v1-exploring-neural-signatures-of-self-initiated-saccadic-and-blink-events-in-the-real-world" data-sidebar-item="{&quot;title&quot;: &quot;Exploring Neural Signatures of Self-Initiated Saccadic and Blink Events in the Real World&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-07-13-737665-v1-exploring-neural-signatures-of-self-initiated-saccadic-and-blink-events-in-the-real-world&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;真实世界中同步移动脑电图和眼动追踪；自发扫视和眨眼事件的神经特征&quot;}">Exploring Neural Signatures of Self-Initiated Saccadic and Blink Events in the Real World</a>
   * 2026-07-18 <!--dpr-date:20260718-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/18/biorxiv-10-64898-2026-05-29-726887-v2-information-dependent-eye-hand-coordination-emerges-from-active-vision" data-sidebar-item="{&quot;title&quot;: &quot;Information-dependent eye-hand coordination emerges from active vision&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-05-29-726887-v2-information-dependent-eye-hand-coordination-emerges-from-active-vision&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;基于随机模型预测控制的主动视觉，用于眼动驱动的预判性手部运动规划&quot;}">Information-dependent eye-hand coordination emerges from active vision</a>
