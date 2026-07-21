@@ -6,28 +6,30 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-20
-- 运行时间：2026-07-20 20:54:05 UTC
+- 最新运行日期：2026-07-21
+- 运行时间：2026-07-21 21:17:47 UTC
 - 运行状态：成功
-- 本次总论文数：1
-- 精读区：0
+- 本次总论文数：2
+- 精读区：1
 - 速读区：1
 
 ### 今日简报（AI）
-今日速读一篇关于真实世界中自发性扫视与眨眼事件的神经特征研究。
+今日精读高分的决策信念更新神经机制研究，速览主动智能体事件基准测试。
 
-最值得关注的是该工作探索了自然情境下眼动行为的神经基础，为理解主动感知的脑机制提供了新视角。
+最值得关注的是用注视诱发电位揭示层级信念更新的神经特征，方向新颖且得分9.0。
 
-若对眼动与认知的神经关联感兴趣，可进一步查阅其方法（如移动脑电或眼动追踪），以了解如何将实验室发现推广至日常生活。
-- 详情：[/202607/20/README](/202607/20/README)
+下一步建议深入理解信念更新如何影响决策，或尝试将主动代理基准用于实际系统评估。
+- 详情：[/202607/21/README](/202607/21/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Fixation-evoked potentials reveal neural signatures of hierarchical belief-updating during decision-making](/202607/21/biorxiv-10-64898-2026-07-15-738682-v1-fixation-evoked-potentials-reveal-neural-signatures-of-hierarchical-belief-updating-during-decision-making)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：使用眼动追踪和脑电图研究决策中的信念更新，直接相关于人类注视的概率建模
 
 ### 速读区论文标签
-1. [Exploring Neural Signatures of Self-Initiated Saccadic and Blink Events in the Real World](/202607/20/biorxiv-10-64898-2026-07-13-737665-v1-exploring-neural-signatures-of-self-initiated-saccadic-and-blink-events-in-the-real-world)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：真实世界中同步移动脑电图和眼动追踪；自发扫视和眨眼事件的神经特征
+1. [ProEvent: An Event-centric Benchmark for Proactive Agents](/202607/21/2607.17701v1-proevent-an-event-centric-benchmark-for-proactive-agents)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：前瞻性智能体基准测试，用于预期用户需求，与前瞻性交互主题一致
 
 
 <div class="dpr-home-promo-card">
