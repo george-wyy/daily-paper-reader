@@ -1,0 +1,941 @@
+Title: Open-Vocabulary Gaze Object Prediction: Benchmark and Method
+
+URL Source: https://arxiv.org/pdf/2607.18827v1
+
+Published Time: Wed, 22 Jul 2026 00:40:20 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# Open-Vocabulary Gaze Object Prediction: Benchmark and Method 
+
+# Binglu Wang 
+
+Xi’an University of Architecture and Technology College of Artificial Intelligence and Rebotics Xi’an, China wbl921129@gmail.com 
+
+# Sensen Niu 
+
+Xi’an University of Architecture and Technology College of Artificial Intelligence and Rebotics Xi’an, China nuses423@gmail.com 
+
+# Ying Chen 
+
+Xi’an University of Architecture and Technology College of Computer and Information Engineering Xi’an, China cying2822@gmail.com 
+
+# Guangyu Guo ∗
+
+DAMO Academy, Alibaba Group Hangzhou, China Zhejiang University College of Computer Science and Technology Hangzhou, China gyguo95@gmail.com 
+
+## Abstract 
+
+Gaze Object Prediction (GOP) aims to localize and recognize the objects humans attend to, a task crucial for understanding human-centric interactions. However, existing methods are typically trained under a closed-vocabulary paradigm with a fixed label space and evaluated on scene-specific datasets, limiting their applicability to real-world scenarios where gaze targets often follow a long-tail distribution or belong to unseen categories. To address this gap, we introduce Diverse Scenes for Gaze object prediction (DiSG), a benchmark containing 86 in-the-wild categories that facilitates the evaluation of Open-Vocabulary GOP (OVGOP). Building on DiSG, we propose a framework that leverages text-driven object discovery to localize potential gaze candidates, with a gaze-guided selection module to pinpoint the intended target from the candidate objects. Furthermore, to better capture semantic knowledge across diverse in-the-wild categories, we introduce Gradient-Informed Selection Tuning (GIST) to selectively update parameters most relevant to a given class vocabulary. Extensive experiments demonstrate that our proposed model performs effectively in open-vocabulary set-tings and also outperforms existing methods in the conventional closed-vocabulary setting. The benchmark and code is available at https://github.com/sensniu/ovgop. 
+
+## CCS Concepts 
+
+• Computing methodologies → Computer vision ; Scene un-derstanding ; Object recognition .
+
+## Keywords 
+
+Gaze Object Prediction, Open-Vocabulary, Benchmark Dataset 
+
+## 1 Introduction 
+
+Understanding human attention is fundamental to interpreting human-centric scenes. Gaze Object Prediction (GOP) aims to lo-calize and recognize the objects humans attend to, i.e. , predicting both the spatial location (bounding box) and the semantic category of the target [ 46 ]. Compared with conventional gaze estimation 
+
+> ∗Corresponding author.
+
+N × (Classes) 
+
+frisbee, bottle, 
+
+skateboard, … 
+
+Image 
+
+Backbone 
+
+Text 
+
+Encoder 
+
+Encoder  Decoder 
+
+Image 
+
+Backbone 
+
+Gaze 
+
+Regressor 
+
+Detector 
+
+Visual 
+
+Encoder 
+
+Class Logits 
+
+Selective Tuning 
+
+(a) Existing GOP methods 
+
+(b) Our open-vocabulary GOP methods. 
+
+Image 
+
+Backbone 
+
+Gaze Regressor     
+
+> 0.20 Cls Index 0
+> 0.16 Cls Index 1
+> 0.61 Cls Index 2
+> 0.03 Cls Index 3
+
+Visual-Semantic Space 
+
+Figure 1: (a) Existing GOP methods operate under a fixed-category setting, predicting gaze targets only from predefined classes seen during training. (b) Our OVGOP paradigm aligns region features with text embeddings in a shared visual-semantic space, with selective tuning that enables gaze object prediction for novel categories unseen during training. 
+
+that outputs only a geometric direction, GOP directly connects attention to scene semantics, enabling a richer understanding of human-object interactions. However, exploration of GOP in open-world settings remains very limited, which substantially hinders its deployment in real-world applications. In everyday environments, people frequently attend to objects that are rare, newly emerging, or simply outside a arXiv:2607.18827v1 [cs.CV] 21 Jul 2026 MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo Prior Benchmarks 
+
+Reality 
+
+Gap 
+
+Ours Benchmark 
+
+Constrained Scenarios 
+
+Synthetic Images  Real-world Images  Rich Context  Datasets  Real                        
+
+> Images
+> Public
+> Access Scenario Images Categories
+> GESCAM ✗✗Classroom 60,000 -
+> GOO-synth ✗✓Retail 192,000 24
+> GOO-real ✓✓Retail 9,552 24
+> DiSG (ours) ✓✓Diverse 13,041 86
+> Gaze Points
+> Boxes &
+> Keypoints
+
+1. Initialization  2. Candidate Generation 
+
+keypoints 
+
+Geometric  Modeling 
+
+Body-parts Detection 
+
+3. Candidate 
+
+Pool Filtering 
+
+bounding boxes 
+
+gaze points 
+
+> leg
+> snowboard
+> Final GT
+
+4. Manual 
+
+Verification 
+
+> snowboard
+> leg
+
+Diverse 
+
+Categories 
+
+Base 
+
+Novel 
+
+(a)  (b) 
+
+(d) (c) 
+
+Figure 2: Overview of the DiSG benchmark and its open-vocabulary split. (a–b) Comparison with existing GOP benchmarks. DiSG provides a real-image benchmark covering diverse scenarios. (c) Annotation pipeline of DiSG. The pipeline begins with a hybrid candidate generation stage for fine-grained body parts, followed by a rigorous human-in-the-loop verification process for final gaze target selection and refinement. (d) DiSG exhibits a long-tailed distribution of gaze-object categories and defines base/novel splits for open-vocabulary evaluation. 
+
+dataset’s predefined label space. Therefore, a practical GOP system should not rely on a closed-vocabulary assumption. As illustrated in Fig. 1, existing GOP methods operate in a fixed-category setting, whereas OVGOP supports gaze target prediction beyond prede-fined training classes. One major reason for this limitation lies in the datasets currently available for the task. On the one hand, datasets that are relatively closer to real-world scenarios, such as those developed for gaze target estimation [ 6 , 33 , 34 , 44 , 45 ], often provide only sparse supervision of the attended target, typically in the form of a gaze point or heatmap, rather than precise object-level localization such as bounding boxes or masks. This limitation becomes particularly critical when attention falls on semantically meaningful object parts or local regions, such as a person’s face, for which fine-grained object-level annotation is essential. Such coarse spatial annotations are often insufficient for GOP, where the goal is to localize and recognize the attended object itself. On the other hand, as illustrated in Fig. 2(a), datasets that provide explicit target location annotations are often dominated by synthetic images or collected in constrained environments, limiting their diversity and realism. As a result, existing benchmarks fail to adequately cap-ture the complexity, variability, and long-tail nature of attended objects in the real world. Therefore, despite significant progress in GOP [ 28 , 49 , 52 – 54 ], deploying these models in realistic settings remains highly challenging. To address this gap, we introduce DiSG (Diverse Scenes for Gaze object prediction), a comprehensive benchmark designed for Open-Vocabulary GOP (OVGOP). As illustrated in Fig.2 (a-b), with addi-tional construction details provided in the Supplementary Materi-als , DiSG comprises over 30 human-centric scenarios, capturing a vast spectrum of attentional behaviors ranging from individual focal points to multi-person interactions. In contrast to existing benchmarks, which are often scene-specific and reliant on synthetic imagery, DiSG reflects diverse environments and naturally exhibits a long-tail distribution of gaze targets. Beyond generic object cate-gories, DiSG further introduces fine-grained body-part annotations, enabling semantically precise gaze interpretation beyond coarse person-level labeling. This allows the benchmark to explicitly re-solve human-related ambiguities such as distinguishing attention on a head, hand, or arm from attention on the person as a whole. Furthermore, DiSG substantially expands the data scale and an-notation richness compared to the existing real-world benchmark GOO-real [ 46 ] in terms of image count, annotated instances, and category coverage. Crucially, beyond merely being more diverse, DiSG explicitly defines a base/novel split and supports class-name prompt-based evaluation, facilitating transfer to novel gaze object categories under an open-vocabulary protocol. This makes DiSG a realistic and semantically fine-grained benchmarking platform for studying GOP in unconstrained, long-tail environments. Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+Building on DiSG, we propose a novel framework for OVGOP that supports the prediction of previously unseen gaze objects without requiring additional manual annotations for novel cate-gories, bringing GOP closer to practical, unconstrained applications. Specifically, we decouple OVGOP into two complementary compo-nents: ( i) localizing potential gaze candidates through text-driven object discovery, and ( ii ) pinpointing the intended target from these candidates via a gaze-guided selection module. This decoupling is motivated by a critical mismatch in practice: while open-vocabulary grounding models provide broad semantic coverage, actual gaze targets are frequently subtle, small, or partially occluded, making direct grounding outputs insufficient for reliable target selection. By replacing the closed-vocabulary, fixed-label paradigm with an open-vocabulary formulation, our framework effectively recognizes novel gaze targets while utilizing spatial gaze cues for disambigua-tion among candidates. Within this baseline, we find that there is a tension between do-main adaptation and knowledge preservation. This tension arises because open-vocabulary detectors [ 19 , 26 , 55 ] are typically pre-trained on large-scale object detection [ 18 , 40 ] or vision-language benchmarks [ 31 , 41 ] and optimized for prominent, salient objects, whereas gaze targets frequently appear as small, occluded, or context-dependent entities. Directly fine-tuning the detector on the specific gaze distribution can improve candidate localization, but often leads to the degradation of the model’s inherent open-vocabulary capa-bilities and the erosion of its pre-trained semantic alignment. To bridge this gap without sacrificing semantic knowledge across di-verse categories, we introduce Gradient-Informed Selection Tuning (GIST). GIST leverages the bias-corrected second-moment estimate to identify and selectively update the parameters most relevant to the given class vocabulary and sensitive to the gaze-domain shift. Consequently, GIST adapts the model to the distinct visual charac-teristics of gaze targets while preserving its broad zero-shot trans-ferability, thereby enhancing its suitability for candidate discovery in OVGOP. We conduct extensive experiments on the DiSG bench-mark under both the open-vocabulary protocol and traditional closed-vocabulary settings, demonstrating superior performance in pinpointing gaze targets. 
+
+• We introduce DiSG, an in-the-wild benchmark for gaze ob-ject prediction. Featuring diverse scenes, fine-grained body-part annotations, and a standardized evaluation protocol specifically for open-vocabulary GOP. 
+
+• We propose a framework for OVGOP that decouples the prob-lem into text-driven object discovery and a gaze-guided spa-tial selection. This architecture enables the model to identify unseen gaze targets by leveraging open-vocabulary semantic grounding while maintaining precision through gaze-aware spatial disambiguation. 
+
+• We propose gradient-informed selection tuning strategy which selectively updates parameters most sensitive to gaze-domain shifts based on bias-corrected second-moment es-timates of gradients. This allows the detector to adapt to gaze-specific characteristics without eroding its inherent open-vocabulary semantic alignment. 
+
+• Extensive experiments demonstrate that our approach es-tablishes a strong baseline for zero-shot transfer to novel gaze categories and achieves competitive performance in conventional closed-vocabulary settings. 
+
+## 2 Related Work 2.1 Gaze Object Prediction 
+
+Early benchmarks like GazeFollow [ 33 ], ChildPlay [ 45 ] and VideoAt-tentionTarget [ 6 ] primarily focus on Gaze Target Estimation (GTE) [ 4 ,8 , 21 , 30 , 35 , 39 , 50 , 52 ], which yields spatial coordinates or heatmaps of gaze targets. However, these benchmarks lack instance-level se-mantic labels, precluding deep semantic gaze reasoning. Although dedicated GOP benchmarks such as GOO [ 46 ] and GESCAM [ 29 ]address this by providing object-level annotations, they are often confined to domain-specific environments (e.g., retail or classrooms) and rely heavily on synthetic data with limited visual fidelity, hin-dering generalization to diverse real-world scenarios. GOP methodologies extend traditional GTE frameworks by si-multaneously localizing and categorizing the objects of interest. Early approaches predominantly utilized CNN-based architectures such as GaTector [ 54 ]. Subsequent research shifted toward Transformer-based frameworks. Representative works [ 12 , 53 ] leverage self-attention mechanisms to model long-range spatial relationships. More recently, the field has transitioned toward Foundation Model-Augmented paradigms [ 3 , 14 , 28 ], which exploit large-scale pre-trained vision-language models to provide robust spatial priors and high-level semantic context. Despite these advances, existing GOP models remain tethered to predefined category vocabularies, failing to recognize novel objects in the real-world. This limitation significantly restricts the applicability of GOP in unconstrained environments where the objects of attention are inherently diverse and unpredictable. Leveraging the untapped potential of existing resources, we ob-serve that the Gaze Target Estimation (GTE) dataset [ 33 ] provides an extensive collection of high-fidelity, in-the-wild images cap-turing diverse human gaze interactions. Repurposing these rich visual contexts for GOP tasks offers a viable avenue to overcome the domain-specificity and limited visual fidelity of current benchmarks. Crucially, the immense diversity of objects in such real-world scenes demands an open-vocabulary capability to handle categories be-yond predefined taxonomies. To this end, our work fills this gap by establishing a novel open-vocabulary GOP benchmark derived from diverse GTE sources and proposing a generalizable framework that excels in unconstrained semantic gaze reasoning. 
+
+## 2.2 Open-Vocabulary Object Detection 
+
+Open-Vocabulary Object Detection aims to detect and recognize objects conditioned on an arbitrary text vocabulary, addressing categories unseen during training. Unlike traditional detection re-stricted to a fixed label set [ 2 , 10 , 24 , 36 – 38 , 66 , 71 ], it establishes a shared visual-semantic space by leveraging large-scale image-text data or pre-trained Vision-Language Models (VLMs) to generalize from base categories to novel ones [ 1, 16 , 17 , 22 , 23 , 42 , 58 , 60 , 61 , 65 ]. Early approaches, such as OVR-CNN [ 65 ] and ViLD [ 11 ], aligned re-gion features with text embeddings via knowledge distillation, while MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo Image 
+
+Backbone 
+
+DOWNLEFT, 
+
+RIGHT, UP, 
+
+DOWN, … 
+
+Head 
+
+Encoder 
+
+Cls Vocab: 
+
+head. frisbee. skateboard. 
+
+Text 
+
+Encoder 
+
+Grounding-Interaction 
+
+Saliency Decoder 
+
+Semantic Propagation 
+
+Gaze Context Aggregator 
+
+Vision Propagation 
+
+Gaze Propagation Mask Cues 
+
+> 𝐹𝐹 𝑖𝑖=1
+> 𝐹𝐹 𝑖𝑖=2
+> 𝐹𝐹 𝑖𝑖=3
+
+Text 
+
+Encoder 
+
+Query Selection 
+
+Decoder 
+
+GIST-Tuned 
+
+Encoder 
+
+GIST-Tuned 
+
+> SA
+> Upsample
+> Decoder
+> Pred
+> head
+> SA
+> CA
+
+Self Attention 
+
+Cross Attention 
+
+> CA
+
+Figure 3: Overview of our OVGOP framework. Given an input image, head locations, and a free-form vocabulary, the discovery branch generates object proposals with GIST-based adaptation, while the selection branch predicts a class-agnostic saliency heatmap from gaze cues and object features. During inference, saliency is aggregated within each proposal, and the candidate with the highest gaze-alignment score is selected as the final gaze target. 
+
+RegionCLIP [ 70 ] and VL-PLM [ 69 ] leveraged large-scale pseudo-labeling. Although these methods established the feasibility of open-vocabulary detection, they often suffer from a granularity mismatch between image-level pre-training and region-level detection. To bridge the domain gap between image-level pre-training and region-level recognition, unified grounding frameworks emerged. Early representative methods, such as OV-DETR [ 64 ], formulated open-vocabulary detection within a DETR-style framework, while GLIP [ 19 ] introduced deep early fusion between vision and lan-guage to learn semantic concepts from large-scale grounding and image-text data. Building on this paradigm, Grounding DINO [ 26 ]integrated language-guided query selection into a Transformer and demonstrated strong open-vocabulary performance on benchmarks such as LVIS [ 13 ] and ODinW [ 19 ]. More recently, OV-DINO [ 55 ]further improves detection through language-aware selective fu-sion, while DetCLIPv3 [ 57 ] and CoT-PL [ 5 ] explore reasoning-enhanced open-vocabulary detection with larger models. However, these architectures rely predominantly on explicit textual prompts. Extending such open-set capabilities to tasks driven by implicit visual cues, particularly human gaze, remains an open problem. 
+
+## 3 DiSG Benchmark 
+
+This section provides an overview of DiSG, focusing on the bench-mark properties, including its annotation process and the evaluation protocol for open-vocabulary benchmarking. Additional details of the dataset construction, annotation pipeline, and complete cate-gory split statistics are provided in the Supplementary Materials .Current GOP benchmarks suffer from two limitations: (1) do-main bias, often restricted to constrained synthetic scenes, and (2) coarse granularity, failing to resolve semantic ambiguities (e.g., distinguishing a focus on a “head” versus the “person”). To ad-dress these issues, we introduce DiSG (Di verse Scenes for Gaze object prediction), a comprehensive open-vocabulary GOP bench-mark comprising 13k images with fine-grained semantic annota-tions. DiSG encompasses a wide spectrum of in-the-wild scenarios, ranging from office collaborations to social interactions in public spaces. Notably, it introduces a novel fine-grained body-part anno-tation schema that enables more precise semantic interpretation of gaze targets. By facilitating robust open-vocabulary evaluation, this schema directly addresses the long-tail distribution of objects in the wild, bridging the gap between benchmark performance and prac-tical real-world deployment. As summarized in Fig. 2(a, b), DiSG is the only benchmark that is simultaneously real-captured and diverse in scene coverage. As outlined in Fig. 2(c, d), the remainder of this section focuses on two aspects: an annotation summary of dataset construction and refinement, and an evaluation protocol for open-vocabulary benchmarking. 
+
+Annotation summary. DiSG is constructed by combining seman-tic object annotations from COCO with gaze annotations from GazeFollow, allowing us to inherit object boxes, human keypoints, and gaze supervision as high-quality initialization. To support fine-grained gaze interpretation, we further introduce body-part anno-tations and adopt a human-in-the-loop annotation pipeline that combines automatically generated candidates with manual verifica-tion and refinement. This process ensures both semantic correctness and localization quality of gaze targets. Full details of the annotation pipeline are provided in Supplementary Materials .
+
+Evaluation protocol. We adopt a randomized image-level split with an approximately 4:1 train/validation ratio, yielding a vali-dation set of about 2.8k images. To benchmark open-vocabulary generalization, we define a hybrid base/novel partition over all 86 categories. For the 80 COCO categories, we designate 23 tail categories as Novel and use the remaining 57 as Base . For the 6 body-part categories, we randomly split them into 3 Base and 3 Novel 
+
+classes. As a result, DiSG contains 60 base and 26 novel categories Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Encoder  Decoder 
+
+Stage Ⅰ: Full Parameter Training Probing 
+
+Optimizer Query 
+
+Selection 
+
+Stage Ⅱ: Parameter Selection Tuning Sensitivity Params Selection  
+
+> supervise
+> Loss ̂𝑣𝑣 𝑄𝑄 𝑖𝑖𝑖𝑖𝑖 ̂𝑣𝑣 𝑉𝑉
+> 𝑖𝑖𝑖𝑖𝑖 ̂𝑣𝑣 𝑏𝑏 ̂𝑣𝑣 𝐾𝐾 𝑖𝑖𝑖𝑖𝑖 ̂𝑣𝑣 𝑓𝑓𝑓𝑓𝑓𝑓
+
+Encoder  Decoder 
+
+··· 
+
+Figure 4: Overview of Gradient-Informed Selection Tuning (GIST). GIST adopts a two-stage, layer-wise tuning strategy for the open-vocabulary discovery branch: a full-parameter probing stage for sensitivity estimation, followed by masked tuning with only the selected parameters updated. 
+
+in total. Base categories appear in both training and validation sets, while novel categories are held out from training and used only for validation, enabling prompt-based zero-shot evaluation on unseen gaze targets. 
+
+## 4 Methodology 4.1 Building a Baseline 
+
+Given an input image 𝐼 ∈ R𝐻 ×𝑊 ×3, a set of head locations H , and an arbitrary text vocabulary V, the objective of open-vocabulary gaze object prediction is to localize and categorize the specific object 
+
+𝑂 fixated on by each individual. Unlike traditional GOP settings constrained by a fixed label space, OV-GOP allows for a free-form vocabulary V, requiring the model to generalize to novel categories unseen during training. Formally, for each query head ℎ ∈ H , the model predicts the spatial coordinates and the semantic class of the attended target. Fig. 3 illustrates our proposed framework. We formulate OV-GOP as a decoupled task that integrates open-vocabulary semantic grounding with spatial gaze association. Specifically, we design two complementary streams: the text-driven object discovery branch, which identifies potential object candidates based on the vocabulary 
+
+V, and the gaze-guided spatial selection branch, which estimates the spatial focus of the person. This decoupled paradigm leverages the robust zero-shot transferability of pre-trained open-vocabulary detectors while ensuring precise geometric alignment for gaze estimation. 
+
+Text-driven object discovery. To facilitate open-vocabulary recog-nition, we build our detector upon the pre-trained Grounding DINO [ 26 ], with a novel tuning strategy (Section 4.2). A Swin-T [ 27 ] visual backbone extracts multi-scale features {𝐹 𝑖 }𝐿 𝑖 =1 from the scene image 𝐼 , capturing both fine-grained details and global context. Simultaneously, the text vocabulary V is encoded into language queries via a text encoder. By aligning regional visual features with text embeddings in a shared latent space, the model generates a set of gaze object proposals B. Crucially, this branch utilizes pre-trained weights to ensure that the detector maintains broad semantic coverage, preventing the label space from being restricted by the limited category diversity inherent in existing gaze datasets. 
+
+Gaze-guided spatial selection. Parallel to object discovery, this branch identifies the spatial regions most likely to be attended to by the individuals in H . Following recent advances in language-guided gaze modeling [ 56 , 62 , 63 ], we employ the vision-language model [ 32 ] to encode head crops 𝐼 ℎ𝑒𝑎𝑑 and directional prompts to extract orientation-aware features. These geometric priors are fused with the global scene features {𝐹 𝑖 }𝐿 𝑖 =3 through cross-attention and convolutional layers. Subsequently, a lightweight decoder, condi-tioned on the enhanced object features from the detection branch, regresses a class-agnostic attentional heatmap 𝑆 . The heatmap 𝑆 
+
+represents the pixel-wise probability of fixation, serving as a spatial constraint to disambiguate the semantic proposals. 
+
+Spatial-semantic disambiguation. To produce the final predic-tion, we associate the semantic proposals B with the spatial gaze distribution represented by 𝑆 . Specifically, we compute a gaze con-sistency score 𝐸 𝑗 for each candidate box 𝐵 𝑗 by aggregating the saliency values within the box region: 
+
+𝐸 𝑗 = 1
+
+|𝐵 𝑗 |∑︁ (𝑥,𝑦 ) ∈ 𝐵 𝑗 
+
+𝑆 (𝑥, 𝑦 ), (1) where |𝐵 𝑗 | denotes the area of the box. Since the candidate set B is already semantically filtered to match the vocabulary V, the final target is determined by selecting the proposal with the maximum gaze-alignment score: 𝑗 ∗ = arg max 𝑗 𝐸 𝑗 . This mechanism ensures that the model selects the most spatially relevant object among all semantically plausible candidates. 
+
+## 4.2 Gradient-Informed Selection Tuning 
+
+A core challenge in OV-GOP lies in the domain gap between general object detection and gaze-centric scenarios. Pre-trained detectors are biased toward prominent objects, whereas gaze targets are fre-quently small, occluded, or background entities that deviate from pre-trained semantic priors. While fine-tuning addresses this mis-match, unconstrained updates often degrade the model’s inherent open-vocabulary capabilities by overfitting to base categories and eroding the visual-semantic alignment required for novel object recognition. This necessitates a strategy that distinguishes between parameters critical for domain-specific adaptation and those re-sponsible for maintaining general semantic knowledge. To address this, we propose Gradient-Informed Selection Tuning (GIST), a selective optimization strategy that performs surgical adaptation on the detector. Inspired by the success of parameter selection methods [ 7, 15 , 20 , 43 , 47 , 67 , 68 ], we hypothesize that the optimization trajectory reveals which parameters are critical for the gaze-domain shift. Specifically, parameters with high gradient MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo 
+
+Table 1: Performance and ablation of our method on DiSG under the open-vocabulary protocol. Performance of OVGOP (mSoC) and OVOD (AP) are reported over base ( 𝐵 ), novel ( 𝑁 ) and all categories.                                                              
+
+> Method OVGOP OVOD Gaze Estimation mSoC 𝑎𝑙𝑙 mSoC 50 mSoC 𝐵 𝑎𝑙𝑙 mSoC 𝐵
+> 50 mSoC 𝑁 𝑎𝑙𝑙 mSoC 𝑁
+> 50 AP 𝑎𝑙𝑙
+> 50 AP 𝐵
+> 50 AP 𝑁
+> 50 AUC ↑Dist. ↓Ang. ↓
+> Baseline 29.7 42.5 33.7 48.3 20.4 29.0 41.7 47.4 28.3 0.921 0.179 24.7 Baseline + Frozen TextEnc 31.9 45.4 34.0 48.8 27.1 37.7 44.4 47.7 36.7 0.913 0.186 24.0
+> Baseline + GIST 31.8 45.1 34.4 49.1 25.6 36.0 44.2 48.1 35.4 0.922 0.188 26.6 Full (Ours) 32.8 46.6 34.2 48.8 29.5 41.6 45.6 47.9 40.3 0.920 0.181 25.2
+
+variance are actively striving to adapt to the specific characteristics of gaze targets, whereas stable parameters effectively encode task-agnostic semantic knowledge. GIST leverages the bias-corrected second moment estimate from the AdamW optimizer to quantify this parameter sensitivity, facilitating effective domain adaptation while preserving the model’s broad zero-shot transferability by updating only the most sensitive subset of parameters. Formally, for any parameter 𝜃 within the transformer layers, we compute the second moment estimate 𝑣 𝑡 as the exponential moving average (EMA) of its squared gradients: 
+
+𝑣 𝑡 = 𝛽 2𝑣 𝑡 −1 + ( 1 − 𝛽 2)𝑔 2 
+
+> 𝑡
+
+, (2) where 𝑔 𝑡 denotes the stochastic gradient at iteration 𝑡 , and 𝛽 2 ∈[0, 1) is the decay rate. To rectify the initialization bias, we compute the bias-corrected second moment estimate ˆ𝑣 𝑡 :
+
+ˆ𝑣 𝑡 = 𝑣 𝑡 
+
+1 − 𝛽 𝑡 
+
+> 2
+
+. (3) 
+
+ˆ𝑣 𝑡 serves as a robust proxy for the optimization sensitivity of each parameter. Unlike first-order moments, which may vanish due to oscillating gradient signs, the quadratic nature of ˆ𝑣 𝑡 captures the absolute magnitude of update intensity. This effectively highlights parameters that are actively undergoing adaptation to align with the gaze objective, allowing for a precise selection of task-sensitive weights. As illustrated in Fig. 4, GIST follows a two-stage training pipeline utilizing layer-wise parameter selection. In the initial probing phase, we monitor optimization dynamics to identify task-critical parame-ters. Specifically, we rank the parameters within each Transformer layer based on their accumulated de-biased second-moment esti-mates ˆ𝑣 𝑡 . A binary selection mask 𝑀 is then constructed to isolate the top-𝑘 % highest-sensitivity parameters, where 𝑘 is set to approx-imately 40% of the parameter count per layer. In the second stage, all detector transformer parameters outside this subset are frozen, and training is restarted until convergence. By restricting updates to this sparse subset of high-sensitivity regions, GIST facilitates the learning of geometric and semantic nuances for gaze objects while preserving the pretrained weights that encapsulate general open-vocabulary knowledge. 
+
+## 4.3 Training and Inference 
+
+Loss functions. The training objective is a multi-task loss designed to jointly optimize text-driven object discovery and gaze-guided spatial selection. For the discovery branch, we follow Grounding DINO [ 26 ] and employ a classification loss L𝑐𝑙𝑠 , a bounding box L1 loss L𝐿 1, and a Generalized IoU loss L𝑔𝑖𝑜𝑢 . To supervise the spatial selection branch, we utilize a box energy loss L𝑔𝑏 to identify the attended target [ 53 ] and a Mean Squared Error (MSE) loss Lℎ𝑚 for attentional heatmap regression. The total loss is defined as: 
+
+L = 𝜆 𝑐𝑙𝑠 L𝑐𝑙𝑠 + 𝜆 𝐿 1 L𝐿 1 + 𝜆 𝑔𝑖𝑜𝑢 L𝑔𝑖𝑜𝑢 + 𝜆 𝑔𝑏 L𝑔𝑏 + 𝜆 ℎ𝑚 Lℎ𝑚 , (4) where 𝜆 𝑥 are hyperparameters that balance the optimization scales across different modalities. 
+
+Staged optimization strategy. We implement GIST via a stream-lined two-stage paradigm. In the first stage, the model undergoes full-parameter optimization to collect gradient statistics. We then identify the top 40% most sensitive parameters in the transformer layers based on the bias-corrected second-moment estimates ˆ𝑣 𝑡 . In the second stage, only these selected parameters remain trainable to preserve open-vocabulary knowledge. During this stage, we ap-ply a scheduled learning rate decay to the discovery branch while increasing the weight of gaze-related losses to prioritize spatial alignment and refine the final gaze-object association. 
+
+Inference. During the inference phase, we evaluate the model on a broad vocabulary V = C𝑏𝑎𝑠𝑒 ∪ C 𝑛𝑜𝑣𝑒𝑙 to assess zero-shot generalization. Given an input image and a set of candidate category names, the object grounding branch generates a set of semantic proposals B. Simultaneously, the gaze reasoning pathway computes a category-agnostic spatial saliency heatmap 𝑆 . To identify the final target, we select the candidate box 𝑗 ∗ that maximizes the average gaze intensity 𝐸 𝑗 within the proposal region. This GIST selection mechanism enables the generalization of gaze-object associations to novel categories, facilitating robust target discovery in open-vocabulary scenarios. 
+
+## 5 Experiments 5.1 Implementation Details 
+
+Input preprocessing. We resize each image while preserving the aspect ratio, setting the shorter side to 224 and constraining the longer side to be no larger than 352. For the gaze-guided spatial selection branch, we crop the head region according to the provided head bounding box, enlarge it by a factor of 1.3, and then resize the crop to 224 × 224 to match the input resolution required by CLIP [32]. 
+
+Architecture instantiation. In the text-driven object discovery branch, we adopt BERT as the text encoder and keep it frozen during training to preserve vision-language alignment for the full model. In the gaze-guided spatial selection branch, we use the CLIP image encoder to encode head crops and the CLIP text encoder to encode directional prompts. Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+Table 2: Comparison with open-vocabulary object detection methods on DiSG over base ( 𝐵 ), novel ( 𝑁 ), and all categories. 
+
+Method Backbone Pretrained OD/Grounding/VL Benchmarks AP 𝑎𝑙𝑙 AP 𝑎𝑙𝑙  
+
+> 50
+
+AP 𝐵 𝑎𝑙𝑙 AP 𝐵  
+
+> 50
+
+AP 𝑁 𝑎𝑙𝑙 AP 𝑁 
+
+> 50
+
+OV-DETR [64] ResNet50 - 10.7 21.8 11.8 23.5 8.1 18.0 Grounding DINO [26] Swin-T O365, GoldG, Cap4M 26.8 39.2 30.7 45.5 17.8 24.6 OV-DINO [55] Swin-T O365,GoldG,CC1M # 31.6 45.9 32.2 47.1 30.3 43.2 Ours Swin-T O365, GoldG, Cap4M 30.6 45.6 31.9 47.9 27.6 40.3 
+
+Table 3: Effect of the parameter selection ratio (top-𝑘 %) in GIST on DiSG, evaluated by OVGOP mSoC, OVOD AP50, and gaze estimation metrics. 
+
+Param. % OVGOP OVOD Gaze Estimation mSoC 𝑎𝑙𝑙 mSoC 𝐵 𝑎𝑙𝑙 mSoC 𝐵  
+
+> 50
+
+mSoC 𝐵  
+
+> 75
+
+mSoC 𝑁 𝑎𝑙𝑙 mSoC 𝑁  
+
+> 50
+
+mSoC 𝑁  
+
+> 75
+
+AP 𝑎𝑙𝑙  
+
+> 50
+
+AP 𝐵  
+
+> 50
+
+AP 𝑁  
+
+> 50
+
+AUC ↑ Dist. ↓ Ang. ↓
+
+20 32.8 34.0 48.5 35.9 30.0 42.4 31.7 45.6 47.5 41.1 0.923 0.184 24.9 40 32.8 34.2 48.8 36.4 29.5 41.6 31.4 45.6 47.9 40.3 0.920 0.181 25.2 60 32.3 34.0 48.5 36.1 28.4 40.1 30.5 45.0 47.5 39.1 0.916 0.186 24.8 100 31.9 34.0 48.7 35.8 27.1 37.7 29.1 44.4 47.7 36.7 0.913 0.186 24.0 Base  Novel 
+
+Figure 5: Visualization of predictions on DiSG. Training setup. We train the model for 60 epochs with batch size 16 and learning rate 1 × 10 −4. GIST is implemented with a two-stage schedule: we first run a 5-epoch probing stage to estimate parameter sensitivity, then select the top 40% parameters in each transformer layer and retrain the model for 60 epochs with only the selected parameters updated. 
+
+Vocabulary and prompts. For open-vocabulary evaluation, we construct the vocabulary V using the category names provided by the DiSG. We instantiate text prompts by concatenating all category names in V into a single sentence, where each category name is separated by a period. Our base/novel split contains 60 base categories ( C𝑏𝑎𝑠𝑒 ) and 26 novel categories ( C𝑛𝑜𝑣𝑒𝑙 ). For the OVGOP task, we train the model using only C𝑏𝑎𝑠𝑒 texts, and evaluate with the union vocabulary V = C𝑏𝑎𝑠𝑒 ∪ C 𝑛𝑜𝑣𝑒𝑙 at test time. For closed-vocabulary GOP comparisons, we follow the standard protocol and train and validate only on C𝑏𝑎𝑠𝑒 .
+
+Metric. Following GaTector [ 54 ] and GTR [ 51 ], we adopt mSoC and Average Precision (AP) to evaluate gaze object prediction and object detection, respectively. To assess zero-shot generalization in the open-vocabulary setting, we report performance on both base (C𝑏𝑎𝑠𝑒 ) and novel ( C𝑛𝑜𝑣𝑒𝑙 ) categories, denoted as mSoC 𝐵 /AP 𝐵 and mSoC 𝑁 /AP 𝑁 . For the gaze estimation task, we employ standard metrics including AUC, L2 distance, and Angular Error. 
+
+## 5.2 Open-Vocabulary Gaze Object Prediction 
+
+We use the simple decoupled framework in Sec. 4.1 as the Baseline ,consisting of a text-driven object discovery branch and a gaze-guided spatial selection branch. Under the open-vocabulary proto-col, training uses only the base-category texts, while inference is performed with the union vocabulary. Since existing GOP methods are designed for fixed-category prediction, the open-vocabulary comparison is conducted in two parts: Tab. 2 compares the discov-ery branch with representative open-vocabulary detectors on DiSG, while Tab. 1 evaluates the full OVGOP framework and the contribu-tions of Frozen TextEnc and GIST on top of the baseline. Additional ablations and model analyses are provided in the Supplementary Material .
+
+Performance and ablation for open-vocabulary gaze object prediction Tab. 1 evaluates the contributions of Frozen TextEnc and GIST under the OVGOP protocol. Among these designs, GIST MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo L0 L1 L2 L3 L4 L5                
+
+> SA-Route
+> SA-Proj
+> FFN
+> Encoder.Visual
+> L0 L1 L2 L3 L4 L5
+> SA-InProj
+> SA-OutProj
+> FFN
+> Encoder.Text
+> L0 L1 L2 L3 L4 L5
+> CA-InProj
+> CA-ValueProj
+> CA-Out/Gate
+> Encoder.Fusion
+> L0 L1 L2 L3 L4 L5
+> Self-Attn
+> Cross-Attn
+> FFN
+> Decoder
+> 0%
+> 50%
+> 100%
+> 0.0
+> 0.5
+> 1.0
+> 0%
+> 50%
+> 100%
+> 0%
+> 50%
+> 100%
+> 0%
+> 50%
+> 100%
+> 0%
+> 50%
+> 100%
+> 5%
+> 50%
+> 95%
+> 50%
+> 50%
+> 75%
+> 50%
+> 50%
+> 75%
+> 50%
+> 50%
+> 75%
+> 50%
+> 50%
+> 75%
+> 50%
+> 50%
+> 75%
+> 50%
+> 50%
+> 75%
+> 25%
+> 50%
+> 50%
+> 37%
+> 37%
+> 50%
+> 41%
+> 33%
+> 50%
+> 43%
+> 31%
+> 50%
+> 45%
+> 35%
+> 46%
+> 45%
+> 37%
+> 44%
+> 50%
+> 16%
+> 50%
+> 25%
+> 16%
+> 75%
+> 16%
+> 19%
+> 75%
+> 12%
+> 23%
+> 68%
+> 10%
+> 25%
+> 65%
+> 8%
+> 25%
+> 66%
+> Sensitivity Capture Ratio
+
+Figure 6: Layer-wise sensitivity capture of GIST across param-eter groups in the text-driven object discovery branch. Cell color indicates the sensitivity capture ratio, and the number in each cell denotes the selection density. 
+
+serves as the core adaptation mechanism, as it explicitly steers the discovery branch toward gaze-centric object localization while pre-serving open-vocabulary generalization. Frozen TextEnc provides an additional stabilizing effect on the language side during gaze-domain training. When combined, the two are complementary and yield the strongest overall performance across both OVGOP and OVOD. 
+
+Open-vocabulary object detection. Tab. 2 presents a comparison of open-vocabulary object detection methods on DiSG. Compared with Grounding DINO [ 26 ], our adapted discovery branch improves AP 𝑎𝑙𝑙 /AP 𝑎𝑙𝑙  
+
+> 50
+
+from 26.8/39.2 to 30.6/45.6, with particularly notable gains on novel categories (AP 𝑁 𝑎𝑙𝑙 : 17.8 →27.6, AP 𝑁 
+
+> 50
+
+: 24.6 →40.3). The final performance is comparable to that of OV-DINO [ 55 ]. These results demonstrate that our adaptation substantially enhances the detector on DiSG while preserving strong open-vocabulary generalization, thereby providing a more effective discovery branch for downstream OVGOP. 
+
+Influence of parameter selection sparsity. Tab. 3 studies the parameter selection ratio in GIST. Moderate sparsity works best: selecting 20%–40% of parameters gives the strongest results, while larger ratios progressively degrade novel-category performance. In particular, increasing the ratio from 40% to 100% lowers mSoC 𝑁 𝑎𝑙𝑙 
+
+from 29.5 to 27.1 and AP 𝑁  
+
+> 50
+
+from 40.3 to 36.7, whereas the base-category and gaze-estimation metrics change less noticeably. We use 40% as the default setting because it provides the best overall balance across OVGOP, OVOD, and gaze estimation. Fig. 6 analyzes how GIST allocates adaptation across the text-driven object discovery branch. In the visualization, cell color indi-cates the sensitivity capture ratio, while the overlaid number de-notes the selection density for the corresponding parameter group. Rather than distributing updates uniformly, GIST concentrates adap-tation on a small set of parameter groups, mainly projection layers, FFN blocks, and attention modules. This pattern indicates that GIST primarily adapts feature transformation and cross-modal interac-tion modules that are more relevant to gaze-centric localization, instead of broadly perturbing the pre-trained parameter space. As a result, GIST achieves gaze-domain adaptation through structured sparse updates, which is consistent with its strong generalization to novel categories. 
+
+Table 4: Comparison with existing methods under the closed-vocabulary setting on the DiSG. 
+
+Gaze estimation: 
+
+Method Venue AUC ↑ Dist. ↓ Ang. ↓
+
+random - 0.523 0.454 65.0 GaTector [54] CVPR2022 0.869 0.203 30.7 HGTTR [50] CVPR2022 0.772 0.253 37.2 Tonini [48] ICMI2022 0.710 0.249 36.1 TransGOP [53] AAAI2024 0.899 0.180 26.3 TransGOP-R [12] TMM2025 0.876 0.202 30.1 Ours - 0.925 0.176 24.5 
+
+Object detection: 
+
+Method Venue AP AP 50 AP 75 AP 95 
+
+Faster-RCNN [38] NeurIPS2015 17.3 31.0 17.3 0.2 YOLO v3 [37] ArXiv2018 22.9 44.7 21.7 0.2 DETR [2] ECCV2020 12.3 24.0 10.8 0.5 YOLOX [9] CVPR2021 18.0 30.7 18.0 0.8 Deformable DETR [71] ICLR2021 19.6 34.0 19.4 0.7 GaTector [54] CVPR2022 2.9 7.9 1.5 0.0 DINO [66] ICLR2023 24.2 38.5 25.0 2.4 TransGOP [53] AAAI2024 16.2 28.8 15.9 1.5 TransGOP-R [12] TMM2025 14.7 26.0 14.7 1.3 Ours - 31.9 47.9 33.4 5.2 
+
+Gaze object prediction: 
+
+Method Venue mSoC mSoC 50 mSoC 75 mSoC 95 
+
+GaTector [54] CVPR2022 3.8 9.0 2.6 0.0 TransGOP [53] AAAI2024 18.0 30.1 18.2 1.5 TransGOP-R [12] TMM2025 16.5 27.3 17.0 1.3 Ours - 34.2 48.8 36.4 7.2 
+
+## 5.3 Closed-Vocabulary Gaze Object Prediction 
+
+Since existing GOP and gaze target estimation methods are devel-oped for the closed-vocabulary setting, we compare our method against prior approaches with publicly available official implemen-tations on the base categories of DiSG. 
+
+Gaze estimation. Our method also achieves the best gaze estima-tion results in Tab. 4, with 0.925 AUC, 0.176 Dist., and 24.5 Ang. This shows that the proposed framework does not improve GOP at the expense of gaze estimation quality. Instead, the overall gain comes from jointly strengthening gaze estimation, object discovery, and gaze-guided target selection. 
+
+Gaze object prediction. Under the closed-vocabulary setting on DiSG-base, our method achieves 34.2 mSoC, substantially outper-forming previous GOP methods. The advantage remains clear at stricter IoU thresholds, indicating more precise gaze-target localiza-tion. This gain comes from the decoupled design, which combines semantic candidate discovery with gaze-guided target selection. 
+
+Object Detection. Our discovery branch also serves as a strong detector on DiSG-base, achieving 31.9 AP and outperforming both generic detectors and the detection modules used in recent GOP pipelines. The improvement at higher IoU thresholds suggests more accurate localization of small and subtle gaze targets, which directly benefits GOP. Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+## 6 Conclusions 
+
+In this work, we study gaze object prediction under realistic long-tailed and open-vocabulary conditions. We introduce DiSG, an in-the-wild benchmark featuring diverse human-centric scenes, fine-grained body-part annotations, and a standardized base/novel split that enables prompt-based evaluation for open-vocabulary gaze ob-ject prediction (OVGOP). Building on DiSG, we propose a decoupled framework that combines text-driven object discovery with gaze-guided spatial selection, enabling the localization and recognition of unseen gaze targets by jointly leveraging open-vocabulary semantic grounding and spatial gaze cues. To alleviate the tension between gaze-domain adaptation and the preservation of open-vocabulary knowledge, we further introduce Gradient-Informed Selection Tun-ing (GIST), which selectively updates task-sensitive parameters to adapt the model to subtle gaze targets while maintaining se-mantic alignment for zero-shot transfer. Extensive experiments on DiSG show that our approach achieves strong performance in the open-vocabulary setting and consistently outperforms prior GOP baselines under the closed-vocabulary setting. We hope that DiSG and our strong baseline will foster future research on robust human attention understanding in unconstrained real-world scenarios. 
+
+## References 
+
+[1] Maria A Bravo, Sudhanshu Mittal, and Thomas Brox. 2022. Localized vision-language matching for open-vocabulary object detection. In DAGM German conference on pattern recognition . Springer, 393–408. [2] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexan-der Kirillov, and Sergey Zagoruyko. 2020. End-to-end object detection with transformers. In Eur. Conf. Comput. Vis. Springer, 213–229. [3] Dazhi Chen and Gang Gou. 2024. Towards Adapting CLIP for Gaze Object Prediction. Proceedings of the ACM on Human-Computer Interaction 8, ISS (2024), 155–164. [4] Yihua Cheng and Feng Lu. 2022. Gaze estimation using transformer. In Int. Conf. Pattern Recog. 3341–3347. [5] Hojun Choi, Youngsun Lim, Jaeyo Shin, and Hyunjung Shim. 2025. CoT-PL: Visual Chain-of-Thought Reasoning Meets Pseudo-Labeling for Open-Vocabulary Object Detection. arXiv preprint arXiv:2510.14792 (2025). [6] Eunji Chong, Yongxin Wang, Nataniel Ruiz, and James M Rehg. 2020. Detecting attended visual targets in video. In IEEE Conf. Comput. Vis. Pattern Recog. 5396– 5406. [7] Alessio Devoto, Federico Alvetreti, Jary Pomponi, Paolo Di Lorenzo, Pasquale Minervini, and Simone Scardapane. 2024. Adaptive layer selection for efficient vision transformer fine-tuning. arXiv preprint arXiv:2408.08670 (2024). [8] Yi Fang, Jiapeng Tang, Wang Shen, Wei Shen, Xiao Gu, Li Song, and Guangtao Zhai. 2021. Dual Attention Guided Gaze Target Detection in the Wild. In IEEE Conf. Comput. Vis. Pattern Recog. 11390–11399. [9] Zheng Ge, Songtao Liu, Feng Wang, Zeming Li, and Jian Sun. 2021. Yolox: Exceeding yolo series in 2021. arXiv preprint arXiv:2107.08430 (2021). [10] Ross Girshick, Jeff Donahue, Trevor Darrell, and Jitendra Malik. 2014. Rich feature hierarchies for accurate object detection and semantic segmentation. In 
+
+IEEE Conf. Comput. Vis. Pattern Recog. 580–587. [11] Xiuye Gu, Tsung-Yi Lin, Weicheng Kuo, and Yin Cui. 2021. Open-vocabulary Object Detection via Vision and Language Knowledge Distillation. In Int. Conf. Learn. Represent. https://api.semanticscholar.org/CorpusID:238744187 [12] Guangyu Guo, Chenxi Guo, Zhaozhong Wang, and Binglu Wang. 2025. TransGOP-R: Transformer-based Real-World Gaze Object Prediction. IEEE Trans. Multimedia 
+
+(2025), 1–15. [13] Agrim Gupta, Piotr Dollar, and Ross Girshick. 2019. Lvis: A dataset for large vocabulary instance segmentation. In IEEE Conf. Comput. Vis. Pattern Recog. 
+
+5356–5364. [14] Yang Jin, Lei Zhang, Shi Yan, Bin Fan, and Binglu Wang. 2024. Boosting Gaze Object Prediction via Pixel-Level Supervision from Vision Foundation Model. In 
+
+Eur. Conf. Comput. Vis. Springer, 369–386. [15] Gal Kaplun, Andrey Gurevich, Tal Swisa, Mazor David, Shai Shalev-Shwartz, and Eran Malach. 2023. Less is more: Selective layer finetuning with subtuning. arXiv preprint arXiv:2302.06354 (2023). [16] Dahun Kim, Anelia Angelova, and Weicheng Kuo. 2023. Region-aware pretraining for open-vocabulary object detection with vision transformers. In IEEE Conf. Comput. Vis. Pattern Recog. 11144–11154. [17] Dahun Kim, Anelia Angelova, and Weicheng Kuo. 2024. Detection-oriented image-text pretraining for open-vocabulary detection. (2024). https://openreview. net/forum?id=wHlYlC2TCM [18] Alina Kuznetsova, Hassan Rom, Neil Alldrin, Jasper Uijlings, Ivan Krasin, Jordi Pont-Tuset, Shahab Kamali, Stefan Popov, Matteo Malloci, Alexander Kolesnikov, et al . 2020. The open images dataset v4: Unified image classification, object detection, and visual relationship detection at scale. Int. J. Comput. Vis. 128, 7 (2020), 1956–1981. [19] Liunian Harold Li, Pengchuan Zhang, Haotian Zhang, Jianwei Yang, Chunyuan Li, Yiwu Zhong, Lijuan Wang, Lu Yuan, Lei Zhang, Jenq-Neng Hwang, et al . 2022. Grounded language-image pre-training. In IEEE Conf. Comput. Vis. Pattern Recog. 
+
+10965–10975. [20] Ming Li, Jike Zhong, Chenxin Li, Liuzhuozheng Li, Nie Lin, and Masashi Sugiyama. 2024. Vision-language model fine-tuning via simple parameter-efficient modi-fication. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing . 14394–14410. [21] Dongze Lian, Zehao Yu, and Shenghua Gao. 2018. Believe it or not, we know what you are looking at!. In ACCV . Springer, 35–50. [22] Chuang Lin, Peize Sun, Yi Jiang, Ping Luo, Lizhen Qu, Gholamreza Haffari, Zehuan Yuan, and Jianfei Cai. 2022. Learning object-language alignments for open-vocabulary object detection. arXiv preprint arXiv:2211.14843 (2022). [23] Jianghang Lin, Yunhang Shen, Bingquan Wang, Shaohui Lin, Ke Li, and Liujuan Cao. 2024. Weakly supervised open-vocabulary object detection. In AAAI , Vol. 38. 3404–3412. [24] Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Dollár. 2017. Focal loss for dense object detection. In Int. Conf. Comput. Vis. 2980–2988. [25] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Dollár, and C Lawrence Zitnick. 2014. Microsoft coco: Common objects in context. In Eur. Conf. Comput. Vis. Springer, 740–755. [26] Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Qing Jiang, Chunyuan Li, Jianwei Yang, Hang Su, et al . 2024. Grounding dino: Marrying dino with grounded pre-training for open-set object detection. In Eur. Conf. Comput. Vis. Springer, 38–55. [27] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo. 2021. Swin transformer: Hierarchical vision transformer using shifted windows. In Int. Conf. Comput. Vis. 10012–10022. [28] Athul M Mathew, Haithem Hermassi, Thariq Khalid, Arshad Ali Khan, and Riad Souissi. 2025. GazeVLM: A Vision-Language Model for Multi-Task Gaze Understanding . arXiv:2511.06348 doi:10.48550/arXiv.2511.06348 [29] Athul M Mathew, Arshad Ali Khan, Thariq Khalid, and Riad Souissi. 2024. GESCAM: A Dataset and Method on Gaze Estimation for Classroom Attention Measurement. In IEEE Conf. Comput. Vis. Pattern Recog. 636–645. [30] Qiaomu Miao, Minh Hoai, and Dimitris Samaras. 2023. Patch-Level Gaze Distri-bution Prediction for Gaze Following. In WACV . 880–889. [31] Vicente Ordonez, Girish Kulkarni, and Tamara Berg. 2011. Im2text: Describing images using 1 million captioned photographs. Adv. Neural Inform. Process. Syst. 
+
+24 (2011). [32] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al . 2021. Learning transferable visual models from natural language supervision. 8748–8763. [33] Adria Recasens, Aditya Khosla, Carl Vondrick, and Antonio Torralba. 2015. Where are they looking? Advances in neural information processing systems 28 (2015). [34] Adria Recasens, Carl Vondrick, Aditya Khosla, and Antonio Torralba. 2017. Fol-lowing gaze in video. In Int. Conf. Comput. Vis. 1435–1443. [35] Adria Recasens, Carl Vondrick, Aditya Khosla, and Antonio Torralba. 2017. Fol-lowing gaze in video. In Int. Conf. Comput. Vis. 1435–1443. [36] Joseph Redmon, Santosh Divvala, Ross Girshick, and Ali Farhadi. 2016. You only look once: Unified, real-time object detection. In IEEE Conf. Comput. Vis. Pattern Recog. 779–788. [37] Joseph Redmon and Ali Farhadi. 2018. Yolov3: An incremental improvement. 
+
+arXiv preprint arXiv:1804.02767 (2018). [38] Shaoqing Ren, Kaiming He, Ross Girshick, and Jian Sun. 2015. Faster r-cnn: Towards real-time object detection with region proposal networks. Advances in neural information processing systems 28 (2015). [39] Fiona Ryan, Ajay Bati, Sangmin Lee, Daniel Bolya, Judy Hoffman, and James M Rehg. 2025. Gaze-LLE: Gaze Target Estimation via Large-Scale Learned Encoders. In IEEE Conf. Comput. Vis. Pattern Recog. 28874–28884. [40] Shuai Shao, Zeming Li, Tianyuan Zhang, Chao Peng, Gang Yu, Xiangyu Zhang, Jing Li, and Jian Sun. 2019. Objects365: A large-scale, high-quality dataset for object detection. In Int. Conf. Comput. Vis. 8430–8439. [41] Piyush Sharma, Nan Ding, Sebastian Goodman, and Radu Soricut. 2018. Con-ceptual captions: A cleaned, hypernymed, image alt-text dataset for automatic image captioning. In Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . 2556–2565. [42] Hwanjun Song and Jihwan Bang. 2023. Prompt-guided transformers for end-to-end open-vocabulary object detection. arXiv preprint arXiv:2303.14386 (2023). MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo 
+
+[43] Amelia Sorrenti, Giovanni Bellitto, Federica Proietto Salanitri, Matteo Pennisi, Concetto Spampinato, and Simone Palazzo. 2023. Selective freezing for efficient continual learning. In Int. Conf. Comput. Vis. 3550–3559. [44] Samy Tafasca, Anshul Gupta, Victor Bros, and Jean-Marc Odobez. 2024. Toward semantic gaze target detection. Advances in neural information processing systems 
+
+37 (2024), 121422–121448. [45] Samy Tafasca, Anshul Gupta, and Jean-Marc Odobez. 2023. Childplay: A new benchmark for understanding children’s gaze behaviour. In Int. Conf. Comput. Vis. 20935–20946. [46] Henri Tomas, Marcus Reyes, Raimarc Dionido, Mark Ty, Jonric Mirando, Joel Casimiro, Rowel Atienza, and Richard Guinto. 2021. Goo: A dataset for gaze object prediction in retail environments. In IEEE Conf. Comput. Vis. Pattern Recog. Worksh. 3125–3133. [47] Mao Tomita, Ikuro Sato, Rei Kawakami, Nakamasa Inoue, Satoshi Ikehata, and Masayuki Tanaka. 2024. A Simple Finetuning Strategy Based on Bias-Variance Ratios of Layer-Wise Gradients. In ACCV . 471–487. [48] Francesco Tonini, Cigdem Beyan, and Elisa Ricci. 2022. Multimodal across domains gaze target detection. In Proceedings of the 2022 International Conference on Multimodal Interaction . 420–431. [49] Francesco Tonini, Nicola Dall’Asen, Cigdem Beyan, and Elisa Ricci. 2023. Object-aware gaze target detection. In Int. Conf. Comput. Vis. 21860–21869. [50] Danyang Tu, Xiongkuo Min, Huiyu Duan, Guodong Guo, Guangtao Zhai, and Wei Shen. 2022. End-to-end human-gaze-target detection with transformers. In 
+
+IEEE Conf. Comput. Vis. Pattern Recog. 2192–2200. [51] Danyang Tu, Wei Shen, Wei Sun, Xiongkuo Min, and Guangtao Zhai. 2023. Joint gaze-location and gaze-object detection. arXiv preprint arXiv:2308.13857 (2023). [52] Danyang Tu, Wei Shen, Wei Sun, Xiongkuo Min, Guangtao Zhai, and Changwen Chen. 2023. Un-Gaze: A unified transformer for joint gaze-location and gaze-object detection. IEEE Transactions on Circuits and Systems for Video Technology 
+
+34, 5 (2023), 3271–3285. [53] Binglu Wang, Chenxi Guo, Yang Jin, Haisheng Xia, and Nian Liu. 2024. Transgop: Transformer-based gaze object prediction. In AAAI , Vol. 38. 10180–10188. [54] Binglu Wang, Tao Hu, Baoshan Li, Xiaojuan Chen, and Zhijie Zhang. 2022. Gatector: A unified framework for gaze object prediction. In IEEE Conf. Comput. Vis. Pattern Recog. 19588–19597. [55] Hao Wang, Pengzhen Ren, Zequn Jie, Xiao Dong, Chengjian Feng, Yinlong Qian, Lin Ma, Dongmei Jiang, Yaowei Wang, Xiangyuan Lan, and Xiaodan Liang. 2024. OV-DINO: Unified Open-Vocabulary Detection with Language-Aware Selective Fusion. arXiv preprint arXiv:2407.07844 (2024). [56] Jun Wang, Hao Ruan, Mingjie Wang, Chuanghui Zhang, Huachun Li, and Jun Zhou. 2023. Gazeclip: Towards enhancing gaze estimation via text guidance. 
+
+arXiv preprint arXiv:2401.00260 (2023). [57] Jiaqi Wang, Pan Zhang, Tao Chu, Yuhang Cao, Yujie Zhou, Tong Wu, Bin Wang, Conghui He, and Dahua Lin. 2023. V3det: Vast vocabulary visual detection dataset. In Int. Conf. Comput. Vis. 19844–19854. [58] Yifan Xu, Mengdan Zhang, Xiaoshan Yang, and Changsheng Xu. 2024. Exploring multi-modal contextual knowledge for open-vocabulary object detection. IEEE Trans. Image Process. (2024). [59] Lu Yang, Qing Song, Zhihui Wang, Mengjie Hu, and Chun Liu. 2021. Hier R-CNN: Instance-Level Human Parts Detection and A New Benchmark. IEEE Transactions on Image Processing 30 (2021), 39–54. [60] Lewei Yao, Jianhua Han, Xiaodan Liang, Dan Xu, Wei Zhang, Zhenguo Li, and Hang Xu. 2023. Detclipv2: Scalable open-vocabulary object detection pre-training via word-region alignment. In IEEE Conf. Comput. Vis. Pattern Recog. 23497– 23506. [61] Lewei Yao, Jianhua Han, Youpeng Wen, Xiaodan Liang, Dan Xu, Wei Zhang, Zhenguo Li, Chunjing Xu, and Hang Xu. 2022. Detclip: Dictionary-enriched visual-concept paralleled pre-training for open-world detection. Advances in Neural Information Processing Systems 35 (2022), 9125–9138. [62] Pengwei Yin, Jingjing Wang, Guanzhong Zeng, Di Xie, and Jiang Zhu. 2024. Lg-gaze: Learning geometry-aware continuous prompts for language-guided gaze estimation. In Eur. Conf. Comput. Vis. Springer, 1–17. [63] Pengwei Yin, Guanzhong Zeng, Jingjing Wang, and Di Xie. 2024. Clip-gaze: Towards general gaze estimation via visual-linguistic model. In AAAI , Vol. 38. 6729–6737. [64] Yuhang Zang, Wei Li, Kaiyang Zhou, Chen Huang, and Chen Change Loy. 2022. Open-vocabulary detr with conditional matching. In Eur. Conf. Comput. Vis. 
+
+Springer, 106–122. [65] Alireza Zareian, Kevin Dela Rosa, Derek Hao Hu, and Shih-Fu Chang. 2021. Open-vocabulary object detection using captions. In IEEE Conf. Comput. Vis. Pattern Recog. 14393–14402. [66] Hao Zhang, Feng Li, Shilong Liu, Lei Zhang, Hang Su, Jun Zhu, Lionel Ni, and Heung-Yeung Shum. 2023. DINO: DETR with Improved DeNoising Anchor Boxes for End-to-End Object Detection. In Int. Conf. Learn. Represent. 
+
+[67] Yi Zhang, Yi-Xuan Deng, Meng-Hao Guo, and Shi-Min Hu. 2025. Adaptive Parameter Selection for Tuning Vision-Language Models. In IEEE Conf. Comput. Vis. Pattern Recog. 4280–4290. [68] Henry Hengyuan Zhao, Pichao Wang, Yuyang Zhao, Hao Luo, Fan Wang, and Mike Zheng Shou. 2024. Sct: A simple baseline for parameter-efficient fine-tuning via salient channels. Int. J. Comput. Vis. 132, 3 (2024), 731–749. [69] Shiyu Zhao, Zhixing Zhang, Samuel Schulter, Long Zhao, BG Vijay Kumar, Anas-tasis Stathopoulos, Manmohan Chandraker, and Dimitris N Metaxas. 2022. Ex-ploiting unlabeled data with vision and language models for object detection. In 
+
+Eur. Conf. Comput. Vis. Springer, 159–175. [70] Yiwu Zhong, Jianwei Yang, Pengchuan Zhang, Chunyuan Li, Noel Codella, Liu-nian Harold Li, Luowei Zhou, Xiyang Dai, Lu Yuan, Yin Li, et al . 2022. Regionclip: Region-based language-image pretraining. In IEEE Conf. Comput. Vis. Pattern Recog. 16793–16803. [71] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang Wang, and Jifeng Dai. 2021. Deformable detr: Deformable Transformers for End-to-End Object Detection. In 
+
+Int. Conf. Learn. Represent. Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+## A Detailed Construction of the DiSG Dataset 
+
+This supplementary section provides the detailed construction, annotation procedure and category split statistics of DiSG, com-plementing the concise benchmark overview in the main paper. As illustrated in Fig. 1, our pipeline consists of four stages: data initialization, hybrid candidate generation, candidate pool filtering, and human-in-the-loop verification. Starting from the intersection of COCO [ 25 ] and GazeFollow [ 33 ], we inherit object bounding boxes, human keypoints, and gaze annotations as high-quality su-pervision signals. This initialization enables efficient annotation while preserving the realism and diversity of in-the-wild gaze in-teractions. 
+
+## A.1 Data Construction and Annotation Scheme 
+
+To support fine-grained gaze target understanding beyond person-level semantics, we further introduce body-part annotations. Since standard object datasets do not directly provide all body-part boxes required for our task, we devise a hybrid candidate generation scheme to automatically produce fine-grained instance candidates. Specifically, the scheme consists of two complementary compo-nents: (1) Skeleton-based geometric modeling. We first generate bounding boxes for larger structural regions, including the torso, arms, and legs. Since these regions are often not ex-plicitly annotated in part-segmentation datasets yet well-defined by skeletal topology, we construct them geometri-cally. Specifically, we group relevant keypoints, taking the arm as an example, we use its shoulder, elbow, and wrist keypoints, and compute their minimal enclosing rectangle to generate an initial proposal. This proposal is then spa-tially scaled and adjusted according to predefined body-part proportions. (2) Detector-based inference for small parts. For smaller parts, including the head, hands, and feet, we generate an-notations using an off-the-shelf part detector that predicts body-part bounding boxes [ 59 ]. This design is motivated by the fact that these parts are small, highly deformable, and insufficiently characterized by sparse body keypoints, mak-ing purely geometric construction unreliable (e.g., a hand is often represented only by a wrist keypoint). Given an image, the detector outputs candidate boxes for the head, hands, and feet with confidence scores. We then retain high-confidence predictions after standard post-processing. Overall, our hy-brid scheme generates torso-and-limb annotations geometri-cally while obtaining small-part annotations from detector predictions. We then construct a unified candidate pool by integrating COCO object annotations with the generated body-part candidates. To streamline the subsequent manual verification, we filter this pool to retain only those boxes that spatially enclose the ground-truth gaze point. To obtain the final ground truth, we implement a two-stage manual verification process. In the first stage, annotators review the candidate boxes that enclose the gaze point. We developed an interface displaying the candidate box overlaid on the image, where annotators select the single box corresponding to the gaze target or reject the sample if no valid target exists. This step eliminates spatial ambiguities and filters out noisy gaze points. In the second stage, for the generated body-part candidates, we introduce a refinement mechanism. During the selection phase, annotators mark any correct but loosely bounded body-part targets. These marked samples subsequently undergo a manual adjustment phase in which annotators correct the bounding box boundaries. This workflow ensures both the semantic correctness of the targets and the positional accuracy of the fine-grained body parts. To fur-ther ensure annotation fidelity, all instances are finalized through a consensus-based protocol with majority agreement from three independent annotators. 
+
+Annotation quality and ambiguity handling. DiSG was built through multi-stage filtering and human verification: from 23,895 initial images, candidate matching retained 14,600 images and 20,093 po-tential gaze-object instances, and human verification removed 2,646 incorrect cases, resulting in 13,041 images and 17,447 final annota-tions. We further audited a category-proportional random sample of 1,000 gaze-object instances, with 943 correct annotations (94.3%); the remaining errors are wrong target (3.6%), ambiguous target (1.3%), and wrong body-part label (0.8%). The gaze-point-enclosing rule is used only to prune candidate boxes before manual verification; after refinement, 5.73% of final an-notations have gaze points outside target boxes, indicating that final labels are not mechanically constrained by this heuristic. Samples with no valid target, multiple equally plausible targets, or unreliable gaze points are excluded, and coarse body-part boxes are manually refined. 
+
+## A.2 Dataset Characteristics and Evaluation Protocol 
+
+Dataset statistics, comparison with prior GOP datasets, and the long-tailed base/novel distribution are presented in Fig. 2(a-b, d) of the main paper. Here we briefly summarize the evaluation split used in our experiments. DiSG adopts an image-level split with a ratio close to 4:1. For open-vocabulary evaluation, the 80 COCO categories are split into 57 Base and 23 Novel categories according to category frequency, while the 6 body-part categories are split into 3 Base and 3 Novel classes, resulting in 60 Base and 26 Novel categories in total. Detailed statistics of the category partitions are shown in Tab. 1. Base categories are used for training and validation, whereas Novel categories are held out from training and used only for validation. 
+
+Clarification of novel classes. The key point is that no novel-class bounding-box supervision is used in the target benchmark training stage. DiSG base/novel split is aligned with the standard COCO base/novel split, and we use a pre-trained detector that follows this protocol; therefore, the held-out DiSG novel categories do not receive box-level supervision during either pre-trained detector or DiSG task-specific training. MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo Gaze Points 
+
+person 
+
+boxes 
+
+Boxes & Keypoints 
+
+keypoints 
+
+gaze points 
+
+object boxes, 
+
+body-part boxes 
+
+Skeleton-based Geometric  Modeling 
+
+Body-parts Detection 
+
+> snowboard
+> arm
+> person
+
+Review & Selection 
+
+Manual Refinement 
+
+Final 
+
+Ground Truth 
+
+> leg
+> snowboard
+
+Initialization  Hybrid Candidate Generation  Candidate 
+
+Pool Filtering  Two-Stage Manual Verification 
+
+> l eg
+
+hand, head, feet boxes 
+
+Figure 1: The annotation pipeline for the DiSG dataset. Our process begins with data initialization from COCO and GazeFollow. It then proceeds to a hybrid candidate generation stage for fine-grained body parts, followed by a rigorous human-in-the-loop verification process for final gaze target selection and refinement. Table 1: Category-wise gaze-target instance counts for base and novel splits in DiSG. 
+
+Base Categories Novel Categories Category Count Category Count Category Count Category Count Category Count apple 26 backpack 22 banana 95 airplane 38 arm 275 bear 18 bed 31 bench 32 bus 57 cake 777 bicycle 39 bird 53 boat 35 cat 75 couch 8book 224 bottle 113 bowl 182 cow 94 cup 102 broccoli 21 car 54 carrot 14 dog 206 elephant 150 chair 27 clock 20 donut 88 foot 212 keyboard 14 fork 35 frisbee 717 giraffe 158 knife 157 scissors 61 hand 1289 handbag 39 head 2736 sink 12 skateboard 766 horse 179 kite 268 laptop 766 snowboard 85 tie 49 leg 142 microwave 15 motorcycle 98 torso 463 umbrella 72 mouse 2 orange 20 oven 101 fire hydrant 14 hair drier 6person 544 pizza 351 refrigerator 57 parking meter 20 potted plant 15 remote 69 sandwich 112 sheep 93 stop sign 4 traffic light 7skis 142 spoon 69 suitcase 73 surfboard 155 toaster 2 toilet 30 toothbrush 47 train 52 truck 49 tv 612 vase 14 zebra 14 baseball bat 137 baseball glove 68 cell phone 1056 dining table 201 hot dog 95 sports ball 1650 teddy bear 69 tennis racket 135 wine glass 155 
+
+## B Ablations and Model Analyses B.1 Decoupling parameter selection and model optimization. 
+
+Fig. 2 compares two choices after the Stage-I probing phase of GIST: continuing optimization with the selected mask (Continu-ous) or restarting Stage-II tuning after parameter selection (Re-set). Reset consistently achieves higher Novel GOP (mSoC) across probing lengths, while the two schemes remain close on gaze es-timation (AUC). This suggests that restarting mainly improves open-vocabulary target prediction, with limited effect on gaze esti-mation. Moreover, 5 probing epochs already deliver strong Novel GOP with competitive AUC, supporting our default Stage-I setting. These results support the proposed two-stage design, where param-eter selection is first identified in probing and then optimized in a separate masked-tuning stage. 
+
+## B.2 Effect of prompt design for text-driven object discovery 
+
+Table 2 studies the effect of different text prompt templates in the discovery branch. Overall, concise prompt formulations per-form better than more descriptive templates. In particular, the plain category-name prompt, “{class}.”, achieves the highly competitive results across OVGOP and OVOD, while preserving stable gaze estimation performance. This indicates that, for our setting, simple category prompts are sufficient to activate the semantic grounding Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 0.910               
+
+> 0.914
+> 0.917
+> 0.921
+> 0.924
+> 0.928
+> 0.931
+> 1357911
+> Reset Continuous
+> 27.0
+> 27.5
+> 28.0
+> 28.5
+> 29.0
+> 29.5
+> 30.0
+> 1357911
+> Reset Continuous
+> GE (AUC ↑)GOP (Novel mSoC) ↑
+> Epochs Epochs
+
+Figure 2: Effect of the probing length and training scheme in GIST. We vary the number of Stage-I probing epochs on DiSG and compare Reset (restart Stage-II tuning after parameter selection) with Continuous (continue optimization with the selected mask). The plots show Novel GOP (mSoC, left) and gaze estimation (AUC, right) across probing lengths. The dashed vertical line marks our default choice of 5 probing epochs for Stage I. 
+
+capability of the detector, whereas additional linguistic context does not provide further benefit. We therefore use “{class}.” as the default prompt format in the main experiments. 
+
+## C Additional Evaluations and Analyses C.1 Task Definitions and Comparison with Recent Methods 
+
+To avoid ambiguity, GTE predicts the gaze point without semantic labels; GOP predicts the attended object’s bounding box and cat-egory; OVGOP further requires object-level prediction under an open-vocabulary setting. We additionally evaluated recent GTE methods on DiSG un-der their closest applicable closed-vocabulary protocols. These methods are not designed for open-vocabulary object-level predic-tion. They are primarily designed for gaze localization (GazeLLE), or for closed-vocabulary semantic prediction, rather than open-vocabulary object-level prediction. In contrast, our method per-forms open-vocabulary gaze-object prediction by jointly producing the gaze heatmap, attended-object box, and open-vocabulary cate-gory. 
+
+## C.2 Additional Validation on GOO-Real 
+
+Under the standard closed-vocabulary GOO-Real protocol, our framework remains competitive even though it is designed primar-ily for OVGOP: our method achieves 79.5 mSoC and 98.4 mSoC 50 ,which is competitive with TransGOP (82.6/98.3). For object detec-tion, our method also achieves 72.2 AP and 97.2 AP 50 .
+
+## C.3 Fairness and Scope of the Comparison Protocol 
+
+Closed-vocabulary GOP methods are not used as direct OVGOP baselines because they cannot predict held-out categories. In Ta-ble 4 of the main paper, they are therefore compared only under the standard closed-vocabulary setting on DiSG-base. For open-vocabulary evaluation, Table 2 of the main paper compares rep-resentative open-vocabulary object detection methods for object discovery, and Table 1 of the main paper reports our results under the base-to-novel protocol. As an additional reference, we com-bined a strong closed-vocabulary GOP model (TransGOP) with VLM-based semantics, which achieves 20.2 mSoC and 31.4 AP 50 ,still below our method ( 32.8 mSoC, 45.6 AP 50 ). 
+
+## C.4 Effect Beyond Grounding DINO Initialization 
+
+In Table 1 of the main paper, both Baseline and Full (Ours) use the same Grounding DINO initialization, so the performance difference comes from our proposed task adaptation and gaze-guided selection mechanism. Specifically, our full model improves mSoC from 29.7 
+
+to 32.8 , novel-category mSoC from 20.4 to 29.5 , and AP 𝑁  
+
+> 50
+
+from 28.3 
+
+to 40.3 . The especially large gains on held-out categories suggest that the benefit is not merely due to detector pretraining strength. 
+
+## D Training Algorithms D.1 Overall Training Procedure 
+
+Algorithm 1 summarizes the complete training pipeline of our OV-GOP framework. The procedure first constructs the open-vocabulary discovery and gaze-guided spatial selection branches, and then op-timizes them jointly under the multi-task objective described in the main paper. For GIST-based adaptation, the training is divided into two stages: a short probing stage for sensitivity estimation, fol-lowed by masked tuning with only the selected parameters updated. This algorithm highlights how the discovery branch, gaze-guided selection branch, and GIST are integrated into a unified training process. 
+
+## D.2 GIST Parameter Selection 
+
+Algorithm 2 details the implementation of Gradient-Informed Se-lection Tuning (GIST). Starting from full-parameter probing, we accumulate bias-corrected second-moment estimates for the trans-former parameters and rank them within each layer. A binary mask is then constructed by selecting the top-𝑘 % highest-sensitivity pa-rameters, after which training is restarted with only the selected subset updated. This algorithm makes the two-stage design of GIST explicit and clarifies how task-sensitive parameters are isolated for gaze-domain adaptation while preserving the detector’s open-vocabulary semantic knowledge. 
+
+## E Additional Implementation Details 
+
+Our OVGOP model is trained on a single RTX 3090 Ti GPU (24GB). The full pipeline requires 570.8 GFLOPs per image at an input resolution of 224 × 352 . The GIST probing stage runs for 5 epochs and takes about 2 hours, while full training runs for 60 epochs and takes about 29 hours. The random seed is 42. For gaze-guided spatial selection, we define eight directional gaze prompts for the head region (up, down, left, right, and four diagonals). CLIP computes the similarity between these prompts and the cropped head image, and the predicted direction is converted into an auxiliary spatial mask. MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo 
+
+Table 2: Effect of different text prompts for text-driven object discovery on DiSG. 
+
+Prompt OVGOP OVOD Gaze Estimation mSoC 𝑎𝑙𝑙 mSoC 50 mSoC 𝐵 𝑎𝑙𝑙 mSoC 𝐵  
+
+> 50
+
+mSoC 𝑁 𝑎𝑙𝑙 mSoC 𝑁  
+
+> 50
+
+AP 𝑎𝑙𝑙  
+
+> 50
+
+AP 𝐵  
+
+> 50
+
+AP 𝑁  
+
+> 50
+
+AUC ↑ Dist. ↓ Ang. ↓
+
+a photo of a {class}. 30.7 44.0 33.9 48.9 23.4 32.7 43.1 48.0 31.8 0.914 0.194 26.7 a/the {class}. 31.7 45.0 34.2 48.9 25.9 36.2 44.0 47.8 35.3 0.876 0.181 25.1 
+
+{class}. (ours) 32.8 46.6 34.2 48.8 29.5 41.6 45.6 47.9 40.3 0.920 0.181 25.2 
+
+Table 3: Comparison with recent methods on DiSG under their closest applicable closed-vocabulary protocols. 
+
+Method Output AUC ↑ Dist. ↓ Ang. ↓
+
+GazeLLE gaze heatmap 0.953 0.122 17.4 Tafasca et al. gaze heatmap + category 0.88 0.136 18.2 Tonini et al. gaze heatmap + object box + category 0.834 0.203 31.0 
+
+Ours gaze heatmap + object box + open-vocabulary category 0.925 0.176 24.5 
+
+Algorithm 1: Overall Training Procedure of OVGOP Input: Base-category training set Dbase ; base vocabulary Cbase ;probing epochs 𝐸 probe ; tuning epochs 𝐸 ; selection ratio 𝜌 
+
+Output: Trained parameters Θ★ 
+
+> 1:
+
+Initialize the discovery branch from Grounding DINO pre-trained weights  
+
+> 2:
+
+Initialize the gaze-guided selection branch from CLIP pre-trained weights  
+
+> 3:
+
+Freeze the text encoder in the discovery branch and gaze-guided selection branch  
+
+> 4:
+
+for 𝑒 = 1 to 𝐸 probe do  
+
+> 5:
+
+for all (𝐼, H, 𝑌 det , 𝑌 gaze ) ∈ D base do  
+
+> 6:
+
+Forward the discovery branch with Cbase  
+
+> 7:
+
+Forward the gaze-guided selection branch to obtain the attentional heatmap ˆ𝑆  
+
+> 8:
+
+Compute the multi-task loss L 
+
+> 9:
+
+Update all trainable parameters with AdamW  
+
+> 10:
+
+Accumulate ˆ𝑣 (𝑝 ) for discovery-branch transformer parameters  
+
+> 11:
+
+end for  
+
+> 12:
+
+end for  
+
+> 13:
+
+M ← GIST-Select ({ ˆ𝑣 (𝑝 )} , {Θℓ }𝐿 ℓ=1, 𝜌 ) 
+
+> 14:
+
+Freeze unselected discovery-branch transformer parameters according to M 
+
+> 15:
+
+Reinitialize the optimizer and learning-rate schedule  
+
+> 16:
+
+for 𝑒 = 1 to 𝐸 do  
+
+> 17:
+
+for all (𝐼, H, 𝑌 det , 𝑌 gaze ) ∈ D base do  
+
+> 18:
+
+Forward the full model with Cbase  
+
+> 19:
+
+Compute the same loss L 
+
+> 20:
+
+Update selected discovery parameters and other train-able parameters  
+
+> 21:
+
+end for  
+
+> 22:
+
+end for  
+
+> 23:
+
+return Θ★
+
+Algorithm 2: GIST Parameter Selection Input: Bias-corrected second-moment statistics { ˆ𝑣 (𝑝 )} for discovery-branch transformer parameters; transformer layers 
+
+{Θℓ }𝐿 ℓ=1; selection ratio 𝜌 
+
+Output: Binary mask M 
+
+> 1:
+
+for all transformer parameters 𝑝 in the discovery branch do  
+
+> 2:
+
+M ( 𝑝 ) ← 0 
+
+> 3:
+
+end for  
+
+> 4:
+
+for ℓ = 1 to 𝐿 do  
+
+> 5:
+
+for all 𝑝 ∈ Θℓ do  
+
+> 6:
+
+𝑠 (𝑝 ) ← Mean ( ˆ𝑣 (𝑝 ))  
+
+> 7:
+
+end for  
+
+> 8:
+
+Rank all parameters in Θℓ in descending order of 𝑠 (𝑝 ) for each layer.  
+
+> 9:
+
+Keep the top-𝜌 % parameters in Θℓ 
+
+> 10:
+
+for all selected parameters 𝑝 ∈ Θℓ do  
+
+> 11:
+
+M ( 𝑝 ) ← 1 
+
+> 12:
+
+end for  
+
+> 13:
+
+end for  
+
+> 14:
+
+return M
+
+Choice of Grounding DINO checkpoint. We use the Grounding DINO Swin-T checkpoint to keep the training-data protocol as controlled as possible. Some larger public Grounding DINO check-points are additionally trained with supervised COCO data. Since Open-Vocabulary Gaze Object Prediction: Benchmark and Method MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+most DiSG categories overlap with the COCO label space, using such checkpoints would weaken the intended base/novel evalua-tion protocol and make the comparison on held-out categories less controlled. 
+
+## F Qualitative Results 
+
+Figure 3 shows qualitative OVGOP results on DiSG. The top panel presents predictions on base categories, while the bottom panel shows predictions on novel categories. Across both settings, our method accurately associates gaze cues with semantically plau-sible object proposals, even in challenging cases involving small targets, visually crowded scenes, and fine-grained body-part cate-gories. These examples further support the strong open-vocabulary generalization of the proposed framework. 
+
+## G Failure Cases and Limitations 
+
+The main failure cases include ambiguous gaze, crowded multi-person scenes, tiny or reflective objects, occluded targets, and fine-grained body-part boundary ambiguity. These errors mainly arise from uncertainty in gaze estimation, missed or noisy candidate discovery, and ambiguous object boundaries. MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Binglu Wang, Sensen Niu, Ying Chen, and Guangyu Guo Qualitative results on base categories. 
+
+Qualitative results on novel categories. 
+
+Failure cases 
+
+Figure 3: Qualitative OVGOP results of our method on DiSG. Top: predictions on base categories. Bottom: predictions on novel categories. The visualizations show robust gaze target localization and category recognition in diverse real-world scenarios.

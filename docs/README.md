@@ -6,30 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-21
-- 运行时间：2026-07-21 21:17:47 UTC
+- 最新运行日期：2026-07-22
+- 运行时间：2026-07-22 21:32:06 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：1
 - 精读区：1
-- 速读区：1
+- 速读区：0
 
 ### 今日简报（AI）
-今日精读高分的决策信念更新神经机制研究，速览主动智能体事件基准测试。
-
-最值得关注的是用注视诱发电位揭示层级信念更新的神经特征，方向新颖且得分9.0。
-
-下一步建议深入理解信念更新如何影响决策，或尝试将主动代理基准用于实际系统评估。
-- 详情：[/202607/21/README](/202607/21/README)
+今日精读1篇高分（9.0/10）论文，聚焦开放词汇下注视目标预测的基准与全新方法。  
+该研究首次在无限制物体类别下实现精准注视预测，突破传统闭集模型局限。  
+建议关注其与多模态感知的结合，适用于辅助驾驶、智能眼镜等人机交互场景。
+- 详情：[/202607/22/README](/202607/22/README)
 
 ### 精读区论文标签
-1. [Fixation-evoked potentials reveal neural signatures of hierarchical belief-updating during decision-making](/202607/21/biorxiv-10-64898-2026-07-15-738682-v1-fixation-evoked-potentials-reveal-neural-signatures-of-hierarchical-belief-updating-during-decision-making)  
+1. [Open-Vocabulary Gaze Object Prediction: Benchmark and Method](/202607/22/2607.18827v1-open-vocabulary-gaze-object-prediction-benchmark-and-method)  
    标签：评分：9.0/10、query:gaze-intent
-   evidence：使用眼动追踪和脑电图研究决策中的信念更新，直接相关于人类注视的概率建模
+   evidence：注视目标预测直接通过眼动分析建模人类意图
 
 ### 速读区论文标签
-1. [ProEvent: An Event-centric Benchmark for Proactive Agents](/202607/21/2607.17701v1-proevent-an-event-centric-benchmark-for-proactive-agents)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：前瞻性智能体基准测试，用于预期用户需求，与前瞻性交互主题一致
+- 本次无速读推荐。
 
 
 <div class="dpr-home-promo-card">
