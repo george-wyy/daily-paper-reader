@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-07-23 <!--dpr-date:20260723-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/23/2607.20072v1-factor-informed-uncertainty-distillation-for-gaze-estimation" data-sidebar-item="{&quot;title&quot;: &quot;Factor-Informed Uncertainty Distillation for Gaze Estimation&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2607.20072v1-factor-informed-uncertainty-distillation-for-gaze-estimation&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;实时注视估计不确定性蒸馏&quot;}">Factor-Informed Uncertainty Distillation for Gaze Estimation</a>
   * 2026-07-22 <!--dpr-date:20260722-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202607/22/2607.18827v1-open-vocabulary-gaze-object-prediction-benchmark-and-method" data-sidebar-item="{&quot;title&quot;: &quot;Open-Vocabulary Gaze Object Prediction: Benchmark and Method&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2607.18827v1-open-vocabulary-gaze-object-prediction-benchmark-and-method&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;注视目标预测直接通过眼动分析建模人类意图&quot;}">Open-Vocabulary Gaze Object Prediction: Benchmark and Method</a>

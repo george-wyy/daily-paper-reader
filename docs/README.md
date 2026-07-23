@@ -6,26 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-22
-- 运行时间：2026-07-22 21:32:06 UTC
+- 最新运行日期：2026-07-23
+- 运行时间：2026-07-23 21:35:55 UTC
 - 运行状态：成功
 - 本次总论文数：1
-- 精读区：1
-- 速读区：0
+- 精读区：0
+- 速读区：1
 
 ### 今日简报（AI）
-今日精读1篇高分（9.0/10）论文，聚焦开放词汇下注视目标预测的基准与全新方法。  
-该研究首次在无限制物体类别下实现精准注视预测，突破传统闭集模型局限。  
-建议关注其与多模态感知的结合，适用于辅助驾驶、智能眼镜等人机交互场景。
-- 详情：[/202607/22/README](/202607/22/README)
+今日聚焦一篇评分6.0的注视估计论文，探索不确定性蒸馏新方法。
+论文提出“因子信息不确定性蒸馏”，将模型不确定性纳入知识蒸馏过程，为提升注视估计精度提供了新思路。
+对普通读者而言，值得关注该工作中如何用不确定性增强特征学习，适用于其他回归任务。
+- 详情：[/202607/23/README](/202607/23/README)
 
 ### 精读区论文标签
-1. [Open-Vocabulary Gaze Object Prediction: Benchmark and Method](/202607/22/2607.18827v1-open-vocabulary-gaze-object-prediction-benchmark-and-method)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：注视目标预测直接通过眼动分析建模人类意图
+- 本次无精读推荐。
 
 ### 速读区论文标签
-- 本次无速读推荐。
+1. [Factor-Informed Uncertainty Distillation for Gaze Estimation](/202607/23/2607.20072v1-factor-informed-uncertainty-distillation-for-gaze-estimation)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：实时注视估计不确定性蒸馏
 
 
 <div class="dpr-home-promo-card">
