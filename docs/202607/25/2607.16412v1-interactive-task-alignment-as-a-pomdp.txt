@@ -1,0 +1,521 @@
+Title: Interactive Task Alignment as a POMDP
+
+URL Source: https://arxiv.org/pdf/2607.16412v1
+
+Published Time: Tue, 21 Jul 2026 00:13:17 GMT
+
+Number of Pages: 33
+
+Markdown Content:
+# Interactive Task Alignment as a POMDP 
+
+Andy Dai *,1 Zexue He *,1 Zhenyu Zhang 1 Alex Pentland 1 Jiaxin Pei 1
+
+> 1
+
+Stanford University 
+
+aldai@cs.stanford.edu 
+
+Abstract 
+
+Current benchmarks for language models primarily evaluate execution on fully specified tasks. However, real user tasks are often ambiguous. Users arrive with incomplete, exploratory, or even inconsistent goals, requiring the assistant to first determine the intended task before carrying it out. We study this problem as task alignment : the ability to align with a user on their intended task. We introduce a general framework for converting 
+
+specified tasks into underspecified interactions , formalized as a POMDP in which the model must infer a latent task from partial and evolving user intent. We validate our user simulator post hoc with a human user study. Across shopping, coding, and professional work settings, we find that while models often perform well once the task is specified, models still struggle with task alignment: current models act prematurely, interact ineffectively, and fail to resolve ambiguous requests. Models on average recover the user’s intended task only 22 – 32% of the time under ambiguity. In a human study in the same setting, humans reach 48%, outperforming all evaluated models. We show that post-training with supervised fine-tuning and reinforcement learning improves task alignment, but models still lag behind humans in resolving uncertainty through interaction. Together, our results suggest that current models still lack key interaction abilities required for reliable agency. 1
+
+1 Introduction 
+
+Large language models (LLMs) are primarily evaluated on fully specified tasks. The model is given a goal, constraints, and success criteria, and is evaluated on whether it can execute the task (Yao et al., 2023), (Wei et al., 2025), (Jimenez et al., 2024). This fully specified setting is useful for isolating task capability . For example, to measure a model’s ability to write accurate code, one must fully specify the coding issue and its tests, so that performance reflects the model’s actual code-writing capability, rather than its ability to interpret requests (Jimenez et al., 2024). In real world deployments, however, users almost never begin with complete specifications. Humans typically express goals that are incomplete, exploratory, ambiguous, or even inconsistent over time. As a result, the bottleneck shifts from executing a known task to 
+
+determining which task the user actually intends .Recent work has begun to recognize this discrepancy between fully specified evaluation and real-world use. Examples include Ambig-SWE (Vijayvargiya et al., 2026) on software engi-neering tasks and GDPval (Patwardhan et al., 2025) on economically valuable, real-world tasks. Such benchmarks are important steps toward realistic evaluation under task ambigu-ity, but they typically measure end-to-end task completion with underspecification. This makes it difficult to separate failures of task execution from failures of task interpretation. In this paper, we decouple the two and study the model’s ability to achieve task alignment 
+
+> *
+
+Equal contribution. 
+
+> 1
+
+See data and code. 
+
+1arXiv:2607.16412v1 [cs.AI] 17 Jul 2026 2 with users (Figure 1). We argue that task alignment is a prerequisite for downstream task completion: even highly capable models can fail when they fail to detect missing information, assume the user’s intent, and act prematurely. 
+
+Figure 1: Task alignment un-der uncertainty. Users provide observable instructions, while their real needs remain latent. We study the task alignment stage: identifying the intended task through interaction before executing the task. Although task execution may involve additional latent environment states, these downstream execu-tion dynamics are out of scope. To this end, we propose a domain-general framework for turning fully specified task evaluations into task alignment evaluations with underspecified user interac-tions. Given a domain with a space of tasks and spec-ifications, we construct an interactive setting in which the ground-truth task specification is latent, partially revealed through a user simulator, and progressively evolved from abstract to fully specified. We formalize this setting as a Partially Observable Markov Decision Process 
+
+(POMDP), where the assistant observes only the dialogue history and must interact with the user, update its be-lief over possible tasks, and decide when to commit to task execution. This formulation separates task discovery from task execution and makes the framework applicable beyond any single domain. We apply behavioral and information-theoretic metrics of the interaction process to evaluate task alignment under ambiguity, along the following two complementary di-mensions: (1) task recovery measures whether the model identifies the intended task; (2) uncertainty resolution mea-sures whether the model appropriately detects ambiguity, seeks informative clarifications, and reduces uncertainty through interaction. We conduct a detailed evaluation of state-of-the-art LLMs across real-world shopping, coding, and professional work tasks. Our analysis shows that current models strug-gle at aligning with users on their tasks, recovering on average the correct task between 22 − 32% of the time for underspecified users. Models that perform well under full specification often act prematurely, committing to task execution in 1-3 conversation turns; interact ineffectively, failing to clarify the task; or remain uncertain about the user’s intended task. Our results suggest that current LLMs still lack key communicative behaviors required for reliable agency. Key contributions from this paper include: (1) we propose a framework formalized as a POMDP for measuring how well models align with users on any specifiable task, and we val-idate the framework with a human study, showing simulated users elicit human-comparable specification behavior; (2) we show that current models struggle at determining users’ tasks even when they can execute them, and that task alignment is a separable, domain-general axis of model behavior; (3) we demonstrate that humans exceed all evaluated models at identifying underspecified users’ tasks; (4) we show that post-training Qwen3.5 9B with SFT and RL improves task alignment, but models still lag behind human performance. 
+
+2 Problem Formulation 
+
+2.1 A POMDP Framework 
+
+Given a task setting T, let XT be the set of all possible task specifications induced by T. For example, in shopping setting, a task specification could be buying a particular Amazon product (“ purchase a Bose QuietComfort Bluetooth Headphones ”): in coding, it could be a problem statement (“ Build POV-Ray 2.2. Find and download the source... ”) (Merrill et al., 2026). 
+
+> 2Task alignment: the process by which agents ground and maintain a shared task understanding through mutual modeling Clark & Brennan (1991)
+
+2Figure 2: Workflow of our POMDP-based task-alignment framework, illustrated with an example from Terminal-Bench. The assistant interacts with a user simulator whose responses are guided by an evolving intent state conditioned on the full specification and conversation history. At each turn, the assistant ranks candidate specifications (as an additional output just for evaluation), allowing us to track how interaction affects belief over the latent task. We formulate task alignment as a Partially Observable Markov Decision Process (POMDP) 
+
+MT = ⟨ S , A, T , R, Ω, O ⟩ from the assistant’s perspective as follows. 
+
+State S and observation Ω. At turn t, the environment state is st = ( x∗, it, ht) ∈ S , where 
+
+x∗ ∈ X T is the fixed ground-truth specification, it ∈ I is the user’s current intent state, and ht = ( mu 
+
+> 1
+
+, ma
+
+> 1
+
+, . . . , mut−1, mat−1) is the conversation history before the assistant commits to execution and terminates the conversation. The intent state captures which aspects of the user’s goal have been revealed, refined, or left implicit. The assistant observes only the conversation history, so Ω is the space of possible conversations and the observation function is deterministic ( ot = ht). Both x∗ and it are hidden from the assistant, and must therefore be inferred from the interaction. 
+
+Action A. At each turn, the assistant takes an action at = ( mat , et, ρt) ∈ A , where mat is the natural-language response (e.g., a clarifying question) appended to ht, and et ∈ { 0, 1 } is the stop signal parsed from mat indicating commitment to task execution, which terminates the conversation. The third component ρt is a ranking over a finite candidate set C ⊆ X T (with 
+
+x∗ ∈ C ) that we elicit in a separate conversation thread after each turn, conditioned on the conversation so far. ρt is strictly a measurement instrument: it exposes the assistant’s current hypothesis about the intended task without leaking the candidates into the conversation. 
+
+Transition T . The ground-truth specification x⋆ is fixed throughout the episode; only ht
+
+and it evolve. If et = 1, the episode terminates. Otherwise the user simulator generates a response mut ∼ πu(· | it, ht, mat ) and evolves the intent state it+1 ∼ E(· | x⋆, it, ht, mat , mut ),where both the user policy πu and the intent evolver E are implemented with LLMs. The user simulator thus defines T during the rollout: it has privileged access to x⋆ and reveals information about it only through responses to the assistant’s actions. Task alignment evaluates whether an assistant policy πa(at | ht), which maps observed conversation histories to distributions over actions, can use interaction to concentrate its hypothesis on x∗ while avoiding premature commitment under uncertainty. 32.2 Evaluation Metrics 
+
+We design metrics to (1) evaluate if the LLM assistant can recover latent task ( task recovery ), and (2) to measure how it uses interaction to reduce uncertainty before committing ( uncer-tainty resolution ). After each turn, the assistant provides a ranking ρt over the candidate set C, which allows us to track how the ground-truth specification x⋆ moves through the assistant’s hypotheses over time. We aim to analyze the compounding effect of accuracy with uncertainty (Figure 4). 
+
+Task recovery behavior. The first question is whether the assistant has recovered the intended task by the time it commits to execution. Let T∗ denote the termination turn. We report CommitAcc@1 = 1rank ρT∗ (x∗) = 1; the normalized rank CommitRank = ˆrt =
+
+1 − rank ρt (x∗ )−1 
+
+> |C|− 1
+
+∈ [0, 1 ], focusing on ˆr1 and ˆrT∗ ; and CommitReward = αˆrT∗ − λT∗ with 
+
+α = 1.5 and λ = 0.02, which we use as the training signal in Section 4 under different hyper-parameters. Together with E[T∗], these capture the quality-cost tradeoff at commitment: a well-aligned assistant should identify the correct specification while avoiding unnecessary interaction. 
+
+Uncertainty resolution. Ranking behavior alone does not reveal whether the assistant used the conversation effectively. When the assistant emits confidence scores over C alongside ρt,we treat the normalized score vector as an empirical belief over candidates. Details are in Appendix C; uncertainty metrics are reported on the model subset that emits confidence scores. Let ˜Ht(πa) ∈ [0, 1 ] denote its normalized entropy at turn t. We summarize how much uncertainty the assistant resolves over the episode by the cumulative information gain: 
+
+TotalIG (πa) = ˜H0(πa) − ˜HT∗ (πa).These quantities distinguish assistants that merely guess correctly from assistants that systematically narrow the space of plausible tasks through useful interaction. Crossing correctness with certainty at commitment yields four outcomes (Table 1), which we use throughout to separate assistants that are honestly uncertain from those that are confidently wrong .              
+
+> Low ˜HT∗(confident) High ˜HT∗(uncertain)
+> rank ρT∗(x∗) = 1 (correct) Confidently correct Lucky correct rank ρT∗(x∗)>1 (incorrect) Confidently wrong Honestly uncertain
+
+Table 1: Four-quadrant taxonomy of per-episode alignment outcomes at the assistant’s commit turn T∗. Low and High ˜ HT∗ is split by median across all rollouts. 
+
+2.3 Task Settings 
+
+Our framework includes three tasks: Shopping-MMLU (Jin et al., 2024): purchase the specified product within a page of products; GDPVal (Patwardhan et al., 2025): produce the real-world deliverable that satisfies the rubric; Terminal-Bench (Merrill et al., 2026): write code, modify files, or execute commands to pass the verifier. Converting a domain into a task alignment evaluation requires only its ground-truth task specifications x∗: from each 
+
+x∗ we derive an initial user intent i0, an intent evolver E : (ht, it, x∗) 7 → it+1 with privileged access to x∗, and a candidate set C with |C| = 15 and x∗ ∈ C . The same recipe applies to any benchmark with specifiable tasks. 
+
+Initializing the intent state. We introduce underspecification by initializing i0 at varying levels of abstraction. For each task, an LM rewrites x∗ as three intent tiers spoken from the user’s perspective, ranging from abstract (“I need something to keep him busy”) through 
+
+moderate (“I want a fun toy that’ll hold his attention”) to concrete (“I’m looking for something exciting for a little kid who loves big construction vehicles and gets bored easily with quiet 4toys”). 3 The generated i0 seeds the user simulator, and E defines the sequence {it} evolving from i0 toward x∗.
+
+Constructing the candidate set C. All three tasks follow the same pipeline: we generate 
+
+N = 14 perturbations of the ground-truth specification x∗, and insert x∗ at a random index to yield |C| = 15. For Shopping, perturbations exist naturally as products similar to 
+
+x∗: we extract the search term behind x∗ with an LM and take the first 14 Amazon.com search results. For GDPVal and Terminal-Bench, an LM generates perturbations along key dimensions (workflow, data inputs, deliverable, or methodology) and applies them to x∗.Full details and per-benchmark examples are in Appendix B. 
+
+3 Experiments 
+
+3.1 Setups 
+
+Figure 3: Per-turn trajectories of belief entropy ˜Ht
+
+(left) and normalized rank ˆrt (right) at the abstract tier, one row per task. Score-vector subset (GPT-5.4 family, Qwen3.5-9B, Qwen3.5-397B); trained Qwen3.5-9B SFT / RL added on Shopping. Trajectory lines terminate at mean ⌈T∗⌉, and already-terminated rollouts contribute their terminal value thereafter for icon placement. GPT-5.4 family trajectories end early across all tasks due to 
+
+early commitment to task execution ( T∗ ∈ [1, 2 ]). We test current state-of-the-art closed-source LLMs with parameter sizes such as Ope-nAI GPT models including 
+
+GPT-5.4-{nano, mini}, GPT-5.4 ,Claude Sonnet-4.6 , and Google 
+
+Gemini-3-Flash , Gemini-3.1-Pro .We also include open-source LLMs including Qwen3.5 series (Qwen3.5-{9B, 27B, 35B, 122B, 397B} ), Kimi-K2.5 , Deepseek V3.2 ,and GLM-5.1 . All models are queried by official API call, and reasoning setting is set to None or lowest possible as applicable. 
+
+Task capability baseline. We first establish each model’s un-derlying task capability in the original task setting. We re-run our own evaluation on Shopping-MMLU and reuse normalized scores from the Artificial Analy-sis leaderboard for GDPVal and Terminal-Bench (per-model scores in Appendix D, Figure 9). Capa-bility is saturated and highly clus-tered on Shopping-MMLU (scores in [81.1%, 88.4%] across all 14 models), but spans a wide range on GDPVal (52.8%–100%) and Terminal-Bench (19.7%–100%). We exploit this contrast in Section 3.4: Shopping holds capability fixed as a control, while the two unsaturated settings let us study how capability and alignment relate. 
+
+> 3The ground-truth specification is “purchase a Construction Excavator Toy Truck with Electric Universal Wheel for 3+ Years Old”.
+
+53.2 Task recovery behavior 
+
+We first evaluate whether models can determine the correct task under underspecification. Table 2 reports CommitReward and CommitAcc@1 on the abstract tier of all three tasks, while full metrics Tables 10 through 12 are in the Appendix D. Table 2: Task-alignment performance under abstract intent (14 models, all three tasks). CR = CommitReward; @1 = CommitAcc@1 (%). Bold = per-column best within each task. AVERAGE = unweighted mean across the 14 models in this table.           
+
+> Shopping GDPVal Terminal-Bench Model CR @1 (%) CR @1 (%) CR @1 (%) qwen3.5-9b 0.25
+
+± 0.02 15.80 ± 1.31 0.60 ± 0.06 25.26 ± 4.48 0.56 ± 0.06 25.00 ± 4.75 qwen3.5-27b 0.68 ± 0.02 32.26 ± 1.68 0.67 ± 0.06 33.68 ± 4.87 0.73 ± 0.06 32.53 ± 5.17 qwen3.5-35b-a3b 0.81 ± 0.02 53 .86 ± 1.79 0.63 ± 0.05 27.37 ± 4.60 0.64 ± 0.06 29.27 ± 5.06 qwen3.5-122b-a10b 0.67 ± 0.02 32.13 ± 1.68 0.62 ± 0.06 25.26 ± 4.48 0.64 ± 0.07 29.41 ± 4.97 qwen3.5-397b-a17b 0.59 ± 0.02 23.87 ± 1.53 0.74 ± 0.06 38.95 ± 5.03 0.83 ± 0.06 39.29 ± 5.36 gpt-5.4-nano 0.48 ± 0.03 7.97 ± 1.37 0.47 ± 0.05 9.47 ± 3.02 0.42 ± 0.06 7.06 ± 2.79 gpt-5.4-mini 0.63 ± 0.02 11.44 ± 1.14 0.74 ± 0.06 17.89 ± 3.95 0.67 ± 0.06 17.65 ± 4.16 gpt-5.4 0.71 ± 0.03 12.89 ± 1.70 0.85 ± 0.06 22.11 ± 4.28 0.80 ± 0.06 24.71 ± 4.71 gemini-3-flash-preview 0.71 ± 0.02 18.51 ± 1.39 0.87 ± 0.06 33.68 ± 4.87 0.81 ± 0.06 34.12 ± 5.17 gemini-3.1-pro-preview 0.64 ± 0.03 13.88 ± 1.76 0.92 ± 0.05 40 .00 ± 5.05 1.12 ± 0.05 61 .18 ± 5.32   
+
+> claude-sonnet-4-6 0.62
+
+± 0.03 12.60 ± 1.68 0.90 ± 0.05 31.58 ± 4.79 0.87 ± 0.06 34.12 ± 5.17 glm-5.1 0.77 ± 0.02 23.91 ± 1.53 0.77 ± 0.05 21.05 ± 4.20 0.98 ± 0.06 51.76 ± 5.45 deepseek-v3.2 0.78 ± 0.02 32.52 ± 1.68 0.75 ± 0.06 31.58 ± 4.79 0.80 ± 0.06 34.94 ± 5.27 kimi-k2.5 0.67 ± 0.02 16.45 ± 1.33 0.91 ± 0.05 28.42 ± 4.65 0.80 ± 0.06 29.41 ± 4.97 AVERAGE 0.64 ± 0.01 22.01 ± 0.42 0.75 ± 0.01 27.59 ± 1.21 0.76 ± 0.02 32.17 ± 1.32 
+
+Models struggle at aligning on real user tasks. We observe a large alignment gap between the tasks that models execute and the tasks that users intend. In the abstract tier, Com-mitAcc@1 collapses to averages of 22.01 ± 0.42% on Shopping, 27.59 ± 1.21% on GDPVal, and 32.17 ± 1.32% on Terminal-Bench. Table 2 reports CommitReward and CommitAcc@1 with top performers in bold: Qwen3.5-35B-A3B leads Shopping on both metrics, while Gemini-3.1 Pro tops GDPVal and Terminal-Bench on both metrics. No model is able to consistently align with underspecified users across task settings, even after 15 turns of interaction. 
+
+Commit behavior is a stable model signature. The timing for when each model commits to task execution is highly stable across all three domains, essentially independent of domain (Figure 3; Figure 10b in Appendix D; domain pairwise Spearman ρ ≥ 0.92). GPT-5.4 commits within two turns everywhere ( T⋆ ∈ [1.2, 2.4 ]); Qwen3.5-9B takes many turns ( T⋆ ∈ [6.4, 8.5 ]); and Gemini and Claude families occupy the middle ( T⋆ ∈ [3.7, 5.9 ]). 
+
+Per-model performance is explained along three behavioral axes. We describe perfor-mance along: (1) the model’s initial guess ˆr1 on the intended task, (2) how effectively the model leverages interaction to determine the task ∆ˆr = ˆrT⋆ − ˆr1, and (3) when the model commits T∗ to task execution. Figure 3 showcases a subset models’ behavior along these axes; Figure 11 in Appendix D has full values. This decomposition reveals that (1) under abstract user intent, models’ initial guesses for which task to execute are largely wrong; and (2) that interaction is necessary but insufficient for task alignment. 
+
+3.3 Uncertainty resolution 
+
+The previous focus was in describing whether the assistant could commit to the right task. Here, we analyze how the model got there: how much of assistant belief entropy over C
+
+6reduces over conversation. We report uncertainty metrics (Section 2.2) for GPT-5.4 family and Qwen3.5-{9B, 397B}. 
+
+Figure 4: Normalized entropy ˜H at commit vs. normalized rank at commit, per model (mean 
+
+± SEM), across all three tasks. 
+
+Qwen3.5 extracts more information from conversation than GPT-5.4 Qwen3.5 achieves substantial entropy reductions on every task ( TotalIG up to 0.29 on Shopping and 0.21 on Terminal-Bench), driven by more interaction turns ( T∗ ∈ [6, 8 ]), while the GPT-5.4 family hovers around TotalIG = 0 on Shopping, 0.03 on GDPVal, and 0.02 on Terminal-Bench due to low interaction ( T∗ ∈ [1, 3 ]). Full per-(model, task) TotalIG is in Figure 16 in Appendix D. 
+
+Scaling model size improves rank, but confidence and calibration follow no consistent trend. Within each family, CommitRank scales with model size on every task (Figure 4), but confidence and calibration do not follow. Qwen3.5-397B carries the highest confidently correct 
+
+share (21.1% Shopping, 24.2% GDPVal, 27.4% Terminal-Bench), surpassing Qwen3.5 9B with lower entropy and higher rank: however, confidently wrong also increases (4.8 → 17.9% on Terminal-Bench, 7.4 → 16.8% on GDPVal). GPT-5.4 is likewise more accurate but not necessarily more certain than its smaller variants, as entropy traces a V-shape with GPT-5.4-mini at minimum entropy across all tasks (full values in Table 14, Appendix D). 
+
+3.4 Relationship between task capability and alignment 
+
+Figure 5: Variance decomposition of across-model alignment (CommitRank) per task. We now analyze the relationship between task capability and alignment. Models that perform tasks well may also trivially identify them well, in which case our evaluation setting would add little beyond existing capability evaluations. We test this by exploiting the capability profiles of our three settings (Section 3.1). We use Shop-ping as a capability-saturated control, while we use GDPVal and Terminal-Bench to study align-ment under varied capability. CommitRank is our fine-grained metric here. 
+
+Task alignment is a separable axis from ca-pability. The Shopping control demonstrates separability directly: all 14 models saturate the underlying task (NDCG spread of 0.07; Figure 9, Appendix D), while their alignment varies almost threefold, with CommitRank ranging from 0.28 to 0.81. Models all capable of performing the task differ widely at identifying it. 7The unsaturated settings show that this separability persists even when capability varies. Decomposing the between-model CommitRank variance per task (Figure 5), we find that capability explains a meaningful share of CommitRank variance (43% on GDPVal, p = 0.011; 50% on Terminal-Bench, p = 0.005). However, a substantial 39% of variance on both tasks is explained by a capability-orthogonal component (bootstrap p≤0 = 0.017 on Terminal-Bench, 0.055 on GDPVal), suggesting that task alignment has its own axis of model behavior and is not just a capability byproduct, requiring separate measurement. 
+
+The alignment axis is domain-general. Having established that alignment is separable from capability, we now test if the alignment axis is general. We find that models which identify the correct task in one domain tend to do so in other domains . Concordance of per-task CommitRank rankings across the 14 models is Kendall’s W = 0.62 (permutation 
+
+p = 0.006; robust to leave-one-family-out within [0.43, 0.68 ]). To ensure this agreement is not just the capability-shared component of task alignment, we recompute W on capability-residualized ranks on every task. The residual W = 0.58 (permutation p = 0.017; leave-one-family-out [0.49, 0.64 ]). We thus find that task alignment is a stable axis of model behavior that our framework measures across domains. 
+
+3.5 Human Evaluation Humans outperform all LLMs at task recovery. To measure human performance at task alignment, we replace the LLM assistant with a human assistant. We use Shopping as our task setting, since it requires less specialized expertise; and we evaluate in the concrete user tier. We find that humans determine the correct task 48.0 ± 7.1% of the time (CommitAcc@1) on a smaller dataset of 5 products (Figure 6a), beating the strongest LLM (GLM-5.1 at 36.9 ± 6.0%) and far exceeding median model performance at ∼ 25%. See Tables 4 and 5 in Appendix A for full details. 
+
+> (a) Per-source CommitAcc@1 on the matched Shopping concrete-tier user-study items (5 prod-ucts). Error bars are SEM.
+> (b) Inference-replay CommitAcc@1. Models with the human’s transcript reach a 49.5% median Acc@1; models’ inferences on their own tran-scripts reach only around 25%
+
+Figure 6: Human evaluation: (a) humans outperform all models at task recovery; (b) the advantage is explained by communication, not inference. 
+
+Communication ability, not inference, explains the human advantage. Given that hu-mans have higher CommitAcc@1 than models (Section 3.5), we investigate why. We perform an ablation where we have LLMs guess the task conditioned on the human assistant tran-scripts. We find that median model CommitAcc@1 almost doubles to 49.5% from 25%, with 8 models exceeding the human assistant + human guess performance which had previously beat all models. 12 of 14 models lift their CommitRank (median gain +0.14). The significant lift from using human instead LLM assistant conversations indicates that the human advantage is in communication: humans are more effective at interacting to resolve and extract information under ambiguity. Inference ability is not the bottleneck. 8Human behavior in specification is captured by our user simulator. To validate our user simulator, we also test replacing our LLM simulator with real human users, and we replay our evaluation on three assistant LLMs to compare user conditions. Pooled across assistant LLMs, we find that CommitReward (0.98 human, 0.95 simulated), CommitAcc@1 (40.9% human, 42.0% simulated), and T∗ (13.24 human, 12.45 simulated) are all comparable and within 1 SEM. This study was done post hoc after finalizing our simulator. Full study details and results are in Appendix A, and an ablation of our user simulator is in Appendix A.3. 
+
+4 Fine-tuning models to improve task alignment                           
+
+> base SFT RL
+> Task recovery
+> CommitReward 0.24 ±.03 0.61 ±.03 0.62 ±.03
+> CommitAcc@1 (%) 15.2 ±1.4 19.6 ±2.3 23 .6±2.4
+> E[T⋆]8.9±.17.2 ±.2 7.9 ±.2
+> Uncertainty resolution
+> TotalIG 0.29 ±.02 0.04 ±.03 0.15 ±.02
+> Conf. corr. (%) 11.0 9.0 16 .9
+> Lucky corr. (%) 4.0 10 .66.7 Conf. wrong (%) 53 .030.9 18.8 Hon. unc. (%) 32.0 49.5 57 .5
+
+Table 3: Training head-to-head for Qwen3.5-9B. 
+
+Top : outcome metrics (evaluation CommitRe-ward). Bottom : TotalIG and quadrant %. We fine-tune Qwen3.5-9B using SFT and 
+
+RL on Shopping with CommitReward, and evaluate on a matched n ≈ 300 held-out abstract-tier subset against the base model. Both methods lift CommitReward roughly 2.5 × over base, with RL and SFT adding 8.4 and 4.4 points on Commi-tAcc@1 over base (Table 3, Task recovery ). The belief signature also points to training improvements (Table 3, Uncertainty res-olution). Training shifts mass out of con-fidently wrong (53.0 → 30.9% under SFT and 53.0 → 18.8% under RL, a 34.2-point drop) and into honestly uncertain (32.0 →
+
+49.5% under SFT and 32.0 → 57.5% under RL, +25.5 points), while raising at least one correct quadrant. The trained model improves task identification and shifts its certainty to be more honest and calibrated. CommitAcc@1 on human assistant subset for both SFT (22.5%) and RL (27.5%) fall below human performance. Full training details are in Appendix E. 
+
+5 Related Work 
+
+Task Alignment. Autonomous agents must determine which task should be executed, not just execute it. We use task alignment to refer to establishing a shared understanding between user and agent about the intended task, rooted in the grounding framework of Clark & Brennan (1991). Recent work has revisited this idea for autonomous agents: Wang et al. (2025b) positioned it as central to human-agent software engineering. Yet task alignment has not been formalized or measured as its own capability. Meanwhile, a parallel and rich line of work studies personalized alignment and inferring user-specific preferences through multi-turn dialogue (Wu et al., 2024; Li et al., 2025b; Handa et al., 2024; Qian et al., 2024; Luo et al., 2025; Montazeralghaem et al., 2025; Kim et al., 2026; Zhao et al., 2025). We apply this line of work from user modeling to formalize and measure task alignment as a new evaluation paradigm, isolated from downstream task execution ability. 
+
+Uncertainty Resolution. A growing body of work studies clarification under ambiguity: when, what, and how to ask (Zhang & Choi, 2025; Li et al., 2025a), recovering implicit intent in agentic settings (Qian et al., 2024; Vijayvargiya et al., 2026), and realistic multi-turn clarification (Luo et al., 2025). Another line improves question-asking via post-training— future-turn preference labeling (Zhang et al., 2025), contrastive self-training (Chen et al., 2025), self-improvement with simulated preferences (Andukuri et al., 2024), and RL for proactive information gathering (Huang et al., 2025)—while multi-turn agent RL frame-works highlight both the promise and instability of trajectory-level optimization (Wang et al., 2025a). We focus instead on measuring uncertainty resolution itself: our metrics track whether interaction improves an agent’s belief over latent task specifications, and how SFT and RL affect this process. 96 Conclusion 
+
+We have introduced a domain-general framework for converting fully-specified tasks into task alignment evaluations, formalized as a POMDP over latent tasks. Across shopping, coding, and professional work settings, we find that current models struggle to align with underspecified users; that task alignment is a separable, domain-general axis of model behavior rather than a byproduct of task capability; and that humans outperform all models at identifying users’ tasks due to interaction ability. Post-training with SFT and RL improves task recovery and shifts model certainty to be more calibrated, yet a substantial gap in communicative behavior remains. As models improve in capabilities to perform more tasks, our results suggest that task alignment—detecting ambiguity, eliciting information, and knowing when to act—is becoming a primary bottleneck for useful agency, and our framework offers a way to measure and train for it on any specifiable task. 
+
+Limitations 
+
+In this paper, we study LLMs’ capability to align on users’ tasks through interacting with users. Our study has the following limitations. (1) Training scope. Due to computational constraints, our SFT and RL experiments are limited to a single open-source backbone (Qwen3.5-9B-Instruct) and a single task setting (Shopping). Whether the gains we observe transfer to larger backbones, to closed-source models, or to the more capability-bound settings (GDPVal, Terminal-Bench) remains open. We expect the qualitative finding that interaction efficiency is the primary axis recovered by post-training to generalize, but the magnitude of the gap to humans may differ substantially in other regimes. 
+
+(2) User simulation. Our evaluation relies on an LLM-based user simulator with privileged access to x∗ and a stateful intent evolver E. Although our matched human-vs-simulator study (Table 6) shows that the simulator produces broadly similar assistant-side behavior in specification, the simulator cannot capture the full distribution of real user behaviors— genuine task uncertainty, preference drift, contradiction, distraction, frustration with the assistant, or selective disclosure for privacy reasons. In our human-vs-simulator study, humans specify tasks that they have completed already, which conceptually maps roughly to our concrete intent tier, where the task is already known: however, it is not possible to capture abstract intent in humans, limiting the scope of our validation. The intent evolver ablation (Table 7) further shows that the choice of evolver materially affects measured performance, meaning our absolute numbers are tied to a particular simulator design rather than a canonical user model. 
+
+References 
+
+Chinmaya Andukuri, Jan-Philipp Fränken, Tobias Gerstenberg, and Noah D Good-man. Star-gate: Teaching language models to ask clarifying questions. arXiv preprint arXiv:2403.19154 , 2024. Maximillian Chen, Ruoxi Sun, Tomas Pfister, and Sercan Arik. Learning to clarify: Multi-turn conversations with action-based contrastive self-training. In International Conference on Learning Representations , volume 2025, pp. 32244–32279, 2025. Herbert H. Clark and Susan E. Brennan. Grounding in communication, 1991. URL https: //psycnet.apa.org/record/1991-98452-006 .Kunal Handa, Yarin Gal, Ellie Pavlick, Noah Goodman, Jacob Andreas, Alex Tamkin, and Belinda Z. Li. Bayesian preference elicitation with language models, 2024. URL 
+
+https://arxiv.org/abs/2403.05534 .Tenghao Huang, Sihao Chen, Muhao Chen, Jonathan May, Longqi Yang, Mengting Wan, and Pei Zhou. Teaching language models to gather information proactively. Findings of the Association for Computational Linguistics: EMNLP 2025 , pp. 15588–15599, 2025. 10 Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press, and Karthik Narasimhan. Swe-bench: Can language models resolve real-world github issues?, 2024. URL https://arxiv.org/abs/2310.06770 .Yilun Jin, Zheng Li, Chenwei Zhang, Tianyu Cao, Yifan Gao, Pratik Jayarao, Mao Li, Xin Liu, Ritesh Sarkhel, Xianfeng Tang, Haodong Wang, Zhengyang Wang, Wenju Xu, Jingfeng Yang, Qingyu Yin, Xian Li, Priyanka Nigam, Yi Xu, Kai Chen, Qiang Yang, Meng Jiang, and Bing Yin. Shopping mmlu: A massive multi-task online shopping benchmark for large language models, 2024. URL https://arxiv.org/abs/2410.20745 .Tae Soo Kim, Yoonjoo Lee, Jaesang Yu, John Joon Young Chung, and Juho Kim. Discoverllm: From executing intents to discovering them, 2026. URL https://arxiv.org/abs/2602. 03429 .Belinda Z. Li, Been Kim, and Zi Wang. Questbench: Can llms ask the right question to acquire information in reasoning tasks?, 2025a. URL https://arxiv.org/abs/2503.22674 .Shuyue Stella Li, Melanie Sclar, Hunter Lang, Ansong Ni, Jacqueline He, Puxin Xu, Andrew Cohen, Chan Young Park, Yulia Tsvetkov, and Asli Celikyilmaz. Prefpalette: Personalized preference modeling with latent attributes. arXiv preprint arXiv:2507.13541 , 2025b. Sichun Luo, Yi Huang, Mukai Li, Shichang Meng, Fengyuan Liu, Zefa Hu, Junlan Feng, and Qi Liu. Clarifymt-bench: Benchmarking and improving multi-turn clarification for conversational large language models, 2025. URL https://arxiv.org/abs/2512.21120 .Mike A. Merrill, Alexander G. Shaw, Nicholas Carlini, Boxuan Li, Harsh Raj, Ivan Bercovich, Lin Shi, Jeong Yeon Shin, Thomas Walshe, E. Kelly Buchanan, Junhong Shen, Guang-hao Ye, Haowei Lin, Jason Poulos, Maoyu Wang, Marianna Nezhurina, Jenia Jitsev, Di Lu, Orfeas Menis Mastromichalakis, Zhiwei Xu, Zizhao Chen, Yue Liu, Robert Zhang, Leon Liangyu Chen, Anurag Kashyap, Jan-Lucas Uslu, Jeffrey Li, Jianbo Wu, Minghao Yan, Song Bian, Vedang Sharma, Ke Sun, Steven Dillmann, Akshay Anand, Andrew Lanpouthakoun, Bardia Koopah, Changran Hu, Etash Guha, Gabriel H. S. Dreiman, Jiacheng Zhu, Karl Krauth, Li Zhong, Niklas Muennighoff, Robert Amanfu, Shangyin Tan, Shreyas Pimpalgaonkar, Tushar Aggarwal, Xiangning Lin, Xin Lan, Xuandong Zhao, Yiqing Liang, Yuanli Wang, Zilong Wang, Changzhi Zhou, David Heineman, Hange Liu, Harsh Trivedi, John Yang, Junhong Lin, Manish Shetty, Michael Yang, Nabil Omi, Negin Raoof, Shanda Li, Terry Yue Zhuo, Wuwei Lin, Yiwei Dai, Yuxin Wang, Wenhao Chai, Shang Zhou, Dariush Wahdany, Ziyu She, Jiaming Hu, Zhikang Dong, Yuxuan Zhu, Sasha Cui, Ahson Saiyed, Arinbjörn Kolbeinsson, Jesse Hu, Christopher Michael Rytting, Ryan Marten, Yixin Wang, Alex Dimakis, Andy Konwinski, and Ludwig Schmidt. Terminal-bench: Benchmarking agents on hard, realistic tasks in command line interfaces, 2026. URL https://arxiv.org/abs/2601.11868 .Ali Montazeralghaem, Guy Tennenholtz, Craig Boutilier, and Ofer Meshi. Asking clarifying questions for preference elicitation with large language models, 2025. URL https:// arxiv.org/abs/2510.12015 .Tejal Patwardhan, Rachel Dias, Elizabeth Proehl, Grace Kim, Michele Wang, Olivia Watkins, Simón Posada Fishman, Marwan Aljubeh, Phoebe Thacker, Laurance Fau-connet, Natalie S. Kim, Patrick Chao, Samuel Miserendino, Gildas Chabot, David Li, Michael Sharman, Alexandra Barr, Amelia Glaese, and Jerry Tworek. Gdpval: Eval-uating ai model performance on real-world economically valuable tasks, 2025. URL 
+
+https://arxiv.org/abs/2510.04374 .Cheng Qian, Bingxiang He, Zhong Zhuang, Jia Deng, Yujia Qin, Xin Cong, Zhong Zhang, Jie Zhou, Yankai Lin, Zhiyuan Liu, et al. Tell me more! towards implicit user intention understanding of language model driven agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 1088–1113, 2024. Sanidhya Vijayvargiya, Xuhui Zhou, Akhila Yerukola, Maarten Sap, and Graham Neubig. Ambig-swe: Interactive agents to overcome underspecificity in software engineering, 2026. URL https://arxiv.org/abs/2502.13069 .11 Zihan Wang, Kangrui Wang, Qineng Wang, Pingyue Zhang, Linjie Li, Zhengyuan Yang, Xing Jin, Kefan Yu, Minh Nhat Nguyen, Licheng Liu, et al. Ragen: Understanding self-evolution in llm agents via multi-turn reinforcement learning. arXiv preprint arXiv:2504.20073 , 2025a. Zora Zhiruo Wang, John Yang, Kilian Lieret, Alexa Tartaglini, Valerie Chen, Yuxiang Wei, Zijian Wang, Lingming Zhang, Karthik Narasimhan, Ludwig Schmidt, et al. Position: Humans are missing from ai coding agent research, 2025b. Jason Wei, Zhiqing Sun, Spencer Papay, Scott McKinney, Jeffrey Han, Isa Fulford, Hyung Won Chung, Alex Tachard Passos, William Fedus, and Amelia Glaese. Browsec-omp: A simple yet challenging benchmark for browsing agents, 2025. URL https: //arxiv.org/abs/2504.12516 .Shirley Wu, Michel Galley, Baolin Peng, Hao Cheng, Gavin Li, Yao Dou, Weixin Cai, James Zou, Jure Leskovec, and Jianfeng Gao. Collabllm: From passive responders to active collaborators, 2025. URL https://arxiv.org/abs/2502.00640 .Shujin Wu, May Fung, Cheng Qian, Jeonghwan Kim, Dilek Hakkani-Tur, and Heng Ji. Aligning llms with individual preferences via interaction, 2024. URL https://arxiv.org/ abs/2410.03642 .Shunyu Yao, Howard Chen, John Yang, and Karthik Narasimhan. Webshop: Towards scalable real-world web interaction with grounded language agents, 2023. URL https: //arxiv.org/abs/2207.01206 .Michael J. Q. Zhang, W. Bradley Knox, and Eunsol Choi. Modeling future conversation turns to teach llms to ask clarifying questions, 2025. URL https://arxiv.org/abs/2410.13788 .Michael JQ Zhang and Eunsol Choi. Clarify when necessary: Resolving ambiguity through interaction with lms. In Findings of the Association for Computational Linguistics: NAACL 2025 , pp. 5526–5543, 2025. Siyan Zhao, Mingyi Hong, Yang Liu, Devamanyu Hazarika, and Kaixiang Lin. Do llms recognize your preferences? evaluating personalized preference following in llms, 2025. URL https://arxiv.org/abs/2502.09597 .
+
+A User study protocol and details 
+
+We launch two human user studies on Prolific to collect (1) human-as-assistant (Table 5; Figure 6a), and (2) human-as-user baselines. The goal of human-as-assistant is to compare model and human performance, while the goal of human-as-user is to validate our user simulator (Table 6; Figure 7). We select Shopping as the task setting since it is accessible for humans to participate, and also easily scalable. Human participants in our studies were filtered with three pre-screening criteria: (1) fluent English, (2) location to the United States or United Kingdom, and (3) Prolific’s verification for completing AI studies. Each participant completed a single task. Compensation was an effective rate of approximately $12/hour, with the per-session rate set against the pilot median completion time. Both studies shared the same recruitment pool, but no partici-pant was allowed to appear in both studies. To guarantee the privacy of participants, we instructed participants to not provide any personally identifiable information (PII) and provided a disclaimer of the goals and how the transcripts would be used. 
+
+A.1 Human-as-assistant 
+
+For the human-as-assistant experiments, we launch our experiments in Section 3.1 but have humans interact with our LLM user simulators. The human interacts with the LLM user simulator initialized with concrete intent for up to 15 turns, then ranks the 15 candidate items. We run 50 sessions across 5 products with 50 participants from Prolific. Tables 4 and 5 contain the per-item user simulator breakdown for all the assistants (both model and human). 12 Table 4: Per-item mean CommitAcc@1 (%, ± standard error) on the Concrete intent tier for the human-asks user study vs. each assistant model. Each model cell aggregates ≈ 13 rollouts; each human cell aggregates the corresponding user-study sessions on that item. 
+
+Source antacid wellies travel mug dog treats toiletry bag Overall HUMAN 66.7 ± 14.2 50.0 ± 15.1 18.2 ± 12.2 66.7 ± 16.7 33.3 ± 21.1 48.0 ± 7.1 Qwen3.5-9B 7.7 ± 7.7 15.4 ± 10.4 0.0 ± 0.0 92.3 ± 7.7 16.7 ± 11.2 26.6 ± 5.6 Qwen3.5-27B 15.4 ± 10.4 7.7 ± 7.7 0.0 ± 0.0 84.6 ± 10.4 38.5 ± 14.0 29.2 ± 5.7 Qwen3.5-35B 7.7 ± 7.7 15.4 ± 10.4 0.0 ± 0.0 100 .0 ± 0.0 23.1 ± 12.2 29.2 ± 5.7 Qwen3.5-122B 0.0 ± 0.0 0.0 ± 0.0 0.0 ± 0.0 92.3 ± 7.7 0.0 ± 0.0 18.5 ± 4.8 Qwen3.5-397B 7.7 ± 7.7 15.4 ± 10.4 0.0 ± 0.0 84.6 ± 10.4 23.1 ± 12.2 26.2 ± 5.5 GPT-5.4-nano 7.7 ± 7.7 7.7 ± 7.7 7.7 ± 7.7 61.5 ± 14.0 30.8 ± 13.3 23.1 ± 5.3 GPT-5.4-mini 15.4 ± 10.4 7.7 ± 7.7 0.0 ± 0.0 84.6 ± 10.4 69 .2 ± 13 .3 35.4 ± 6.0 GPT-5.4 0.0 ± 0.0 0.0 ± 0.0 0.0 ± 0.0 100.0 ± 0.0 7.7 ± 7.7 21.5 ± 5.1 Gemini-3-Flash 7.7 ± 7.7 15.4 ± 10.4 0.0 ± 0.0 100.0 ± 0.0 7.7 ± 7.7 26.2 ± 5.5 Gemini-3.1-Pro 0.0 ± 0.0 23 .1 ± 12 .2 0.0 ± 0.0 100.0 ± 0.0 7.7 ± 7.7 26.2 ± 5.5 Claude-Sonnet-4.6 0.0 ± 0.0 0.0 ± 0.0 0.0 ± 0.0 100.0 ± 0.0 20.0 ± 13.3 24.0 ± 6.1 GLM-5.1 38 .5 ± 14 .0 7.7 ± 7.7 7.7 ± 7.7 100.0 ± 0.0 30.8 ± 13.3 36 .9 ± 6.0
+
+DeepSeek-V3.2 20.0 ± 13.3 0.0 ± 0.0 0.0 ± 0.0 70.0 ± 15.3 60.0 ± 16.3 30.0 ± 6.5 Kimi-K2.5 0.0 ± 0.0 0.0 ± 0.0 0.0 ± 0.0 100.0 ± 0.0 38.5 ± 14.0 26.6 ± 5.6 
+
+Table 5: Per-item mean reward ( ± standard error) on the Concrete intent tier for the human-asks user study vs. each assistant model. Each model cell aggregates ≈ 13 rollouts; each human cell aggregates the corresponding user-study sessions on that item. 
+
+Source antacid wellies travel mug dog treats toiletry bag Overall HUMAN 0.733 ± 0.083 0.641 ± 0.066 0.563 ± 0.094 0.675 ± 0.087 0.560 ± 0.131 0.642 ± 0.039 Qwen3.5-9B 1.025 ± 0.120 0.618 ± 0.181 0.166 ± 0.100 1.386 ± 0.012 0.568 ± 0.181 0.758 ± 0.078 Qwen3.5-27B 0.847 ± 0.134 0.970 ± 0.120 0.573 ± 0.137 1.322 ± 0.042 1.241 ± 0.077 0.990 ± 0.058 Qwen3.5-35B 1.003 ± 0.104 0.742 ± 0.160 0.495 ± 0.132 1.380 ± 0.011 1.199 ± 0.048 0.964 ± 0.061 Qwen3.5-122B 0.545 ± 0.143 0.232 ± 0.097 0.384 ± 0.129 1.422 ± 0.020 0.933 ± 0.138 0.703 ± 0.073 Qwen3.5-397B 0.849 ± 0.121 0.980 ± 0.133 0.442 ± 0.115 1.301 ± 0.101 1.232 ± 0.086 0.961 ± 0.062 GPT-5.4-nano 0.321 ± 0.126 0.816 ± 0.151 0.518 ± 0.112 1.015 ± 0.176 1.117 ± 0.116 0.757 ± 0.071 GPT-5.4-mini 0.954 ± 0.082 0.769 ± 0.126 0.778 ± 0.093 1.375 ± 0.081 1.334 ± 0.114 1.042 ± 0.055 GPT-5.4 0.973 ± 0.042 0.640 ± 0.091 0.760 ± 0.075 1.477 ± 0.002 1.366 ± 0.008 1.043 ± 0.048 Gemini-3-Flash 0.764 ± 0.066 1.132 ± 0.118 0.901 ± 0.069 1.446 ± 0.005 1.246 ± 0.046 1.098 ± 0.043 
+
+Gemini-3.1-Pro 1.115 ± 0.067 0.671 ± 0.161 1.088 ± 0.019 1.431 ± 0.004 1.085 ± 0.112 1.078 ± 0.050 Claude-Sonnet-4.6 0.609 ± 0.122 0.706 ± 0.155 0.597 ± 0.123 1.430 ± 0.003 1.284 ± 0.029 0.925 ± 0.068 GLM-5.1 1.028 ± 0.119 0.497 ± 0.103 0.819 ± 0.114 1.428 ± 0.003 1.355 ± 0.018 1.025 ± 0.057 DeepSeek-V3.2 0.668 ± 0.191 0.813 ± 0.144 0.015 ± 0.022 1.120 ± 0.165 1.360 ± 0.021 0.795 ± 0.086 Kimi-K2.5 0.413 ± 0.099 0.567 ± 0.102 0.719 ± 0.118 1.455 ± 0.004 1.112 ± 0.151 0.844 ± 0.067 
+
+13 A.2 Human-as-user 
+
+For the human-as-user experiments, we run our experiments in Section 3.1 with human users, and then backfill LLM user simulators for comparison using the process described in Section 2.3. Between the two user conditions, we compare performance of three LLM assistants ( gpt-5.4 , qwen3.5-9b , qwen3.5-397b-a17b ) at aligning with both user groups. Table 6 contains the comparisons across the three assistant models. For each assistant, we assign a pool of n = 25 human users on Prolific. We again use Shopping as our task setting for the same reasons as in Section 3.5. The ground-truth task x∗ is determined by the human user who provides an Amazon.com item from their purchase history. Given an item x∗ from the human user, we create the corresponding LLM user simulator by following the procedure in Section 2.3 to initialize the intent state and generate the candidate set. Each human user gives a task x∗, and we create a simulator for each x∗ to create the LLM user set, divided into pools of n = 25 based on which assistant the human user interacted with. We then run our task alignment evaluation with the LLM user simulators on the three LLM assistants ( gpt-5.4 , qwen3.5-9b , qwen3.5-397b-a17b ). 
+
+Figure 7: Human vs. simulated user, pooled across the three assistants ( gpt-5.4 , qwen3.5-9b ,
+
+qwen3.5-397b-a17b ) by equal-weight mean of per-assistant means. Each metric (CommitRe-ward, CommitAcc@1, E[T⋆]) is normalized to the human-condition value. Human bars all sit at 1.0; the dotted reference line marks parity. Error bars are pooled SEM in the same normalized scale. Table 6: Matched simulator-validation comparison: same LLM as the asker, two user conditions. Real humans came with a specific product in mind (similar to concrete intent), so the matched sim condition is also treated as concrete-tier. Assistant User CommitReward CommitAcc@1 (%) E[T⋆]
+
+gpt-5.4 human 1.15 ± 0.04 50.00 ± 11.47 11.90 ± 1.02 
+
+gpt-5.4 sim 0.98 ± 0.05 36.51 ± 6.11 10.24 ± 0.70 
+
+qwen3.5-9b human 0.80 ± 0.10 29.17 ± 9.48 14.00 ± 0.00 
+
+qwen3.5-9b sim 0.89 ± 0.05 41.67 ± 5.85 13.13 ± 0.28 
+
+qwen3.5-397b human 0.98 ± 0.08 43.48 ± 10.57 13.83 ± 0.17 
+
+qwen3.5-397b sim 0.99 ± 0.04 47.83 ± 6.06 14.00 ± 0.00 14 A.3 Intent evolver ablation Intent evolver is essential for simulating human behavior. We run an ablation removing the intent evolver from our user simulator. Table 7 shows that removing the intent evolver raises CommitReward across all three assistants (GPT-5.4: 0.98 → 1.22; Qwen3.5-9B: 0.89 →
+
+1.17; Qwen3.5-397B: 0.99 → 1.19) and shortens E[T⋆] (GPT-5.4: 10.24 → 8.10), indicating that without gradual intent evolution the simulator becomes too transparent and models can commit earlier and more accurately. The matched comparison with human user behavior in specifying tasks depends on the simulator’s behavior being gradual: the simulator must not fully know the intent and discover it incrementally. The intent evolver controls which aspects of the underlying intent are exposed at each turn if it is triggered in the conversation, which is likely what results in our simulator being plausibly human in simulating specification. Table 7: Intent evolver ablation on Shopping for concrete tier. Both conditions use the same (concrete-tier) initial intent; the only difference is whether the sim’s intent is re-evolved each turn from the conversation. Disabling the evolver freezes the intent at the fully specified concrete seed.                                              
+
+> Assistant Condition CommitReward E[T⋆]
+> gpt-5.4 with-evolver 1.00 ±0.05 10.24 ±0.70
+> gpt-5.4 no-evolver 1.22 ±0.05 8.10 ±1.35
+> qwen3.5-9b with-evolver 0.92 ±0.05 13.13 ±0.28
+> qwen3.5-9b no-evolver 1.17 ±0.06 11.96 ±0.70
+> qwen3.5-397b-a17b with-evolver 1.00 ±0.04 14.00 ±0.00
+> qwen3.5-397b-a17b no-evolver 1.19 ±0.02 13.74 ±0.26
+
+Conversation alignment with the ground-truth specification. We track how much of the ground-truth specification has been surfaced by turn t via spec-token coverage , the fraction of unique content tokens in the reference specification that appear in the cumulative user-revealed text from turns 1 to t.Concretely, coverage t = |Ut ∩ S|/|S|, where Ut is the unique content-token set of the cumulative user text and S is the unique content-token set of the task specification. Figure 8 averages this across all 14 models at the abstract tier. All three tasks rise monotonically through conversation despite having an initially abstract intent state, suggesting that the intent evolver is guiding the sequence of intent states toward x∗ as expected. 15 Figure 8: Per-turn spec-token coverage = |Ut ∩ S|/|S|, where Ut is the set of unique content tokens in the cumulative user text up to turn t and S is the set of unique content tokens in the ground-truth specification. Averaged across the 14 models at the abstract tier; shadings are ±SEM across models. 
+
+B Task setting creation 
+
+Task setting creation turns each fully specified benchmark task x⋆ into a size-15 candidate set C plus abstract/moderate/concrete intent seeds for the user simulator. The procedure has three conceptual stages, instantiated with the same shape for Shopping, GDPVal, and Terminal-Bench. The difference is whether the values are drawn from a existing catalog (Shopping) or synthesized by prompted LLM calls (GDPVal, Terminal-Bench, prompts in Appendix F) where catalogs of tasks are harder to curate. 
+
+Stage 1: Identify perturbation axes. Enumerate the dimensions along which a user could plausibly want a variant of x⋆. For Shopping , the axes are the features behind the underlying search query (e.g. character/theme, brand, target audience for “inflatable costume”). For 
+
+GDPVal and Terminal-Bench , one LLM call reads x⋆ and its rubric (or test code) and returns the binding axes together with 14 delta-sets: the caffe-cifar-10 example yields ten axes ranging from Caffe fork to test-accuracy floor. 
+
+Stage 2: Populate candidates by sampling fresh values along a subset of the axes. For 
+
+Shopping , the first 14 Amazon search results for the query naturally sample real products along those axes. For GDPVal and Terminal-Bench , an LLM rewrites x⋆ per candidate with the new sampled values substituted in place. 
+
+Stage 3: Verify internal coherence. For Shopping , real listings are naturally self-consistent, so no repair is needed. For GDPVal and Terminal-Bench , an audit pass, along with human manual review, rewrites any candidate whose perturbation introduced internal contradictions or references back to x⋆.User intent seeds (abstract/moderate/concrete) are then generated by a sepa-rate prompt over x⋆ that emits progressively less specified initial user messages (ABSTRACTIONS_TEMPLATE ). 
+
+Candidate set validation. A candidate set that leaks x⋆ through typical patterns or canon-ical defaults would let a ranker identify the correct task without any signal, trivializing the interaction. We check for this by running the ranking task over each row with an empty conversation and recording where x⋆ ends up (Table 8). On benchmarks x⋆ sits at or above the random-baseline mean rank of 8.0 across 15 candidates (8.71 on GDPVal, 9.07 on Terminal-Bench), top-1 rate with empty conversation is around the random 6.7% rate (3.2% and 6.9%), and only 3.2%/6.9% of rows land x⋆ at rank ≤ 2. 16 Example. Table 9 shows one worked example per benchmark — inflatable costumes for Shopping, a real-estate broker Letter-of-Intent for GDPVal, and the caffe-cifar-10 environment-setup task for Terminal-Bench, where each perturbed slot is bolded relative to 
+
+x⋆.Table 8: Empty conversation probe on the accepted candidate sets: mean/median rank of 
+
+x⋆ under an empty-conversation ranker, top-1 leakage rate, and mean normalized rank ˆrnull .Compared against the random-shuffle baseline for |C| = 15 candidates.       
+
+> nmean rank median top-1 (%) ˆrnull rank
+
+≤ 2 (%) GDPVal 95 8.71 8 3.2 0.429 3.2 Terminal-Bench 87 9.07 9 6.9 0.406 6.9 
+
+17 Table 9: Full candidate-set examples per benchmark. Values that differ from x⋆ along a perturbation dimension are bolded .
+
+Shopping (query: “inflatable costume”; 15 real Amazon search results) x⋆ Bodysocks Red Devil Inflatable Costume for Adults (One Size) 
+
+Axes (3) brand; character/theme; target audience. Candidate 1 Rubies Jurassic World: T-Rex Inflatable Costume for Adults , Unisex One Size Candidate 2 miwhse Halloween Inflatable Dinosaur Costume Adult . . . Full Body Dino Costume For Halloween Cosplay Party Candidate 3 Boveco Red Love Heart Inflatable Costume Adult Valentines Day Blow Up Mascot Costume . . . Candidate 4 KOOY Inflatable Parrot Costume Kids . . . Ride On Inflatable Costume For Kids Candidate 5 HIYAPATY Inflatable Bumble Bee Costume Men Women . . . Adult Funny Halloween Insects Outfit Candidate 6 Rubies Astronaut Inflatable Costume for Kids , Unisex One Size Candidate 7... LookOurWay Inflatable Tube Man Costume . . . Wacky Wavy Arm Guy Funny Inflatable Halloween Costume for Adults 
+
+GDPVal (Real Estate Broker: draft a Letter of Intent in Word for a commercial-property acquisition) x⋆ . . . client Annocium Investors . . . 536–41 Fraanklyn Ave, Denver . . . 1031 exchange . . . advertised by Bob Crobens of HPTR for $9,000,000 @
+
+6% cap . . . reflect 6.5% cap . . . seller Denver Services Bank . . . 90-day feasibility, closing +90 days , extension $20,000 . . . initial $100,000 ,additional $150,000 . . . escrow First American Title .
+
+Axes (12) buyer; seller; seller’s broker/firm; property address & acreage; exchange structure; list price & cap rate; negotiated cap rate; feasibility period; closing period; initial deposit; additional deposit; extension-option deposit; escrow/title company. Candidate 1 client Meridian Capital Group . . . 1200–08 Larimer St, Denver . . . straight purchase . . . Mark Tillerson, WKRT Realty . . . $12M @ 5.0% →
+
+5.5% . . . seller Rocky Mtn. Savings Trust . . . 60-day feas., closing +60 days , ext. $30K . . . init $50K , add’l $100K . . . escrow Chicago Title .Candidate 2 client Vantage Realty Partners . . . 720–28 Blake St, Denver . . . 721 exchange (UPREIT) . . . Sandra Owens, Pacific Bridge Commercial . . . 
+
+$7.5M @ 5.5% → 6.0% . . . seller Frontier Commercial Realty . . . 120-day feas., closing +120 days , ext. $50K . . . init $150K , add’l $200K . . . escrow Fidelity National Title .Candidate 3 client Stonecrest Equity Fund . . . 1600 Glenarm Pl, Denver . . . 1031 exchange . . . Carl Nettles, Apex Commercial Group . . . $9M @ 6% →
+
+6.5% . . . seller Colorado National Properties LLC . . . 45-day feas., closing +30 days , ext. $10K . . . init $75K , add’l $250K . . . escrow Stewart Title .Candidate 4 client Keystone Asset Holdings . . . 850–56 Wynkoop St, Denver . . . straight purchase . . . Diane Rafferty, Cascade Realty Advisors . . . 
+
+$10.5M @ 5.5% → 6.0% . . . seller Summit Holdings Corp . . . 75-day feas., closing +75 days , ext. $25K . . . init $200K , add’l $75K . . . escrow 
+
+Land Title Guarantee Co. 
+
+Candidate 5 client Pinnacle Investment Trust . . . 720–28 Blake St, Denver . . . 1031 exchange . . . Mark Tillerson, WKRT Realty . . . $12M @ 5.0% → 5.5% 
+
+. . . seller Rocky Mtn. Savings Trust . . . 60-day feas., closing +120 days , ext. $30K . . . init $50K , add’l $150K . . . escrow Chicago Title .Candidate 6... client Vantage Realty Partners . . . 1200–08 Larimer St, Denver . . . 1033 exchange . . . Carl Nettles, Apex Commercial Group . . . $10.5M @
+
+5.5% → 6.0% . . . seller Summit Holdings Corp . . . 120-day feas., closing +60 days , ext. $10K . . . init $150K , add’l $100K . . . escrow Stewart Title .
+
+Terminal-Bench (caffe-cifar-10: install BVLC Caffe and train a CIFAR-10 classifier) x⋆ Install the original BVLC Caffe deep learning framework (version 1.0.0 ) and train a CNN to classify CIFAR-10 images. Clone Caffe to 
+
+/app/caffe and build for only CPU execution, training for exactly 500 iterations. Write the training output to /app/caffe/training_output.txt 
+
+and verify that the test accuracy (for 100 iterations) is no more than 5% less than train and greater than 45% . The model file should be available in the examples/cifar10 directory and be named cifar10_quick_iter_{number_of_iterations}.caffemodel .
+
+Axes (10) caffe fork/version; clone path; build mode; dataset; model architecture; training iterations; training-output filename; train-vs-test accuracy gap; minimum test-accuracy threshold; test-evaluation iteration count. Candidate 1 . . . BVLC 1.0.0 . . . classify CIFAR-10 images. Clone to /app/caffe and build for only CPU , training for exactly 1000 iterations. Write to 
+
+/app/caffe/train_log.txt and verify test accuracy (for 100 iterations) is no more than 5% less than train and greater than 50% . . . . Candidate 2 . . . BVLC 1.0.0 . . . classify CIFAR-10 images. Clone to /app/caffe and build for only CPU , training for exactly 2000 iterations. Write to 
+
+/app/caffe/output.txt and verify test accuracy (for 50 iterations) is no more than 3% less than train and greater than 55% . . . . Candidate 3 . . . BVLC 1.0.0 . . . classify CIFAR-10 images. Clone to /app/caffe and build for only CPU , training for exactly 5000 iterations. Write to 
+
+/app/caffe/log.txt and verify test accuracy (for 200 iterations) is no more than 10% less than train and greater than 60% . . . . Candidate 4 . . . NVIDIA-fork Caffe ( 0.17 ) . . . classify MNIST images. Clone to /opt/caffe and build for GPU execution, training for exactly 1000 iterations. Write to /opt/caffe/mnist_train.log and verify test accuracy (for 100 iterations) is within 5% of train and greater than 95% . . . . Model at 
+
+examples/mnist/lenet_iter_{n}.caffemodel .Candidate 5 . . . BVLC 1.0.0 . . . classify CIFAR-10 images using the cifar10_full architecture. Clone to /workspace/caffe and build for CPU , training for exactly 4000 iterations. Write to /workspace/caffe/full_train.log . . . greater than 70% . . . . Candidate 6 . . . BVLC 1.0.0 . . . classify CIFAR-10 images. Clone to /src/caffe and build for GPU execution, training for exactly 500 iterations. Write to 
+
+/src/caffe/training_output.txt and verify test accuracy (for 100 iterations) is no more than 5% less than train and greater than 45% . . . . Candidate 7... . . . BVLC 1.0.0 . . . classify CIFAR-10 images. Clone to /app/caffe and build for only CPU , training for exactly 500 iterations. Write to 
+
+/app/caffe/training_output.txt . . . no more than 2% less than train and greater than 55% (evaluated for 500 iterations). . . . 
+
+18 C Entropy calculation details 
+
+We measure the assistant’s belief entropy over the candidate set using the ranking task ρt
+
+over that runs in a separate conversation thread from the interaction with the user, once per turn. There are two implementation details to note: a letter-shuffle that turns the assistant’s next-token letter distribution into a distribution over C, and a calibration step that accounts for letter frequency priors and isolates signal. All uncertainty metrics in the paper (per-turn ˜Ht, TotalIG, and the H-splits in the four-quadrant taxonomy) follow these steps. 
+
+Letter-shuffle. After each turn we assign |C| = 15 candidates to letters A–O under a random permutation, then prompt the assistant with the conversation history and the shuffled option list, and instruct the LM to “ Answer with ONLY the letter. ”. We read the top-20 logprobs at the first response position, pick out ℓL for each letter L ∈ { A, . . . , O},and softmax across letters to obtain a per-turn belief bt over candidates. The point of reshuffling every turn is to break any position bias. The normalized belief entropy is ˜Ht = − ∑c bt,c log bt,c/ log |C| ∈ [0, 1 ], and TotalIG = ˜H0 − ˜HT⋆ measures how much of that uncertainty the assistant resolves before commit. 
+
+Empty conversation calibration. To isolate the interaction signal in the candidate ranking 
+
+ρt, we rerun the identical ρt prompt a second time with the conversation replaced by the placeholder “ (no conversation context) ”, keeping the same candidates in the same shuffled positions. This second call gives a baseline logprob ℓnull  
+
+> L
+
+per letter, and we softmax the difference ˜ℓL = ℓL − ℓnull  
+
+> L
+
+to obtain the calibrated belief and its entropy ˜ Hcal  
+
+> t
+
+.
+
+D Additional results 
+
+We report the full per-model breakdowns behind the statistics in Section 3.1: capability baseline, behavioral decomposition, commit-turn/rank scatter, cumulative information gain, CommitAcc@1 by intent tier, per-cell TotalIG , and the four-quadrant performance/uncer-tainty distribution. 
+
+Task-capability baseline. Each model’s zero-shot performance on the underlying bench-mark, before any underspecification is introduced (Figure 9; Section 3.1). Shopping-MMLU is saturated across all 14 models ( [81.1, 88.4 ]% NDCG); GDPVal ( [52.8, 100 ]%) and Terminal-Bench ( [19.7, 100 ]%) span wide, giving the unsaturated regime we exploit in Section 3.4. 
+
+Behavioral statistics across all 14 models. We report three complementary views of the 14-model behavioral statistics at the abstract tier: 1. Rank improvement ∆ˆr = ˆrT⋆ − ˆr1 and commit timing E[T⋆] per model (Figure 10) extend Figure 3 to the full model set. T⋆ separates cleanly into three groups: early commit (GPT-5.4 family, ≤ 3 turns), mid commit (Gemini and Claude, 4–6), and late commit (Qwen3.5, 6–9). 2. The three-axis decomposition (Figure 11) turns each rollout to per-model scalars: initial rank ˆr1 (light gray), interaction lift ∆ˆr (dark gray), and commit turn T⋆
+
+(shading depth of the delta bar: light = fast, dark = late); a light-red gap and a red italic ∆ˆr mark regressions where interaction worsens rank. 3. The per-rollout (T⋆, ˆrT⋆ ) scatter with per-model means (Figure 12) showcases the joint distribution of performance and commit timing: GPT-5.4 sits in the low-T⋆
+
+/ low- ˆrT⋆ corner (fast commit, low rank), while the Qwen3.5 family occupies the high-T⋆ region with wider rank spread. 19 Figure 9: Zero-shot and full-specification performance. Top: Shopping-MMLU query product ranking mean NDCG over ∼150 queries per model, with ±SEM. Middle: GDPVal normalized AA-leaderboard Elo (best = 100). Bottom: Terminal-Bench normalized AA-leaderboard score (best = 100). 20 (a) Rank improvement ∆ˆr = ˆrT⋆ − ˆr1 for all 14 evaluated models. Smaller x-axis font to fit the full set; otherwise identical to the main-text figure. 
+
+(b) Mean commit turn E[T⋆] for all 14 evaluated models. 
+
+Figure 10: Per-model behavioral statistics for all 14 evaluated models. 21 Figure 11: Behavioral decomposition along (1) the model’s initial guess ˆr1 (light gray), (2) how effectively the model interacts ∆ˆr = ˆrT⋆ − ˆr1 (dark gray), and (3) when the model commits T⋆ (depth of gray: light = fast commit, dark = late commit). The light red gap and red italic ∆ˆr mark regressions where interaction worsens rank. One row per task: Shopping, GDPVal, Terminal-Bench. 22 Figure 12: Commit turn T⋆ vs. normalized rank at commit, per model (abstract tier). Left: 
+
+Shopping. Middle: GDPVal. Right: Terminal-Bench. 
+
+Full 14-model per-turn rank trajectories. Figures 13–15 extend the main-body per-turn trajectory (Figure 3) to all 14 evaluated models, split into two groups of seven per task so no panel becomes unreadable. Group A covers Qwen3.5 (5 sizes), Claude Sonnet-4.6, and Kimi-K2.5. Group B covers the GPT-5.4 family, Gemini-3-Flash and 3.1-Pro, DeepSeek-V3.2, and GLM-5.1. Only ˆrt is shown here; entropy ˜Ht is undefined for the 9 models who do not emit confidence scores (i.e. logprobs) over C, and its trajectory across the confidence-emitting subset is already in Figure 3. 
+
+Figure 13: Shopping: per-turn trajectories for all 14 models, split into 2 groups of 7. 
+
+Figure 14: GDPVal: per-turn trajectories for all 14 models, split into 2 groups of 7. 
+
+Cumulative information gain. Per-(model, task) TotalIG = ˜H0 − ˜HT⋆ , averaged across the three intent tiers with pooled SEM (Figure 16). Restricted to the five models whose 23 Figure 15: Terminal-Bench: per-turn trajectories for all 14 models, split into 2 groups of 7. ranker emits confidence scores over C (GPT-5.4 family, Qwen3.5-9B, Qwen3.5-397B-A17B). Qwen3.5 recovers substantial entropy on every task (tier-averaged TotalIG up to 0.24 on Shopping and 0.16 on Terminal-Bench); the GPT-5.4 family hovers near zero because T⋆ is too small to accumulate entropy reduction. 
+
+Figure 16: Cumulative information gain TotalIG = ˜H0 − ˜HT⋆ per (model, task), averaged across the three intent tiers. Bars are mean ± pooled SEM across tiers. 24 CommitAcc@1 by intent tier. Per-model CommitAcc@1 across abstract → moderate →
+
+concrete for each task (Tables 10–12). The A VERAGE row summarizes the alignment gap that closes as user intent becomes more explicit: 22.0 → 24.3 → 27.9% on Shopping, 27.6 → 38.7 → 88.0% on GDPVal, and 32.2 → 41.5 → 78.1% on Terminal-Bench. Table 10: CommitAcc@1 (%) across abstract / moderate / concrete intent tiers on Shopping.      
+
+> Model Abs Mod Con qwen3.5-9b 15.80
+
+± 1.31 19.25 ± 1.42 21.96 ± 1.49 qwen3.5-27b 32.26 ± 1.68 32.78 ± 1.68 33.80 ± 1.70 qwen3.5-35b-a3b 53.86 ± 1.79 44.79 ± 1.79 41.70 ± 1.77 qwen3.5-122b-a10b 32.13 ± 1.68 27.89 ± 1.61 28.15 ± 1.61 qwen3.5-397b-a17b 23.87 ± 1.53 23.90 ± 1.54 30.66 ± 1.66 gpt-5.4-nano 7.97 ± 1.37 12.08 ± 1.65 17.22 ± 1.92 gpt-5.4-mini 11.44 ± 1.14 16.97 ± 1.35 26.35 ± 1.58 gpt-5.4 12.89 ± 1.70 18.04 ± 1.95 24.68 ± 2.19 gemini-3-flash-preview 18.51 ± 1.39 21.47 ± 1.47 27.76 ± 1.61 gemini-3.1-pro-preview 13.88 ± 1.76 23.14 ± 2.14 30.33 ± 2.33 claude-sonnet-4-6 12.60 ± 1.68 22.37 ± 2.12 24.94 ± 2.20 glm-5.1 23.91 ± 1.53 26.09 ± 1.58 28.79 ± 1.62 deepseek-v3.2 32.52 ± 1.68 32.01 ± 1.67 31.11 ± 1.66 kimi-k2.5 16.45 ± 1.33 20.05 ± 1.44 23.39 ± 1.52 AVERAGE 22.01 ± 0.42 24.34 ± 0.45 27.92 ± 0.48 
+
+Table 11: CommitAcc@1 (%) across abstract / moderate / concrete intent tiers on GDPVal.      
+
+> Model Abs Mod Con qwen3.5-9b 25.26
+
+± 4.48 35.79 ± 4.94 92.55 ± 2.72 qwen3.5-27b 33.68 ± 4.87 46.32 ± 5.14 93.68 ± 2.51 qwen3.5-35b-a3b 27.37 ± 4.60 37.89 ± 5.00 88.42 ± 3.30 qwen3.5-122b-a10b 25.26 ± 4.48 33.68 ± 4.87 93.68 ± 2.51 qwen3.5-397b-a17b 38.95 ± 5.03 49.47 ± 5.16 95.79 ± 2.07 gpt-5.4-nano 9.47 ± 3.02 21.05 ± 4.20 65.26 ± 4.91 gpt-5.4-mini 17.89 ± 3.95 17.89 ± 3.95 54.74 ± 5.13 gpt-5.4 22.11 ± 4.28 30.53 ± 4.75 69.47 ± 4.75 gemini-3-flash-preview 33.68 ± 4.87 46.32 ± 5.14 96.84 ± 1.80 gemini-3.1-pro-preview 40.00 ± 5.05 48.42 ± 5.15 97.89 ± 1.48 claude-sonnet-4-6 31.58 ± 4.79 49.47 ± 5.16 93.62 ± 2.53 glm-5.1 21.05 ± 4.20 45.26 ± 5.13 97.89 ± 1.48 deepseek-v3.2 31.58 ± 4.79 43.16 ± 5.11 94.74 ± 2.30 kimi-k2.5 28.42 ± 4.65 36.84 ± 4.98 96.81 ± 1.82 AVERAGE 27.59 ± 1.21 38.72 ± 1.32 87.96 ± 0.82 
+
+Per-cell TotalIG . Cell-level values (Table 13) behind Figure 16: TotalIG for every (model, tier, task) triple in the score-vector subset. The GPT-5.4 family sits at ≈ 0 on Shopping because its low commit budget ( T⋆ ≤ 3) leaves belief entropy essentially unchanged from turn 1 to commit, while Qwen3.5-9B ( TotalIG ∈ [−0.03, 0.29 ]) and Qwen3.5-397B-A17B ([0.09, 0.21 ]) both accumulate measurable reduction across the three tasks. 
+
+Quadrant distribution. Per-model rollout share across the four correctness × confidence quadrants (Table 14; quadrants defined in Table 1) at the abstract tier. Qwen3.5-397B-A17B carries the highest confidently-correct share on every task (21.1% Shopping, 24.2% GDPVal, 27.4% Terminal-Bench), while GPT-5.4-mini concentrates in confidently-wrong on GDPVal (48.4%) and Terminal-Bench (48.2%) despite committing in ≤ 3 turns. 25 Table 12: CommitAcc@1 (%) across abstract / moderate / concrete intent tiers on Terminal-Bench. 
+
+Model Abs Mod Con qwen3.5-9b 25.00 ± 4.75 34.94 ± 5.27 77.38 ± 4.59 qwen3.5-27b 32.53 ± 5.17 45.12 ± 5.53 86.59 ± 3.79 qwen3.5-35b-a3b 29.27 ± 5.06 39.02 ± 5.42 79.52 ± 4.46 qwen3.5-122b-a10b 29.41 ± 4.97 38.55 ± 5.37 79.27 ± 4.50 qwen3.5-397b-a17b 39.29 ± 5.36 54.12 ± 5.44 83.33 ± 4.09 gpt-5.4-nano 7.06 ± 2.79 10.59 ± 3.36 50.59 ± 5.46 gpt-5.4-mini 17.65 ± 4.16 25.88 ± 4.78 57.65 ± 5.39 gpt-5.4 24.71 ± 4.71 23.53 ± 4.63 62.35 ± 5.29 gemini-3-flash-preview 34.12 ± 5.17 49.41 ± 5.46 78.82 ± 4.46 gemini-3.1-pro-preview 61.18 ± 5.32 69.41 ± 5.03 91.76 ± 3.00 claude-sonnet-4-6 34.12 ± 5.17 54.12 ± 5.44 84.52 ± 3.97 glm-5.1 51.76 ± 5.45 53.57 ± 5.47 92.59 ± 2.93 deepseek-v3.2 34.94 ± 5.27 35.71 ± 5.26 83.33 ± 4.09 kimi-k2.5 29.41 ± 4.97 46.99 ± 5.51 85.37 ± 3.93 AVERAGE 32.17 ± 1.32 41.50 ± 1.38 78.08 ± 1.16 
+
+Table 13: Total information gain TotalIG = ∑t ∆ ˜Ht per (model, tier), across all three tasks. Score-vector subset only (5 models: GPT-5.4 family + Qwen3.5-9B / 397B-A17B). 
+
+Model Tier Shopping GDPVal Terminal-Bench Qwen3.5-9B Abstract 0.29 ± 0.01 −0.03 ± 0.03 0.12 ± 0.03 Qwen3.5-9B Moderate 0.24 ± 0.01 0.05 ± 0.03 0.12 ± 0.04 Qwen3.5-9B Concrete 0.21 ± 0.01 0.11 ± 0.03 0.14 ± 0.03 Qwen3.5-397B-A17B Abstract 0.21 ± 0.01 0.09 ± 0.03 0.16 ± 0.04 Qwen3.5-397B-A17B Moderate 0.17 ± 0.01 0.14 ± 0.04 0.21 ± 0.04 Qwen3.5-397B-A17B Concrete 0.12 ± 0.01 0.14 ± 0.02 0.11 ± 0.03 GPT-5.4-nano Abstract 0.00 ± 0.01 0.02 ± 0.03 0.07 ± 0.02 GPT-5.4-nano Moderate −0.00 ± 0.01 0.04 ± 0.03 0.07 ± 0.03 GPT-5.4-nano Concrete 0.02 ± 0.01 0.08 ± 0.03 0.07 ± 0.03 GPT-5.4-mini Abstract 0.01 ± 0.01 0.02 ± 0.04 −0.01 ± 0.04 GPT-5.4-mini Moderate 0.02 ± 0.01 0.02 ± 0.05 −0.01 ± 0.04 GPT-5.4-mini Concrete 0.00 ± 0.01 −0.04 ± 0.03 −0.01 ± 0.04 GPT-5.4 Abstract −0.00 ± 0.02 0.01 ± 0.03 0.05 ± 0.03 GPT-5.4 Moderate 0.00 ± 0.02 0.05 ± 0.04 −0.01 ± 0.02 GPT-5.4 Concrete −0.00 ± 0.01 0.03 ± 0.02 0.01 ± 0.01 
+
+26 Table 14: Per-(task, model) quadrant distribution at the abstract tier (% of rollouts), score-vector subset. Bold = column max within each task. Quadrants defined as in Table 1.                                                                 
+
+> Model Confidently-correct Lucky Confidently-wrong Honestly-uncertain
+> Shopping
+> Qwen3.5-9B 9.3 6.836.3 47.7 Qwen3.5-397B-A17B 21 .14.6 43 .031.3 GPT-5.4-nano 3.3 4.6 33.7 58 .4
+> GPT-5.4-mini 6.6 4.9 35.6 53.0 GPT-5.4 10.6 2.3 42.8 44.3
+> GDPVal
+> Qwen3.5-9B 7.4 17 .97.4 67 .4
+> Qwen3.5-397B-A17B 24 .214.7 16.8 44.2 GPT-5.4-nano 6.3 3.2 15.8 74.7 GPT-5.4-mini 11.6 6.3 48 .433.7 GPT-5.4 13.7 8.4 31.6 46.3
+> Terminal-Bench
+> Qwen3.5-9B 10.7 14.3 4.8 70 .2
+> Qwen3.5-397B-A17B 27 .411.9 17.9 42.9 GPT-5.4-nano 4.7 2.4 16.5 76.5 GPT-5.4-mini 7.1 10.6 48 .234.1 GPT-5.4 9.4 15 .330.6 44.7
+
+E Training details 
+
+We fine-tune Qwen3.5-9B using two methods on Shopping with a user initialized at concrete intent tier: SFT (selected from BoN sampling n = 5) and RL (GRPO from the base checkpoint on CommitReward). Following the convention of lowest reasoning setting, both training runs patch the base to a no-think variant, so the model does not emit <think> traces during training or evaluation. Table 15: SFT hyperparameters. Full-parameter fine-tuning with cross-entropy on demonstration transcripts.    
+
+> Base Qwen3.5-9B (no-think) Train data n
+
+= 500 transcripts Learning rate 2 × 10 −5      
+
+> Schedule cosine, 5% warmup Grad clip 1.0 Batch size 16 Epochs 10 Sequence len. 8192 Hardware 2
+
+× H100 
+
+Table 16: GRPO hyperparameters. Full-parameter RL from the base checkpoint (no SFT init); terminal reward is ˆrT⋆ (terminal bonus 1.0, truncation penalty −0.5 at the 15-turn interaction cap, step penalty 0).     
+
+> Base Qwen3.5-9B (no-think) Train / val 200 / 16 prompts Learning rate 5
+
+× 10 −7  
+
+> Batch size 8 prompts Total epochs (steps) 20 (
+
+∼ 90) Group size ( n) 8 rollouts / prompt Repeats per prompt 4Sampling temp. 1.0 Multi-turn cap 15 user /15 assistant Entropy coef. 0.001 KL regularizer in actor loss, coef 0.04 Rollout engine vLLM (async), response 8192 Hardware 2× H100 
+
+Reward. During RL the terminal signal is the normalized rank at commit, ˆrT⋆ , with termi-nal bonus 1.0, −0.5 truncation penalty if the model reaches 15-turns without committing, and no step penalty ( α = 1.0, λ = 0 during training: the main paper’s post hoc CommitRe-ward α = 1.5, λ = 0.02 is applied only at evaluation). The reward ranker is a separate frozen model (Qwen3.5 9B called via API), not updated during RL and sharing no weights with the policy, so the reward function is stationary throughout training. GRPO standardizes rewards within each n = 8 rollout group before the policy-gradient update. The KL term to 27 the base policy is applied as an actor-loss regularizer with coefficient 0.04 and a low-variance estimator. 
+
+Rollouts. Each RL rollout is a full task alignment episode against the LLM user simulator (Section 2.1), capped at 15 turns per side and terminated when the assistant emits its commit signal. We repeat each prompt 4 times per step to reduce variance from the user simulator. 
+
+Selection. We select the best checkpoint by held-out ˆrT⋆ on the 16-item validation set, sampled every 5 steps; the reported RL model is step 90. 
+
+Figure 17: Qwen3.5-9B training curves, stacked top-to-bottom. (a) SFT loss. (b) RL train/eval CommitReward. (c) RL train/eval mean T⋆.28 Figure 18: Qwen3.5-9B per-turn normalized entropy ˜Ht on Shopping abstract for base, SFT, and RL. 
+
+F Prompts 
+
+Task-specific templates (ranker, user simulator, candidate ranking, intent evolver, candidate generation) are shown here in their Shopping form. GDPVal and Terminal-Bench variants have the same structure and only substitute domain nouns (“product” → “professional task specification” / “terminal-task instruction”), so we do not repeat them here. 
+
+Assistant system prompt. We base our assistant system prompt off the CollabLLM assis-tant system prompt (Wu et al., 2025), both at benchmark evaluation and during SFT/RL training. It instructs the assistant to interpret user intent proactively, ask targeted clarify-ing questions rather than assume, and commit to task execution by appending the token 
+
+[[TERMINATE]] once it is confident. 
+
+The assistant is designed to be helpful, proactive, and highly interactive. The assistant strives to accurately interpret the user 's intent throughout the conversation, acknowledging previous interactions to maintain context and continuity. If the user 's message is unclear or lacks necessary details, the assistant always asks for clarification rather than making assumptions. The assistant asks specific follow-up questions and offers suggestions based on the user 's needs, avoiding vague or generic prompts. It proactively provides guidance and potential next steps. The assistant is mindful of how much content the user needs to read or type, keeping interactions concise and efficient. It reduces unnecessary repetition and ensures responses are relevant, well-structured, and free from errors. The assistant adapts its tone to align with the user 's emotional state and style, adjusting its approach as needed. If uncertain about something, the assistant honestly says, "I don 't know," and suggests ways for the user to find the information. ## Completing the task Once the assistant is confident it has enough information to complete the task on the user 's behalf, it commits to the answer and ends the conversation by appending the token [[TERMINATE]] to its message. Example: "Based on what you 've told me, I 'll go with <chosen option>. [[TERMINATE]]" 
+
+29 Until confident, the assistant keeps asking short, targeted clarifying questions -- one per turn -- to narrow down the user 's intent. 
+
+User simulator. The simulator role-plays a shopper with an evolving intent state (Sec-tion 2.1), constrained to answer only what the assistant asks and only from the current intent, so the assistant must drive the interaction: 
+
+You are role-playing as a real shopper talking with an AI shopping assistant. You have a current sense of what you want -- it may be abstract (a problem or vague desire) or specific (closer to a concrete product) -- and it evolves as you talk with the assistant. ## Your Current Intent: {current_intent} ## Conversation History: {conversation_history} ## Guidelines: - Stay in Character: Role-play as a human shopper. You are NOT an AI. Maintain a consistent personality. - Minimize Effort: Give brief, natural answers (1-2 sentences). Don 't volunteer extra details -- let the assistant ask follow-up questions. - Realistic Behavior: Occasionally be slightly vague or imprecise, like a real person who doesn 't memorize every product spec. - Stay Goal-Oriented: Answer only what is asked. No small talk, no digressions, no asking the assistant questions back, no requesting links or purchase steps. - Answer From Your Intent: Base your answers only on what your current intent expresses. Do not invent specifics (brands, dimensions, materials) that your intent does not already include -- if the assistant asks about something outside your intent, it is fine to say you 're not sure or have no preference yet. - Yes/No Questions: Start with a clear "Yes" or "No" followed by at most one brief clarifying sentence. ## Output Format: Output a JSON object with three entries: - "current_answer" (str): Briefly summarize which product(s) the AI is currently recommending or leaning towards. - "thought" (str): Your internal reasoning as the user -- what the assistant just asked, what aspect of your intent is most relevant, and how to answer concisely. - "response" (str): Your actual reply to the assistant. Keep it to 1-2 sentences. ## Important Notes: - Answer every turn. Do not try to end the conversation yourself -- the assistant will decide when it has enough information. - Double check that the JSON object is formatted correctly with all three fields present. 
+
+Intent evolver. At every turn the evolver rewrites the user’s current intent based on the latest exchange, moving it toward x⋆ only when the conversation has plausibly surfaced the relevant detail: 
+
+You are simulating how a real user 's intent evolves as they talk with an AI assistant. The user began with an abstract need (a problem, a feeling, a vague desire) and is gradually forming a clearer picture of what they want as the conversation progresses. Each turn, their mental picture should reflect what the conversation has actually surfaced -- new preferences, constraints, categories, or ideas. If the conversation has taken them close to a specific solution, the intent is allowed to become very concrete, including matching the ground-truth target when that is where the dialogue naturally leads. ## Ground-truth target the user will eventually converge on (hidden from the simulator, shown to you only so you can steer the evolution): Target: {item} Description: {item_description} ## Current intent (before this update): {current_intent} ## Conversation so far (from the user 's POV): {conversation_history} ## Your Task: Write the user 's intent AFTER the latest exchange. Let it move as far toward the ground-truth target as the conversation justifies -- small refinement if little was learned, a big jump if the assistant surfaced ideas that unlock the target. If the last turn added no new information, keep the intent unchanged. Guidelines: - The intent is a short first-person utterance (1-2 sentences), written as the user would say it. 
+
+30 - Only incorporate details the conversation has plausibly surfaced. Do not invent ground-truth details out of nowhere -- they must be anchored in the dialogue. - It is okay (and desirable) for the intent to reach the ground-truth target once the conversation has naturally led there. ## Output Format (JSON): {"reasoning": "<1-2 sentences on what changed and why, or why nothing changed>", "intent": "<the user 's updated intent as a short first-person utterance>"} 
+
+Ranker. After every assistant turn, the ranker is called in a separate thread with the conversation so far and orders the candidate set from most- to least-likely x⋆. The rank of 
+
+x⋆ under this ordering feeds ˆ rt, ˆ rT⋆ , and CommitAcc@1: 
+
+Based on the following conversation, determine which candidate item best matches the user 's preferences and intent. Conversation so far: {chat_history} Candidate items (JSON format): {candidates_block} Re-order the candidate items from most likely to least likely to be the item the user is looking for, based on the preferences and requirements expressed in the conversation. Output requirements: - Return a single JSON object with exactly one key: "candidates". - The value of "candidates" MUST be a JSON array (token '[' ... ']'), NOT a string. Do not surround the array with quotes. - Return MINIFIED JSON only (one line, no code fences, no prose, no comments). - Start the response with {"candidates": and end with ]}. - Do not include any other keys, wrappers, or text before/after the JSON. - ONLY return the JSON object, do NOT return anything besides the JSON object. 
+
+Candidate ranking task. The entropy probe (Appendix C) runs after each turn with the candidates assigned to freshly shuffled letters, and reads the model’s letter logprobs at the first response position: 
+
+Conversation so far: {conversation} The user is trying to purchase one of these products: {options_block} Based on the conversation above, which product is the user trying to purchase? Answer with ONLY the letter. Answer: 
+
+The null-calibration variant is identical except {conversation} is replaced with the place-holder (no conversation context) .
+
+Candidate generation (Stages 1–3). For GDPVal and Terminal-Bench (Shopping uses real Amazon search results directly), each row is generated with LLM calls to Claude Sonnet: one call for Stage 1 (axes + delta-sets), then 14 parallel calls for Stages 2–3 (one corrupt-and-repair call per distractor). Below we show the instructions used at each stage verbatim. 
+
+Stage 1: propose axes and delta-sets. A single LLM call reads x⋆ and its rubric (or test code, for Terminal-Bench) and returns the axes plus 14 delta-sets as strict JSON. 
+
+You are generating a candidate set for a task-disambiguation benchmark. Read the ground-truth task x* below and its rubric (or test code), and propose the axes and delta-sets that will produce 14 plausible alternative tasks. # GROUND-TRUTH TASK x* {spec} # RUBRIC / TESTS {rubric_or_tests} 
+
+31 # STEP 1 -- Extract binding axes An axis is a concrete value stated verbatim in x* that (i) can be changed by an in-place edit, and (ii) if changed would cause a specific rubric criterion or test assertion to fail. Axes must be atomic and independent -- bundle coupled values (a total and its parts, a name that encodes its subject) into ONE axis so no single-axis perturbation leaves the spec incoherent. # STEP 2 -- Apply the MODALITY TEST with real judgment For each axis, ask whether x* 's value is the single most-ordinary choice for that slot: - FREEZE (perturbations: []) every axis where x* 's value is THE canonical default and any alternative is less ordinary -- standard ports, default extensions, conventional filenames, the primary tool/format/identity, and illustrative examples ("like Ctrl-C", "such as vim", "Hello world"). Frozen axes stay identical across all 15 candidates. - PERTURB only multi-modal axes where several values are genuinely equally ordinary (a city, a person/entity name, an arbitrary file basename, an identifier). Draw alternatives ONLY from the equally-common pool. - When unsure, FREEZE. It is fine if only a handful of axes vary. # STEP 3 -- Latent-axis check If a perturbed axis 's ground-truth value is enforced by the rubric but never stated in x* 's instruction text, insert a natural sentence making it explicit -- otherwise distractors will carry constraints that x* does not visibly share, leaving x* uniquely unconstrained. # STEP 4 -- Compose 14 delta-sets Each delta-set assigns every multi-modal axis one perturbed value. Vary choices across delta-sets so no two are identical and each axis 's alternatives are well covered. # OUTPUT (strict JSON, no prose) {"axes": [{"name": "...", "spec_quote": "...", "ground_truth": "...", "breaks": "...", "perturbations": [...]}], "distractors": [{"id": 1, "delta_set": {"axis_name": "perturbed_value", ...}, "rationale": "..."}]} 
+
+Stages 2–3: corrupt and repair (one call per distractor). We fan out 14 parallel LLM calls, each given x⋆ and one delta-set from Stage 1. Each call applies the delta-set in place, propagates coupled changes, and then self-audits the result as a domain expert. 
+
+You are producing one distractor for a task-disambiguation benchmark. Take the ground-truth task x* below and apply the given delta-set, then self-audit the result. Return the final distractor text only. # GROUND-TRUTH TASK x* {spec} # DELTA-SET {delta_set} # STEP 1 -- CORRUPT Apply EVERY entry in the delta-set to x* in place. Preserve everything else verbatim -- structure, register, role opener, length (+/- 15 # STEP 2 -- REPAIR Re-read the result as the domain expert who would actually perform this task. Find every internal contradiction or impossible combination and fix it -- WITHOUT reverting a listed perturbation, and WITHOUT drifting back toward x*. Catch things like a count that does not match the items it enumerates, a named framework paired with a different one 's structure, an assessment scale mismatched to the stated subject (age, anatomy, condition), a timeline whose steps do not order consistently, or a deliverable format that contradicts its stated file type. # OUTPUT (JSON only) {"prompt": "<the final distractor as a single string>"} 
+
+Assembly. After the 14 calls return, a deterministic Python step deduplicates the distrac-tors by delta-set signature, inserts x⋆ at a seeded random position, and anonymizes all 15 entries to task_001 –task_015 before writing the row. No LLM call is involved. 
+
+Tiered intent seeds. A fourth prompt generates the abstract, moderate, and concrete first-turn user messages that seed the user simulator. Anchor content rises with tier: abstract carries no deliverable category, moderate names the primary verb and one deliverable-format constraint, concrete restores the specific entity, deliverable basename, and key numeric parameters. 
+
+You are generating user-intent abstractions for a professional task specification, across three tiers of vagueness. Each should be first-person and sound like a real working professional -- natural and progressively imprecise, not a polished task brief. 
+
+32 Tier definitions: - ABSTRACT (<=10 words): A raw goal, frustration, or pain point. NO deliverable category, NO entities, NO rubric criteria. - MODERATE (<=25 words): The task framing. MUST include: the primary verb of the task prompt 's first sentence, one domain noun, and one deliverable-format constraint (paraphrased). NO worksheet names, exact thresholds, or entity names. - CONCRETE (1-3 sentences, ~150-300 chars): A specific situation described naturally. MUST include the exact deliverable basename, any named worksheet/section, the primary subject anchor (entity/regulation/period), and the key quantitative parameters -- verbatim from the prompt or rubric. CRITICAL: If the prompt is intentionally vague about the deliverable, preserve that vagueness -- do not fabricate plausible specifics. Abstract and moderate must not copy verbatim phrases longer than 3 consecutive words from the task prompt. Return ONLY a JSON array of exactly 3 strings: [abstract, moderate, concrete]. Occupation: {occupation} Task prompt: {prompt} 
+
+33
