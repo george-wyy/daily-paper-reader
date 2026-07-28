@@ -6,24 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-27
-- 运行时间：2026-07-27 20:33:27 UTC
+- 最新运行日期：2026-07-28
+- 运行时间：2026-07-28 21:34:55 UTC
 - 运行状态：成功
-- 本次总论文数：1
-- 精读区：0
-- 速读区：1
+- 本次总论文数：3
+- 精读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今日浏览了1篇关于自闭症开放科学的论文，整合EEG与眼动追踪实验测试电池。该研究提出Q1K测试电池，为自闭症研究提供标准化多模态数据采集工具。建议关注其后续在临床诊断或开放数据集中的验证与应用。
-- 详情：[/202607/27/README](/202607/27/README)
+今日精读高分论文提出超越分类解码的注视转文本生成方法，速读则分别探索基于注视锚定的社交关系隐式解码和海马θ波区分记忆引导与探索性眼动。最值得关注的是精读论文中从注视时空模式直接生成自然语言文本的新范式，以及速读中联合建模注视与社交网络的方向。建议普通读者优先阅读精读论文，了解眼动解码从分类标签向生成式文本的跨越；速读可关注海马θ与眼动类型的对应关系，但深度有限。
+- 详情：[/202607/28/README](/202607/28/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Gaze-to-text Generation: Beyond Categorical Decoding of Human Attention](/202607/28/2607.23917v1-gaze-to-text-generation-beyond-categorical-decoding-of-human-attention)  
+   标签：评分：9.0/10、query:gaze-intent
+   evidence：将注视解码为人类目标自然语言描述
 
 ### 速读区论文标签
-1. [The Q1K Integrated EEG and Eye-Tracking Experimental Test Battery for Open Autism Science](/202607/27/biorxiv-10-64898-2026-07-13-738272-v1-the-q1k-integrated-eeg-and-eye-tracking-experimental-test-battery-for-open-autism-science)  
+1. [Gaze-Anchored Social Net: Decoding Implicit Relations via Joint Modeling](/202607/28/2607.22847v1-gaze-anchored-social-net-decoding-implicit-relations-via-joint-modeling)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：从图像中解码基于注视的社会意图
+2. [Hippocampal theta distinguishes between memory-guided and exploratory saccades in humans](/202607/28/biorxiv-10-64898-2026-07-20-739696-v1-hippocampal-theta-distinguishes-between-memory-guided-and-exploratory-saccades-in-humans)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：结合眼动追踪与脑电的多模态数据采集
+   evidence：眼动追踪意图识别
 
 
 <div class="dpr-home-promo-card">
