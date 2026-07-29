@@ -6,29 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-28
-- 运行时间：2026-07-28 21:34:55 UTC
+- 最新运行日期：2026-07-29
+- 运行时间：2026-07-29 20:50:44 UTC
 - 运行状态：成功
 - 本次总论文数：3
 - 精读区：1
 - 速读区：2
 
 ### 今日简报（AI）
-今日精读高分论文提出超越分类解码的注视转文本生成方法，速读则分别探索基于注视锚定的社交关系隐式解码和海马θ波区分记忆引导与探索性眼动。最值得关注的是精读论文中从注视时空模式直接生成自然语言文本的新范式，以及速读中联合建模注视与社交网络的方向。建议普通读者优先阅读精读论文，了解眼动解码从分类标签向生成式文本的跨越；速读可关注海马θ与眼动类型的对应关系，但深度有限。
-- 详情：[/202607/28/README](/202607/28/README)
+今天精选3篇论文，聚焦人机交互、头像生成与自动驾驶注意力分析。最值得关注的是精读论文《BAIT》，它提出信念感知信任模型，揭示人机反复交互中如何动态塑造人类信念。建议普通读者优先理解BAIT的理论框架，再结合STEER（可操控双人头像）和LAIA（智能汽车注意力数据集）拓展应用场景。
+- 详情：[/202607/29/README](/202607/29/README)
 
 ### 精读区论文标签
-1. [Gaze-to-text Generation: Beyond Categorical Decoding of Human Attention](/202607/28/2607.23917v1-gaze-to-text-generation-beyond-categorical-decoding-of-human-attention)  
-   标签：评分：9.0/10、query:gaze-intent
-   evidence：将注视解码为人类目标自然语言描述
+1. [Belief-Aware Influence and Trust (BAIT): Shaping Human Belief During Repeated Human-Robot Interaction](/202607/29/2607.25327v1-belief-aware-influence-and-trust-bait-shaping-human-belief-during-repeated-human-robot-interaction)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：概率建模人类信念用于前瞻性人机交互
 
 ### 速读区论文标签
-1. [Gaze-Anchored Social Net: Decoding Implicit Relations via Joint Modeling](/202607/28/2607.22847v1-gaze-anchored-social-net-decoding-implicit-relations-via-joint-modeling)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：从图像中解码基于注视的社会意图
-2. [Hippocampal theta distinguishes between memory-guided and exploratory saccades in humans](/202607/28/biorxiv-10-64898-2026-07-20-739696-v1-hippocampal-theta-distinguishes-between-memory-guided-and-exploratory-saccades-in-humans)  
+1. [STEER: Steerable Dyadic Head Avatars](/202607/29/2607.23840v1-steer-steerable-dyadic-head-avatars)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：眼动追踪意图识别
+   evidence：双人对话头像中的注视控制
+2. [The LAIA Dataset: Labelled Attention for Intelligent Automobiles](/202607/29/2607.25570v1-the-laia-dataset-labelled-attention-for-intelligent-automobiles)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：包含人类注意力数据的合成数据集，支持基于注视的人机交互研究
 
 
 <div class="dpr-home-promo-card">

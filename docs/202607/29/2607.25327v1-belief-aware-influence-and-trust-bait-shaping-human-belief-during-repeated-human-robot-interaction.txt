@@ -1,0 +1,550 @@
+Title: Belief-Aware Influence and Trust (BAIT): Shaping Human Belief During Repeated Human-Robot Interaction
+
+URL Source: https://arxiv.org/pdf/2607.25327v1
+
+Published Time: Wed, 29 Jul 2026 00:33:49 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+> 1
+
+# Belief-Aware Influence and Trust (BAIT): Shaping Human Belief During Repeated Human-Robot Interaction 
+
+Ye-Ji Mun 1, Mahsa Golchoubian 2, Shahabedin Sagheb 3, Yan Bai 1, Tianhao Ji 1,Dylan P. Losey 3, and Katherine Driggs-Campbell 1
+
+Abstract —Repeated human-robot interaction (HRI) requires proactively accounting for humans who continually adapt to evolving beliefs about the robot. Prior frameworks often treat encounters as isolated events, suffering cumulative task perfor-mance decay as human perception drifts, or maintain long-term influence through erratic, unpredictable behavior that erodes perceived human trust and relies on computationally unscalable formulations. To address these gaps, we introduce the Belief-Aware Influence and Trust (BAIT) controller. BAIT integrates a hierarchical particle filter, which infers both fast human strategic shifts and slow perceptual belief updates, with a belief-aware Model Predictive Path Integral planner. BAIT explicitly opti-mizes the trade-off between long-horizon influence and human trust, while enforcing immediate task performance as a strict constraint. Across simulations, a human-subject study, and a real-world GEM vehicle deployments in repeated lane-merging sce-narios, BAIT achieves task performance comparable to baselines that optimize long-term influence through unpredictability while yielding significantly higher user trust. The video demonstrating our experiments is available at https://youtu.be/GsPfHRujzVs. 
+
+Index Terms —Long Term Interaction, Acceptability and Trust, Autonomous Vehicle Navigation. 
+
+I. I NTRODUCTION 
+
+As robots become integrated into human spaces, they must account for an unavoidable dynamic: human behavior contin-ually adapts in response to robot actions, especially across repeated encounters. Consider a delivery robot crossing paths with the same office workers every morning, an autonomous vehicle merging past the same commuters, or an assistive robot navigating around a household. In each of these settings, human behavior is neither static nor purely repetitive but rather evolves as humans observe the robot. When robots are predictably defensive, humans often exploit this predictability (e.g., human drivers refusing to let a hesitant vehicle merge or pedestrians asserting right-of-way), degrading task efficiency and efficacy. Sustained task performance across repeated en-counters therefore depends on how a robot’s immediate actions shape the human’s evolving perception and future behavior. Existing human-aware robot planning frameworks fre-quently overlook this human dynamic, treating each encounter as an isolated event and modeling the human as a fixed reward-maximizing agent [1], a static behavior distribution [2], [3], or an offline-trained trajectory predictor [4]. These stationary assumptions may be sufficient for one-shot interactions but  
+
+> 1
+
+University of Illinois at Urbana-Champaign, Department of Electrical and Computer Engineering.  
+
+> 2
+
+University of Toronto, Department of Mathematical and Computational Science.  
+
+> 3
+
+Virginia Tech, Department of Mechanical Engineering. Corresponding author’s email: yejimun2@illinois.edu Influence to  
+
+> assert my lane, or
+> preserve trust?
+> : Robot : Human
+
+Fig. 1. Repeated lane-merging encounters deployed on Polaris GEM vehicles. Our BAIT-adapt robot (white) explicitly navigates the internal trade-off between influence to assert its lane right-of-way and preserving human trust. As shown in the corresponding trajectory rollouts (right), the BAIT controller (solid red) successfully executes the merge across repeated 10 
+
+episodes while consistently prompting the human driver (dashed blue) to yield. 
+
+fundamentally inadequate in the long-term settings described above. A planner that ignores how its current robot behavior alters future human behaviors optimizes only the immediate interaction, and empirically suffers from measurable task-performance decay as the human’s perception drifts. A few recent works instead model the evolution of human internal state to actively guide this dynamics to maintain cumulative task performance [5], [6], but face two primary limitations that constrain their deployment as practical con-trollers. First, these approaches maintain long-horizon influ-ence by deliberately generating unpredictable robot behavior. Such unpredictability provides a reasonable initial mechanism for preventing humans from settling into a lazy or low-effort response pattern, thereby preserving the robot’s influence over repeated interactions. However, this mechanism comes at a cost: the resulting robot behavior may be erratic, which degrades behavioral transparency and reduces human trust [7], [8]. We show that the unpredictability of previous long-term influence approaches narrows safety margins and erodes perceived human trust and comfort. Second, these long-term influence controllers face severe scalability bottlenecks relying on either strict leader-follower Stackelberg assumptions [6] or computationally heavy Mixed Observability Markov Decision Process (MOMDP) solvers [5]. To address these scalability and unpredictability limitations, we make the following contributions:  
+
+> •
+
+The BAIT framework. We propose the Belief-Aware Influence and Trust (BAIT) controller, which explic-itly trades off long-horizon influence (unpredictability) arXiv:2607.25327v1 [cs.RO] 28 Jul 2026 2
+
+against human trust (transparency). BAIT structures the human’s latent state into a two-timescale hierarchy: a short-term strategy variable ( zt) to predict immediate human behaviors and a long-term perception variable ( ϕt)to capture the human’s evolving beliefs of the robot.  
+
+> •
+
+Online Influence-Trust Management. We track the human’s evolving belief in real time using a two-layered particle filter that fuses action and geometric evidence. This inferred latent state is propagated forward as a de-terministic surrogate into a belief-aware Model Predictive Path Integral (MPPI) planner. This integration enables BAIT to uniquely optimize the influence-trust trade-off as a primary design axis, rather than optimizing either objective in isolation, while enforcing immediate task performance as a hard constraint.  
+
+> •
+
+Sustained Influence and Improved Human Trust. 
+
+Through simulation and real-world hardware experi-ments, we demonstrate that BAIT sustains higher cumu-lative task performance than influence-only baselines. A user study further shows that BAIT significantly improves human trust over influence-only controllers while preserv-ing the task performance that trust-only methods, which prioritize transparent robot behavior, sacrifice. II. R ELATED WORK 
+
+A. Influence in HRI: Short-Term to Long-Term 
+
+Traditional frameworks for HRI often treat encounters as an interdependent game where the robot acts proactively to shape human behavior [9], [10], [11], [12]. These proactive influence approaches are primarily optimized for single or short-term interactions, frequently employing Stackelberg formulation to maximize immediate task efficiency. However, these static models suffer from performance decay during repeated interac-tions because humans continually adapt over time, eventually exploiting or ignoring predictable robot behaviors [13], [14]. There have been recent attempts to model this long-term adap-tation. Sagheb et al. [6] address long-horizon influence by de-liberately generating unpredictable robot behaviors to prevent humans from exploiting predictable robot policies rather than coordinating with the robot. However, their method relies on the Stackelberg formulation, which is based on best-response human and leader-follower assumptions that are not realistic in the real world. Sagheb et al. [5] propose a framework that unifies these repeated interactions through a MOMDP formulation and show how prior methods are simplifications of this unified framework. However, these approaches rely on computationally intensive solvers. Standard online MOMDP solvers (e.g., POMCPOW) evaluate full belief trees, creating computational bottlenecks as state and action dimensions scale. We extend this lineage by maintaining long-horizon influence while ensuring real-time computational tractability via a conditionally decoupled hierarchical formulation. 
+
+B. Transparent Actions and Human Trust 
+
+Foundational human factors research establishes that legible and predictable robot trajectories are crucial for fostering user trust and comfort [8], [7]. However, this requirement creates a fundamental tension with recent proactive influence methods, which deliberately generate unpredictable robot behavior to force human compliance [5], [6] over repeated interactions. To mitigate this erosion of trust, Peng et al. [15] employ Bayesian Persuasion to derive a theoretical minimum trust level required to influence humans in a transparent way. However, this approach optimizes for a static human model, which may not fully capture scenarios where human perception continuously evolves. In this work, we address this influence-trust tension for dynamic human adaptation by explicitly treating the trade-off between unpredictability-driven influence and trust as our primary design axis, maintaining the robot’s necessary influence while preserving human trust. 
+
+C. Human Modeling with Latent Representations 
+
+To capture the hidden intent of human partners, a prominent line of work represents their strategies using continuous or discrete latent variables [16], [17]. These methods infer con-tinuous or discrete latent embeddings online to adapt robot policies within an interaction. However, most existing latent representation frameworks operate under the assumption that the underlying dynamics of human adaptation are stationary, often reducing the problem to a one-step Q-function for Markov Decision Process that ignores exploratory information gathering [5]. In this work, we structure the human’s hidden state into a conditionally coupled, two-timescale hierarchy that separates high-frequency tactical reactions from gradual perceptual drift. This hierarchical separation bypasses the inefficiency of standard flat filters and allows the robot to actively plan over the human’s evolving belief [18]. III. P ROBLEM STATEMENT 
+
+We study robot decision-making in repeated human-robot interactions, focusing specifically on interactive lane changing in autonomous driving. When vehicles repeatedly negotiate shared lane space and right-of-way, humans do not act pas-sively; they continuously observe the robot, update their inter-nal perception of the robot, and adapt their strategy accord-ingly. Unlike one-shot encounters where human policies can be approximated as stationary [19], [20], repeated interactions induce non-stationary behavior across distinct timescales as the human adapts with their beliefs about the robot’s behavior. Consequently, this adaptation requires a dual objective for the robot: (i) accurately inferring the underlying latent states, such as human’s belief and behavioral strategy, and (ii) leveraging the inference for belief-aware planning. Specifically, the plan-ner must steer the evolution of the human’s perception toward configurations that secure favorable long-term outcomes with-out violating immediate task constraints. Crucially, in traffic navigation, securing these outcomes means safeguarding the robot’s influence to prevent behavioral exploitation, ensuring the robot retains the leverage necessary to induce human cooperation, such as yielding during a lane change. To capture human adaptation, we model the human’s in-ternal state using a hierarchy of two tightly coupled latent variables: a fast-changing short-term strategy zt and a slow-evolving long-term belief ϕt. The short-term strategy zt∈Rd3Long -term layer                       
+
+> Short -term layer
+> 𝜙 1𝜙 𝑁 𝜙
+> 𝑧 1,1𝑧 1,𝑁 𝑧
+> Hierarchical Particle Filtering 𝜙 -Aware MPPI Controller
+> MPPI
+> Trajectory
+> Sampling
+> & Rollouts
+> C𝑖𝑛𝑓𝑙 (෡𝜙 ,⋅)
+> Trade -off (𝑠 ,෠𝜙 ,Ƹ𝑧 )
+> C𝑡𝑟ust (෡𝜙 ,⋅)
+> Cost weighting
+> & Path Integral
+> System
+> Environment
+> Optimal
+> control ( 𝑎 𝑅 )
+> Physical state 𝑠
+> System
+> State 𝑥
+> …
+> ……𝑧 𝑁 𝜙 ,1𝑧 𝑁 𝜙 ,𝑁 𝑧
+> (a) (b)
+> Robot
+> Human
+> Fig. 2. Overview of our BAIT controller. (a) Our BAIT controller has two tightly coupled modules: a hierarchical particle filter that tracks the joint posterior over (ϕ, z )from observed interaction history, and an MPPI planner that rolls this posterior forward through a deterministic belief-propagation using the posterior mean ( ˆϕ, ˆz). This planner optimizes an explicit influence-trust trade-off while enforcing a hard task-cost constraint. (b) The 2D CARLO lane-merging simulation environment.
+
+encodes the human’s instantaneous weighting vector across 
+
+d competing task-related costs, such as forward progress (zprogress ) versus collision avoidance ( zsafety ), enabling rapid reactions to the immediate physical context. Conversely, the 
+
+long-term belief ϕt∈[0 , 1] encodes the human’s overarching perception of the robot, ranging from assertive ( ϕ→0) to defensive ( ϕ→1), and evolves gradually based on accumulated evidence across multiple interactions. Crucially, ϕt acts as a prior that modulates zt formally captured by the conditional probability p(zt|ϕt). For example, during a lane merge, per-ceiving the robot as defensive ( ϕ→1) induces an aggressive momentary strategy ( zprogress >z safety ), whereas perceiving an aggressive robot (ϕ → 0) prompts conservative yielding (zsafety >z progress ) to prioritize safety. Building upon the Unified Framework for long-term in-fluence proposed by [5], we formulate the problem as a MOMDP governed by the two-timescale latent hierarchy. However, unlike prior work that optimizes the MOMDP solely for cumulative influence, we introduce a scalable, real-time architecture that explicitly balances influence against human trust. Let st= [ st
+
+> R
+
+, s t
+
+> H
+
+] denote the fully observable physical state of the robot R and the human H. The unified MOMDP state is defined as xt= [ st, z t, ϕ t] with transitions defined by the joint dynamics: 
+
+xt+1 =
+
+
+
+st+1 
+
+zt+1 
+
+ϕt+1 
+
+ =
+
+
+
+fp
+
+ st, a t
+
+fs
+
+ st, a t, z t, ϕ t
+
+fl
+
+ st, a t, ϕ t = F (xt, a t
+
+> R
+
+) (1) where at= [ at
+
+> R
+
+, a t
+
+> H
+
+] represents the joint robot and human action, fp defines the physical dynamics, fs is the short-term strategy transition, and fl is the long-term, belief transition. Substituting the human policy into equation 1 yields the un-deractuated dynamics F (xt, a t
+
+> R
+
+) from the robot’s perspective, where the human action at
+
+> H
+
+∼πH(·| st, z t) is drawn from a maximum-entropy Boltzmann policy: 
+
+πH(a | s, z ) ∝ exp   − η · z⊤ ¯r(s, a R, a H) (2) where ¯r∈Rd is a vector of instantaneous physical reward features parameterized linearly by the strategy weights z, and 
+
+η is a rationality parameter where η→∞ recovers full rational behavior. A crucial structural property of these dynamics is that ϕt only influences actions indirectly through zt, creating a partial-evidence problem where the human’s true perception is masked by their immediate strategy. The robot’s objective is to solve this MOMDP over a reced-ing planning horizon H by actively shaping ϕt to maximize cumulative task performance. Formally, the robot seeks an action sequence aR=at:t+H 
+
+> R
+
+that optimizes a joint objective: 
+
+min 
+
+> aR
+
+E
+
+"t+HX
+
+> k=t
+
+Ctask (sk, a k
+
+> R
+
+) + Cbelief (ϕk+1 , s k, a k
+
+> R
+
+)
+
+#
+
+(3) s.t. xk+1 = F (xk, a k
+
+> R
+
+)
+
+To maintain influence while preserving human trust, the latent cost Cbelief explicitly balances robot’s behavioral unpredictabil-ity against transparency. Specifically, Cbelief penalizes states where the human perceives the robot as easily exploitable (ϕ→1), such as when the human perceives the robot will act passively defensive. Simultaneously, this cost regularizes against erratic or overly unpredictable actions, ensuring that the robot’s overarching strategy remains sufficiently transpar-ent to preserve human trust during the traffic negotiation. IV. B ELIEF -A WARE INFLUENCE AND TRUST 
+
+To solve the Unified MOMDP formalism in Section III, we introduce the Belief-Aware Influence and Trust (BAIT) controller. Whereas prior long-term influence approaches focus on maximizing cumulative influence, often generating unpre-dictable behaviors that degrade human trust, BAIT explicitly optimizes the trade-off between proactive influence and trust (operationalized through behavioral transparency). To actively evaluate this dual objective in real time, BAIT overcomes the computational bottlenecks inherent to continuous-space MOMDPs by decoupling the problem into two tightly inte-grated modules: a hierarchical particle filter that tracks the joint posterior over (ϕt, z t) from observed interactions, and an MPPI planner that rolls this inferred posterior forward using deterministic belief-propagation as shown in Fig. 2. 
+
+A. Hierarchical Inference of Human Latent States 
+
+We track the human’s hidden state using a two-layered particle filter designed to preserve the timescale separation and conditional structure p(z|ϕ) of the latent hierarchy formalized in Section III. While a standard flat filter samples (ϕ, z ) jointly, such a uniform structure scales inefficiently by enforcing redundant belief evaluations during high-frequency strategy z4
+
+updates and causing a computational bottleneck. To resolve this, we structure the posterior as a hierarchical ensemble: 
+
+Bt = ϕ(i), w (i) 
+
+> ϕ
+
+, {z(i,j ), w (i,j ) 
+
+> z
+
+}Nz 
+
+> j=1
+> Nϕ
+> i=1
+
+(4) where each of the Nϕ long-term particles carries its own conditional ensemble of Nz short-term particles. 
+
+Prediction Step: The prediction step reflects this hierarchy by applying distinct transition kernels matched to each variable’s timescale. The long-term belief variable ϕ propagates via a mixture Beta kernel encoding bounded, gradual drift alongside a slow reset probability ϵ to prevent particle collapse: 
+
+ϕt+1 ∼ (1 − ϵ)Beta  κϕ t, κ (1 − ϕt) + ϵBeta (c, c ) (5) where κ is a concentration parameter that controls the magni-tude of the step-to-step drift variance (i.e., a higher κ yields a tighter concentration and lower variance), while c shapes the distribution of the random reset particles (e.g., c=1 for a uniform reset). Conditioned on this predicted belief ϕt+1 , the short-term strategy z evolves via an Ornstein-Uhlenbeck (OU) process that mean-reverts toward an attractor ztgt determined by its parent ϕt+1 :
+
+zt+1 = zt + αou 
+
+ ztgt (ϕt+1 ) − zt + σz ξt, ξt ∼ N (0 , I ) (6) where αou ∈(0 , 1] is the mean-revision rate that dictates how rapidly the human’s short-term strategy adapts toward the target attractor ztgt (ϕt+1 ), and σz scales the standard normal variable ξt to model the stochasticity and natural execution variance inherent to human driving behavior. This coupling structurally enforces the behavioral prior established in Sec-tion III (e.g., drawing z towards an aggressive momentary strategy when ϕ→1 and conservative strategy ϕ→0). 
+
+Update Step: To robustly update these particles despite the indirect observability, the filter’s update step applies distinct evidence to each hierarchical layer. At the bottom layer, the short-term z-particles are reweighted using action evidence via the Boltzmann log-likelihood of the observed human actions in Eq. (2) over a decaying history length W :
+
+ℓ(i,j ) 
+
+> z
+
+=
+
+> t
+
+X  
+
+> τ=t−W+1
+
+ρ t−τ log πH
+
+ aτ 
+
+> H
+
+sτ , z (i,j ) (7) where ρ∈(0 , 1] is an exponential decay factor. To prevent premature weight collapse under low-signal observations, we update the normalized weight using a soft inertia blend: 
+
+w(i,j ) 
+
+> z
+
+← (1 − αz )w(i,j ) 
+
+> z
+
++ αz
+
+exp( ℓ(i,j ) 
+
+> z
+
+)
+
+PNz 
+
+> m=1
+
+exp( ℓ(i,m ) 
+
+> z
+
+) (8) where αz is the update rate for the new evidence. At the top layer, the long-term ϕ-particles are updated by fusing this indirect action evidence with a direct geometric evidence channel (e.g., lateral gap and closing rate for lane merging). First, the action evidence is aggregated for each parent ϕ(i) by marginalizing the log-likelihood of its z-ensemble in Eq. 7: 
+
+ℓ(i) 
+
+> ϕ
+
+= log 
+
+> Nz
+
+X
+
+> j=1
+
+exp  ℓ(i,j ). (9) Simultaneously, a geometric proxy infers the human’s belief based on recent physical interactions; for example, if the robot merges aggressively, it naturally induces the human to believe the robot will not yield. We extract an instantaneous yield-belief target yt from these kinematic features and maintain a smooth yield-belief bty via an exponential moving average: 
+
+bty ← (1 − αϕ)bt−1 
+
+> y
+
++ αϕyt (10) where αϕ is the smoothing rate. The filter fuses both evidence channels in log-space to update the intermediate ϕt weights: 
+
+log ˜ w(i) 
+
+> ϕ
+
+= log w(i) 
+
+> ϕ
+
++ 1
+
+Tϕ
+
+ℓ(i) 
+
+> ϕ
+
++ Iint 
+
+Tϕ
+
+log p bty | ϕ(i) (11) where Tϕ is a scaling temperature, p(bty |ϕ(i)) represents the likelihood of the particle given the geometric evidence, and 
+
+Iint is an indicator function that activates the geometric channel only when the human enters a critical interaction zone defined by spatial threshold dinteract and the robot is longitudinally ahead of the human driver. In the context of lane merging, this threshold prevents nominal driving maneuvers from miscali-brating the belief ϕt by ensuring geometric evidence is only fused when vehicles are close enough to actively negotiate the right-of-way. Normalizing these intermediate weights ˜w(i)
+
+> ϕ
+
+yields the final posterior weights w(i) 
+
+> ϕ
+
+. This dual-channel fusion yields a joint posterior that remains well-calibrated across varying interaction intensities, effectively resolving the partial-evidence bottleneck. 
+
+Resampling Step: Finally, resampling is triggered indepen-dently for each layer based on an effective-sample-size (ESS) criterion, respecting the timescale hierarchy. The long-term ϕ-layer employs Liu-West kernel smoothing to maintain stable continuous moments. Conversely, the short-term z-ensembles are resampled with a partial injection of new particles drawn from the prior p(z|ϕ(i)) to ensure the strategy remains agile to rapid behavioral shifts. 
+
+B. Belief-Aware MPPI Planning 
+
+Leveraging the inferred posterior ( ˆϕ, ˆz), our belief-aware MPPI planner actively optimizes the robot’s control sequence by explicitly trading off long-term influence against human trust. At each time step, the controller samples K candidate action sequences and evaluates them against a belief cost, 
+
+Cbelief . This cost dynamically balances two opposing terms using an arbitration parameter β∈[0 , 1] that shifts the controller from pure trust ( β=0 ) to pure influence ( β=1 ): 
+
+Cbelief =  βCinfl + (1 − β)Ctrust 
+
+Iint (12) where Iint is the same spatial interaction indicator defined in Eq. (11). Through this gating, the robot restricts its belief-shaping maneuvers to active lane-changing negotiations, avoiding unnecessary adjustments in open traffic and acting only when the human driver’s internal state actively evolves. The two belief-aware terms in Eq. (12) are anchored on propagated entropy of the human belief regarding the robot’s yielding intent H( ˆϕk+1 ). The influence cost Cinfl promotes unpredictable trajectories ( H ↑ ) to prevent the human from settling into an assertive policy, thereby inducing conservative yielding. However, optimizing for entropy in isolation could produce erratic, task-irrelevant behavior (e.g., randomly oscil-lating across lanes). To prevent this, we introduce a directional regularizer. Weighted heavily below the entropy ( wd≪we), 5
+
+this regularizer biases the unpredictability toward assertive outcome ( ϕ→0), ensuring the robot’s actions actively claim right-of-way: 
+
+Cinfl = we
+
+ 1 − H ( ˆϕk+1 )2 + wd( ˆϕk+1 )2. (13) In contrast, the trust cost Ctrust promotes transparent trajec-tories whose induced perception is predictable ( H( ˆϕk+1 )↓), signaling an accommodating intent ( ϕ→1) via a legible merge: 
+
+Ctrust = weH( ˆϕk+1 )2 + wd(1 − ˆϕk+1 )2. (14) Since H( ˆϕ) is symmetric, wd≪we only sets belief direction, not transparency (ablated in Section V). To evaluate Cinfl and 
+
+Ctrust across K candidate sequences and H horizon steps, run-ning the full sample-based filter is computationally intractable. Instead, we ensure real-time scalability by propagating anoise-free deterministic surrogate of the posterior moments. We initialize each rollout with the current posterior means, 
+
+ˆϕt=E[ϕt|B t] and ˆzt=E[zt|B t], alongside the current yield-belief bty . At each horizon step k∈[t, t + H − 1] , we propagate these posteriors forward via three operations: (i) predicting the human action using the Boltzmann policy ak
+
+> H
+
+∼πH(·| sk, ˆzk);(ii) advancing physical state through the joint dynamics from Eq. (1); and (iii) updating the surrogate state using the geometric kernel from Eq. (10) and the noise-free strategy dynamics from Eq. (6). Our BAIT approach is explicitly reliant on this structured human model, and this efficient forward pass tracks the expected latent state, providing the necessary signals to compute the belief-aware costs without the computational burden of a full ensemble simulation. Finally, to ensure that belief-shaping maneuvers do not compromise physical safety or primary task objectives, the planner treats the task cost ( Ctask in Eq. 3), which encompasses collision avoidance and lane merging, as a strict conditional value-at-risk (CVaR) constraint: 
+
+Ctask = M Iμ(k) 
+
+> task
+
++ ηr σ(k) 
+
+> task
+
+> τ  (15) where M is a sufficiently large scalar penalty, μ(k) 
+
+> task
+
+and σ(k)
+
+> task
+
+denote the mean and standard deviation of the task cost for the k-th rollout, ηr is a risk-aversion parameter, and τ is the acceptable cost threshold. Any rollout whose upper-bound risk assessment exceeds this threshold receives the penalty 
+
+M , driving its corresponding MPPI sampling weight to near-zero and functionally excluding the unsafe trajectory from the control update. This architecture ensures that BAIT exercises its influence-trust trade-off strictly within the set of physically safe and task-feasible trajectories. V. S IMULATION EXPERIMENT 
+
+We evaluate BAIT in a repeated lane-merging scenario with simulated humans. The robot starts ahead and merges into the human’s lane. If the robot influences the human to yield (low lane progress), the merge succeeds; otherwise, the human maintain or increases speed, blocking the merge. This experiment aims to assess two core algorithm capabilities: (i) the invariant estimation accuracy of the two-layered particle filter against ground-truth human parameters across different robot control modes, and (ii) the impact of the influence–trust arbitration on cumulative task performance against an adapting human agent. While this section strictly assesses objective algorithmic metrics, subjective evaluations of human trust are addressed through a user study in Section VI. 
+
+Hypothesis 1: Influence and Task Success. In repeated encounters, static and trust policies are easily exploitable, whereas influence policies maintain influence. Adaptive arbitration dynamically shifts between these strategies. A. Simulator and Adaptive Human Model 
+
+We instantiate the MOMDP as a two-lane merging task in a 2D driving simulator based on CARLO [21] across 
+
+N = 20 consecutive episodes and conduct 30 independent trials using random seeds. Each episode consists of 75 steps with a step size of ∆t=1 s. While the physical state resets each episode, the human’s latent state (ϕGT , z GT ) persists to model continuous adaptation across interactions. These ground-truth parameters remain inaccessible to all controllers. Following recent findings that humans aggressively exploit predictable policies but become conservative under uncer-tainty [5], [6], our generative human model simulates more complex, non-linear dynamics than the robot’s internal filter. Specifically, the simulated human updates its ground-truth belief ϕGT using the same kinematic moving-average formula-tion defined for the robot’s geometric proxy ( bty in Eq. (10)). Furthermore, while the robot’s filter models the strategy at-tractor ( ztgt in Eq. (6)) as a simple interpolation of ϕ, the actual human strategy zGT is drawn toward a highly non-linear ground-truth attractor zGT  
+
+> tgt
+
+.To rigorously test our filter’s tracking capability, zGT  
+
+> tgt
+
+augments the baseline interpolation with two adversarial, rule-based overlays: a cautious bias that smoothly shifts the human toward a conservative prototype when belief entropy is high ( H(ϕGT )>0.75 ), and an aggres-sive spike that instantly snaps to an aggressive prototype if low entropy ( H(ϕGT )<0.70 ) persists over a moving window of 6
+
+steps. Without access to these underlying non-linear reactive thresholds, the robot’s particle filter must robustly infer these rapid, strategic shifts using its simplified surrogate dynamics. 
+
+B. Implementation Details. 
+
+We instantiate the full BAIT pipeline using K=100 rollout sequences, Nϕ=20 long-term particles, and Nz =50 short-term particles. Specifically, each long-term particle tracks a single belief dimension ϕ∈[0 , 1] , while each short-term particle tracks the 2-dimensional short-term strategy trade-off between forward progress ( zprogress ) and collision avoidance ( zsafety )discussed in Section III. These two adapted dimensions operate within 5-dimensional instantaneous cost vector ( dz =5 ) that also accounts for lane center deviation, heading, and steering smoothness. For the hierarchical particle filter, we maintain a history window W =5 with an exponential decay ρ=0 .7. The short-term strategy employs an update rate αz =0 .8, a mean-reverting rate αou =0 .5, and an Ornstein-Uhlenbeck noise scale 
+
+σz =0 .1. The long-term belief utilizes a geometric smoothing rate αϕ=0 .25 and a scaling temperature Tϕ=3 .0. The beta kernel is configured with a concentration κ=50 .0, a slow reset probability ϵ=0 .02 , and a uniform reset shape c=1 .0.6
+
+TABLE I ROBUSTNESS OF THE HIERARCHICAL PARTICLE FILTER ESTIMATION ACROSS VARYING ROBOT CONTROL MODES .
+
+Latent State Estimation Trajectory Prediction Environment Method ϕ BCE (↓) ϕ MSE (↓) z MSE (↓) z Cos. (↑) 1-ADE (↓) H-ADE (↓) H-FDE (↓)
+
+Simulated Human 
+
+BAIT-trust 0.44(0 .25) 0.04(0 .03) 0.09(0 .10) 0.95(0 .04) 0.050(0 .010) 0.530(0 .060) 1.100(0 .140) 
+
+BAIT-infl 0.69(0 .25) 0.05(0 .02) 0.04(0 .03) 0.97(0 .02) 0.050(0 .010) 0.510(0 .070) 1.070(0 .140) 
+
+BAIT-adapt 0.52(0 .31) 0.05(0 .03) 0.07(0 .09) 0.96(0 .04) 0.050(0 .010) 0.520(0 .060) 1.090(0 .130) 
+
+In-Person User Study 
+
+BAIT-trust 0.32(0 .17) 0.02(0 .02) 0.01(0 .01) 1.00(0 .00) 0.046(0 .006) 0.584(0 .136) 1.301(0 .325) 
+
+BAIT-infl 0.72(0 .18) 0.05(0 .02) 0.02(0 .01) 0.99(0 .01) 0.046(0 .005) 0.559(0 .118) 1.241(0 .283) 
+
+BAIT-adapt 0.52(0 .26) 0.04(0 .02) 0.02(0 .01) 0.99(0 .01) 0.045(0 .005) 0.554(0 .116) 1.230(0 .278) 
+
+Note: Results show posterior mean (std. dev.) evaluated step-wise across 600 interactions ( 30 subjects ×20 consecutive episodes). BCE/MSE: binary cross-entropy/mean-squared error; Cos.: cosine similarity; ADE/FDE: average/final displacement error at the 1- and H-step horizon. 0         
+
+> 500
+> 1000
+> 1500
+> 2000
+> 2500
+> Human lane progress
+> Simulated Human (Overall)
+> 2368.8
+> 1598.9
+> 2052.7
+> 1628.7
+> 1878.0
+> 0
+> 500
+> 1000
+> 1500
+> 2000
+> 2500
+> Human lane progress
+> In-Person (Overall)
+> 2017.7 1917.9 1907.4
+> 510 15 20
+> N-th episode
+> 80
+> 85
+> 90
+> 95
+> 100
+> 105
+> 110
+> Human lane progress
+> In-Person
+> Stackelberg Belief-Entropy Stackelberg BAIT- trust BAIT-infl BAIT-adapt
+
+Fig. 3. Comparison of Human Lane Progress. Overall lane progress for the BAIT variants (BAIT-trust, BAIT-infl, and BAIT-adapt) against Stackelberg baselines (Stackelberg, Belief-Entropy Stackelberg) when interacting with a belief-aware simulated human (left), alongside the overall (center) and episode-by-episode (right) progress of in-person users interacting with the three BAIT variants. Both the simulated and in-person data consists of 600 total interactions (30 simulated/human subjects ×20 consecutive episodes). Error bars denote standard error. In simulation (left), both Belief-Entropy Stackelberg and BAIT-infl maintain low human lane progress by successfully influencing the human to yield. In contrast, the standard Stackelberg and BAIT-trust modes resulted in high human lane progress, as the human becomes assertive upon perceiving that the robot will yield. The BAIT-adapt mode balances these two extremes by strategically switching between influence and trust based on the recent interaction history. Furthermore, the in-person results (center, right) confirm that this strategic switching allows BAIT-adapt to consistently regulate human lane progress across repeated physical interactions. 
+
+The critical interaction zone is triggered at a spatial threshold 
+
+dinteract =25 .0m. For the MPPI planner, the influence cost uses an entropy weight we=0 .8 and directional weight wd=0 .2
+
+while trust cost shifts these to we=0 .9 and wd=0 .1. The CVaR safety constraint utilizes a risk-aversion parameter ηr =1 .0,a per-step acceptable cost threshold τ =2 .5, and an effective infinite scalar penalty M =10 9.
+
+C. Baselines. 
+
+We evaluate our BAIT framework against two baselines: 
+
+Stackelberg , which assumes a stationary best-response hu-man; and Belief-Entropy Stackelberg , which augments the 
+
+Stackelberg objective with a belief-entropy reward (similar to our influence cost in Eq. (13)) to optimize strictly for latent influence. To ensure fair comparison, all controllers share the exact planning horizon and resolution ( H=5 , ∆t=1 ), physical parameters, and reward configurations as BAIT. We also test two ablations to evaluate the extremes of our cost formulation: pure trust BAIT-trust (β=0 ) and pure influence BAIT-infl 
+
+(β=1 ). Finally, BAIT-adapt arbitrates between episodes via binary, history-dependent switching ( β∈{ 0, 1}), shifting to influence mode ( β=1 ) if the robot’s success rate falls below 
+
+60% over a sliding 5-episode window or the human’s belief indicates expected yielding ( ˆϕ> 0.7), and reverts to trust once both conditions clear. We evaluate the task and inference fidelity jointly to prevent the emergence of degenerate policies. 
+
+D. Result and Discussions 
+
+Estimation Robustness. Table I demonstrates the policy-invariant tracking accuracy of BAIT’s hierarchical particle filter. Because the Stackelberg baselines lack complete hier-archical latent state estimation, we compare the three BAIT variants to validate our filter robustly tracks human adaptation regardless of the robot policy, rather than serving as an ablation. Furthermore, presenting in-person tracking alongside simulated data validates our simulated human as a reliable proxy prior to discussion task outcomes. Because ground-truth internal states are inaccessible for real human drivers, we extract offline pseudo-labels ( ˆϕGT , ˆzGT )
+
+over the recorded dataset by joint trajectory optimization. Because the belief ϕ only influences human actions indirectly, minimizing the negative log-likelihood (NLL) of actions is insufficient to uniquely recover the latent hierarchy. Thus, we extract the pseudo-labels by minimizing the action NLL subject to the structural priors of our generative hierarchy: 
+
+min  
+
+> ˆϕ1: T,ˆz1: T
+> T
+
+X
+
+> t=1
+
+h
+
+− log πH(at 
+
+> H
+
+| st, ˆzt)+λz ∥ˆzt − ztgt ( ˆϕt)∥2 + λϕ( ˆϕt − bty )2 + Csmooth 
+
+i (16) where the first term fits the short-term strategy to the observed physical driving, the second term enforces the hierarchical coupling by anchoring ˆzt to its ˆϕt-conditioned prototype, the 7BAIT -trust  BAIT -infl  BAIT -adapt Belief -Entropy Stackelberg Stackelberg 
+
+… … ………          
+
+> Fig. 4. Evolution of Interaction trajectories. Comparison of robot (solid red) and simulated human (dashed blue) trajectories during early (Eps 1−5)and late (Eps 16 −20 ) interactions. Results are aggregated over 30 independent trials across five control modes. While standard Stackelberg and BAIT-trust initially secure the lane merge, they fail to prevent the human from becoming aggressive over repeated interactions. Conversely, the Belief-Entropy Stackelberg, BAIT-infl, and BAIT-adapt controllers successfully maintain the human’s yielding behavior across the majority of trials.
+
+third term anchors the extracted belief to the geometric yield proxy bty (Eq. (10)), and Csmooth applies standard temporal smoothing to prevent erratic, step-to-step fluctuations in both variables. Evaluating against these optimized pseudo-labels, the filter maintains tight convergence and low error across both environments, accurately capturing internal state transitions. Trajectory prediction remains flat across variants (H-ADE 
+
+≈0.5), confirming the expected posterior moments provide a reliable input to our deterministic surrogate regardless of β.
+
+Task performance. To evaluate the robot’s influence on human yielding, we report human lane progress analyzed via repeated-measures ANOVA (F =250 .51 , p< 0.001 ) and Bonferroni-corrected post-hoc test ( α=0 .05 ). Supporting H1 ,static Stackelberg and BAIT-trust allow significantly greater human lane progress than the influence-optimizing models, 
+
+Belief-Entropy Stackelberg and BAIT-infl , (all pairwise 
+
+p< 0.001 ), as the human agent exploits their predictable yield-ing (Fig. 3). Ablating the directional regularizer, a transparent-assertive variant ( weH( ˆϕk+1 )2 + wd( ˆϕk+1 )2) yields total lane progress 1962 .64 ± 36 .58 , matching BAIT-trust (1957 .66 ), not BAIT-infl (1533 .74 ), so predictability, not belief direction, governs influence. Furthermore, BAIT-adapt successfully ar-bitrates between influence and trust, achieving a statistically significant reduction in lane progress compared to Stackelberg 
+
+and BAIT-trust (both p< 0.001 ) yet significantly higher than 
+
+BAIT-infl and Belief-Entropy Stackelberg (both p< 0.001 ). Crucially, BAIT achieves this effective behavioral arbitration without sacrificing real-time scalability: by propagating anoise-free deterministic surrogate rather than branching full trees like online MOMDP solvers (e.g., POMCPOW) or nested best-response MPCs, BAIT bypasses continuous-space branch-ing bottlenecks to achieve real-time execution at ≈0.11 s/step. VI. U SER STUDY 
+
+We conducted an in-person user study to assess subjective trust and perceived comfort across three BAIT variants ( BAIT-trust , BAIT-infl , and BAIT-adapt ). Because our simulation result in Section V confirmed equivalent efficacy between 
+
+Belief-Entropy Stackelberg and BAIT-infl (p = 1 .000 ), we focus our experimental evaluation on three BAIT controllers. Participants interacted with the merging robot within the environment described in Section V, controlling the human vehicle using a Logitech G 29 steering wheel and pedal set (Fig. 2). To ensure consistency, all implementation parameters remained identical to those used in the simulation experiments. 
+
+Hypothesis 2: Human Trust and Comfort. Transparency builds human trust and comfort, whereas unpredictability degrades them. Adaptive arbitration exerts necessary influence without sacrificing these subjective metrics. A. Participants 
+
+We recruited 30 participants (11 female, age 28 ±6.2), 
+
+14 of whom reported prior experience riding in or driving alongside autonomous vehicles. This study was conducted in strict accordance with Institutional Review Board guidelines (IRB # 25 -0685 ). Following a within-subject design, each par-ticipant completed 20 consecutive merging episodes against each of the three controllers. Participants rated four custom-designed measures on a 7-point Likert scale: comfort (“I felt comfortable driving alongside this autonomous vehicle (AV)”), discomfort (“Interacting with this AV made me feel tense or uneasy,” reverse-coded as a consistency check), trust (“I trusted this AV to behave safely during our interactions”), and anticipation (“I could anticipate what AV was going to do next”). The presentation order was fully counter-balanced to mitigate ordering effects. 
+
+B. Results and Discussions 
+
+We report subjective outcomes evaluated using non-parametric Friedman tests and Bonferroni-corrected Wilcoxon post-hoc analyses ( α=0 .0167 ). The in-person experimental re-sults closely mirror our simulation results (Fig. 3). BAIT-trust 
+
+allowed the highest human lane progress, which increased over time as participants exploited the robot’s transparent yielding. Conversely, both BAIT-infl and BAIT-adapt successfully as-serted merging to maintain lower human lane progress over the episodes. Notably, BAIT-adapt achieved a statistically 8
+
+significant reduction compared to BAIT-trust (p< 0.01 ), while demonstrating equivalent efficacy to BAIT-infl (p=0 .811 ). The user study results comparing the human trust, comfort, and anticipation for the three controller variants also supported 
+
+H2 . The participants felt significantly more comfortable with the predictable yielding of BAIT-trust (comfort median 5,discomfort median 3) compared to BAIT-infl (comfort median 
+
+2, discomfort median 5) or BAIT-adapt (comfort median 4,discomfort median 5) significantly degrading overall comfort and discomfort ( p< 0.005 across all four pairwise compar-isons). However, the trust variance was highly significant (χ2(2)=14 .04 , p< 0.001 ). While BAIT-trust maximized trust (median 5), BAIT-adapt (median 3) preserved user trust at level significantly higher than the pure influence base-line BAIT-infl (median 2, p= 0 .0128 ). Importantly, this trust preservation coexists with effective influence maintenance. Because BAIT-adapt switches between modes across episodes via hysteresis, participants perceived it as less predictable (anticipation median 4 vs. 6 for BAIT-trust , p= 0 .003 ). These results reveal that while controlled adaptation must inherently sacrifice the human comfort to maintain long-term influence for task efficiency adversarial exploitation, allowing BAIT-adapt to make the human yield as effectively, it successfully mitigates degradation of human trust caused by pure influence. VII. R EAL -W ORLD EXPERIMENT 
+
+To validate real-time deployment, we implemented the proposed BAIT-adapt controller on a physical Polaris GEM e2. The ego vehicle interacted with a human-driven GEM e4 in a scaled lane-merging scenario (Similar to Section V and Section VI). State estimation was achieved using a Septentrio AsteRx SBi3 Pro+ GNSS receiver with a ProPak 6 RTK base station, eliminating localization uncertainty while low-level steering and throttle commands were executed via ROS PACMod. As shown in Fig. 1, the BAIT-adapt runs in real time onboard the ego vehicle and successfully secures the merge. The robot smoothly asserts its right-of-way and consistently prompts the human driver to yield across repeated interactions, demonstrating the practical viability of the BAIT. VIII. C ONCLUSION 
+
+We introduce BAIT, a real-time controller for repeated human-robot interactions that integrates a hierarchical particle filter–tracking the human’s short-term strategy and long-term perception–with a deterministic surrogate MPPI planner. BAIT explicitly arbitrates between long-horizon influence and human trust, while enforcing immediate task performance as a strict CVaR constraint. Across simulations, a user study, and real-world GEM vehicle deployments, BAIT maintains influence by consistently prompting humans to yield while mitigating the severe trust degradation of pure influence controllers. Although mode switching inherently sacrifices the human comfort of a trust policy, it achieves controlled unpredictability that preserves influence. Future work will replace the current binary-mode switching by optimizing the arbitration variable continuously to enable smoother adaptation. REFERENCES [1] Y.-J. Mun, M. Itkina, S. Liu, and K. Driggs-Campbell, “Occlusion-aware crowd navigation using people as sensors,” in Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , 2023, pp. 12 031–12 037. [2] A. Xie, D. Losey, R. Tolsma, C. Finn, and D. Sadigh, “Learning latent representations to influence multi-agent interaction,” in Conference on Robot Learning (CoRL) , 2021, pp. 575–588. [3] M. Muchen Sun, F. Baldini, K. Hughes, P. Trautman, and T. Murphey, “Mixed strategy nash equilibrium for crowd navigation,” The Interna-tional Journal of Robotics Research (IJRR) , vol. 44, no. 7, pp. 1156– 1185, 2025. [4] Y. Huang, J. Du, Z. Yang, Z. Zhou, L. Zhang, and H. Chen, “A survey on trajectory-prediction methods for autonomous driving,” IEEE Transactions on Intelligent Vehicles , vol. 7, no. 3, pp. 652–674, 2022. [5] S. Sagheb, S. Parekh, R. Pandya, Y.-J. Mun, K. Driggs-Campbell, A. Ba-jcsy, and D. P. Losey, “A unified framework for robots that influence humans over long-term interaction,” arXiv preprint arXiv:2503.14633 ,2025. [6] S. Sagheb, Y.-J. Mun, N. Ahmadian, B. A. Christie, A. Bajcsy, K. Driggs-Campbell, and D. P. Losey, “Towards robots that influence humans over long-term interaction,” in Proceedings of the IEEE In-ternational Conference on Robotics and Automation (ICRA) , 2023, pp. 7490–7496. [7] J.-L. Bastarache, C. Nielsen, and S. L. Smith, “On legible and pre-dictable robot navigation in multi-agent environments,” in Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , 2023, pp. 5508–5514. [8] A. D. Dragan, K. C. Lee, and S. S. Srinivasa, “Legibility and predictabil-ity of robot motion,” in Proceedings of the ACM/IEEE International Conference on Human-Robot Interaction (HRI) , 2013, pp. 301–308. [9] D. Sadigh, S. Sastry, S. A. Seshia, and A. D. Dragan, “Planning for autonomous cars that leverage effects on human actions,” in Robotics: Science and Systems (RSS) , 2016. [10] J. F. Fisac, E. Bronstein, E. Stefansson, D. Sadigh, S. S. Sastry, and A. D. Dragan, “Hierarchical game-theoretic planning for autonomous vehicles,” in Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , 2019, pp. 9590–9596. [11] W. Schwarting, A. Pierson, J. Alonso-Mora, S. Karaman, and D. Rus, “Social behavior for autonomous vehicles,” Proceedings of the National Academy of Sciences , vol. 116, no. 50, pp. 24 972–24 978, 2019. [12] S. Parekh and D. P. Losey, “Learning latent representations to co-adapt to humans,” Autonomous Robots , vol. 47, no. 6, pp. 771–796, 2023. [13] M. Cooper, J. K. Lee, J. Beck, J. D. Fishman, M. Gillett, Z. Papakipos, A. Zhang, J. Ramos, J. A. Shah, and M. L. Littman, “Stackelberg punishment and bully-proofing autonomous vehicles,” in International Conference on Social Robotics (ICSR) , 2019, pp. 368–377. [14] A. Ayub, Z. De Francesco, P. Holthaus, C. L. Nehaniv, and K. Daut-enhahn, “Continual learning through human-robot interaction: Human perceptions of a continual learning robot in repeated interactions,” 
+
+International Journal of Social Robotics , vol. 17, no. 2, pp. 277–296, 2025. [15] S. Peng, K. Driggs-Campbell, and R. Dong, “Trust-aware em-bodied bayesian persuasion for mixed-autonomy,” arXiv preprint arXiv:2509.15404 , 2025. [16] A. Xie, D. P. Losey, R. Tolsma, C. Finn, and D. Sadigh, “Learning latent representations to influence multi-agent interaction,” in Conference on Robot Learning (CoRL) , 2021, pp. 575–588. [17] A. Bajcsy, A. Loquercio, A. Kumar, and J. Malik, “Learning vision-based pursuit-evasion robot policies,” in Proceedings of the IEEE International Conference on Robotics and Automation (ICRA) , 2024, pp. 9197–9204. [18] Z. Huang, Y.-J. Mun, F. C. Pouria, and K. Driggs-Campbell, “Hierar-chical intention tracking with switching trees for real-time adaptation to dynamic human intentions during collaboration,” arXiv preprint arXiv:2506.07004 , 2025. [19] L. J. Ratliff, R. Dong, S. Sekar, and T. Fiez, “A perspective on incen-tive design: Challenges and opportunities,” Annual Review of Control, Robotics, and Autonomous Systems , vol. 2, no. 1, pp. 1–34, 2018. [20] J. Foerster, R. Y. Chen, M. Al-Shedivat, S. Whiteson, P. Abbeel, and I. Mordatch, “Learning with opponent-learning awareness,” in Inter-national Conference on Autonomous Agents and Multiagent Systems (AAMAS) , 2018, pp. 122–130. [21] Z. Cao, E. Biyik, W. Z. Wang, A. Raventos, A. Gaidon, G. Rosman, and D. Sadigh, “Reinforcement learning based control of imitative policies for near-accident driving,” in Robotics: Science and Systems (RSS) , 2020.
