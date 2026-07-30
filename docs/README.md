@@ -6,29 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-29
-- 运行时间：2026-07-29 20:50:44 UTC
+- 最新运行日期：2026-07-30
+- 运行时间：2026-07-30 21:41:36 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
-- 速读区：2
+- 本次总论文数：1
+- 精读区：0
+- 速读区：1
 
 ### 今日简报（AI）
-今天精选3篇论文，聚焦人机交互、头像生成与自动驾驶注意力分析。最值得关注的是精读论文《BAIT》，它提出信念感知信任模型，揭示人机反复交互中如何动态塑造人类信念。建议普通读者优先理解BAIT的理论框架，再结合STEER（可操控双人头像）和LAIA（智能汽车注意力数据集）拓展应用场景。
-- 详情：[/202607/29/README](/202607/29/README)
+今天速读1篇论文，探索利用眼动轨迹中的时空语义进行弱监督医学图像分割。  
+值得关注的方向是：将空间语义扩展至时间上下文，通过注视轨迹数据减少标注依赖。  
+建议关注该方法的实验验证效果，并考虑如何应用到自己的弱监督分割任务中。
+- 详情：[/202607/30/README](/202607/30/README)
 
 ### 精读区论文标签
-1. [Belief-Aware Influence and Trust (BAIT): Shaping Human Belief During Repeated Human-Robot Interaction](/202607/29/2607.25327v1-belief-aware-influence-and-trust-bait-shaping-human-belief-during-repeated-human-robot-interaction)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：概率建模人类信念用于前瞻性人机交互
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [STEER: Steerable Dyadic Head Avatars](/202607/29/2607.23840v1-steer-steerable-dyadic-head-avatars)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：双人对话头像中的注视控制
-2. [The LAIA Dataset: Labelled Attention for Intelligent Automobiles](/202607/29/2607.25570v1-the-laia-dataset-labelled-attention-for-intelligent-automobiles)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：包含人类注意力数据的合成数据集，支持基于注视的人机交互研究
+1. [From Spatial Semantics to Temporal Context: Leveraging Gaze Trajectory for Weakly Supervised Medical Image Segmentation](/202607/30/2607.26542v1-from-spatial-semantics-to-temporal-context-leveraging-gaze-trajectory-for-weakly-supervised-medical-image-segmentation)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：利用眼动轨迹进行弱监督分割，建模注视时空语境
 
 
 <div class="dpr-home-promo-card">
