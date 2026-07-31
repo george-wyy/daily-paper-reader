@@ -6,26 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-30
-- 运行时间：2026-07-30 21:41:36 UTC
+- 最新运行日期：2026-07-31
+- 运行时间：2026-07-31 20:44:12 UTC
 - 运行状态：成功
-- 本次总论文数：1
-- 精读区：0
-- 速读区：1
+- 本次总论文数：3
+- 精读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今天速读1篇论文，探索利用眼动轨迹中的时空语义进行弱监督医学图像分割。  
-值得关注的方向是：将空间语义扩展至时间上下文，通过注视轨迹数据减少标注依赖。  
-建议关注该方法的实验验证效果，并考虑如何应用到自己的弱监督分割任务中。
-- 详情：[/202607/30/README](/202607/30/README)
+今日精读1篇、速读2篇，聚焦三维交互与视觉决策建模。最值得关注的是《Evaluating the Vergence-Accommodation Conflict in Gaze-Based 3D Target Selection》，其8.0分揭示了注视交互中调节冲突的关键影响；另有两篇分别探讨主动推理视决策与LAIA自动驾驶注意力数据集。建议普通读者优先浏览精读结论，并把速读作为扩展视野的补充材料。
+- 详情：[/202607/31/README](/202607/31/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Evaluating the Vergence-Accommodation Conflict in Gaze-Based 3D Target Selection](/202607/31/2607.27369v1-evaluating-the-vergence-accommodation-conflict-in-gaze-based-3d-target-selection)  
+   标签：评分：8.0/10、query:gaze-intent
+   evidence：基于凝视的HMD 3D目标选择，直接面向凝视人机交互
 
 ### 速读区论文标签
-1. [From Spatial Semantics to Temporal Context: Leveraging Gaze Trajectory for Weakly Supervised Medical Image Segmentation](/202607/30/2607.26542v1-from-spatial-semantics-to-temporal-context-leveraging-gaze-trajectory-for-weakly-supervised-medical-image-segmentation)  
+1. [Beyond the Post Hoc User Study: Modeling Visual Decision-Making with Active Inference](/202607/31/2607.25131v1-beyond-the-post-hoc-user-study-modeling-visual-decision-making-with-active-inference)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：利用眼动轨迹进行弱监督分割，建模注视时空语境
+   evidence：主动推理概率建模视觉搜索，可迁移至注视与意图预测
+2. [The LAIA Dataset: Labelled Attention for Intelligent Automobiles](/202607/31/2607.25570v2-the-laia-dataset-labelled-attention-for-intelligent-automobiles)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：面向自动驾驶的人工注意力数据集，可支持基于注视的意图预测
 
 
 <div class="dpr-home-promo-card">
