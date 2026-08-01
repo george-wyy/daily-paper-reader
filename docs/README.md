@@ -6,29 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-31
-- 运行时间：2026-07-31 20:44:12 UTC
+- 最新运行日期：2026-08-01
+- 运行时间：2026-08-01 19:50:19 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
+- 本次总论文数：2
+- 精读区：0
 - 速读区：2
 
 ### 今日简报（AI）
-今日精读1篇、速读2篇，聚焦三维交互与视觉决策建模。最值得关注的是《Evaluating the Vergence-Accommodation Conflict in Gaze-Based 3D Target Selection》，其8.0分揭示了注视交互中调节冲突的关键影响；另有两篇分别探讨主动推理视决策与LAIA自动驾驶注意力数据集。建议普通读者优先浏览精读结论，并把速读作为扩展视野的补充材料。
-- 详情：[/202607/31/README](/202607/31/README)
+今日速读2篇论文，暂无精读；其中对话机器人的低延迟轮转预生成方法获7.0分，最值得关注。  
+另一篇多模态视频推理研究获6.0分，可作扩展了解。  
+建议优先精读高分论文，并关注其上下文预生成思路在真实对话中的效果。
+- 详情：[/202608/01/README](/202608/01/README)
 
 ### 精读区论文标签
-1. [Evaluating the Vergence-Accommodation Conflict in Gaze-Based 3D Target Selection](/202607/31/2607.27369v1-evaluating-the-vergence-accommodation-conflict-in-gaze-based-3d-target-selection)  
-   标签：评分：8.0/10、query:gaze-intent
-   evidence：基于凝视的HMD 3D目标选择，直接面向凝视人机交互
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Beyond the Post Hoc User Study: Modeling Visual Decision-Making with Active Inference](/202607/31/2607.25131v1-beyond-the-post-hoc-user-study-modeling-visual-decision-making-with-active-inference)  
+1. [Low-Latency Turn-Taking via Context-Aware Preface Generation in a Real-World Dialogue Robot](/202608/01/2607.23204v1-low-latency-turn-taking-via-context-aware-preface-generation-in-a-real-world-dialogue-robot)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：主动推理概率建模视觉搜索，可迁移至注视与意图预测
-2. [The LAIA Dataset: Labelled Attention for Intelligent Automobiles](/202607/31/2607.25570v2-the-laia-dataset-labelled-attention-for-intelligent-automobiles)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：面向自动驾驶的人工注意力数据集，可支持基于注视的意图预测
+   evidence：意图就绪检测触发对话机器人上下文感知前言生成，实现主动响应
+2. [Knowledge-Guided Multimodal Reasoning over Interacting Streams for Video-Level Ambivalence and Hesitancy Recognition](/202608/01/2607.25961v1-knowledge-guided-multimodal-reasoning-over-interacting-streams-for-video-level-ambivalence-and-hesitancy-recognition)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：对内部用户状态的流式多模态冲突推理，方法可迁移到眼动等多模态意图预测
 
 
 <div class="dpr-home-promo-card">
