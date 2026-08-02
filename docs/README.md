@@ -6,29 +6,28 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-01
-- 运行时间：2026-08-01 19:50:19 UTC
+- 最新运行日期：2026-08-02
+- 运行时间：2026-08-02 19:53:30 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：1
 - 精读区：0
-- 速读区：2
+- 速读区：1
 
 ### 今日简报（AI）
-今日速读2篇论文，暂无精读；其中对话机器人的低延迟轮转预生成方法获7.0分，最值得关注。  
-另一篇多模态视频推理研究获6.0分，可作扩展了解。  
-建议优先精读高分论文，并关注其上下文预生成思路在真实对话中的效果。
-- 详情：[/202608/01/README](/202608/01/README)
+今日文献扫描聚焦视频级多模态理解，仅速读1篇论文。
+
+最值得关注的是《Knowledge-Guided Multimodal Reasoning over Interacting Streams for Video-Level Ambivalence and Hesitancy Recognition》（6.0分），探讨交互流中的矛盾与犹豫识别。
+
+若时间有限，可优先浏览该文的“知识引导多模态推理”框架，理解如何建模视频流中的动态情绪信号。
+- 详情：[/202608/02/README](/202608/02/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Low-Latency Turn-Taking via Context-Aware Preface Generation in a Real-World Dialogue Robot](/202608/01/2607.23204v1-low-latency-turn-taking-via-context-aware-preface-generation-in-a-real-world-dialogue-robot)  
-   标签：评分：7.0/10、query:gaze-intent
-   evidence：意图就绪检测触发对话机器人上下文感知前言生成，实现主动响应
-2. [Knowledge-Guided Multimodal Reasoning over Interacting Streams for Video-Level Ambivalence and Hesitancy Recognition](/202608/01/2607.25961v1-knowledge-guided-multimodal-reasoning-over-interacting-streams-for-video-level-ambivalence-and-hesitancy-recognition)  
+1. [Knowledge-Guided Multimodal Reasoning over Interacting Streams for Video-Level Ambivalence and Hesitancy Recognition](/202608/02/2607.25961v2-knowledge-guided-multimodal-reasoning-over-interacting-streams-for-video-level-ambivalence-and-hesitancy-recognition)  
    标签：评分：6.0/10、query:gaze-intent
-   evidence：对内部用户状态的流式多模态冲突推理，方法可迁移到眼动等多模态意图预测
+   evidence：多模态流推理预测内部状态，可迁移至基于眼动的意图建模
 
 
 <div class="dpr-home-promo-card">
