@@ -6,22 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-03
-- 运行时间：2026-08-03 20:46:59 UTC
+- 最新运行日期：2026-08-04
+- 运行时间：2026-08-04 21:49:09 UTC
 - 运行状态：成功
-- 本次总论文数：0
+- 本次总论文数：3
 - 精读区：0
-- 速读区：0
+- 速读区：3
 
 ### 今日简报（AI）
-> 今日无新推荐，系统未产出可展示论文。
-- 详情：[/202608/03/README](/202608/03/README)
+今日速读3篇论文，聚焦手术机器人与人机交互领域。  
+最值得关注的是《Action-grounded tissue affordance...》一文（7.0分），揭示自动取景可降低外科医生认知负荷。  
+建议优先精读该高分论文，并延伸关注HRI中的信任塑造与表情识别方向。
+- 详情：[/202608/04/README](/202608/04/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-- 本次无速读推荐。
+1. [Action-grounded tissue affordance enables anticipatory auto-framing that lowers surgeon cognitive workload during laparoscopic surgery](/202608/04/2608.02471v1-action-grounded-tissue-affordance-enables-anticipatory-auto-framing-that-lowers-surgeon-cognitive-workload-during-laparoscopic-surgery)  
+   标签：评分：7.0/10、query:gaze-intent
+   evidence：基于动作锚定可供性的实时预测模型预估手术相关区域，实现预期辅助取景
+2. [Belief-Aware Influence and Trust (BAIT): Shaping Human Belief During Repeated Human-Robot Interaction](/202608/04/2607.25327v2-belief-aware-influence-and-trust-bait-shaping-human-belief-during-repeated-human-robot-interaction)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：用层次粒子滤波概率推断人类信念，并驱动前瞻性机器人行为
+3. [Hybrid Attention Estimation Pipeline for Adaptive HRI Using an Expressive Robotic Head](/202608/04/2608.00284v1-hybrid-attention-estimation-pipeline-for-adaptive-hri-using-an-expressive-robotic-head)  
+   标签：评分：6.0/10、query:gaze-intent
+   evidence：面向自适应人机交互的视觉注意力估计，以注意力而非直接眼动作为交互信号
 
 
 <div class="dpr-home-promo-card">
