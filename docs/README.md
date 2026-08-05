@@ -6,32 +6,24 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-04
-- 运行时间：2026-08-04 21:49:09 UTC
+- 最新运行日期：2026-08-05
+- 运行时间：2026-08-05 21:26:01 UTC
 - 运行状态：成功
-- 本次总论文数：3
+- 本次总论文数：1
 - 精读区：0
-- 速读区：3
+- 速读区：1
 
 ### 今日简报（AI）
-今日速读3篇论文，聚焦手术机器人与人机交互领域。  
-最值得关注的是《Action-grounded tissue affordance...》一文（7.0分），揭示自动取景可降低外科医生认知负荷。  
-建议优先精读该高分论文，并延伸关注HRI中的信任塑造与表情识别方向。
-- 详情：[/202608/04/README](/202608/04/README)
+今日仅速读1篇论文，暂无精读，聚焦多模态意图识别方向。最值得关注的是《Adaptive Modality Reliability Diagnosis and Restoration for Robust Multimodal Intent Recognition》（7.0/10），核心价值在于通过模态可靠性诊断与恢复来增强鲁棒性。建议普通读者优先浏览该论文的摘要与实验结论，后续可扩展关注多模态融合中的噪声对抗策略。
+- 详情：[/202608/05/README](/202608/05/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Action-grounded tissue affordance enables anticipatory auto-framing that lowers surgeon cognitive workload during laparoscopic surgery](/202608/04/2608.02471v1-action-grounded-tissue-affordance-enables-anticipatory-auto-framing-that-lowers-surgeon-cognitive-workload-during-laparoscopic-surgery)  
+1. [Adaptive Modality Reliability Diagnosis and Restoration for Robust Multimodal Intent Recognition](/202608/05/2608.03475v1-adaptive-modality-reliability-diagnosis-and-restoration-for-robust-multimodal-intent-recognition)  
    标签：评分：7.0/10、query:gaze-intent
-   evidence：基于动作锚定可供性的实时预测模型预估手术相关区域，实现预期辅助取景
-2. [Belief-Aware Influence and Trust (BAIT): Shaping Human Belief During Repeated Human-Robot Interaction](/202608/04/2607.25327v2-belief-aware-influence-and-trust-bait-shaping-human-belief-during-repeated-human-robot-interaction)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：用层次粒子滤波概率推断人类信念，并驱动前瞻性机器人行为
-3. [Hybrid Attention Estimation Pipeline for Adaptive HRI Using an Expressive Robotic Head](/202608/04/2608.00284v1-hybrid-attention-estimation-pipeline-for-adaptive-hri-using-an-expressive-robotic-head)  
-   标签：评分：6.0/10、query:gaze-intent
-   evidence：面向自适应人机交互的视觉注意力估计，以注意力而非直接眼动作为交互信号
+   evidence：面向鲁棒多模态意图识别的框架，可适用于含眼动的人机交互
 
 
 <div class="dpr-home-promo-card">
