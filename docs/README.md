@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-12</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-13</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 5 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>5</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-12 20:24:01 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-13 21:17:27 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精读1篇、速读1篇，重点聚焦在线会议中非语言线索的实时反馈与轻量级活动识别技术。最值得关注的是精读论文（9.0/10），它揭示实时显示非语言线索可帮助会议参与者更好地自我呈现；速读论文则探索了高效的人体活动识别方案（6.0/10）。下一步建议普通读者优先尝试将非语言反馈工具融入日常视频会议，观察自我表达与沟通效率的变化。</p>
+<p>今日速读5篇论文，聚焦机器人手术与视线追踪技术。</p>
+<p>最值得关注的是《SurgLAT》的腹腔镜深度控制，以及两篇注视估计方法（概念泛化与浏览器实测校准）。</p>
+<p>建议优先精读SurgLAT，并对照浏览器注视采集方案验证实际效果。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -71,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Exploring a Real-time Feedback Display of Non-Verbal Cues in Online Work Meetings to Support Self-Presentation">Exploring a Real-time Feedback Display of Non-Verbal Cues in Online Work Meetings to Support Self-Presentation</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">5 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="LITEWAY: LIghtweight HAR via Temporal Efficient highWAY">LITEWAY: LIghtweight HAR via Temporal Efficient highWAY</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="SurgLAT: Surgical Latent Attention Tracking for Depth-Aware Robotic Laparoscope Control">SurgLAT: Surgical Latent Attention Tracking for Depth-Aware Robotic Laparoscope Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="Gaze Target Estimation Anywhere with Concepts">Gaze Target Estimation Anywhere with Concepts</span></li><li><span class="dpr-home-dashboard-paper-title" title="Measuring Browser Webcam Gaze Honestly: A Capture-Clock Methodology and Open Reference Implementation">Measuring Browser Webcam Gaze Honestly: A Capture-Clock Methodology and Open Reference Implementation</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>5</strong></span></div>
 </section>
 </div>
 
