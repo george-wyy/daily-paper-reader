@@ -1,6 +1,11 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-08-16 <!--dpr-date:20260816-->
+    * 精读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/16/2608.12649v1-proactive-computing" data-sidebar-item="{&quot;title&quot;: &quot;Proactive Computing&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.12649v1-proactive-computing&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;定义前瞻性计算为在用户明确请求前进行感知、解释、预测和行动的系统范式；与主动响应和意图推断紧密相关&quot;}">Proactive Computing</a>
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/16/2608.10915v1-combodied-agents-a-new-paradigm-of-human-centric-agentic-ai" data-sidebar-item="{&quot;title&quot;: &quot;ComBodied Agents: a New Paradigm of Human-Centric Agentic AI&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.10915v1-combodied-agents-a-new-paradigm-of-human-centric-agentic-ai&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;以人为中心的智能体范式，建模并预测人类状态轨迹以提供主动支持；贴合前瞻性交互和多模态意图，但未明确涉及眼动&quot;}">ComBodied Agents: a New Paradigm of Human-Centric Agentic AI</a>
   * 2026-08-15 <!--dpr-date:20260815-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/15/2608.10181v1-human-versus-computer-vision" data-sidebar-item="{&quot;title&quot;: &quot;Human versus Computer Vision&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.10181v1-human-versus-computer-vision&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;大规模网络摄像头注视数据集揭示显著性模型预测人类注意力时的偏差&quot;}">Human versus Computer Vision</a>
