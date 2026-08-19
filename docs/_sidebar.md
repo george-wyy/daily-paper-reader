@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-08-19 <!--dpr-date:20260819-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/19/2608.12649v1-proactive-computing" data-sidebar-item="{&quot;title&quot;: &quot;Proactive Computing&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.12649v1-proactive-computing&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;前瞻性计算范式综述，系统在明确请求前感知、理解、预测并行动&quot;}">Proactive Computing</a>
   * 2026-08-18 <!--dpr-date:20260818-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/18/2608.15446v1-guider-evaluating-goal-free-human-intent-inference-for-teleoperated-manipulation-on-real-robot-data" data-sidebar-item="{&quot;title&quot;: &quot;GUIDER: Evaluating Goal-Free Human Intent Inference for Teleoperated Manipulation on Real-Robot Data&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.15446v1-guider-evaluating-goal-free-human-intent-inference-for-teleoperated-manipulation-on-real-robot-data&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;无目标先验的概率化人类意图推断，在线更新并支持主动辅助；与实时意图识别算法直接匹配&quot;}">GUIDER: Evaluating Goal-Free Human Intent Inference for Teleoperated Manipulation on Real-Robot Data</a>
