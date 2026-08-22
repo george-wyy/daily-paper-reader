@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-08-22 <!--dpr-date:20260822-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/22/biorxiv-10-64898-2026-08-17-745075-v1-explainable-decoding-of-sensorimotor-communication-in-joint-object-manipulation" data-sidebar-item="{&quot;title&quot;: &quot;Explainable Decoding of Sensorimotor Communication in Joint Object Manipulation&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-08-17-745075-v1-explainable-decoding-of-sensorimotor-communication-in-joint-object-manipulation&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;从持续多模态行为信号中可解释地解码人类意图，可迁移到实时意图识别&quot;}">Explainable Decoding of Sensorimotor Communication in Joint Object Manipulation</a>
   * 2026-08-21 <!--dpr-date:20260821-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/21/2608.20157v1-g3ego-gaze-guided-graphs-for-egocentric-action-understanding" data-sidebar-item="{&quot;title&quot;: &quot;G3Ego: Gaze-Guided Graphs for Egocentric Action Understanding&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.20157v1-g3ego-gaze-guided-graphs-for-egocentric-action-understanding&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;以注视引导图剪除无关实体，实现自我中心动作识别与预测&quot;}">G3Ego: Gaze-Guided Graphs for Egocentric Action Understanding</a>
