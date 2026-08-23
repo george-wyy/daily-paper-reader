@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-22</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-23</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-22 19:30:53 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-23 20:01:13 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日仅速读1篇论文，聚焦联合物体操纵中的感觉运动通信解码。</p>
-<p>值得关注的是《Explainable Decoding of Sensorimotor Communication》一文，提出了可解释解码方向，但评分6.0，质量中等。</p>
-<p>建议普通读者优先关注该研究中的交互建模思路，后续可追踪其扩展工作。</p>
+<p>今日速读3篇论文，聚焦具身视频理解、任务建模与脑语言对齐，暂无精读。</p>
+<p>最值得关注7.0分两篇：一为手物交互到具身AI的视觉语言模型，二为从计算机使用痕迹归纳任务模型。</p>
+<p>建议优先精读这两篇高分工作，可结合自身领域从摘要快速切入。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -86,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Explainable Decoding of Sensorimotor Communication in Joint Object Manipulation">Explainable Decoding of Sensorimotor Communication in Joint Object Manipulation</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Vision-Language Models for Egocentric Video: From Hand-Object Interaction to Embodied AI">Vision-Language Models for Egocentric Video: From Hand-Object Interaction to Embodied AI</span></li><li><span class="dpr-home-dashboard-paper-title" title="Inducing Task Models from Computer-Use Traces">Inducing Task Models from Computer-Use Traces</span></li><li><span class="dpr-home-dashboard-paper-title" title="Brain-Language Alignment During Naturalistic Reading and Its Disruption by Mind-Wandering">Brain-Language Alignment During Naturalistic Reading and Its Disruption by Mind-Wandering</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
 </div>
 

@@ -1,0 +1,467 @@
+Title: Inducing Task Models from Computer-Use Traces
+
+URL Source: https://arxiv.org/pdf/2608.20319v1
+
+Published Time: Fri, 21 Aug 2026 01:13:59 GMT
+
+Number of Pages: 23
+
+Markdown Content:
+## Inducing Task Models from Computer-Use Traces 
+
+Yucheng Jiang 1 Zora Zhiruo Wang 2 Ruishi Chen 1 Diyi Yang 11Stanford University 2Carnegie Mellon University 
+
+{yuchengj,diyiy}@cs.stanford.edu 
+
+Abstract 
+
+Naturalistic computer-use traces, passively recorded screenshots and mouse or keyboard actions, are a valuable resource for deriving symbolic, auditable, and reusable models of how everyday work is done. Such models matter as computer-use agents enter real work, where agents need to learn how tasks are actu-ally performed, and organizations need to audit and reuse that knowledge. However, induc-ing such task models is challenging, as activity is observed only as low-level events and real-world work is multi-threaded with interleaved goals. Existing methods assume a given task or a single workflow, and produce step-level sum-maries rather than structured task models. We introduce T ASK MODEL INDUCTION (TMI), which (i) discovers the latent tasks in an uncon-strained trace, disentangling concurrent activ-ity, and (ii) for each latent task, induces a task model pairing a hierarchical objective model of recursive goal decomposition with a proce-dure model of the control flow that organized the execution. Intrinsically, on controlled hu-man and agent trajectories, TMI recovers in-terleaved tasks with 0.974 agreement against ground-truth groupings and reconstructs 74.9% of the observed execution steps, far more than the strongest workflow induction baseline. Ex-trinsically, skills derived from TMI’s task mod-els improve held-out task accuracy by 30.0% over the strongest baseline. 1
+
+1 Introduction 
+
+Naturalistic computer-use activity traces, passively recorded sequences of screenshots and mouse or keyboard events, are a valuable resource for deriv-ing symbolic, auditable, and reusable models of how everyday work is done (Shaikh et al., 2025; Wang et al., 2025). Most of this work is never documented, and the expertise it encodes remains 
+
+> 1
+
+Our codebase is available at https://github.com/ Yucheng-Jiang/task-model-induction .Input Induce latent tasks Task A. Build a user study website Task B. Visit world monitor site Task C. … Keystroke Mouse click Mouse scroll …Bring the Codex app to the foreground …Type “output_dir” into workspace json config Activate the discussion control            
+
+> Click the share overlay on the webcam tile …………Task Model Construction  Build a user study website Set up workspace Iterate on the design Provision accounts Deploy and share Set up account Verify sign-in SEQ SEQ WHILE SEQ Inspect behavior Implement changes Rebuild website Validate the fix SEQ WHILE FOR {user 1, user 2} FOR
+> SEQ SEQ SEQ SEQ SEQ
+
+Figure 1: Task model induction from computer-use traces. Screenshots and input events are grounded into semantic actions, whose interleaved spans are assigned to latent tasks. Each task is represented as a hierarchy pairing objectives with control-flow operators. 
+
+tacit. Recovering the objectives a user pursued and the procedures they followed turns a recording into an explicit account of what was accomplished and how, which people can audit for systematic patterns in human and AI work (Wang et al., 2025), reuse as documentation, and transfer to new practition-ers. Beyond human use, such traces support agent learning from human activity without costly anno-tation (Lu et al., 2025; Song et al., 2026), and per-sonalization, where activity-based user models let systems anticipate user goals (Shaikh et al., 2026). Modeling these traces, however, poses three chal-lenges. At the signal level, raw events such as cursor movements, key presses, and screen pixels carry little semantic meaning, and bridging per-ceptual observations to semantic intent requires substantial interpretation (Yang et al., 2023; You et al., 2024; Zheng et al., 2024; Shaw et al., 2023). At the structural level, naturalistic work is multi-threaded, with users switching among unrelated arXiv:2608.20319v1 [cs.CL] 20 Aug 2026 goals within a single session and pursuing inter-leaved sub-objectives within a single task (Czerwin-ski et al., 2004; González and Mark, 2004; Mark et al., 2008; Adamczyk and Bailey, 2004; Iqbal and Horvitz, 2007; Salvucci et al., 2009). At the rep-resentational level, a trace captures the executed path but does not directly reveal either the goal hi-erarchy that motivated each step or the control flow that organized the execution (Stanton, 2006; Card, 2018; Diaper and Stanton, 2003). Prior approaches address these challenges only partially. LLM summarization condenses the ses-sion into free-form prose, blending concurrent tasks and discarding goal hierarchy and control flow. Prompting an LLM directly for a task model recovers the schema but not the execution struc-ture, as our direct generation baseline shows (§4.3). Workflow induction recovers a stepwise decom-position of the activity (Chen et al., 2024; Wang et al., 2025) but treats the recording as one continu-ous workflow, leaving interleaved tasks entangled, sub-objectives flattened, and iteration and branch-ing unexpressed (Wang et al., 2025; Zang et al., 2025). Trace-analysis methods assume the root task is given in advance (Wang et al., 2024; Grohs et al., 2024) and do not extend to sessions with latent and diverse tasks. We address these gaps by defining a task model ,an explicit representation of a single task that pairs its goal hierarchy with the control flow of its ex-ecution. The objective model represents the goal hierarchy as a recursive decomposition of the task into the (sub-)objectives the user pursued (Wing, 2006; Stanton, 2006). The procedure model rep-resents the control flow as a composition of se-quencing and iteration operators, the structured programming constructs that remain observable in a trace (Böhm and Jacopini, 1966). Recovering task models from naturalistic computer-use traces (§2) requires a system to jointly discover the la-tent tasks of an unconstrained session and induce a task model for each, with no tasks, boundaries, or descriptions given in advance (Figure 1). We introduce T ASK MODEL INDUCTION (TMI) (§3), a method that addresses the three challenges in turn. Event grounding and activity segmentation 
+
+recovers what each raw event did from its visual context and groups the results into semantic actions and activities, bridging low-level signal and local intent (§3.1). Latent task induction untangles the multi-threaded activity stream, discovering tasks and assigning possibly non-contiguous activities to each without a pre-specified task set (§3.2). Task model construction builds each task’s objective and procedure models under formal validity constraints and reconciles them into a unified model in which objective scope and control flow are mutually con-sistent (§3.3). We evaluate TMI both intrinsically via con-trolled reconstructions of human computer-use ses-sions (§4), and extrinsically via downstream agent learning (§5). On trajectories built from a dataset of recorded real human work sessions (Wang et al., 2025), our method recovers interleaved tasks with 0.974 agreement against ground-truth task group-ings and matches 74.9% of observed execution steps against 30.3% for the strongest workflow in-duction baseline. Using the induced task model to generate reusable agent skills, evaluated on held-out SkillLearnBench (Zhong et al., 2026) tasks, improves task accuracy by 30.0% over baseline. Our contributions are as follows. • We formalize the task model for induction from unconstrained traces, a representation that pairs hierarchical objective decomposi-tion with structured control flow, grounded in computational thinking and the structured programming theorem. • We propose Task Model Induction (TMI) , a method that grounds raw events into semantic activities, untangles interleaved sessions into latent tasks, and induces each task’s objective and procedure models independently before reconciling them into a unified model under formal validity constraints. • Intrinsic and extrinsic evaluation show that our method recovers interleaved tasks and their execution structure more faithfully than workflow induction baselines, and that the in-duced task models yield more effective skills for downstream agents. 
+
+2 Problem Formulation 
+
+Describing the activity conducted in a computer-use session is necessary for analyzing, learning, and auditing it. We formalize this process as the recovery, from a naturalistic computer-use trace, of the latent tasks and their task models specifying the objectives and procedures. Let X = ⟨x1, x 2, . . . , x N ⟩ be a user’s computer-use trace in an interactive computer environment, where each event xi = ( si, a i, τ i) contains the state represented as a screenshot si, a low-level opera-tion (e.g., click ), and a timestamp τi.The trajectory reflects the user pursuing a set of latent tasks T = {t1, t 2, . . . }, where a possibly non-contiguous subsequence of events collectively realizes a task tj . However, inducing these latent tasks remains an open challenge, as none of the tasks, their boundaries, or the event-to-task assign-ments are predefined in realistic human traces. We define the induction problem as jointly dis-covering the set of latent tasks T and, for each task 
+
+t ∈ T , inducing a task model Mt that unifies two complementary axes. • The objective model Ot is a hierarchical de-composition of the objective of t into the sub-objectives the user pursues. • The procedure model Pt is a trace-grounded composition of control-flow operators spec-ifying how the execution of t is organized through sequencing and iteration. The task model Mt is structured as a tree, whose every node pairs an objective with a control-flow operator over its children. 
+
+3 Method 
+
+TMI recovers task models from raw computer-use traces in three stages (Figure 2). Event grounding and activity segmentation recovers what each event did from its visual context and groups the grounded events into semantic actions and activities (§3.1). 
+
+Latent task induction discovers the tasks pursued in the session and assigns each activity to the task it realizes (§3.2). Task model construction builds complementary objective and procedure models for each task and reconciles them into a single task model, in which every node pairs an objective with the control-flow operator over its children (§3.3). 
+
+3.1 Event Grounding and Activity Segmentation 
+
+While a raw event (e.g., click(1900.8, 29.5) )carries no intent on its own, the trace can be ab-stracted into semantic units that support meaningful inference of user intent. Each event is grounded in the screenshots that bracket it, which supply the visual context the event alone lacks, and the grounded trace is segmented into semantic actions and then activities (Figure 2(a)), the atomic unit at which user intent can be inferred (Leont’ev, 2024). Grounding infers the meaning of an event from the visual change it produced. A vision-language model receives the screenshot pair (si, s i+1 ) brack-eting each event xi together with the recorded op-eration ai, and reports what was done, to which artifact, in which application, along with an OCR transcript of the visible screen. The difference be-tween the two screenshots indicates what the event altered (e.g., click(1900.8, 29.5) to bring the Codex app to the foreground ). Grounding stays constrained to evidence visible in the screenshots, consulting si+1 only to clarify what changed, not to impute retroactive intent. Segmentation groups grounded events into units of work at two layers of abstractions. First, a se-mantic action collects the consecutive events that together produce one meaningful state change in an artifact (e.g., edit app/page.tsx to revise the consent form copy ). Next, an activity collects the semantic actions that one local objective explains (e.g., submit a UI change request ), beginning when that objective is adopted and ending when it is achieved, abandoned, or superseded. The result is an activity sequence E = ⟨e1, e 2, . . . , e K ⟩.A language model (§3.4) segments each of the two levels once, in the direction where the evidence for that level’s boundaries lies (Zacks and Tversky, 2001). Semantic actions are segmented backward over the grounded events, since a semantic action ends where an artifact reaches its new state and only the events that follow confirm that the state was reached. Activities are segmented forward along the resulting semantic actions, since an activity begins when its objective is adopted, and only the preceding context signals that adoption. 
+
+3.2 Latent Task Induction 
+
+Naturalistic activity is multi-threaded (Figure 2(b)), so the activities of one task are interleaved with those of others and spread across applications and artifacts (Czerwinski et al., 2004; González and Mark, 2004). Latent task induction recovers the task set T , in which every activity belongs to ex-actly one task and each task states the objective its activities jointly support. Activities are processed in the order they appear in the trace, and each is assigned to a task. The tasks discovered this way are consolidated once the trace ends. Assigning an activity requires a compact repre-sentation of each task that the activity can be com-pared against. Each task maintains a profile with a summary of what the task achieves and a small Task C. Task B. Visit world monitor Event Grounding & Activity Segmentation §3.1    
+
+> Click(1900.8, 829.5)
+> ……
+> (a) raw input events
+> ……
+> (b) semantic actions
+> ……
+> (c) activities Bring Codex to the foreground Submit UI change request
+
+Latent Task Induction § 3.2 
+
+xieiXE
+
+> Task A. Build a user study website
+> Anchors
+
+study-frontend review-trial.web.app 
+
+> Classify each activity
+> Does it match any existing tasks?
+> Yes No Create a new task
+> Assign + update anchors
+
+Task Model Construction §3.3 Objective Model Procedure Model       
+
+> do x do y do z setup for user isetup for user j
+> do z setup users
+> Reconcile
+> Root SEQ FOR
+> SEQ
+> do x do y WHILE
+> …. user
+
+∈ { i, j}{cond }  
+
+> Root do x
+> SEQ
+> FOR user
+
+∈ { i, j} 
+
+> setup users
+> SEQ
+> WHILE
+
+{cond }     
+
+> …do y
+> SEQ
+> do z
+> SEQ
+> For each task ∈ { A,B,C, . . . }
+> do x, y
+
+ABCFigure 2: Overview of T ASK MODEL INDUCTION (TMI). (1) Event grounding and activity segmentation reads each mouse and keyboard event in X against its visual context and groups the results into semantic actions and then activities E (§3.1). (2) Latent task induction assigns each activity to the closest existing task or opens a new one, with identifiers keeping a task intact across application and naming shifts (§3.2). (3) Task model construction 
+
+induces an objective model and a procedure model for each discovered task and reconciles them into one task model whose nodes carry both an objective and a control-flow operator (§3.3). Red marks in stage 3 show what each model misses on its own, do x and do y collapsed into one leaf by the objective model and do z dropped from the loop body by the procedure model, both recovered in the reconciled for-each . Figure 3 shows the tasks and the task model induced from one recorded session. 
+
+set of referential identifiers, such as artifacts and named entities that recur across its activities (Fig-ure 2(b)). T starts empty and grows as each activity 
+
+ek is compared against these profiles, joining the semantically closest task t ∈ T or opening a new task when none subsumes it. The profile is updated as activities are assigned, so its summary tracks the task’s evolving scope and its identifiers accumulate the aliases under which the task appears. Identifiers hold a task together under surface variation. A single task commonly spans multi-ple applications, artifacts, and referential aliases (e.g., a user-study website appears as the repos-itory study-frontend and the deployment URL 
+
+review-trial.web.app ). The summary drifts un-der this variation, whereas the identifiers cross-reference a task across changes in application, ar-tifact, and naming, so a coherent task is not frag-mented into spurious subtasks. Incremental assignment alone splits a task when its objective drifts or when related activities are separated by long interruptions. A global consoli-dation pass therefore examines all discovered tasks and merges those that pursue the same objective. 
+
+3.3 Task Model Construction 
+
+Modeling a task t requires understanding the two types of evidence it carries, procedure and objec-tive. Constructing a task model thus means induc-ing an objective model Ot and a procedure model 
+
+Pt from the activities Et of each discovered task 
+
+t, then reconciling them into the task model Mt
+
+(Figure 2(c)). Each is induced independently, so that its structure is resolved under its own evidence before being constrained by the other. 
+
+Objective model. The objective model is the hi-erarchy that explains why the observed activities were performed. Its root is the task objective, its leaves are the activities Et, and its internal nodes are latent sub-objectives that jointly explain their descendants. A language model induces Ot from the task objective and Et by recursive decomposi-tion (Wing, 2006), breaking a goal that cannot be pursued directly into sub-goals whose union covers the relevant evidence. Each node denotes the outcome to be achieved, abstracting over the particular strategy used to reach it (e.g., provision reviewer accounts instead of set up each account and verify its sign-in ). The children of a node are necessary components or pre-conditions of their parent and jointly account for its observed activities. A node spanning many ac-tivities is refined further (e.g., iterate on the design 
+
+decomposes into implement changes and validate the fix ), whereas a node grounded in a single activ-ity has reached the level of a local objective and remains a leaf. The resulting hierarchy is abstract enough to transfer across executions yet grounded enough that every leaf stays tied to an observed activity. Objective-side validity constraints are de-tailed in Appendix A. 
+
+Procedure model. The procedure model cap-tures how the execution of the task was organized in time. Following the structured programming theorem (Böhm and Jacopini, 1966), any proce-dure can be expressed with sequencing, selection, and iteration. In our setting, however, selection is usually latent, since the trace shows the strategy the user enacted rather than the unchosen alterna-tives or an explicit decision event. Pt is therefore a tree over the constructs that remain observable, 
+
+sequence , for-each , and while , induced from the temporal order and the recurring patterns of Et.The three operators differ in the evidence that admits them. A sequence node enumerates its child steps in temporal order. A for-each node is admit-ted when the trace contains at least two aligned occurrences of the same activity pattern, differing mainly in the named artifact or entity being acted on (e.g., setting up and verifying sign-in for each account in {user_1, user_2} ). A while node is admitted when the repeated occurrences continue until a condition on the objective state is satisfied (e.g., implementing a change, rebuilding the web-site, and validating the fix until validation passes). Each repeated step must be grounded in the activ-ities that realize it across the aligned occurrences, and a pattern that fails this test remains a sequence. Procedure-side validity constraints and repair steps are detailed in Appendix A. 
+
+Model reconciliation. The two models are inter-nally consistent, yet they split the same activities differently. An objective decomposition can split one iterative unit across separate phases, and a pro-cedure model can place a goal transition inside a flat sequence . Reconciliation fuses Ot and Pt into one task model Mt by fixing how each node’s ac-tivities are divided among its children at each layer. 
+
+Mt is expanded from the task objective down-ward. At each node, the control-flow operator comes from Pt and the child objectives come from Ot. Where the two disagree, nodes are split, merged, or re-parented until objective scope and control flow agree, and Appendix A states the rule for each case. In Figure 2(c), Pt reads the re-peated setup as one for-each while Ot splits it into a sub-objective per user. Mt keeps the single loop and recovers the steps each model had lost on its own. Every node of Mt then carries an objective and a control-flow operator, and every leaf stays grounded in Et.
+
+3.4 Implementation 
+
+All pipeline stages use gpt-5.4 at temperature 1.0. Direct generation also uses gpt-5.4; gpt-5.5 and claude-sonnet-5 serve as independent judges for intrinsic evaluation; and gpt-5-mini generates skills and executes held-out tasks in the extrinsic evalua-tion. Appendix F lists the prompt template details. Figure 3 shows the tasks and the task model in-duced from one recorded session. 
+
+4 Intrinsic Evaluation 
+
+Datasets. We use two base datasets across the three intrinsic evaluations. The first, which we de-note as HumanWork, is the human computer-use dataset from Wang et al. (2025). It comprises 38 recorded sessions spanning 15 tasks across five professional domains (data analysis, engineering, computation, writing, and design), with multiple human users per task and each session labeled with its ground-truth task identity. The sessions total 42.8 hours of recording and 48.7K raw events, av-eraging 68 minutes of recording and 1.3K events per session. The second is SkillsBench (Li et al., 2026), comprising 86 software engineering tasks executed by coding agents across three harnesses (Claude Code, Codex, and Gemini CLI) and three skill conditions (Appendix C). We select the 15 tasks with the highest average action count, yield-ing 195 runs with 24.1K agent steps over 49.7 hours of execution. Each evaluation adapts these sources as described below. 
+
+4.1 Latent Task Induction Robustness 
+
+Real sessions interleave actions from many concur-rent tasks, and a usable task model must recover C Example of constructed task model 
+
+A Example of activities 
+
+Edit the  entry in  , changing the username to xxx Generate and review access-code updates in the editor's  workflow Navigate through GitHub and Codex to create and advance the pull request Prepare the remote  workspace and start the server in the SSH terminal Use the sign-in and onboarding flow for the  account <redacted  user  1> users.json users.json <redacted  repo> <redacted  user  1> [SEQ] t1 Build, validate, deploy, and finalize a working  human-evaluation frontend [SEQ] t1.1 Prepare the repository, workspace context, and prompt materials … 3 sub-objectives [WHILE] t1.2 Define the initial frontend and bring up a first runnable local prototype until the local frontend can be launched and exercised on the <redacted topic> … 3 repeated steps, 3 sub-objectives [SEQ] t1.3 Configure reviewer access, login behavior, and tutorial flow [SEQ] t1.4 Package the changes, deploy a hosted review environment, and distribute access [SEQ] t1.4.1 Provision the server, networking, and routing … [FOR] t1.4.2 Configure hosted reviewer accounts For account in      
+
+> 1. Prepare and update the hosted user configuration for the account 2. Launch the hosted frontend context for the account 3. Sign in and verify onboarding or topic access for the account … 5 sub-objectives <project 1> {<redacted user 1>,<redacted user 2>}
+
+B Example of induced latent tasks t1 t2 t3 
+
+455 # activities 32 11 timeline 
+
+t1: Build, validate, deploy, and finalize a working  human-evaluation frontend 
+
+t2 : Research the  through its repository materials and live application behavior 
+
+t3 : Handle  discussion, submission review, and project-detail logistics <project  1> <project  2> <course  xxx> Figure 3: Worked example of TMI applied to one recorded session , which captures the construction of a web frontend for a human-evaluation study. (A) Activities recovered by event grounding and segmentation (§3.1). (B) 
+
+Latent tasks induced over the session (§3.2). Three tasks are recovered with no task set given in advance, and none occupies a contiguous span. (C) The task model constructed for t1 (§3.3), with partial task model elided at · · · .Every task model node carries an objective and a control-flow operator. 
+
+each one without conflation. We measure how re-liably the induction process separates interleaved actions into the correct latent tasks as task multi-plicity and interleaving density grow. 
+
+Setup. To test robustness under varying degrees of task multiplicity and interleaving density, we construct synthetic multi-task trajectories from the HumanWork (Wang et al., 2025) sessions, each of which records one task carried out end to end. We sample K sessions, cut each into d contigu-ous segments, and shuffle the segments into one composite trajectory, so every task reappears at 
+
+d non-contiguous points. Larger K means more concurrent tasks and larger d means more frequent switching between them. We sweep K from 2 to 15 and d from 2 to 4, generating three independent tra-jectories per condition, and full construction details are in Appendix B. Each trajectory is processed through the full grounding and segmentation stage (§3.1) followed by latent task induction (§3.2). The system pro-duces a predicted task count ˆK and an assignment of activities to predicted tasks. We assess task as-signment with the Adjusted Rand Index (Hubert and Arabie, 1985) (ARI), which measures pair-wise agreement between predicted and ground-truth partitions of activities after correcting for chance (range [−1, 1] , higher is better) and task count with mean absolute error MAE = | ˆK − K|,where lower values indicate more precise task enu-Table 1: Latent task induction performance by inter-leaving difficulty d (number of segments per session), averaged over K ∈ { 2, . . . , 15 } and three trajectories per condition. The bottom row reports the overall mean.                             
+
+> dARI ↑MAE ↓
+> 20.980 ±0.024 0.29 ±0.34 30.975 ±0.032 0.50 ±0.60 40.968 ±0.029 0.64 ±0.61 Overall 0.974 ±0.028 0.48 ±0.54
+
+meration. Both metrics are averaged across all trajectories per condition. 
+
+Induction stays robust under heavy interleaving. 
+
+Table 1 reports ARI and MAE aggregated over all task counts K ∈ { 2, . . . , 15 } for each interleaving difficulty level. The system reaches 0.974 over-all ARI, recovering non-contiguous task partitions even when activities are densely interwoven. MAE stays below 1 across all conditions, so the predicted task count tracks the true count as the number of concurrent tasks grows from 2 to 15. Appendix B.1 presents the error analysis. 
+
+4.2 Latent Task Induction Stability 
+
+The induced latent task set should reflect the actual task being performed and remain stable across dif-ferent execution strategies. Since induction never observes the task label, agreement with the as-signed task indicates that induced tasks capture task identity rather than execution idiosyncrasies. 
+
+Metric. We evaluate on all 38 Human-Work (Wang et al., 2025) sessions and on the SkillsBench runs whose task outcome is marked successful. For each run i, TMI observes only the trajectory and produces an induced latent task set Ti. The dataset’s ground-truth assigned task 
+
+yi is withheld from induction and used only for evaluation. We give Ti and yi to the LLM judge, which returns a binary label indicating whether the induced task set correctly captures the assigned task. We report the average match rate across runs. To control for judge-family bias, we repeat the evaluation with judges from two model families, gpt-5.5 and claude-sonnet-5. 
+
+Induced tasks track task identity, not execution idiosyncrasies. Table 2 reports match rates for both datasets. On human sessions, the induced task set matches the assigned task in 94.74% of runs, indicating that induction recovers the task                               
+
+> Table 2: Latent task identity match rate (%). Each judge compares the induced task set with the held-out assigned task. We report results from gpt-5.5 and claude-sonnet-5. SkillsBench includes only successful runs.
+> Dataset Subset NJudge gpt-5.5 claude-sonnet-5 HumanWork All 38 94.74 89.47 SkillsBench All 74 93.24 98.65
+> By agent
+> Claude Code 23 95.65 100.00 Codex 19 84.21 94.74 Gemini CLI 32 96.88 100.00
+> By skill
+> None 21 95.24 95.24 Self-generated 13 84.62 100.00 Curated 40 95.00 100.00
+
+identity without observing the dataset label. On successful SkillsBench runs, the overall match rate is 93.24%, with similar rates across most agent harnesses and skill conditions. The induced la-tent task set changes with the underlying assigned task rather than merely reflecting idiosyncratic ex-ecution traces. The claude-sonnet-5 judge yields consistently high match rates, 89.47% on human sessions and 98.65% on SkillsBench, and does not favor task models induced from Claude Code tra-jectories, indicating that the result is not an artifact of a single judge family. 
+
+4.3 Task Model Fidelity 
+
+Downstream use relies on sub-goal decompositions that accurately capture task phases and procedure steps that faithfully describe the agent’s execution. We assess the structural quality of the induced task model against human judgment and two baselines. 
+
+Baselines. We compare against two baselines. Workflow summary uses the workflow summariza-tion toolkit from Wang et al. (2025), which pro-duces a phase-based narrative of each observed session without a formal task model schema or control-flow operators. Direct generation prompts gpt-5.4 with the complete task model schema along-side the observed activity trace and asks the model to produce a task model in one pass. Both baselines use gpt-5.4 for generation. We further conduct ab-lation studies on the three components our method combines. w/o objective model and w/o procedure model score each model as it stands before rec-onciliation, on the dimensions that model defines. 
+
+w/o reconciliation keeps both models but induces them in a single joint pass and merges them, rather than resolving each under its own evidence and reconciling them afterwards. 
+
+Metrics. We evaluate on all 38 Human-Work (Wang et al., 2025) sessions. For human validation, we randomly sample 20 sessions and as-sign each to two independent annotators who score the same rubric dimensions (Appendix D.1). We assess six rubric dimensions. Latent task recovery and objective coverage are rated on a 5-point Likert scale, and four per-node binary checks cover objec-tive coherence, parent-child consistency, step de-scription accuracy, and operator correctness. Full rubric definitions are in Appendix D. The LLM judge receives the task instruction, activity trace, and induced task model. As in §4.2, we report scores produced by gpt-5.5 and claude-sonnet-5. 
+
+Task models stay faithful to procedures and ob-served objective decomposition. Table 4 reports results. Our method substantially outperforms both baselines on procedural fidelity, achieving 74.9% step description accuracy versus 30.3% baseline and 88.5% operator correctness versus 52.7% un-der the gpt-5.5 judge; the same ordering holds un-der claude-sonnet-5. On objective decomposition, our method performs comparably to direct gener-ation, while yielding higher coverage under both judges and higher task recovery under gpt-5.5. 
+
+Neither model alone is sufficient, and recon-ciliation recovers what each one misses. The objective-only model achieves lower coherence and boundary-grounding scores because it overlooks procedural structure. When an action subsequence is repeated multiple times or until a condition is satisfied, the model often splits actions serving the same objective across multiple nodes. Conversely, the procedure-only model faithfully represents the observed actions but frequently misses their un-derlying purpose, causing transitions between ob-jectives to be absorbed into a single flat sequence. Consequently, it achieves only 63.2% description accuracy, compared with 74.9% for the reconciled model. Although joint induction combines the two views in a single pass, it does so at the cost of granularity, producing only half as many nodes as our model. Its higher per-node scores reflect its coarser representation rather than more accurate structure, and its procedure steps are the least ac-curate among the three variants (Appendix E). By contrast, reconciliation directly addresses the com-plementary failure modes of the two independently                                         
+
+> Table 3: Non-linear execution in the human sessions and its effect on task-model fidelity. Sess. is the share of sessions in which the behavior appears and Ep. the num-ber of episodes. P-Ch., Desc. and Bnd. are parent-child consistency, step description accuracy, and boundary grounding over the nodes each behavior dominates (%,
+> ↑) under the gpt-5.5 judge, against the clean-span rates in the first row. The labeling protocol and full results are in Appendix D.2.
+> Behavior Sess. Ep. P-Ch. Desc. Bnd. Clean spans N/A N/A 92.2 79.9 79.0 Error correction 89 143 94.5 66.7 59.6 Exploratory search 87 87 92.9 66.7 60.2 Redundant repetition 84 132 85.0 78.5 55.0 Trial and error 66 52 95.7 77.6 65.7 Task switching 61 61 93.0 71.1 67.4 Backtracking or revision 53 34 97.0 84.8 60.6
+
+induced models. The procedure model corrects the boundaries of 64.5% of objective nodes; con-versely, evidence from the objective model corrects the boundaries of 21.9% of procedure nodes and changes the control-flow operators of 0.6%. These results support our hypothesis that the objective and procedure models capture distinct yet com-plementary evidence about the same execution. The hierarchy holds over pervasive non-linear execution. Repair, exploration, and detours fill real sessions, with error correction present in 89% of them and exploratory search in 87% (Table 3). A flat step list cannot express these spans, and they are what the while and for-each operators exist to represent. The hierarchy induced over them stays intact, with no systematic drop in parent-child con-sistency. Step description accuracy on the hard-est of them, 66.7%, still exceeds the 30.3% the strongest baseline reaches over all nodes. Bound-ary placement falls furthest, since repair and explo-ration supply no crisp deliverable to anchor it. 
+
+5 Extrinsic Evaluation 
+
+A useful task model should transfer beyond the demonstration it was induced from. We test whether an induced task model is an effective source for generating reusable skills that improve a downstream agent’s accuracy on held-out tasks. 
+
+Experiment Protocol. We test this by using the induced task model as the source of learning for agent skill generation on SkillLearnBench (Zhong et al., 2026), a benchmark for continual learning methods for agent skill generation on real-world Table 4: Task model fidelity. Task is latent task recovery; Cov. is objective coverage; Coh. is objective coherence; P-Ch. is parent-child consistency; Desc. is step descrip-tion accuracy; Op. is operator correctness. Task and Cov. are 5-point Likert scores ( ↑); remaining columns are binary pass rates (%, ↑). Each ablation removes one component of our method, the objective model, the pro-cedure model, or the reconciliation step where the two models are induced jointly in a single pass. Best per judge in bold.                                                                     
+
+> Objective Procedure Model Task Cov. Coh. P-Ch. Desc. Op.
+> gpt-5.5 judge
+> Workflow summary 2.87 3.24 65.7 62.2 30.3 N/A Direct gen. 3.63 4.00 87.0 97.3 23.4 52.7 Ours 3.71 4.34 85.7 92.6 74.9 88.5
+> w/o objective model 3.37 3.76 77.9 85.1 63.2 84.1 w/o procedure model 3.74 4.34 78.9 96.7 N/A N/A w/o reconciliation 3.66 4.40 99.1 99.1 56.0 70.3
+> claude-sonnet-5 judge
+> Workflow summary 2.46 2.71 93.2 92.8 68.6 N/A Direct gen. 3.53 3.18 85.6 75.3 47.8 78.3 Ours 3.45 3.68 97.2 97.2 87.8 91.8
+> w/o objective model 3.21 3.55 81.1 89.7 76.6 80.5 w/o procedure model 3.76 3.74 90.4 95.4 N/A N/A w/o reconciliation 3.53 3.97 100.0 96.9 87.3 87.0
+
+tasks. SkillLearnBench contains 20 task families, each grouping multiple tasks of a similar nature that can be addressed with similar strategies. For each task family we induce a task model from a single successful demonstration of one instance and pass it to the skill creator of Codex, 2 which synthesizes a reusable skill. The skill is scored against the SkillLearnBench rubric and then deployed on held-out instances of the same family. We compare three sources of learning, each fed into the same skill creator. Raw demonstration passes the grounded trace directly, the workflow summary baseline (Wang et al., 2025) passes a phase-based summary of the demonstration, and 
+
+Ours passes the task model. A No skill condi-tion bounds performance without any generated skill, and a Human curated condition substitutes the expert-written skills released with the bench-mark for a generated one. All skills are generated and all held-out instances executed with gpt-5-mini, so performance differences isolate the source of learning. We report the five SkillLearnBench met-rics of skill coverage, executability, safety, agent trajectory alignment, and held-out task accuracy. 
+
+> 2The skill creation component of the Codex CLI agent,
+> https://github.com/openai/codex .
+
+Table 5: Extrinsic evaluation on SkillLearnBench. Each row is a source of learning fed into the same skill creator. Cov. is skill coverage; Exec. is executability; Safe. is safety; Align. is agent trajectory alignment; Acc. is held-out task accuracy. All values are percentages ( ↑). No skill produces no generated artifact, so the skill-quality columns are not applicable. Human curated baseline judges the expert-written skills released with the original benchmark.                                
+
+> Skill quality Execution Source of learning Cov. Exec. Safe. Align. Acc. No skill N/A N/A N/A 59.20 8.57 Human curated 93.59 63.80 90.50 56.59 10.00 Raw demonstration 52.46 53.49 92.52 63.15 11.43 Workflow summary 54.07 59.35 91.74 66.18 14.29 Ours 54.95 67.65 90.57 67.99 18.57
+
+The task model is an effective representation for skill transfer. Skills generated from our task models are more executable and transfer better to held-out tasks than skills generated from raw demonstrations or workflow summaries. As shown in Table 5, our model improves executability from 59.35 to 67.65 and held-out accuracy from 14.29 to 18.57 over the strongest baseline, a 30% rela-tive accuracy gain. The expert-written skills score highest on skill coverage at 93.59 but reach 10.00 held-out accuracy, below every induced source, so skill coverage and held-out accuracy do not move together in this setting. We report the curated con-dition as a reference point for skill quality rather than as an upper bound on accuracy. 
+
+6 Related Work 
+
+Inducing representation from behavior Plan recognition infers goals from observed actions but presupposes a plan library or domain theory (Kautz et al., 1986), while process mining discovers proce-dural models from event logs that already contain typed activities and case identifiers (Van Der Aalst et al., 2011). Recent computer-use trace work grounds pixels into semantic operations (Shaw et al., 2023; Yang et al., 2023; You et al., 2024; Zheng et al., 2024), extracts action sequences or instructional steps (Chen et al., 2024; Zang et al., 2025), learns persistent user models (Shaikh et al., 2025, 2026), pretrains agents on demonstra-tions (Lu et al., 2025; Song et al., 2026), or ana-lyzes trajectories under a known root task (Wang et al., 2024, 2025). We drop these assumptions, inducing semantic actions, latent tasks, objective hierarchies, and procedures jointly from raw screen-and-input traces. 
+
+Multitasking and interleaving Field and cogni-tive studies show that knowledge workers continu-ously interleave goals across working spheres and incur measurable costs when switching (Czerwin-ski et al., 2004; González and Mark, 2004; Mark et al., 2008; Iqbal and Horvitz, 2007; Salvucci et al., 2009), and event segmentation theory frames activ-ity as hierarchically organized boundaries inferred from goal and state changes (Zacks and Tversky, 2001). Work on grounding agent memory in in-ferred user intent further argues that latent intent must be modeled to make sense of interleaved activ-ity (Yang et al., 2026). These findings ground our choice to treat task identity as latent and to allow non-contiguous task spans, so that interleaved ac-tivity is resolved during task induction rather than carried into the procedure model. 
+
+7 Conclusion 
+
+We introduced T ASK MODEL INDUCTION , which abstracts raw computer-use events into activities, discovers the latent tasks they realize, and recon-ciles separately induced objective and procedure models into one task model per task. It turns ev-eryday computer-use activity traces into durable, auditable records of how work are carried out. Ex-periments show that this representation recovers interleaved execution faithfully and yields better downstream agent skills than raw traces or work-flow summaries. TMI has the potential to facilitate the study of how work is carried out across domains and to make these records reusable as knowledge for both people and agents. 
+
+Limitations 
+
+TMI operates on naturalistic computer-use traces that may contain personally identifiable informa-tion. Future deployments that apply this method to raw computer-use traces should consider privacy redaction of screenshots and keyboard events be-fore induction, so that private and sensitive content does not propagate into induced artifacts distributed for downstream uses such as skill learning. Study-ing the effect of such redaction on the induction quality is left to future work. 
+
+Ethics Statement 
+
+This work uses three publicly available datasets, which are all released for research use. We use them as released and do not attempt to identify any individual user. The synthetic multi-task trajecto-ries constructed for the robustness evaluation are assembled by merging segments of these existing public sessions; no new data collection involving human subjects was conducted. Skill generation and agent evaluation are performed on benchmark tasks with no access to private user data. We do not foresee direct harms from this work. 
+
+Acknowledgments 
+
+We thank Harshit Joshi, Vishakh Padmakumar, Michael Ryan, Jiacheng Sang, Yijia Shao, Yilin Xu, John Yang, Ruozhen Yang, Dora Zhao, Cyrus Zhou, and Ziran Zhou for their thoughtful feedback, discussions, and support throughout the project. This work is supported in part by grant from Laude Moonshot Seed Grant, a Stanford HAI-Banco Itau collaboration, and ONR N000142412532. 
+
+References         
+
+> Piotr D Adamczyk and Brian P Bailey. 2004. If not now, when? the effects of interruption at different mo-ments within task execution. In Proceedings of the SIGCHI conference on Human factors in computing systems , pages 271–278. Corrado Böhm and Giuseppe Jacopini. 1966. Flow diagrams, turing machines and languages with only two formation rules. Commun. ACM , 9(5):366–371. Stuart K Card. 2018. The psychology of human-computer interaction . Crc Press. Yanting Chen, Yi Ren, Xiaoting Qin, Jue Zhang, Ke-hong Yuan, Lu Han, Qingwei Lin, Dongmei Zhang, Saravan Rajmohan, and Qi Zhang. 2024. Sharingan: Extract user action sequence from desktop recordings.
+> Preprint , arXiv:2411.08768. Mary Czerwinski, Eric Horvitz, and Susan Wilhite. 2004. A diary study of task switching and interrup-tions. In Proceedings of the SIGCHI conference on Human factors in computing systems , pages 175–182. Dan Diaper and Neville Stanton. 2003. The handbook of task analysis for human-computer interaction. Victor M González and Gloria Mark. 2004. " constant, constant, multi-tasking craziness" managing multi-ple working spheres. In Proceedings of the SIGCHI conference on Human factors in computing systems ,pages 113–120. Michael Grohs, Han van der Aa, and Jana-Rebecca Rehse. 2024. Beyond log and model moves in confor-mance checking: discovering process-level deviation patterns. In International Conference on Business Process Management , pages 381–399. Springer.
+
+Lawrence Hubert and Phipps Arabie. 1985. Comparing partitions. Journal of classification , 2(1):193–218. Shamsi T. Iqbal and Eric Horvitz. 2007. Disruption and recovery of computing tasks: field study, anal-ysis, and directions. In Proceedings of the SIGCHI Conference on Human Factors in Computing Sys-tems , CHI ’07, page 677–686, New York, NY, USA. Association for Computing Machinery. Henry A Kautz, James F Allen, and 1 others. 1986. Generalized plan recognition. In AAAI , volume 86, page 5. Philadelphia, PA. Aleksei N Leont’ev. 2024. The problem of activity in psychology. In The concept of activity in Soviet psychology , pages 37–71. Routledge. Xiangyi Li, Wenbo Chen, Yimin Liu, Shenghan Zheng, Xiaokun Chen, Yifeng He, Yubo Li, Bin-gran You, Haotian Shen, Jiankai Sun, and 1 oth-ers. 2026. Skillsbench: Benchmarking how well agent skills work across diverse tasks. arXiv preprint arXiv:2602.12670 .Dunjie Lu, Yiheng Xu, Junli Wang, Haoyuan Wu, Xinyuan Wang, Zekun Wang, Junlin Yang, Hongjin Su, Jixuan Chen, Junda Chen, Yuchen Mao, Jingren Zhou, Junyang Lin, Binyuan Hui, and Tao Yu. 2025. Videoagenttrek: Computer use pretraining from unla-beled videos. Preprint , arXiv:2510.19488. Gloria Mark, Daniela Gudith, and Ulrich Klocke. 2008. The cost of interrupted work: more speed and stress. In Proceedings of the SIGCHI conference on Human Factors in Computing Systems , pages 107–110. Dario D. Salvucci, Niels A. Taatgen, and Jelmer P. Borst. 2009. Toward a unified theory of the multitasking continuum: from concurrent performance to task switching, interruption, and resumption. In Proceed-ings of the SIGCHI Conference on Human Factors in Computing Systems , CHI ’09, page 1819–1828, New York, NY, USA. Association for Computing Machinery. Omar Shaikh, Shardul Sapkota, Shan Rizvi, Eric Horvitz, Joon Sung Park, Diyi Yang, and Michael S. Bernstein. 2025. Creating general user models from computer use. In Proceedings of the 38th Annual ACM Symposium on User Interface Software and Technology , UIST ’25, New York, NY, USA. Associ-ation for Computing Machinery. Omar Shaikh, Valentin Teutschbein, Kanishk Gandhi, Yikun Chi, Nick Haber, Thomas Robinson, Nilam Ram, Byron Reeves, Sherry Yang, Michael S Bern-stein, and 1 others. 2026. Learning next action pre-dictors from human-computer interaction. arXiv preprint arXiv:2603.05923 .Peter Shaw, Mandar Joshi, James Cohan, Jonathan Be-rant, Panupong Pasupat, Hexiang Hu, Urvashi Khan-delwal, Kenton Lee, and Kristina N Toutanova. 2023. From pixels to ui actions: Learning to follow in-structions via graphical user interfaces. Advances in Neural Information Processing Systems , 36:34354– 34370. Chan Hee Song, Yiwen Song, Palash Goyal, Yu Su, Oriana Riva, Hamid Palangi, and Tomas Pfister. 2026. Watch and learn: Learning to use computers from online videos. Preprint , arXiv:2510.04673. Neville A Stanton. 2006. Hierarchical task analysis: Developments, applications, and extensions. Applied ergonomics , 37(1):55–79. Wil Van Der Aalst, Arya Adriansyah, Ana Karla Alves De Medeiros, Franco Arcieri, Thomas Baier, To-bias Blickle, Jagadeesh Chandra Bose, Peter Van Den Brand, Ronald Brandtjen, Joos Buijs, and 1 oth-ers. 2011. Process mining manifesto. In Interna-tional conference on business process management ,pages 169–194. Springer. Zora Zhiruo Wang, Jiayuan Mao, Daniel Fried, and Graham Neubig. 2024. Agent workflow memory. 
+
+arXiv preprint arXiv:2409.07429 .Zora Zhiruo Wang, Yijia Shao, Omar Shaikh, Daniel Fried, Graham Neubig, and Diyi Yang. 2025. How do ai agents do human work? comparing ai and human workflows across diverse occupations. arXiv preprint arXiv:2510.22780 .Jeannette M. Wing. 2006. Computational thinking. 
+
+Commun. ACM , 49(3):33–35. Jianwei Yang, Hao Zhang, Feng Li, Xueyan Zou, Chun-yuan Li, and Jianfeng Gao. 2023. Set-of-mark prompting unleashes extraordinary visual grounding in gpt-4v. arXiv preprint arXiv:2310.11441 .Ruozhen Yang, Yucheng Jiang, Yueqi Jiang, Priyanka Kargupta, Yunyi Zhang, and Jiawei Han. 2026. Grounding agent memory in contextual intent. In 
+
+Findings of the Association for Computational Lin-guistics: ACL 2026 , pages 12008–12042, San Diego, California, United States. Association for Computa-tional Linguistics. Keen You, Haotian Zhang, Eldon Schoop, Floris Weers, Amanda Swearngin, Jeffrey Nichols, Yinfei Yang, and Zhe Gan. 2024. Ferret-ui: Grounded mobile ui understanding with multimodal llms. In Euro-pean Conference on Computer Vision , pages 240– 255. Springer. Jeffrey M Zacks and Barbara Tversky. 2001. Event structure in perception and conception. Psychologi-cal bulletin , 127(1):3. Yuan Zang, Hao Tan, Seunghyun Yoon, Franck Der-noncourt, Jiuxiang Gu, Kushal Kafle, Chen Sun, and Trung Bui. 2025. Ms4ui: A dataset for multi-modal summarization of user interface instructional videos. 
+
+arXiv preprint arXiv:2506.12623 .Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. 2024. Gpt-4v (ision) is a generalist web agent, if grounded. arXiv preprint arXiv:2401.01614 .Shanshan Zhong, Yi Lu, Jingjie Ning, Yibing Wan, Li-han Feng, Yuyi Ao, Leonardo FR Ribeiro, Markus Dreyer, Sean Ammirati, and Chenyan Xiong. 2026. Skilllearnbench: Benchmarking continual learning methods for agent skill generation on real-world tasks. arXiv preprint arXiv:2604.20087 .A Structural Validity Constraints 
+
+Both Ot and Pt are subject to formal validity con-straints that induction must satisfy. For the ob-jective tree, every activity in Et must appear un-der exactly one leaf node (completeness and non-overlap); a node spanning a single activity has reached the level of a local objective and must re-main a leaf; and every internal node must state a desired outcome rather than an interface action. For the procedure tree, every activity in Et must appear in at least one procedure node’s reference set, every operator must belong to the closed primitive set, every for-each node must bind its iteration variable to an explicitly enumerated collection, and every while node must state an objective-state exit con-dition. A loop body is an abstract template whose every step maps to the activity episodes it covers across all repetitions, so a loop is admitted only when grounded in recurring evidence rather than asserted. Constraint violations are identified by a deterministic validator and fed back as structured feedback, prompting targeted repair, after which a recovery pass re-examines flat sequences for re-peated bodies that should have been folded into a for-each or while node. 
+
+Boundary placement in reconciliation. Recon-ciliation (§3.3) expands Mt from the task objective, the root of Ot, which governs all of Et. Expanding a node divides its governed subsequence among the node’s children, and each division point is a 
+
+boundary , the position in Et where one child’s sub-sequence ends and the next begins. A boundary that both models place is retained. Where Pt reads a subsequence as a while or for-each operator but Ot
+
+splits it into several sub-objectives, Mt keeps the subsequence as one iterative phase and nests those sub-objectives as semantic refinements within it. Where Pt reads it as a flat sequence, Mt keeps the temporal order and adopts the child boundaries from Ot. Where neither model exposes internal structure yet the activities show aligned repetitions over named artifacts or repeated attempts under an unmet objective-state condition, the operator is inferred from the trace. 
+
+B Latent Task Induction Robustness 
+
+Dataset statistics. The 38 recorded HumanWork sessions (Wang et al., 2025) average 1,282 raw key-board and mouse actions and 1.01 hours of active computer use per session. Active duration excludes idle intervals exceeding ten minutes between con-secutive actions, treating such gaps as disengage-ment rather than active task work, and therefore falls below the 68 minutes of recording per session reported in Section 4. 
+
+Construction. Synthetic interleaving trajectories are constructed from these 38 sessions. For each task count K ∈ { 2, 3, . . . , 15 } and interleaving dif-ficulty d ∈ { 2, 3, 4}, we sample K distinct tasks without replacement and assign each a single ran-domly selected session. The session for each task is then partitioned into d contiguous segments by sampling d − 1 split points uniformly at random from positions satisfying the constraint that every resulting segment contains at least ten activities. This constraint prevents configurations in which a task occupies only a trivially short span, which would not reflect realistic interleaving patterns in naturalistic computer use. The K × d segments are then randomly permuted to form the composite trajectory; within each segment, the original event ordering is preserved. Three independent trajecto-ries are generated per (K, d ) condition for a total of 14 × 3 × 3 = 126 synthetic trajectories across all conditions. Table 6 reports the full results. The sampled tasks create substantial ambiguity at the application and domain levels. Across the 5,040 task pairs in the 126 trajectories, 96.7% share an application and 88.9% belong to the same do-main. Even after excluding browsers and operating-system utilities, 70.4% share an application. This overlap is particularly pronounced in the high-concurrency conditions, where up to 15 tasks must be separated across only five domains. Perfor-mance remains similar in trajectories containing same-domain task pairs (ARI 0.973; n = 112 ) and those without them (ARI 0.984; n = 14 ). 
+
+B.1 Error Analysis 
+
+We manually sample 1,000 predicted decision boundaries produced across all 126 synthetic trajec-tories and code their associated task labels. Since a boundary can have labels on both sides or arise from a multiway decision, this yields 1,107 labels. Table 7 reports the distribution of label-level failure patterns; 87.1% of labels are correctly assigned or outside the scope of any named failure type. The remaining 12.9% split across four structural causes described below, along with potential mitigations. 
+
+Subgoal promotion (6.8%). A coherent phase within a benchmark task, such as data cleaning be-Table 6: Full per-condition results for latent task induction robustness. We reports mean ± std over three trajectories.                                                                                                             
+
+> KdARI ↑MAE ↓
+> 221.000 ±0.000 0.00 ±0.00 31.000 ±0.000 0.00 ±0.00 40.994 ±0.009 0.33 ±0.47 321.000 ±0.000 0.00 ±0.00 31.000 ±0.000 0.00 ±0.00 40.902 ±0.046 0.67 ±0.47 420.983 ±0.024 0.67 ±0.94 30.998 ±0.003 0.33 ±0.47 40.997 ±0.004 0.00 ±0.00 521.000 ±0.000 0.00 ±0.00 31.000 ±0.000 0.00 ±0.00 40.972 ±0.040 0.33 ±0.47 620.998 ±0.003 0.00 ±0.00 30.987 ±0.018 0.33 ±0.47 40.934 ±0.093 1.00 ±1.41 721.000 ±0.000 0.00 ±0.00 31.000 ±0.000 0.67 ±0.47 41.000 ±0.000 0.00 ±0.00 820.920 ±0.113 0.00 ±0.00 30.945 ±0.077 0.33 ±0.47 40.984 ±0.011 1.00 ±0.82
+> KdARI ↑MAE ↓
+> 920.972 ±0.040 0.00 ±0.00 30.997 ±0.005 0.33 ±0.47 40.948 ±0.059 1.00 ±0.00 10 20.951 ±0.065 0.33 ±0.47 30.938 ±0.076 0.67 ±0.47 40.947 ±0.074 0.00 ±0.00 11 20.960 ±0.056 0.33 ±0.47 30.997 ±0.004 0.33 ±0.47 40.966 ±0.013 2.00 ±1.41 12 20.980 ±0.024 1.00 ±1.41 30.991 ±0.013 0.33 ±0.47 40.972 ±0.028 1.00 ±0.82 13 20.990 ±0.010 0.67 ±0.47 30.923 ±0.044 2.33 ±1.25 40.999 ±0.002 0.00 ±0.00 14 20.999 ±0.001 0.33 ±0.47 30.962 ±0.045 0.33 ±0.47 40.984 ±0.007 1.33 ±0.47 15 20.962 ±0.033 0.67 ±0.47 30.917 ±0.081 1.00 ±0.82 40.952 ±0.035 0.33 ±0.47
+
+Table 7: Label-level failure distribution across 1,107 predicted task labels from 126 synthetic trajectories.             
+
+> Failure pattern Labels %Correct / not failure-relevant 871 87.1 Subgoal promotion 68 6.8 Recorder-induced clustering 25 2.5 Cross-task workspace sharing 24 2.4 Others 12 1.2
+
+fore analysis or asset export before presentation, is predicted as a separate root task, inflating ˆK.Among the 68 affected labels, 33.8% involve real user navigation to personal activities that are unre-lated to the assigned benchmark task; these cases are in principle unresolvable because the trajectory contains no task-specific context for the off-task behavior. 
+
+Recorder-induced clustering (2.5%). The screen-recording tool used in the original data col-lection generates setup, screenshot, and teardown operations that are interleaved across multiple benchmark tasks and carry no task-specific context. These activities accumulate into spurious clusters that the system treats as independent tasks. 
+
+Cross-task workspace sharing (2.4%). The dataset spans 15 tasks across five professional do-mains, so multiple tasks within the same domain share the same tools and output artifacts, for exam-ple two data analysis tasks both editing the same Jupyter notebook, or two design tasks both working in Figma. When such tasks are interleaved, their activity streams are very similar by tool or interface alone. The primary mitigation is to attend more to artifact-level unique identifiers and screen content, using both textual and visual signals to distinguish tasks that share an interaction surface. 
+
+C SkillsBench Trajectory Conversion 
+
+Skill conditions. A skill in SkillsBench is a reusable, human-authored procedural document that an agent may consult when approaching a task. Runs are executed with no supplementary skill ( no-skill ), with a human-curated skill ( skill ), or with a skill the agent generates for itself ( self-generation ). 
+
+Trajectory format. Coding agent trajectories from SkillsBench differ structurally from the low-level keyboard and mouse streams found in human computer-use recordings. Each step consists of an assistant message that issues one or more tool calls (e.g., bash , file reads, or web searches) followed by corresponding tool results. These operations are already semantic rather than raw input events, so they do not pass through the grounding and seg-mentation stage of our pipeline. Instead, we map each (tool call, tool result) pair directly to one ac-tivity in our schema, bypassing the low-level event grounding step. Pairing strategy. Consecutive assistant turns can issue multiple tool calls in a single burst before any results arrive, a pattern common when Claude Code issues parallel independent commands. We apply a burst-aware last-M assignment rule in which a burst of N tool calls followed by only M ≤ N
+
+results maps the first N − M calls to empty output (capturing write-style commands that produce no meaningful stdout) and the remaining M calls are paired with results in FIFO order. When M = N
+
+all calls are matched one-to-one. User-role mes-sages and assistant text-only reasoning steps carry no tool calls and are dropped; orphaned tool-result steps with no preceding burst are also discarded. 
+
+Dataset statistics. Applying this conversion to the 195 selected SkillsBench runs (15 tasks, 13 runs per task) yields 9,459 activities in total, av-eraging 48.5 activities per run. The wide range reflects task heterogeneity across tasks spanning se-curity patching, performance debugging, scientific computation, and multimedia processing. 
+
+D Task Model Fidelity Rubric 
+
+The LLM judge and human annotators use the same three rubrics below. Each evaluation call receives the task instruction, activity trace, and induced task model, then returns scores for one rubric group. The judge is instructed to use only evidence from the provided inputs and to return structured JSON matching the schema. 
+
+Rubric 1 | Latent Task Recovery (scored 1–5, ↑)
+
+Evaluates whether the root objective of the induced task model correctly identifies the latent task the agent was pursuing. 
+
+5 Correctly identifies the task intent, deliver-able, and abstraction level. Specific enough to distinguish the task but not tied to incidental tools or local actions. 
+
+4 Mostly correct, with a minor issue in speci-ficity, abstraction, or a secondary deliverable. 
+
+3 Partially correct. Captures the broad goal or domain but misses an important part of the task intent, deliverable, or scope. 
+
+2 Weak match. Describes only a local phase, a tool action, or a vague activity rather than the full latent task. 
+
+1 Incorrect or unsupported. Describes the wrong task, hallucinates intent, or is not grounded in the trace. 
+
+Rubric 2 | Subgoal Decomposition Quality Coverage score (1–5, ↑): evaluates whether the sub-goals span all major phases of the observed task. 
+
+5 All major phases of the task are represented by subgoals. 
+
+4 Most major phases are represented; only mi-nor phases are missing or merged. 
+
+3 Some important phases are represented, but at least one major phase is missing or poorly covered. 
+
+2 Decomposition captures only a small part of the task or uses very coarse/noisy phases. 
+
+1 Subgoals do not meaningfully cover the trace. 
+
+Binary checks (per non-root objective node, ↑): Coherent subgoals Each subgoal groups ac-tivities serving one rec-ognizable intermediate objective. Parent-child consis-tent Child subgoals collec-tively advance the parent objective. The LLM judge additionally scores three diagnostic checks per node, sibling non-overlap, granularity ap-propriateness, and boundary grounding, defined and reported in Appendix E. 
+
+Rubric 3 | Procedure Fidelity Binary checks (per procedure node): Operator correct ( ↑) The control-flow oper-ator is supported by the trace. Step descriptions ac-curate ( ↑)Step descriptions faith-fully summarize what occurred. No hallucination ( ↑) The node introduces no step or detail absent from the trace. 
+
+Operator decision rules :
+
+SEQ Steps occur in the stated temporal order. 
+
+FOR The trace shows the same operation applied to multiple items. 
+
+WHILE The trace shows repeated at-tempts or checks until a stopping condition. If an operator is plausible but not directly evidenced, mark operator correct as false. 
+
+D.1 Human Annotation Agreement 
+
+Two annotators independently scored all 20 sam-pled sessions. Each scored the two session-level dimensions and a shared random sample of five ob-jective nodes and five procedure nodes per session, yielding 995 paired binary judgments across the five checks per node. They agreed on 85% of judg-ments (Cohen’s κ = 0 .48 ; Gwet’s AC1 = 0 .79 ). Agreement on procedure checks was κ = 0 .54 . Ob-Table 8: Rubric scores for our induced task models over the 20 annotated sessions. Task and Cov. are 5-point Likert scores ( ↑); remaining columns are binary pass rates (%, ↑) over the annotated nodes, with both LLM judges restricted to the same nodes. Both judges fall within the range spanned by the annotators on all four binary checks and score both Likert dimensions below the annotator mean, so the automatic evaluation does not inflate the reported levels. 
+
+Scorer Task Cov. Coh. P-Ch. Desc. Op. Annotator 1 4.20 4.85 98.0 100.0 93.0 93.0 Annotator 2 3.85 4.10 87.9 93.9 70.0 87.0 gpt-5.5 judge 3.75 4.35 88.9 94.9 70.0 91.0 claude-sonnet-5 judge 3.35 3.55 98.0 97.0 84.0 90.0 
+
+Table 9: Statistics on occurrence of non-linear execution behavior observed in the human sessions.                      
+
+> Behavior Episodes Sessions Median length Error correction 143 89% 9Redundant repetition 132 84% 13 Exploratory search 87 87% 12 Task switching 61 61% 5Trial and error 52 66% 15 Backtracking or revision 34 53% 14.5
+
+jective checks are strongly skewed toward positive labels, for which Cohen’s κ is conservative; Gwet’s 
+
+AC1 for these checks was 0.86. Table 8 reports the score underlying this agreement. 
+
+D.2 Fidelity on Non-linear Execution 
+
+Naturalistic work contains repair, exploration, and detours that are not well described as a single for-ward procedure. We identify maximal spans of semantic actions exhibiting these behaviors, then associate a task-model node with a behavior when that behavior covers more than one third of its activ-ity span. Automated episode discovery is verified by a human annotator, and unsupported episodes are discarded. Table 9 characterizes these episodes across the 38 sessions, and Table 10 reports their effect on task-model fidelity. 
+
+D.3 Error Propagation across the Pipeline 
+
+The pipeline progressively converts low-level ob-servations into a unified task model, so an early error can affect later structural inferences. We trace failed nodes to their earliest originating stage using conditional failure statistics from 1,535 per-node fidelity judgments and a manual coding of 120 sampled failures. Grounding errors, primarily re-tained recorder operations and off-task browsing, affect approximately 9% of objective nodes and 5% 
+
+Table 10: Task-model fidelity on non-linear execution. A node is associated with a behavior when it occupies more than one third of the node’s span. Values are binary pass rates (%) pooled over nodes, so the All nodes row differs marginally from the per-session means in Table 4.                                              
+
+> Behavior Coherent P-Ch. Boundary All nodes 85.7 92.6 66.7 Clean spans 87.4 92.2 79.0 Error correction 82.6 94.5 59.6 Exploratory search 78.6 92.9 60.2 Redundant repetition 86.0 85.0 55.0 Trial and error 88.6 95.7 65.7 Task switching 79.1 93.0 67.4 Backtracking or revision 97.0 97.0 60.6 Behavior Step desc. No halluc. All nodes 75.0 76.3 Clean spans 79.9 81.7 Error correction 66.7 64.3 Exploratory search 66.7 68.5 Redundant repetition 78.5 79.4 Trial and error 77.6 80.3 Task switching 71.1 73.3 Backtracking or revision 84.8 87.9
+
+of procedure nodes. Segmentation errors, chiefly activities that merge two intents, affect approxi-mately 6% of objective nodes and persist because later stages do not re-segment the trace. Latent-task induction is stable, with 37 of 38 ses-sions inheriting no error from this stage, while the single failed induction loses most nodes in that ses-sion. Objective-model errors affect approximately 4% of nodes but can propagate vertically, with 83% of children failing under a mis-scoped parent com-pared with 24% counterpart. Procedure-model er-rors are more localized, principally inaccurate leaf descriptions. Reconciliation has the largest effect on end-to-end fidelity, since removing it doubles procedure hallucination, while misplaced bound-aries remain its main residual error, affecting ap-proximately 12% of nodes. These patterns distin-guish errors that change the recovered task struc-ture from those confined to local descriptions. 
+
+D.4 Stability across Induction Runs 
+
+We run the complete pipeline three times, resam-pling every LLM stage, in addition to the primary induction over the 38 human sessions. Latent task identity match is 91 .2 ± 4.0 under gpt-5.5 and 
+
+90 .4 ± 4.0 under claude-sonnet-5. Table 11 shows corresponding variation in task-model fidelity. 
+
+E Full Objective Rubric Results 
+
+Beyond the coherence and parent-child consistency checks reported in Table 4, the LLM judge scores Table 11: Task-model fidelity across three independent induction runs over the 38 human sessions. Rows follow the columns of Table 4; repeated-induction results are mean ± standard deviation.               
+
+> Dimension gpt-5.5 claude-sonnet-5 Task 3.70 ±0.05 3.35 ±0.13 Cov. 4.41 ±0.06 3.65 ±0.10 Coh. 92.27 ±5.69 97.17 ±0.06 P-Ch. 95.83 ±2.90 98.00 ±1.47 Desc. 69.07 ±5.49 90.10 ±2.04 Op. 92.27 ±3.28 94.77 ±2.71
+
+three further binary checks per objective node. Sib-ling non-overlap requires that sibling subgoals do not claim the same activities or restate one another; granularity appropriateness requires that a subgoal sit at a meaningful intermediate level, neither re-stating the parent nor describing a single interface action; boundary grounding requires that the activ-ity span of a subgoal start and end at boundaries supported by the trace. Table 12 reports all five checks, together with the session-level objective coverage score from Table 4, the mean number of judged objective nodes per session, the rate of nodes passing all five checks jointly, and the mean number of such fully valid nodes per session. 
+
+Per-node rates and decomposition granularity. 
+
+The rates in Table 4 are averaged over the nodes each method produces, so they do not reflect how much structure a model recovers. Direct generation induces 3.8 objective nodes per session and joint induction 8.6, against 19.5 for our method, and coarser nodes face easier consistency checks. The model without reconciliation leads only on the two checks least sensitive to granularity and trails our method on sibling non-overlap under both judges, while the workflow baseline shows that volume alone does not help, as its flat lists of over 100 steps score lowest on granularity and overlap. Weighing validity and richness together, our method yields about twice as many fully valid subgoal nodes per session as joint induction, an order of magnitude more than direct generation, and the highest joint pass rate under the claude-sonnet-5 judge. 
+
+Where consistency failures occur. Objective and procedure nodes share identifiers in our unified model, which allows a node-level cross-tabulation of the two rubric groups. Objective nodes of our method that fail the coherence check carry an inac-curate step description at a rate of 0.50 against 0.21 for passing nodes under the gpt-5.5 judge, and at 0.43 against 0.12 under claude-sonnet-5. Inspect-ing the failing nodes shows that they concentrate on execution-shaped stretches of work, chiefly iter-ative repair and verification loops, re-establishment of working context after switches, and auxiliary setup such as authentication. Because reconcilia-tion requires every observed activity to be covered by an objective node, these stretches surface as subgoals whose intent is defined by the course of execution rather than by a crisp deliverable, which the coherence check penalizes. One-pass induc-tion absorbs the same stretches into broader nodes rather than surfacing them, which spares its consis-tency rates, yet under both judges it produces half or fewer fully valid objective nodes per session and recovers procedures less faithfully (Table 4). Its higher consistency rates reflect what its decompo-sitions absorb, not better objective modeling. 
+
+F Implementation Details and Pipeline Prompt Templates 
+
+This appendix lists the fixed instruction templates used by each LLM call in the pipeline. The two action-grounding prompts (Figure 4) are used by the vision-language grounding step described in Section 3.1. The backward semantic-action seg-mentation prompt (Figure 5) and the activity seg-mentation prompt (Figure 6) are both used by the two segmentation passes described in the same sec-tion. The latent task discovery and consolidation prompts (Figures 7 and 8) are used by the two-phase latent task induction in Section 3.2. The objective-model, procedure-model, and reconcili-ation prompts (Figures 9, 10, and 11) are used by the objective, procedure, and reconciliation steps in Section 3.3. Table 12: Full objective rubric results. Cov. is the objective coverage score from Table 4 (5-point Likert, ↑); Nodes is the mean number of judged objective nodes per session. Coh. is subgoal coherence; NOv. is sibling non-overlap; Gran. is granularity appropriateness; P-Ch. is parent-child consistency; Bnd. is boundary grounding; All 5 is the rate of nodes passing all five checks. All check columns are per-node pass rates (%, ↑). /Sess. is the mean number of fully valid nodes per session ( ↑). The claude-sonnet-5 judge covers 35 of 38 sessions for the workflow baseline. Best per judge in bold. 
+
+Model Cov. Nodes Coh. NOv. Gran. P-Ch. Bnd. All 5 /Sess. 
+
+gpt-5.5 judge 
+
+Workflow summary 3.24 106.7 65.7 4.9 18.4 62.2 64.3 0.9 0.9 Direct gen. 4.00 3.8 87.0 58.2 96.6 97.3 37.0 27.4 1.1 Ours 4.34 19.5 85.7 94.9 86.5 92.6 66.7 59.0 11.5 
+
+w/o reconciliation 4.40 8.6 99.1 81.2 95.4 99.1 80.0 70.2 6.0 
+
+claude-sonnet-5 judge 
+
+Workflow summary 2.71 105.2 93.2 20.1 29.5 92.8 60.7 8.4 8.9 Direct gen. 3.18 3.8 85.6 21.9 76.0 75.3 31.5 10.3 0.4 Ours 3.68 19.5 97.2 94.3 92.6 97.2 82.7 78.1 15.2 
+
+w/o reconciliation 3.97 8.6 100.0 73.8 89.8 96.9 78.5 59.7 5.1 
+
+GOAL_SYSTEM_PROMPT = """ Infer the immediate intent of one computer action. Use the action string, the screenshot captured at the action moment, and the optional after screenshot. The before/action screenshot is primary evidence; use the after screenshot only to disambiguate what changed. Return one concise sentence for the `goal ` field. Rules: - Describe the local UI operation, not the user's broader task. - Prefer concrete visible targets: button names, menu items, fields, files, tabs, cells, links, commands, or text snippets. - Include the action verb when it matters, such as click, drag, type, select, open, close, scroll, or submit. - Do not invent hidden motivations or off-screen content. - If the visible evidence is insufficient, return the best grounded statement and mark uncertain details as "not sure". """ CONTEXT_SYSTEM_PROMPT = """ Ground one computer action in visible UI context. Use the action string, the screenshot captured at the action moment, any zoomed-in crops, and the optional after screenshot. Zoom crops are centered on the action coordinates; a red outline or marker indicates the likely target region. Return: - `active_application `: application name plus visible window, page, document, file, or tab title when readable. - `visual_content `: the specific visible artifact the action is aimed at or the user's eyes are likely focused on. Rules: - Do not output the goal; only output application/context fields. - For `active_application `, prefer formats like "Google Chrome - Page title", "VS Code - filename.py", "Terminal - shell session", or "not sure". - For `visual_content `, name the exact visible control/content region when possible: button, menu item, field, selected text, file row, cell, chart, code line, terminal command, tab, or document section. - Ground every detail in visible text, recognizable UI, the action coordinate, or the before/after change. - If a field is not clearly visible, return "not sure" for that field. """ 
+
+Figure 4: Action grounding prompts for immediate intent and visible UI context. BACKWARD_SEMANTIC_ACTION_SEGMENT_PROMPT = """ You are analyzing a user's computer workflow by looking at actions in REVERSE order from the end of the session backward. KEY INSIGHT: later outcomes help explain earlier low-level actions. Each segment should be one candidate atom semantic action. {semantic_action_definition} === WHAT HAPPENS AFTER THESE ACTIONS === {future_context} === ACTIONS TO ANALYZE (chronological order, index 0 = earliest) === {actions_list} === TASK === Segment these low-level actions into atom semantic actions. For each group output: 1. semantic_action: one concise sentence describing the intentional operation Semantic-action rules: - Use semantic, operation-level language. - Prefer the immediate operation over the broader task objective. - Keep concrete apps, clicks, typing, commands, URLs, files, and navigation out of semantic_action unless essential. - Avoid semantic actions that start with purely mechanical verbs like click, scroll, focus, move, hover, drag, or wait unless that operation is itself the meaningful user action. - Do not skip failed attempts or corrections; include them with the operation they are trying to complete when intent is unchanged. Coverage rules: - Groups must be consecutive indices with no gaps, overlaps, or reorder. - Every index from 0 to {max_idx} must appear exactly once. - Split when the range contains multiple intentional operations. - Keep together repeated low-level interaction needed to finish the same operation. Output ONLY valid JSON: {"groups": [ {"start_idx": <int>, "end_idx": <int>, "semantic_action": "<atom semantic action>"} ]}List groups in REVERSE chronological order, latest group first. start_idx and end_idx are inclusive. """ 
+
+Figure 5: Backward semantic-action segmentation prompt. SEGMENTATION_PROMPT = """ You segment chronological atom semantic actions into activities. {definition} === WHAT HAPPENED BEFORE THIS BATCH === {prior_context} === SEMANTIC ACTIONS TO SEGMENT (chronological order, index 0 = earliest in this batch) === {actions_list} === TASK === Partition the current batch into contiguous activities. For each segment output: 1. start_idx and end_idx, inclusive, using the batch-local indices. 2. objective: one concise, self-contained phrase/sentence naming the intended local outcome or intermediate state. Include the concrete target, artifact, person, project, channel, file, URL, or app needed to interpret the activity. Do not list the procedure. 3. additional_context: one to three concise sentences with the observed procedure and concrete evidence needed to understand that objective. Coverage rules: - Every index from 0 to {max_idx} must appear exactly once. - Segments must be consecutive with no gaps, overlaps, or reordering. - Keep scaffolding actions with the objective they enable when evidence supports it. - If an activity appears to continue across a batch boundary, produce the best segment inside this batch; a later merge pass will join adjacent segments. Output ONLY valid JSON: {"segments": [ {"start_idx": <int>, "end_idx": <int>, "objective": "<activity>", "additional_context": "<concise evidence-grounded context >"} ]}""" 
+
+Figure 6: Activity segmentation prompt over semantic actions. ROOT_THREAD_DISCOVERY_PROMPT = """ You are building a task thread forest from chronologically ordered LEAF latent tasks. Each leaf is already a local task. Your job is to attach each leaf to a durable ROOT thread. Core mental model: - Ask: "Which long-running top-level objective is this leaf advancing right now?" - Roots represent durable objectives / deliverables, not contiguous time blocks. - Leaves may interleave across roots. - A root can pause and later resume. Critical rules: - Objective continuity beats adjacency. - Two adjacent leaves can belong to different roots. - Two distant leaves can belong to the same root. - Different apps do NOT imply different roots. - Interruptions do NOT imply different roots. - Create a NEW root only when a genuinely new durable objective appears. - Prefer a small number of strong roots over many near-duplicates. - Communication leaves belong to the root defined by the SUBJECT of the message, not to a generic communication root. - Setup, debugging, repo inspection, and environment preparation should stay under the same root as the later deliverable if they are clearly in service of that deliverable. Available existing roots: {existing_roots} Most recent assigned leaves before this batch: {recent_context} Current leaves to assign: {leaf_batch} Task: 1. Reuse an existing root whenever the leaf advances the same durable objective / deliverable. 2. Create a new root only when needed. 3. New roots created inside this batch can be referenced by later leaves in the same batch. 4. After assigning leaves, update each touched root's label/objective/summary/last_update/anchor so future batches can judge fit. Root update rules: - summary is at most two sentences describing the durable thread so far. - last_update is exactly one concise sentence describing the latest assigned leaf or leaves. - anchor is a minimal concise list of stable identifiers for matching future work: project names, repos, datasets, products, people, files, or systems. Normalize aliases when they clearly refer to the same project; for example, two different names for the same codebase or product should share one anchor entry. - Do not let anchor grow into a keyword dump. Prefer 1-5 meaningful identifiers. Output ONLY valid JSON with `new_roots `, `assignments `, and `root_updates `.""" 
+
+Figure 7: Latent task discovery prompt. ROOT_THREAD_CONSOLIDATION_PROMPT = """ You are consolidating provisional durable root threads into the final task thread forest. Each provisional root was discovered from chronological leaves. Some provisional roots may actually belong to the SAME durable objective and should be merged. Core rules: - Merge provisional roots if they advance the same long-running deliverable / objective, even if they are far apart in time, use different apps, or are interrupted. - Keep roots separate if they represent genuinely different durable objectives. - Objective continuity beats adjacency. - Tiny opportunistic one-off roots may be absorbed into a nearby substantive root if they do not establish an independent durable objective. - Prefer a compact set of strong canonical roots. - Early setup/debugging/investigation roots should be merged into the later product root when they clearly enable that same deliverable. - Communication-heavy provisional roots should be merged based on what the messages are ABOUT, not merely because they happen in the same messaging tool. Provisional roots: {provisional_roots} Output ONLY valid JSON: {"canonical_roots": [ {"canonical_root_id": "C1", "label": "<short human-readable root label>", "objective": "<durable top-level objective>", "deliverable": "<artifact/state this root advances>", "success_criteria": "<observable completion criteria>", "member_root_ids": ["R001", "R004"] }]}""" 
+
+Figure 8: Latent task consolidation prompt. 
+
+GENERATION_PROMPT_TEXT = """ You induce a hierarchical objective model from task activity observations using computational thinking and recursive decomposition. The input contains activity segments describing WHAT A USER DID. Your job is to abstract over those actions and recover the hierarchy of SUB-GOALS they were pursuing -- the recursive decomposition of the task into what needs to be accomplished at each level. Return only a valid JSON object. Objectives follow the computational thinking paradigm of recursive decomposition: - Each node states a SUB-GOAL: what needs to be accomplished at this level to advance the parent goal. - Write as a goal to be achieved -- not as a low-level procedure and not as a passive state predicate. - Objectives must be TOOL-AGNOSTIC and USER-AGNOSTIC. - Save procedural and evidential details for the `summary ` field, NOT the `objective ` field. Granularity rules: - A child node must represent a sub-outcome that is a necessary precondition or component of the parent outcome. - If the input already represents one coherent atomic success state, use "decomposition": [] instead of inventing procedural children. - A node covering exactly one activity/subgoal segment must not have decomposition. Required output schema, recursively: {"id": "<stable hierarchical id, e.g. C1 or C1.1>", "objective": "<sub-goal: what needs to be accomplished at this level, tool-agnostic and user-agnostic>", "summary": "<brief evidence-grounded summary; may reference specific tools, files, or actions observed>", "subgoal_segments": ["<single integer id such as 16 or closed integer range string such as 16-23>"], "decomposition": [<child nodes with the same schema> or <empty list if no further decomposition is needed>] }""" 
+
+Figure 9: Objective-model induction prompt. PROCEDURE_GENERATION_PROMPT_TEXT = """ You induce a procedure model from a task-thread objective JSON by applying the Structured Programming Theorem (Bohm-Jacopini, 1966). Return only a valid JSON object. The Structured Programming Theorem motivates three control constructs: 1. Sequence -- steps executed one after another in order. 2. Selection -- a choice between mutually exclusive alternative paths. 3. Iteration -- a body repeated either over a named collection (for-each) or until a condition holds (while). The trace records only the path enacted, not unchosen alternatives, so selection is not represented in the output. Decompose the observed activity trace into a tree using the three observable operators below. The three operators are the complete and closed vocabulary: - `SEQ `: steps in fixed order with no repetition and no branching. - `FOR `: the same procedure body is applied to each member of a named, enumerable collection. - `WHILE `: a body is repeated until an observable objective-state condition is satisfied. FOR and WHILE bodies are ABSTRACT TEMPLATES -- they describe what happens per item / per pass using named steps with `name `, `
+
+description `, and `activity_refs `. Do NOT place activity_id leaves inside a FOR or WHILE body. Coverage rules: - Every activity episode in the input must appear in at least one node's `activity_refs ` or as an inline `activity_id ` leaf. - Composite nodes cover the union of their children's episodes. - Prefer one primary owning node per episode. Required output schema: {procedure_output_schema_text()} """ 
+
+Figure 10: Procedure-model induction prompt. 
+
+RECONCILIATION_GENERATION_PROMPT = """ You produce a unified task model by reconciling independently-induced objective and procedure models for the same activity trace. Return only a valid JSON object. What you produce: A unified tree where each node has two layers: - Objective layer: a domain-specific program in natural language. Captures domain invariants: required outcomes, correctness constraints, and orderings that hold regardless of who executes the task or what specific inputs are used. - Procedure layer: the faithful record of how the work was actually carried out in the observed trace, including failures and corrections. Both layers are determined jointly from both input models. Neither is authoritative alone. Inputs: - `source `: task-thread JSON with an `activities ` list. - `objective_model `: hierarchical objective model. - `procedure_model `: control-flow procedure model. Reconciliation: - Both models draw the same boundary: honor it. - Procedure shows WHILE or FOR across a range: strong structural signal; that range is one iterative phase. - Procedure shows only a flat SEQ: weak structural signal; defer to the objective model's semantic clusters. - Objective shows a clear semantic phase shift: supports a new boundary even when the procedure model draws a continuous SEQ. - Neither model shows structure for a range: scan the source `activities ` for FOR or WHILE patterns. Coverage and ID rules: - Every source activity must appear in at least one node's `activity_refs `.- A node's `activity_refs ` is the union of its children's `activity_refs ` or its body-step `activity_refs `.- Use compact ranges: `activity_NNNN ` or `activity_NNNN-activity_MMMM `.- Root id is the task-thread id; children are numbered sequentially. Required output schema: {unified_schema_text()} """ 
+
+Figure 11: Bidirectional objective/procedure reconciliation prompt.
