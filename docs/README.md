@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-23</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-24</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-23 20:01:13 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-24 20:41:22 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读3篇论文，聚焦具身视频理解、任务建模与脑语言对齐，暂无精读。</p>
-<p>最值得关注7.0分两篇：一为手物交互到具身AI的视觉语言模型，二为从计算机使用痕迹归纳任务模型。</p>
-<p>建议优先精读这两篇高分工作，可结合自身领域从摘要快速切入。</p>
+<p>今日精读0篇、速读1篇，共读完1篇论文，聚焦情绪与视觉的交叉研究。</p>
+<p>最值得关注的是《Nausea reshapes visual exploration and pupillary responses to affective images》（6.0/10），揭示恶心感会重塑人对情感图像的视觉探索方式及瞳孔反应。</p>
+<p>对普通读者而言，可借此了解身体内在状态如何微妙影响我们看待外界的方式。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -86,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Vision-Language Models for Egocentric Video: From Hand-Object Interaction to Embodied AI">Vision-Language Models for Egocentric Video: From Hand-Object Interaction to Embodied AI</span></li><li><span class="dpr-home-dashboard-paper-title" title="Inducing Task Models from Computer-Use Traces">Inducing Task Models from Computer-Use Traces</span></li><li><span class="dpr-home-dashboard-paper-title" title="Brain-Language Alignment During Naturalistic Reading and Its Disruption by Mind-Wandering">Brain-Language Alignment During Naturalistic Reading and Its Disruption by Mind-Wandering</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Nausea reshapes visual exploration and pupillary responses to affective images">Nausea reshapes visual exploration and pupillary responses to affective images</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 </div>
 
