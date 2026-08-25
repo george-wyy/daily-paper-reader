@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-08-25 <!--dpr-date:20260825-->
+    * 精读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/25/2608.22926v1-motion-based-tokenization-for-cross-dataset-egocentric-gaze-modeling" data-sidebar-item="{&quot;title&quot;: &quot;Motion-Based Tokenization for Cross-Dataset Egocentric Gaze Modeling&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.22926v1-motion-based-tokenization-for-cross-dataset-egocentric-gaze-modeling&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;面向多模态模型的自我中心视线令牌化，支撑基于视线的意图预测&quot;}">Motion-Based Tokenization for Cross-Dataset Egocentric Gaze Modeling</a>
   * 2026-08-24 <!--dpr-date:20260824-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202608/24/biorxiv-10-64898-2026-07-17-739163-v2-nausea-reshapes-visual-exploration-and-pupillary-responses-to-affective-images" data-sidebar-item="{&quot;title&quot;: &quot;Nausea reshapes visual exploration and pupillary responses to affective images&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/biorxiv-10-64898-2026-07-17-739163-v2-nausea-reshapes-visual-exploration-and-pupillary-responses-to-affective-images&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;使用高分辨率眼动追踪和瞳孔测量，并构建注视动态的计算模型&quot;}">Nausea reshapes visual exploration and pupillary responses to affective images</a>
