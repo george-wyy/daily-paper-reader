@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-26</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-28</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-26 21:39:33 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-28 04:07:28 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读3篇论文，主题覆盖大语言模型情感自适应、人本交互工作坊报告及眼动与记忆研究。最值得关注《Aura》（7.0分）探讨模型响应的动态情感调整，其次眼动研究揭示注视轨迹比落点更能预测记忆。建议优先精读《Aura》，并关注情感AI与人因结合的跨领域趋势。</p>
+<p>今日速读2篇论文，无精读，聚焦人机交互中的情感与注意力机制。</p>
+<p>值得关注《Aura》中LLM响应动态情感适配，以及《Human-Inspired》中可解释互视注意力用于社交参与分析。</p>
+<p>建议下一步精读情感计算与人机对齐相关研究，深化理解交互质量提升方法。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses">Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses</span></li><li><span class="dpr-home-dashboard-paper-title" title="Report on The 1st Workshop on Human-Centered Proactive and Personalized Agents for Interactive Information Access at CHIIR 2026">Report on The 1st Workshop on Human-Centered Proactive and Personalized Agents for Interactive Information Access at CHIIR 2026</span></li><li><span class="dpr-home-dashboard-paper-title" title="How the eyes move, not where they land, predicts what we remember across the lifespan">How the eyes move, not where they land, predicts what we remember across the lifespan</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses">Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses</span></li><li><span class="dpr-home-dashboard-paper-title" title="Human-Inspired Social Engagement Analysis via Interpretable Mutual Visual Attention">Human-Inspired Social Engagement Analysis via Interpretable Mutual Visual Attention</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
 </section>
 </div>
 
