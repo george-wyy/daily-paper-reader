@@ -41,7 +41,7 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-28</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-29</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 2 篇</strong>
@@ -51,7 +51,7 @@
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-28 04:07:28 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-29 22:27:43 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读2篇论文，无精读，聚焦人机交互中的情感与注意力机制。</p>
-<p>值得关注《Aura》中LLM响应动态情感适配，以及《Human-Inspired》中可解释互视注意力用于社交参与分析。</p>
-<p>建议下一步精读情感计算与人机对齐相关研究，深化理解交互质量提升方法。</p>
+<p>今日速读论文2篇，均获6.0分，暂无精读。值得关注大模型动态情感响应与实时无监督物体发现两个方向。建议后续追踪这两篇的进阶版本，以评估实际应用潜力。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -89,7 +87,7 @@
     <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses">Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses</span></li><li><span class="dpr-home-dashboard-paper-title" title="Human-Inspired Social Engagement Analysis via Interpretable Mutual Visual Attention">Human-Inspired Social Engagement Analysis via Interpretable Mutual Visual Attention</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses">Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses</span></li><li><span class="dpr-home-dashboard-paper-title" title="Real-time Unsupervised Object Discovery from Asynchronous Event Streams">Real-time Unsupervised Object Discovery from Asynchronous Event Streams</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
 </section>
