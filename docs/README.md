@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-29</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-30</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-29 22:27:43 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-30 22:47:45 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读论文2篇，均获6.0分，暂无精读。值得关注大模型动态情感响应与实时无监督物体发现两个方向。建议后续追踪这两篇的进阶版本，以评估实际应用潜力。</p>
+<p>今日速读3篇论文，暂无精读，重点覆盖城市安全眼动可视化、社交机器人智能体与人类行为预测。</p>
+<p>最值得关注的是《UrbanGazeVis》（7.0分），其可视化系统可分析眼动数据与城市安全感知的关联；《Ludi 0.1》（6.0分）则探讨社交机器人的社会智能。</p>
+<p>建议优先精读高分论文《UrbanGazeVis》，后续可追踪其方法在交互式分析中的应用。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses">Aura: Dynamic Intra-Turn Emotion-Aware Adaptation of Large Language Model Responses</span></li><li><span class="dpr-home-dashboard-paper-title" title="Real-time Unsupervised Object Discovery from Asynchronous Event Streams">Real-time Unsupervised Object Discovery from Asynchronous Event Streams</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="UrbanGazeVis: A Visualization System for Analyzing Eye-Tracking Data on Urban Safety Perception">UrbanGazeVis: A Visualization System for Analyzing Eye-Tracking Data on Urban Safety Perception</span></li><li><span class="dpr-home-dashboard-paper-title" title="Ludi${}_{\scriptscriptstyle 0.1}$: An Agentic System for Socially Intelligent Robots">Ludi${}_{\scriptscriptstyle 0.1}$: An Agentic System for Socially Intelligent Robots</span></li><li><span class="dpr-home-dashboard-paper-title" title="Disentangled Skill Representations for Predictive Human Modeling">Disentangled Skill Representations for Predictive Human Modeling</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
 </div>
 
