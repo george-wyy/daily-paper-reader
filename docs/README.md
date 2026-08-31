@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-30</span>
+      <span class="dpr-home-dashboard-kicker">2026-08-31</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-30 22:47:45 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-08-31 23:31:34 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读3篇论文，暂无精读，重点覆盖城市安全眼动可视化、社交机器人智能体与人类行为预测。</p>
-<p>最值得关注的是《UrbanGazeVis》（7.0分），其可视化系统可分析眼动数据与城市安全感知的关联；《Ludi 0.1》（6.0分）则探讨社交机器人的社会智能。</p>
-<p>建议优先精读高分论文《UrbanGazeVis》，后续可追踪其方法在交互式分析中的应用。</p>
+<p>今日精读1篇多人在对话中预测话轮转换的研究，聚焦语音与目光动态及人际亲密度的可解释建模。最值得关注的是该论文评分高达9.0，表明其模型在话轮转换预测领域具有较强参考价值。建议普通读者若关注对话交互或语音技术，可优先细读此文的特征设计与可解释性分析。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -73,12 +71,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Predicting Turn-Taking Outcomes in Multi-Party Conversation: Interpretable Modelling of Speech and Gaze Dynamics with Interpersonal Closeness">Predicting Turn-Taking Outcomes in Multi-Party Conversation: Interpretable Modelling of Speech and Gaze Dynamics with Interpersonal Closeness</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -86,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="UrbanGazeVis: A Visualization System for Analyzing Eye-Tracking Data on Urban Safety Perception">UrbanGazeVis: A Visualization System for Analyzing Eye-Tracking Data on Urban Safety Perception</span></li><li><span class="dpr-home-dashboard-paper-title" title="Ludi${}_{\scriptscriptstyle 0.1}$: An Agentic System for Socially Intelligent Robots">Ludi${}_{\scriptscriptstyle 0.1}$: An Agentic System for Socially Intelligent Robots</span></li><li><span class="dpr-home-dashboard-paper-title" title="Disentangled Skill Representations for Predictive Human Modeling">Disentangled Skill Representations for Predictive Human Modeling</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+
 </section>
 </div>
 
