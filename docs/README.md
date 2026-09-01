@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-08-31</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-01</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 6 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-08-31 23:31:34 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-01 23:00:32 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精读1篇多人在对话中预测话轮转换的研究，聚焦语音与目光动态及人际亲密度的可解释建模。最值得关注的是该论文评分高达9.0，表明其模型在话轮转换预测领域具有较强参考价值。建议普通读者若关注对话交互或语音技术，可优先细读此文的特征设计与可解释性分析。</p>
+<p>今日聚焦6篇眼动追踪研究，精读3篇、速读3篇，覆盖VR视口控制、真实场景数据集与漂移校准等方向。</p>
+<p>最值得关注的是满分9.0的全向凝视VR视口控制方法，以及8.0的真实场景注视距离数据集，两者对交互设计与算法验证极具参考价值。</p>
+<p>建议普通读者优先精读这两篇高分工作，再结合速读材料中的上下文自适应与多人意图识别，快速把握眼动技术前沿。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -71,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Predicting Turn-Taking Outcomes in Multi-Party Conversation: Interpretable Modelling of Speech and Gaze Dynamics with Interpersonal Closeness">Predicting Turn-Taking Outcomes in Multi-Party Conversation: Interpretable Modelling of Speech and Gaze Dynamics with Interpersonal Closeness</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Looking Around by Looking Around: Omnidirectional Gaze-based VR Viewport Control">Looking Around by Looking Around: Omnidirectional Gaze-based VR Viewport Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="An Eye-Tracking Dataset for Viewing Distance Categories in Real-World Scenarios">An Eye-Tracking Dataset for Viewing Distance Categories in Real-World Scenarios</span></li><li><span class="dpr-home-dashboard-paper-title" title="Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence">Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Drift Calibration in Geometric Eye Tracking Systems">Drift Calibration in Geometric Eye Tracking Systems</span></li><li><span class="dpr-home-dashboard-paper-title" title="FocusAdapt: Context-aware Adaptive Focus Assistance in Diminished Reality">FocusAdapt: Context-aware Adaptive Focus Assistance in Diminished Reality</span></li><li><span class="dpr-home-dashboard-paper-title" title="Leveraging Turn-taking Dynamics for Intent Recognition in Multi-party Conversations">Leveraging Turn-taking Dynamics for Intent Recognition in Multi-party Conversations</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
 </div>
 
