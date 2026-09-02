@@ -41,7 +41,7 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-01</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-02</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 6 篇</strong>
@@ -51,7 +51,7 @@
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>3</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-01 23:00:32 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-02 22:54:42 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日聚焦6篇眼动追踪研究，精读3篇、速读3篇，覆盖VR视口控制、真实场景数据集与漂移校准等方向。</p>
-<p>最值得关注的是满分9.0的全向凝视VR视口控制方法，以及8.0的真实场景注视距离数据集，两者对交互设计与算法验证极具参考价值。</p>
-<p>建议普通读者优先精读这两篇高分工作，再结合速读材料中的上下文自适应与多人意图识别，快速把握眼动技术前沿。</p>
+<p>今日日报聚焦眼动追踪与人机交互，精读2篇高分论文，速读3篇相关应用研究。最值得关注的是基于注视的无标定机器人任意位置放置技术，以及结合级联触摸输入提升注视交互精度的方法。普通读者可留意眼动与触摸融合技术未来在AR/XR和智能辅助场景中的落地潜力。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -76,7 +74,7 @@
     <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Looking Around by Looking Around: Omnidirectional Gaze-based VR Viewport Control">Looking Around by Looking Around: Omnidirectional Gaze-based VR Viewport Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="An Eye-Tracking Dataset for Viewing Distance Categories in Real-World Scenarios">An Eye-Tracking Dataset for Viewing Distance Categories in Real-World Scenarios</span></li><li><span class="dpr-home-dashboard-paper-title" title="Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence">Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Beyond Object Selection:Markerless Gaze-based Robot Placement at Arbitrary Position">Beyond Object Selection:Markerless Gaze-based Robot Placement at Arbitrary Position</span></li><li><span class="dpr-home-dashboard-paper-title" title="GazeTune: Facilitating Precise Gaze-Driven Interactions with Cascaded Touch Input">GazeTune: Facilitating Precise Gaze-Driven Interactions with Cascaded Touch Input</span></li><li><span class="dpr-home-dashboard-paper-title" title="UniScale: Exploring Unimanual Gesture Mapping Strategies for Gaze+Pinch-based Scaling Interaction">UniScale: Exploring Unimanual Gesture Mapping Strategies for Gaze+Pinch-based Scaling Interaction</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
@@ -89,7 +87,7 @@
     <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Drift Calibration in Geometric Eye Tracking Systems">Drift Calibration in Geometric Eye Tracking Systems</span></li><li><span class="dpr-home-dashboard-paper-title" title="FocusAdapt: Context-aware Adaptive Focus Assistance in Diminished Reality">FocusAdapt: Context-aware Adaptive Focus Assistance in Diminished Reality</span></li><li><span class="dpr-home-dashboard-paper-title" title="Leveraging Turn-taking Dynamics for Intent Recognition in Multi-party Conversations">Leveraging Turn-taking Dynamics for Intent Recognition in Multi-party Conversations</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence">Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence</span></li><li><span class="dpr-home-dashboard-paper-title" title="An Intelligent Decision Support System for Emotion Monitoring using Microscopic Fixational Dynamics">An Intelligent Decision Support System for Emotion Monitoring using Microscopic Fixational Dynamics</span></li><li><span class="dpr-home-dashboard-paper-title" title="Active Visual Semantics: A large-scale MEG and eye-tracking dataset for understanding visual intelligence in action">Active Visual Semantics: A large-scale MEG and eye-tracking dataset for understanding visual intelligence in action</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
