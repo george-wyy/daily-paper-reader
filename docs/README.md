@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-02</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-03</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 6 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>3</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-02 22:54:42 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-03 21:39:16 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日日报聚焦眼动追踪与人机交互，精读2篇高分论文，速读3篇相关应用研究。最值得关注的是基于注视的无标定机器人任意位置放置技术，以及结合级联触摸输入提升注视交互精度的方法。普通读者可留意眼动与触摸融合技术未来在AR/XR和智能辅助场景中的落地潜力。</p>
+<p>今日仅速读1篇论文，无精读，主题为人机协作中的动作预测。</p>
+<p>最值得关注的方向：利用姿态锚定光流实现低延迟人体动作预判。</p>
+<p>下一步建议：普通读者可先浏览该文方法概览，再结合场景评估实用性。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -71,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Beyond Object Selection:Markerless Gaze-based Robot Placement at Arbitrary Position">Beyond Object Selection:Markerless Gaze-based Robot Placement at Arbitrary Position</span></li><li><span class="dpr-home-dashboard-paper-title" title="GazeTune: Facilitating Precise Gaze-Driven Interactions with Cascaded Touch Input">GazeTune: Facilitating Precise Gaze-Driven Interactions with Cascaded Touch Input</span></li><li><span class="dpr-home-dashboard-paper-title" title="UniScale: Exploring Unimanual Gesture Mapping Strategies for Gaze+Pinch-based Scaling Interaction">UniScale: Exploring Unimanual Gesture Mapping Strategies for Gaze+Pinch-based Scaling Interaction</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence">Augmenting Human Performance with an XR Agent Learning from Online Behavior and BCI Evidence</span></li><li><span class="dpr-home-dashboard-paper-title" title="An Intelligent Decision Support System for Emotion Monitoring using Microscopic Fixational Dynamics">An Intelligent Decision Support System for Emotion Monitoring using Microscopic Fixational Dynamics</span></li><li><span class="dpr-home-dashboard-paper-title" title="Active Visual Semantics: A large-scale MEG and eye-tracking dataset for understanding visual intelligence in action">Active Visual Semantics: A large-scale MEG and eye-tracking dataset for understanding visual intelligence in action</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Pose-Anchored Optical Flow for Low-Latency Human Action Anticipation in Human-Robot Teaming">Pose-Anchored Optical Flow for Low-Latency Human Action Anticipation in Human-Robot Teaming</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 </div>
 

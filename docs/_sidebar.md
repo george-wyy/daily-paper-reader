@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-09-03 <!--dpr-date:20260903-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/03/2608.25495v1-pose-anchored-optical-flow-for-low-latency-human-action-anticipation-in-human-robot-teaming" data-sidebar-item="{&quot;title&quot;: &quot;Pose-Anchored Optical Flow for Low-Latency Human Action Anticipation in Human-Robot Teaming&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2608.25495v1-pose-anchored-optical-flow-for-low-latency-human-action-anticipation-in-human-robot-teaming&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;面向人机交互的低延迟动作意图理解，使用姿态锚定光流而非眼动信号&quot;}">Pose-Anchored Optical Flow for Low-Latency Human Action Anticipation in Human-Robot Teaming</a>
   * 2026-09-02 <!--dpr-date:20260902-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/02/2609.00478v1-beyond-object-selectionmarkerless-gaze-based-robot-placement-at-arbitrary-position" data-sidebar-item="{&quot;title&quot;: &quot;Beyond Object Selection:Markerless Gaze-based Robot Placement at Arbitrary Position&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.00478v1-beyond-object-selectionmarkerless-gaze-based-robot-placement-at-arbitrary-position&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;基于注视的机器人放置交互，将注视射线映射到任务目标&quot;}">Beyond Object Selection:Markerless Gaze-based Robot Placement at Arbitrary Position</a>
