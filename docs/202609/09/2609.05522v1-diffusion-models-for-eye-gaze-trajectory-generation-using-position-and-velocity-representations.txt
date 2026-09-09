@@ -1,0 +1,559 @@
+Title: Diffusion models for eye-gaze trajectory generation using position and velocity representations
+
+URL Source: https://arxiv.org/pdf/2609.05522v1
+
+Published Time: Wed, 09 Sep 2026 00:04:33 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Diffusion models for eye-gaze trajectory generation using position and velocity representations 
+
+Laxman Basnet 1, Alexander Szorkovszky 2, Pedro G. Lind 1,3, Anis Yazidi 1,2,4, Shailendra Bhandari 1∗
+
+> 1
+
+Department of Computer Science, Oslo Metropolitan University, Oslo, Norway 
+
+> 2
+
+Department of Numerical Analysis and Scientific Computing, Simula Research Laboratory, Oslo, Norway 
+
+> 3
+
+Department of Technology, Kristiania University of Applied Sciences, Oslo, Norway 
+
+> 4
+
+Department of Informatics, University of Oslo, Oslo, Norway 
+
+(Dated: September 9, 2026) Eye-tracking data are expensive to collect, requiring specialized hardware and controlled labora-tory conditions, and difficult to share due to privacy regulations, which together limit the quantity and diversity of gaze data available for research. We address this with two complementary de-noising diffusion probabilistic models (DDPMs) for unconditional generation of continuous eye-gaze dynamics from the same visual-search eye-tracking dataset. Both use an identical FiLM-conditioned one-dimensional U-Net with self-attention (19.35 M parameters) trained on data from visual searches performed by 28 participants, with sliding-window samples 8 s in length. The first model generates raw two-dimensional gaze-position sequences directly, and the second generates the corresponding two-component velocity sequences; the two formulations use representation-specific preprocessing, training configurations, data partitions, and evaluation protocols. Each model is evaluated across three independent training seeds over its own fixed train/validation split; seed-aggregated met-rics are reported as mean ± SD while single-reference-run analyses are identified separately. The position-space model achieves a mean Jensen-Shannon (JS) divergence of 0 .016 ± 0.004 over nine kinematic features, with the highest feature-wise mean below 0 .030, fixation duration within 2% of real data, and a Fr´ echet Gaze Distance more than an order of magnitude below statistical and Markovian baselines. Under a Train-on-Synthetic-Test-on-Real protocol, synthetic-only training achieves R2 = 0 .66 ± 0.02, corresponding to 82.7% of the real-data R2 point estimate. The velocity-space model achieves a mean JS divergence of 0 .0065 across velocity-component, speed, log-speed, and turning angle distributions, with a maximum of 0 .015 ± 0.005. Reconstructed path length is less accurately reproduced (0 .21 ± 0.02 versus 0 .03 ± 0.01 in position space), although the validation protocols differ. Taken together, the two representations indicate that unconditional diffusion reli-ably captures the local kinematic structure of human gaze motion, velocity-component marginals, scalar speed, and short-range temporal and directional statistics, while integrated, long-range struc-ture such as saccade counts and cumulative path geometry remains the principal target for future stimulus- or participant-conditioned models. 
+
+I. INTRODUCTION 
+
+Eye movements offer a powerful window into how hu-mans attend to and process visual information. Where people look, how long they fixate, and how gaze shifts over time carry information about perception, decision-making, and cognitive load, which has made eye-tracking a core method in cognitive science, psychology, and human-computer interaction for decades [1, 2]. Be-cause gaze reflects both bottom-up saliency and top-down goals, it carries behavioral information that cannot be inferred from static stimuli alone [3], and it underpins applications from reading research [2] and usability test-ing [4] to virtual reality [5], driver monitoring [6], assis-tive technology [7], marketing [8] and clinical diagnostics [9]. Meeting this broad demand for gaze data remains dif-ficult. Recordings require specialized hardware, con-trolled laboratory conditions, and substantial researcher and participant time [1], while privacy regulations re-strict how recordings can be shared, which limits dataset  
+
+> ∗shailendra.bhandari@oslomet.no
+
+size, diversity, and reproducibility. Eye movements also vary substantially across individuals even under identi-cal viewing conditions [10], so the behavioral diversity needed to train robust downstream models is hard to collect at scale. Synthetic data generation is a natu-ral response to this bottleneck. Generative models can supplement scarce recordings, animate virtual or robotic agents with plausible gaze behavior [11], provide a refer-ence distribution for anomaly detection [12], and reduce dependence on costly collection [13], mirroring synthetic-data efforts in medical imaging [14] and physiological time series [15]. Doing so is difficult: gaze alternates between low-velocity fixations and rapid saccadic tran-sitions, producing non-stationary, stochastic dynamics that classical Markov and autoregressive models capture only over short horizons [3]. Deep generative alternatives have their own failure modes, with generative adversar-ial networks (GANs) prone to mode collapse and training instability [16–18]. Diffusion models provide a non-adversarial alterna-tive. Building on ideas from non-equilibrium statistical physics, Sohl-Dickstein et al. [19] introduced a forward Markov process that progressively transforms a data dis-tribution into a tractable reference distribution, together arXiv:2609.05522v1 [cs.CV] 1 Sep 2026 2with a learned reverse process that reconstructs the data distribution. Ho et al. [20] developed the DDPM, using a discrete Gaussian forward process and a noise-prediction training objective, while Song et al. [21] formulated score-based diffusion in continuous time using stochastic differential equations. Because diffusion models do not rely on adversarial minimax optimization, they are gen-erally more stable to train than GANs and have been suc-cessfully extended to probabilistic time-series forecasting and imputation [22, 23]. These properties make them well suited to stochastic, temporally structured signals such as eye-tracking data. Recent diffusion-based approaches to gaze modeling, including DiffGaze [24], the image-conditioned DiffEye [25], and ScanDiff [26], have shown that diffusion pro-cesses can generate plausible, diverse scanpaths. These models are predominantly stimulus- or task-conditioned, using an image, scene representation, or viewing objec-tive to guide generation. Their evaluation consequently focuses on the agreement between generated gaze be-haviour and the corresponding visual stimulus. Less is known about how accurately diffusion models can re-cover the intrinsic kinematic and temporal structure of continuous gaze signals without explicit stimulus or par-ticipant conditioning, and whether the choice of position-or velocity-based representation affects which aspects of the dynamics are reproduced most faithfully. We investigated this question using two unconditional DDPM formulations trained on the same underlying eye-tracking dataset and visual-search task. Both models use the same denoising architecture but operate on dif-ferent representations and employ representation-specific preprocessing and training configurations. The position space model generates a two-dimensional gaze-position sequence directly, whereas the velocity-space model gen-erates the two-component gaze-velocity sequences ob-tained by first-order differencing of the position sig-nal. We first summarize the shared DDPM formula-tion and the representation-specific preprocessing (Sec-tion II), then describe the common denoising architecture and the two training procedures (Section III), and finally evaluate each representation with diagnostics appropri-ate to its output space (Sections IV and V). Because the two models use different validation sets and evalu-ation protocols, their numerical results are not treated as a controlled representation ablation. Instead, the two analyses jointly characterize which aspects of human gaze dynamics can be recovered by unconditional diffusion and where explicit conditioning may provide further benefit.  
+
+> II. BACKGROUND AND THE DATASET
+
+We give a self-contained summary of the DDPM con-struction used by both models. Full derivations of the Gaussian posterior and the variational lower bound are given in Appendices A and B. 
+
+a. Forward process and training objective. Let x0 ∈
+
+RD be a clean sample, and let βt ∈ (0 , 1) denote the variance of the Gaussian noise added at diffusion step t.With αt = 1 − βt and ¯ αt = Qts=1 αs, the DDPM forward process [20] admits the closed-form marginal 
+
+xt = √¯αt x0 + √1 − ¯αt ε, ε ∼ N (0 , I ), (1) so a noisy sample at any step t can be drawn directly from 
+
+x0. A network εθ (xt, t ) is trained to predict the injected noise by minimizing the expected squared ℓ2 error: 
+
+LDDPM = Ex0,ε,t 
+
+∥ε − εθ (xt, t )∥22
+
+. (2) This ε-prediction objective is well-conditioned at every noise level because the target has unit variance regard-less of t. In contrast, direct x0-prediction becomes in-creasingly difficult at high noise levels, a distinction also reflected in the ablation in Section V A. At inference, de-terministic DDIM sampling [27] ( η = 0) integrates the learned reverse dynamics in far fewer steps than full an-cestral sampling, without added stochastic noise. 
+
+b. Gaze-sequence formulation. For a time-series window X0 ∈ Rd×L, vectorization to RD , D = dL , recov-ers Eq. (1) unchanged. Both models use d = 2 channels and L = 2 ,000 samples (8 s at 250 Hz), differing only in what the two channels represent: for the position-space model ri = ( xi, y i)⊤ denotes the normalized gaze position at sample i; for the velocity-space model vi = ( vx,i , v y,i )⊤
+
+denotes the corresponding two-component gaze velocity at recording time τi. As the diffusion steps t increase, the structured gaze signal is progressively suppressed and re-placed by isotropic Gaussian noise. The reverse model must then reconstruct fixation-like intervals and rapid saccadic bursts from noise. 
+
+c. Dataset. Both models are trained on eye-tracking recordings from a publicly available dataset [28]. The dataset was acquired with an EyeLink Portable Duo sys-tem [29] at 1,000 Hz and contains time-stamped binocu-lar gaze coordinates, pupil diameter, and event-state la-bels (blink, fixation, saccade) for 251 participants across six experimental tasks. Of the available raw channels, both models use only the right-eye horizontal and verti-cal gaze coordinates as the input signal, since binocular movements are highly correlated under normal viewing and a single eye reduces dimensionality without materi-ally affecting temporal dynamics [1]. For both models, analysis is restricted to the Where’s Waldo? [30] visual-search task, in which participants viewed nine visually crowded scenes for 45 s each while searching for specified characters. The task suits gener-ative modeling: it yields long, continuous, goal-directed trajectories with rich fixation and saccade structure, and the absence of a prescribed scanpath preserves naturalis-tic inter-individual variability in scanning strategy. Raw recordings are downsampled to fs = 250 Hz by retaining every fourth sample. At this rate, fixations of 150-400 ms span 37-100 samples and saccades of 20-80 ms span 5-20 samples, so both event types remain temporally resolved. 3(a) full-trial gaze path                       
+
+> 0246
+> time [s]
+> 0.5
+> 0.0 0.5 1.0
+> position (b) position-space
+> x()
+> y()
+> 0246
+> time [s]
+> 20
+> 020
+> vx
+> (c) velocity vx()
+> 0246
+> time [s]
+> 20
+> 020
+> vy
+> (d) velocity vy()
+> 0246
+> time [s]
+> 010 20 30
+> v2
+> x + v2
+> y
+> (e) speed
+
+FIG. 1. Example recording in both model representations. (a) Gaze path for the full 45 s trial. (b–e) One 8 s segment ( L = 2 ,000 samples, fs = 250 Hz) from the same recording: (b) position x(τ ), y(τ ), where fixations appear as plateaus and saccades as steps (input to the position-space model). (c, d) Velocity components vx(τ ), vy (τ ) (Eq. 3), where saccades become sparse high-amplitude spikes (input to the velocity-space model). (e) Scalar speed pv2 
+
+> x
+
++ v2 
+
+> y
+
+.
+
+Recordings are segmented into windows of L = 2 ,000 samples (8 s), and both models use a participant-level train-validation split so that no participant appears in both partitions (Figure 1). The position-space model uses 33 participants selected from the 139 available for this task based on data com-pleteness and calibration quality. Pixel coordinates are linearly mapped to [ −1, +1] and clipped to [ −1.2, +1 .2] to accommodate brief off-screen samples. Windows are extracted with an 8 s window and a 1 s sliding stride, re-taining only windows drawn from contiguous valid runs with less than 30% of samples exceeding ±1.1 in either axis; participants without any sufficiently long valid run are excluded, reducing the cohort to 28 participants and yielding 4,401 valid segments. An 80/20 participant-stratified split gives 3,265 training and 1,136 validation segments. The velocity-space model uses a participant-level par-tition with a validation fraction of 0.2. Define the sample-to-sample gaze increment as ui = ri − ri−1 =(∆ xi, ∆yi)⊤, where ∆ xi = xi −xi−1 and ∆ yi = yi −yi−1.The corresponding horizontal and vertical velocity com-ponents are computed by first-order differencing of the normalized coordinates, 
+
+vx,i = xi − xi−1
+
+∆τ , vy,i = yi − yi−1
+
+∆τ , (3) where i denotes the gaze-sample index, ∆ τ = 1 /f s, and the first sample is set to zero. Thus, vi = ui/∆τ , with velocity expressed in normalized units/s. Position is re-constructed as bri = bri−1 + bvi∆τ , with br0 = 0. Velocities are normalized by cv = Q0.995 ({| vx,i |, |vy,i |} ), the joint training-set 99.5th percentile, and decoded by multiply-ing by cv . The 80/20 participant-level split yields 425 training and 127 validation segments, and the model is evaluated on this held-out validation split across three independent training seeds. 
+
+III. METHODS 
+
+Both denoisers share an identical backbone: a one-dimensional U-Net [31] that receives a noisy two-channel window of shape (2 , L ) and a diffusion step t, and out-puts a two-channel noise estimate of the same shape (Figure 2). Three encoder stages with channel widths 128 → 256 → 512, each comprising a residual block followed by a stride-2 convolution, are followed by a bottleneck with two residual blocks and an inter-leaved self-attention layer, and a mirrored decoder with transposed-convolution upsampling and skip concatena-tion from each encoder level, totalling 19,350,914 param-eters. Residual blocks use group normalization and SiLU activations [32] and are conditioned on the diffusion-step embedding via Feature-wise Linear Modulation [33], 
+
+h′ = h⊙(1+ γ(et))+ δ(et), with the diffusion step encoded using a sinusoidal embedding followed by a multilayer perceptron. The bottleneck self-attention [34] (4 heads, head dimension 32) lets every temporal position attend to every other, allowing the network to model dependencies between fixation periods and subsequent saccade onsets across the full window. Both models use T = 1 ,000 diffu-sion steps under a linear noise schedule from β1 = 10 −4
+
+to βT = 2 × 10 −2, are optimized with AdamW [35] under the ε-prediction objective of Eq. (2), and generate sam-ples via deterministic DDIM sampling [27] ( η = 0). The two runs differ in training recipe, inference budget, and the data partition each uses, summarized in Appendix Table III and described below. 
+
+A. Position-space training recipe 
+
+The position-space model is trained for 500 epochs with batch size 8, an initial learning rate of 10 −4, weight decay of 10 −4, and gradient clipping at an ℓ2 norm of 1.0. The learning rate follows cosine annealing after a 10-epoch linear warm-up [36], and training uses au-tomatic mixed precision. Horizontal and vertical flips are applied independently with probability 0 .5, and tem-poral reversal with probability 0 .3, consistent with the approximate population-level symmetries of the visual-search data. An exponential moving average of the model weights (decay 0 .9999) is used for inference, and trajec-tories are generated using 100 DDIM steps. The model is trained with three random seeds (42, 123, and 2024) on the same participant-stratified 80/20 split (split seed 4Forward diffusion q(xt | xt−1): add Gaussian noise Reverse process pθ(xt−1 | xt): learned denoising (U-Net below) (a) (b) Noisy window   
+
+> Xt∈R2×L, position or velocity
+
+Initial Conv1D    
+
+> 2→128 channels
+
+ResBlock, ch = 128 
+
+> GN + SiLU + FiLM
+
+ResBlock, ch = 256 
+
+> GN + SiLU + FiLM
+
+ResBlock, ch = 512 
+
+> GN + SiLU + FiLM
+
+Bottleneck, ch = 512     
+
+> ResBlock →Self-Attn. 1D →ResBlock
+
+ResBlock, ch = 512 
+
+> skip concat + FiLM
+
+ResBlock, ch = 256 
+
+> skip concat + FiLM
+
+ResBlock, ch = 128 
+
+> skip concat + FiLM
+
+Output head    
+
+> GN + SiLU + Conv1D 128 →2
+
+Predicted noise   
+
+> εθ(Xt, t )∈R2×L
+
+Timestep t    
+
+> sinusoidal (256) + MLP
+> 256 →1024 →256
+
+DDIM sampler  
+
+> η= 0 , deterministic
+
+Synthetic window       
+
+> ˆX0∈R2×L
+> stride 2 stride 2 stride 2 L/ 8ConvT1D ×2
+> ConvT1D ×2
+> ConvT1D ×2
+> skip skip skip
+> LL/ 2
+> L/ 4
+
+Encoder Decoder     
+
+> Encoder ResBlock Bottleneck (self-attn.) Decoder ResBlock Time embed. / inference Skip connection FiLM conditioning inference only
+
+FIG. 2. Shared denoising architecture. Position or velocity windows X0 ∈ R2×L are noised to Xt, and the 1D U-Net predicts 
+
+εθ (Xt, t ). Deterministic DDIM sampling ( η = 0) produces ˆX0; training and sampling settings differ between representations. 
+
+42). Metrics in Section V A are reported as mean ± SD across these runs. 
+
+B. Velocity-space training recipe 
+
+The velocity-space model is trained for 500 epochs with batch size 16, an initial learning rate of 10 −4,weight decay of 10 −4, gradient clipping at an ℓ2 norm of 1.0, and a 10-epoch linear warm-up followed by co-sine annealing. Training uses the forward relation ˜Vt =√¯αt ˜V0 + √1 − ¯αt ε derived from Eq. (1), together with Min-SNR loss weighting with γ = 5 [37]. An exponen-tial moving average of the weights (decay 0 .999) is used for inference. The model is trained under three random seeds using a fixed participant-level train-validation split, and all metrics are reported as mean ± SD. Synthetic ve-locity windows are generated using 50 DDIM steps and rescaled by the training-set factor cv , without smoothing or mean-centering. Complete settings for both models 5are given in Appendix Table III.  
+
+> IV. EVALUATION PROTOCOLS
+
+Because the two models act on different physical quan-tities, we use representation-appropriate diagnostics for each rather than a single shared metric, and we do not in-terpret cross-model numerical differences as a controlled ablation. 
+
+a. Position-space. We report nine feature distribu-tions: mean and maximum speed si = ∥ui∥2 (normal-ized units/sample), total path length, x/y-range, x/y-standard deviation, start-to-end displacement, and fixa-tion ratio. The features are compared between n = 1 ,136 real and n = 1 ,136 generated validation segments from five held-out participants using the Kolmogorov–Smirnov (KS) statistic [38], Jensen-Shannon (JS) divergence [39], and Wasserstein-1 (W 1) distance [40]. Because W 1 car-ries each feature’s own units and is not comparable across features, it is tabulated separately in Appendix Table V. A Fr´ echet Gaze Distance (FGD) [41], compares the mean and covariance of features extracted using a fixed refer-ence position-space U-Net bottleneck for both real and generated trajectories. Fixations and saccades are identi-fied with the Identification-by-Velocity-Threshold (I-VT) algorithm [42] (threshold 0.02 normalized units/sam-ple, minimum fixation duration 60 ms), following estab-lished practice for comparative fixation-detection evalua-tion [43, 44]. To compare the full set of features at once, a downstream Train-on-Synthetic-Test-on-Real (TSTR) protocol [45] is used to predict fixation count from the nine features with a small MLP. We additionally compare the directional and temporal structure of gaze motion us-ing the four-metric framework of [46]. The four descrip-tors are the speed |u|, its lag autocorrelation, movement direction θi = atan2(∆ yi, ∆xi), and signed turning angle 
+
+ϕi = wrap [−π,π ](θi − θi−1). The fidelity of the diffusion model is compared against four statistical baselines. The first two of these are first-order time-homogeneous Markov approximations to the velocity and position dynamics, respectively. Following Lencastre et al. [46], we approximate the dynamics using a discretized transition matrix Mab = P r (ci+1 = b | ci =
+
+a). For the kinematic Markov model, ci is the cell con-taining ui on a 51 × 51 grid over [ −0.1, 0.1] 2, whereas for the positional Markov model, ci is the cell containing ri
+
+on a 32 × 32 grid over [ −1.2, 1.2] 2. The transition ma-trices are estimated from consecutive training-set tran-sitions and Gaussian-smoothed to reduce sparsity. Syn-thetic increments are sampled recursively and integrated as bri = bri−1 + bui, with br0 = 0. The remaining two baselines draw samples from uniform and Gaussian dis-tributions, respectively. 
+
+b. Velocity-space. For each real and generated win-dow, we compute the horizontal and vertical velocity components, vx,i and vy,i , together with the scalar speed and log-speed. Distributional agreement is quantified us-   
+
+> TABLE I. Position-space model. Feature-level agreement with real held-out trajectories, mean ±SD over three train-ing seeds, validation segments per seed, split held fixed. The two metrics are the KS statistic and the JS divergence (lower values indicate better agreement).
+
+Feature KS JS 
+
+Mean speed 0.149 ± 0.036 0.0249 ± 0.0096 Max speed 0.150 ± 0.034 0.0152 ± 0.0062 Total path length 0.149 ± 0.036 0.0249 ± 0.0096 
+
+x-range 0.159 ± 0.020 0.0122 ± 0.0035 
+
+y-range 0.115 ± 0.012 0.0067 ± 0.0018 
+
+x-std 0.186 ± 0.016 0.0206 ± 0.0030 
+
+y-std 0.101 ± 0.016 0.0051 ± 0.0013 Displacement 0.142 ± 0.011 0.0100 ± 0.0019 Fixation ratio 0.099 ± 0.056 0.0296 ± 0.0173 
+
+Mean 0.138 ± 0.013 0 .0155 ± 0.0038 
+
+ing the JS divergence between the pooled real and gen-erated marginal distributions of vx, vy , speed, log-speed, and signed turning angle, together with the reconstructed path length. Temporal dependence is assessed through the lag-one autocorrelation mismatch, ∆ ρ1, defined as the difference between the mean real and generated lag-one autocorrelations. Spectral agreement is measured using the L1 distance, DPSD , between the corresponding mean normalized power spectral densities [47, 48].   
+
+> V. RESULTS A. Position-space model
+
+Across the three seeds, the best validation loss is 0.0060 ± 0.0001 (reference run: 0.0059 at epoch 462, training loss 0 .0074 at the same epoch), indicating mini-mal overfitting over the full 500-epoch run. Trajectories generated by DDIM sampling are visually plausible (Fig-ure 3), spanning a normalized coordinate range consis-tent with the real validation set and exhibiting clustered, fixation-like dwell periods separated by saccadic jumps. Table I reports the feature-level comparison, while Figure 6 shows the corresponding marginal distribu-tions. Among the nine features, vertical spread ( y-std, JS = 0 .0051), vertical range (0 .0067) and displacement (0 .0100) are reproduced most closely. Horizontal vari-ability is generally more difficult to match. In particular, 
+
+x-std has the largest KS statistic (0 .1863 against 0 .1009 for y-std) and approximately four times its JS (0 .0206 against 0 .0051). This x-std versus y-std ordering holds across all three seeds, whereas the corresponding x-range versus y-range ordering is not consistent for every seed. The observed anisotropy may reflect greater variability in scanning along the wider horizontal screen axis, al-though the present experiment does not isolate its cause. 6(a) (b) (c) (d)          
+
+> (e) (f) (g) (h)
+> (i) (j) (k) (l)
+> (m) (n) (o) (p)
+
+FIG. 3. Representative gaze trajectories generated by the position-space DDPM (DDIM, 100 steps, η = 0). Each panel shows the xy path of one generated 8 s sequence in normalized coordinates. 
+
+Fixation ratio exhibits a different pattern, with the low-est mean KS statistic (0 .0992) but the largest mean JS divergence (0 .0296), as well as the largest relative seed variability for both metrics. This combination indicates that the cumulative distributions can agree globally while the corresponding binned densities differ locally, so the low KS value alone should not be interpreted as strong distributional fidelity. Validation loss also did not rank the runs according to sample-level quality: seed 123 had the highest best-validation loss (0 .006147), but the lowest mean JS over the eight non-redundant features (0 .01225) and the second-lowest FGD (12 .35). With only three seeds, this is an observation rather than evidence of a systematic relationship, but it shows that validation loss alone was not sufficient for assessing generative quality. The I-VT event statistics (Table VII) and the sampling and objective ablations (Table VI) were computed on the single reference run and should be read as within-run comparisons; the distributional and downstream re-sults reported alongside them are seed averages. Under I-VT segmentation (Table VII), fixation duration falls within 2% of the real mean (0 .351 s against 0 .344 s). Fix-ation count is nearly identical (21 .41 against 21 .81 per trajectory), while saccade peak speed matches to within 1% (0 .0618 against 0 .0624 normalized units), showing close agreement in these event-level kinematic statistics. The clearest remaining gap is a 15% saccade undercount (22 .82 against 26 .79) accompanied by elevated fixation dispersion (0 .0108 against 0 .0074). Because I-VT assigns samples using a fixed velocity threshold, residual low-0.00  0.02  0.04  0.06  0.08             
+
+> |v|
+> 4
+> 6
+> Density
+> (a) Speed |u|
+> 0100 200 300 400
+> Lag (ms)
+> 0.00
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> ACF
+> (b) Autocorrelation of |u|
+> 202
+> (rad)
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> Density
+> (c) Direction
+> 202
+> (rad)
+> 0.1
+> 0.2
+> 0.3
+> Density
+> (d) Turning angle
+> Real Our Model Markov
+
+FIG. 4. Gaze-trajectory statistics for empirical data, the position-space DDPM, and the kinematic Markov baseline fol-lowing Lencastre et al. [46]: (a) speed |u|, (b) autocorrelation of |u|, (c) movement direction θ, and (d) turning angle ϕ.
+
+amplitude jitter may broaden fixation clusters and re-duce the number of transitions exceeding the threshold, potentially contributing to both the elevated fixation dis-persion and the observed saccade undercount. Against four baselines, the model achieves FGD =13 .79 ± 2.97, versus 2 ,752 .88 (random), 2 ,699 .22 (Gaus-sian), 1,648 .77 (kinematic Markov) and 467 .49 (posi-tional Markov); more than an order of magnitude be-low the strongest of these and more than 99% below the naive ones. FGD varies appreciably across seeds (rela-tive SD ≈ 22%, comparable to the mean JS at ≈ 24% and well above the mean KS at ≈ 9%), but the mar-gin over the baselines is large enough that the order-ing holds at every seed. The model also improves on the kinematic Markov baseline for every kinematic fea-ture (mean KS = 0 .138 against 0 .481; mean JS = 0 .016 against 0 .221, both over the eight distinct features; Ta-ble IV). Figure 4 compares the position space DDPM and the kinematic Markov baseline with empirical gaze data on the four-metric directional framework. The position-space DDPM closely reproduces the real speed distribution, including the high-speed saccadic tail that the Markov model misses, and both models recover the rapid autocorrelation decay within 50 ms that reflects the fixation-saccade rhythm. The clearest separation is in turning angle: real gaze has a strong central peak at 
+
+ϕ = 0, which the position-space model reproduces closely while the kinematic Markov model underestimates it, in-dicating that the diffusion model better captures this di-rectional dependence than the first-order Markov base-line. 7         
+
+> FIG. 5. Real and generated gaze-velocity comparison for a representative seed. Pooled empirical distributions over all segments and time points for (a) vx, (b) vy, and (c) scalar speed pv2
+> x+v2
+> y. All three seeds yield closely matching distributions; aggregate metrics are reported as mean ±SD over seeds in Table II.
+
+An ablation of the ε-prediction objective against di-rect x0-prediction, with architecture, data and training budget held fixed, yields validation losses of 0 .0059 and 0.0995 respectively. More importantly for generated-sample quality the ε-prediction model achieves an FGD 11 .86 compared with 16 ,782 for direct x0-prediction. This is consistent with the loss-conditioning argument of Section II: the ε-target has unit variance at every diffu-sion step, whereas direct x0-prediction becomes increas-ingly difficult at high noise levels. The EMA shadow model lowers the mean-speed KS by 43% relative to the raw checkpoint (0 .277 → 0.158), deterministic DDIM (η = 0) is preferred over stochastic sampling (mean KS 0.135 at η = 0 against 0 .356 at η = 1), and quality sat-urates near 100 DDIM sampling steps (Table VI). Un-der the TSTR protocol, a predictor trained only on syn-thetic trajectories recovers 83% of real-data performance on fixation-count prediction ( R2 = 0 .6612 ± 0.0219 over seeds, against a real-to-real reference of 0 .80 ± 0.05 from 5-fold cross-validation on real data alone), and augment-ing real training data with synthetic trajectories matches that reference to within 0 .006 (Table VIII).  
+
+> B. Velocity-space model
+
+To assess whether representation choice affects what an unconditional DDPM recovers, we evaluate the velocity-space variant across three independent train-ing seeds sharing a fixed participant-level train/valida-tion split (Section III); we report each metric as the mean ± standard deviation over seeds, so the spread re-flects sensitivity to random initialization and sampling noise rather than a single run. Table II and Figure 5 summarize the velocity-space comparison. The signed velocity marginals are repro-duced most closely, with JS = 0 .0022 ± 0.0005 for vx and 0.0073 ± 0.0009 for vy ; scalar speed follows at 0 .0083 ±
+
+0.0014 and log-speed at 0 .0146 ± 0.0049. The signed turning angle distribution shows the smallest mean di-vergence JS = 0 .0003 ± 0.0002, indicating close distribu-tional agreement in local directional change. The short-lag temporal statistics are also well captured, with lag-one autocorrelation mismatches below 0 .06 for all four quantities (Table II) and normalized spectral distances of order 10 −4, indicating that the generated sequences match not only the marginal shape but also the dom-inant temporal and spectral scale of real gaze velocity. The one clearly harder quantity is reconstructed cumu-lative path length (JS = 0 .207 ± 0.020): because path length integrates speed over the full 8 s window, small systematic differences in the speed distribution accumu-late, so the generated sequences reach modestly different total path lengths than real ones. The absolute JS di-vergences remain small across seeds, although their rel-ative variability differs by quantity; the signed turning-angle divergence in particular has a small absolute mean but comparatively large relative seed-to-seed variation. Speed profile, autocorrelation, and spectral diagnostics for a representative seed are shown in Figure 7. The two models use different validation-set sizes and metric suites but share the same architecture (Sec-tion III), and together they give a more specific picture than a magnitude-versus-direction split. The position-space model reproduces vertical spread, displacement, and fixation timing well and is comparatively weaker on horizontal spread and saccade count. The velocity-space model reproduces the signed velocity marginals, scalar speed, and turning angle with high fidelity, with recon-structed path length as its main residual gap. The shared difficulty appears to lie in integrated, long-range struc-ture rather than in local signed or directional statistics. Turning angle is among the best-matched quantities for both models, while the saccade count in position space and cumulative path length in velocity space require com-posing many local motions correctly across the full win-dow and remain comparatively difficult to reproduce.  
+
+> VI. DISCUSSION, LIMITATIONS AND CONCLUSIONS
+
+The two models show that unconditional diffusion cap-tures local gaze kinematics more accurately than long-8                                                               
+
+> TABLE II. Velocity-space model: agreement with real held-out data, reported as mean ±SD over three training seeds (fixed 80/20 participant-level split).
+> Quantity JS ∆ρ1DPSD
+> vx(2 .19 ±0.50) ×10 −30.0278 ±0.0038 (1 .31 ±0.02) ×10 −4
+> vy(7 .31 ±0.89) ×10 −30.0568 ±0.0092 (1 .52 ±0.04) ×10 −4
+> Speed (8 .34 ±1.36) ×10 −30.0157 ±0.0026 (1 .82 ±0.12) ×10 −4
+> Log-speed 0.0146 ±0.0049 0.0530 ±0.0115 (1 .72 ±0.36) ×10 −4
+> Signed turning angle (3 .0±2.0) ×10 −4––Path length 0.207 ±0.020 ––
+
+range trajectory structure. The position-space model re-produces fixation timing, velocity statistics, and direc-tional structure, but underestimates saccade count by approximately 15%. This is comparable to the 13% un-dercount reported for DiffGaze [24], despite its lower sampling rate and stimulus conditioning, suggesting that discrete saccade recovery remains difficult for diffusion-based gaze models. The position-space DDPM also out-performs the kinematic Markov baseline across all eval-uated feature distributions, extending earlier findings in which Markov models performed competitively against adversarial approaches [46, 49]. A spectrally regular-ized LSTM–CNN GAN reported a lower gaze-velocity divergence [17], although the comparison is not direct be-cause that model explicitly optimizes spectral structure, whereas both DDPMs use the general noise-prediction objective in Eq. (2). The present results therefore pro-vide stable, non-adversarial reference values for future conditional gaze models [24–26]. Several limitations qualify these findings. Both models are unconditional and cannot condition generation on a specific image, target, task, or participant. The evalu-ation is restricted only on the Where’s Waldo? visual-search task, so generalization to reading and free view-ings remains untested. Some metrics depend on method-ological choices: FGD is computed in the position-space model’s own feature space, while fixation and saccade counts depend on a fixed I-VT threshold that is sensitive to noise and preprocessing [41–43]. In conclusion, the position-space DDPM reproduces marginal kinematics, fixation timing, directional struc-ture, and downstream-relevant information while sub-stantially outperforming statistical and Markov base-lines. The velocity-space DDPM closely matches veloc-ity marginals, speed, turning angle, autocorrelation, and spectral structure, with cumulative path length remain-ing its main discrepancy. Across both representations, the principal limitation is the accumulation of local er-rors into long-range quantities such as saccade count and path length. Future work should address this through stimulus-, task-, and participant-conditioned generation, auxiliary losses for event counts and trajectory geometry, improved low-noise training [50], and evaluation across the full participant cohort and additional tasks in the released dataset [28]. 
+
+> DATA AVAILABILITY
+
+The eye-tracking dataset is publicly available through Mathema et al. [28]. 
+
+> COMPUTATIONAL ENVIRONMENT
+
+Both models were implemented in Python with Py-Torch. The position-space model was trained on an NVIDIA A40 GPU; the velocity-space model was trained through GitLab CI/CD inside a Docker con-tainer on an NVIDIA RTX A6000 GPU using the  
+
+> pytorch/pytorch:2.2.2-cuda12.1-cudnn8-runtime
+
+image (Python 3.10.14, PyTorch 2.2.2). Numerical processing and evaluation were performed using NumPy, SciPy, and Pandas. Figures were produced with Matplotlib. 
+
+> ACKNOWLEDGMENTS
+
+We thank Simula Research Laboratory for the com-putational resources used to train the position-space model, and OsloMet- Oslo Metropolitan University for institutional support. The authors thank the Research Council of Norway, under the project “Virtual-Eye” (Ref . 335940-FORSKER22).      
+
+> [1] K. Holmqvist, M. Nystr¨ om, R. Andersson, R. Dewhurst, H. Jarodzka, and J. van de Weijer, Eye Tracking: AComprehensive Guide To Methods And Measures (Ox-ford University Press, 2011). [2] K. Rayner, Eye movements in reading and information processing: 20 years of research, Psychological Bulletin
+> 124 , 372 (1998). [3] M. K¨ ummerer and M. Bethge, State-of-the-art in human scanpath prediction (2021), arXiv:2102.12239 [cs.CV]. [4] A. T. Duchowski, Eye Tracking Methodology: Theory and Practice , 3rd ed. (Springer, 2017).
+
+9
+
+[5] A. Patney, M. Salvi, J. Kim, A. Kaplanyan, C. Wyman, N. Benty, D. Luebke, and A. Lefohn, Towards foveated rendering for gaze-tracked virtual reality, ACM Trans. Graph. 35 , 10.1145/2980179.2980246 (2016). [6] L. Fridman, B. Reimer, B. Mehler, and W. Freeman, Cog-nitive load estimation in the wild (2018) pp. 1–9. [7] P. Majaranta and A. Bulling, Eye tracking and eye-based human-computer interaction, in Advances in Physiolog-ical Computing , edited by S. H. Fairclough and K. Gil-leade (Springer Publishing London, 2014) pp. 39–65. [8] M. Wedel and R. Pieters, Eye tracking for visual marketing, Foundations and Trends ® in Marketing 1,10.1561/1700000011 (2006). [9] R. J. Leigh and D. S. Zee, The Neurology of Eye Move-ments (Oxford University Press, 2015). [10] J. M. Henderson and S. G. Luke, Stable individual dif-ferences in saccadic eye movements during reading, pseu-doreading, scene viewing, and scene search, Journal of Experimental Psychology: Human Perception and Per-formance 40 , 1390 (2014). [11] H. Admoni and B. Scassellati, Social eye gaze in human-robot interaction: a review, J. Hum.-Robot Interact. 6,25 (2017). [12] P. Prasse et al. , Improving cognitive-state analysis from eye gaze with synthetic eye-movement data, Computers & Graphics (2024). [13] C. Meijer and L. Y. Chen, The rise of diffusion models in time-series forecasting, ArXiv abs/2401.03006 (2024). [14] M. Frid-Adar, I. Diamant, E. Klang, M. Amitai, J. Gold-berger, and H. Greenspan, Gan-based synthetic medi-cal image augmentation for increased cnn performance in liver lesion classification, Neurocomputing 321 , 321 (2018). [15] E. Adib, F. Afghah, and J. J. Prevost, Synthetic ECG sig-nal generation using probabilistic diffusion models, IEEE Access 11 , 75818 (2023). [16] M. Arjovsky, S. Chintala, and L. Bottou, Wasserstein generative adversarial networks, in Proceedings of the 34th International Conference on Machine Learning 
+
+(PMLR, 2017) pp. 214–223. [17] S. Bhandari, P. Lencastre, R. Mathema, A. Szorkovszky, A. Yazidi, and P. G. Lind, Modeling eye gaze velocity trajectories using gans with spectral loss for enhanced fidelity, Scientific Reports 15 , 19929 (2025). [18] J. Lucas, G. Tucker, R. B. Grosse, and M. Norouzi, Don’t blame the elbo! a linear vae perspective on posterior collapse, ArXiv abs/1911.02469 (2019). [19] J. Sohl-Dickstein, E. Weiss, N. Maheswaranathan, and S. Ganguli, Deep unsupervised learning using nonequilib-rium thermodynamics, in Proceedings of the 32nd Inter-national Conference on Machine Learning , Proceedings of Machine Learning Research, Vol. 37, edited by F. Bach and D. Blei (PMLR, Lille, France, 2015) pp. 2256–2265. [20] J. Ho, A. Jain, and P. Abbeel, Denoising diffusion probabilistic models, in Advances in Neural Information Processing Systems , Vol. 33, edited by H. Larochelle, M. Ranzato, R. Hadsell, M. Balcan, and H. Lin (Cur-ran Associates, Inc., 2020) pp. 6840–6851. [21] Y. Song, J. Sohl-Dickstein, D. P. Kingma, A. Kumar, S. Ermon, and B. Poole, Score-based generative mod-eling through stochastic differential equations (2021), arXiv:2011.13456 [cs.LG]. [22] K. Rasul, C. Seward, I. Schuster, and R. Vollgraf, Autore-gressive denoising diffusion models for multivariate prob-abilistic time series forecasting (2021), arXiv:2101.12072 [cs.LG]. [23] J. L. Alcaraz and N. Strodthoff, Diffusion-based time series imputation and forecasting with structured state space models, Transactions on Machine Learning Re-search (2023). [24] C. Jiao, Y. Wang, G. Zhang, M. Bˆ ace, Z. Hu, and A. Bulling, Diffgaze: A diffusion model for modelling fine-grained human gaze behaviour on 360 ° images, ACM Transactions on Interactive Intelligent Systems 16 ,10.1145/3772075 (2025). [25] O. Kara, H. Nisar, and J. M. Rehg, Diffeye: Diffusion-based continuous eye-tracking data genera-tion conditioned on natural images, arXiv preprint arXiv:2509.16767 (2025). [26] G. Cartella, V. Cuculo, A. D’Amelio, M. Cornia, G. Boc-cignone, and R. Cucchiara, Modeling human gaze behav-ior with diffusion models for unified scanpath prediction, in Proceedings of the IEEE/CVF International Confer-ence on Computer Vision (2025) pp. 16206–16216. [27] J. Song, C. Meng, and S. Ermon, Denoising diffusion im-plicit models, in International Conference on Learning Representations (2021). [28] R. Mathema, S. M. Nav, S. Bhandari, M. Regmi, P. G. Lind, A. Yazidi, and P. Lencastre, Comprehen-sive dataset of features describing eye-gaze dynamics across multiple tasks, Scientific Data 10.1038/s41597-026-06754-x (2026). [29] SR Research Ltd., EyeLink 1000 User Manual , SR Re-search Ltd., Mississauga, Ontario, Canada (2009), ver-sion 1.5.2. [30] M. Handford, Where’s Waldo? (Little, Brown and Com-pany, New York, 1987). [31] O. Ronneberger, P. Fischer, and T. Brox, U-net: Convo-lutional networks for biomedical image segmentation, in 
+
+Medical Image Computing and Computer-Assisted Inter-vention – MICCAI 2015 , edited by N. Navab, J. Horneg-ger, W. M. Wells, and A. F. Frangi (Springer Interna-tional Publishing, Cham, 2015) pp. 234–241. [32] S. Elfwing, E. Uchibe, and K. Doya, Sigmoid-weighted linear units for neural network function approximation in reinforcement learning (2017), arXiv:1702.03118 [cs.LG]. [33] E. Perez, F. Strub, H. De Vries, V. Dumoulin, and A. Courville, Film: Visual reasoning with a general con-ditioning layer, in Proceedings of the AAAI conference on artificial intelligence , Vol. 32 (2018). [34] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. u. Kaiser, and I. Polosukhin, Attention is all you need, in Advances in Neural Infor-mation Processing Systems , Vol. 30, edited by I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vish-wanathan, and R. Garnett (Curran Associates, Inc., 2017). [35] I. Loshchilov and F. Hutter, Decoupled weight decay regularization, in International Conference on Learning Representations (2019). [36] I. Loshchilov and F. Hutter, Sgdr: Stochastic gradient descent with warm restarts (2016). [37] T. Hang, S. Gu, C. Li, J. Bao, D. Chen, H. Hu, X. Geng, and B. Guo, Efficient diffusion training via min-snr weighting strategy, in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) 
+
+(2023) pp. 7441–7451. 10 
+
+[38] F. J. Massey, The kolmogorov-smirnov test for goodness of fit, Journal of the American Statistical Association 46 ,68 (1951). [39] J. Lin, Divergence measures based on the Shannon en-tropy, IEEE Transactions on Information Theory 37 , 145 (1991). [40] C. Villani, Optimal Transport: Old and New ,Grundlehren der mathematischen Wissenschaften, Vol. 338 (Springer, Berlin, Heidelberg, 2009). [41] M. Heusel, H. Ramsauer, T. Unterthiner, B. Nessler, and S. Hochreiter, Gans trained by a two time-scale update rule converge to a local nash equilibrium, in Neural In-formation Processing Systems (2017). [42] D. D. Salvucci and J. H. Goldberg, Identifying fixations and saccades in eye-tracking protocols, in Proceedings of the 2000 Symposium on Eye Tracking Research and Ap-plications , ETRA ’00 (ACM, 2000) pp. 71–78. [43] R. Andersson, L. Larsson, K. Holmqvist, M. Stridh, and M. Nystr¨ om, One algorithm to rule them all? an evalua-tion and discussion of ten eye movement event-detection algorithms, Behavior Research Methods 49 , 616 (2017). [44] C. Orioma, J. Krivan, R. Mathema, P. Lencastre, P. G. Lind, A. Szorkovszky, and S. Bhandari, Identification of fixations and saccades in eye-tracking data using adaptive threshold-based methods, European Physical Journal Special Topics 10.1140/epjs/s11734-026-02324-9 (2026), published online: 7 May 2026. [45] C. Esteban, S. L. Hyland, and G. R¨ atsch, Real-valued (medical) time series generation with recurrent condi-tional gans (2017), arXiv:1706.02633 [stat.ML]. [46] P. Lencastre, M. Gjersdal, L. R. Gorj˜ ao, A. Yazidi, and P. G. Lind, Modern ai versus century-old mathematical models: How far can we go with generative adversarial networks to reproduce stochastic processes?, Physica D: Nonlinear Phenomena 453 , 133831 (2023). [47] P. Welch, The use of fast fourier transform for the estima-tion of power spectra: A method based on time averaging over short, modified periodograms, IEEE Transactions on Audio and Electroacoustics 15 , 70 (1967). [48] D. B. Percival and A. T. Walden, Spectral Analysis for Physical Applications (Cambridge University Press, 1993). [49] S. Bhandari, P. Lencastre, and P. Lind, Modeling stochastic eye tracking data: A comparison of quan-tum generative adversarial networks and markov models, in Proceedings of the Genetic and Evolutionary Compu-tation Conference Companion , GECCO ’24 Companion (Association for Computing Machinery, New York, NY, USA, 2024) pp. 1934–1941. [50] A. Nichol and P. Dhariwal, Improved denoising diffusion probabilistic models, in Proceedings of the 38th Interna-tional Conference on Machine Learning (ICML) , Pro-ceedings of Machine Learning Research, Vol. 139 (PMLR, 2021) pp. 8162–8171. 
+
+Appendix A: Gaussian posterior of the forward diffusion process 
+
+This appendix gives the closed-form posterior used in Section II, following the diffusion-probabilistic for-mulation of [19] and the DDPM parameterization of [20]. Let the forward process be q(xt | xt−1) =
+
+N (xt; √αtxt−1, β tI), αt = 1 − βt, and ¯ αt = Qts=1 αs.The marginal at step t − 1 conditioned on x0 is q(xt−1 |
+
+x0) = N (xt−1; √¯αt−1x0, (1 − ¯αt−1)I). Since both factors are Gaussian, q(xt−1 | xt, x 0) ∝ q(xt | xt−1)q(xt−1 | x0)is also Gaussian. Keeping only terms depending on xt−1,log q(xt−1 | xt, x 0) = − 12βt xt − √αtxt−1
+
+> 2
+
+− 12(1 − ¯αt−1) xt−1 − √¯αt−1x0
+
+> 2
+
++ C, 
+
+(A1) with C independent of xt−1. Expanding and collecting powers of xt−1 gives a quadratic form − 12 [A∥xt−1∥2 −
+
+2b⊤xt−1] + C′ with 
+
+A = αt
+
+βt
+
++ 11 − ¯αt−1
+
+, (A2) 
+
+b =
+
+√αt
+
+βt
+
+xt +
+
+√¯αt−1
+
+1 − ¯αt−1
+
+x0. (A3) Completing the square, the covariance is A−1I = ˜βtI
+
+with ˜βt = 1 − ¯αt−1
+
+1 − ¯αt
+
+βt, (A4) and the posterior mean is ˜μt(xt, x 0) = 
+
+√¯αt−1βt
+
+1 − ¯αt
+
+x0 +
+
+√αt(1 − ¯αt−1)1 − ¯αt
+
+xt, (A5) so that q(xt−1 | xt, x 0) = N (xt−1; ˜ μt(xt, x 0), ˜βtI). This is the exact one-step reverse posterior induced by the for-ward process when the clean sample x0 is known; during sampling, x0 is unknown, and the learned network sup-plies the required approximation through its noise pre-diction. 
+
+Appendix B: Variational lower bound and the denoising objective 
+
+Following the variational formulation of diffusion prob-abilistic models [19, 20], the reverse model defines 
+
+pθ (x0: T ) = p(xT ) QTt=1 pθ (xt−1 | xt), p(xT ) = N (0 , I ). The marginal likelihood pθ (x0) = R pθ (x0: T ) dx 1: T is in-tractable; introducing the forward process as a varia-tional distribution and applying Jensen’s inequality gives the evidence lower bound log pθ (x0) ≥ Eq [log pθ (x0: T ) − log q(x1: T | x0)] . (B1) Substituting the Markov factorizations of pθ and q, the negative bound decomposes as 
+
+Lvlb = LT +
+
+> T
+
+X
+
+> t=2
+
+Lt−1 + L0, (B2) 11 
+
+> TABLE III. Combined hyperparameter configuration. Rows with a single value are identical for both models; rows with two values differ. Architecture and diffusion settings are fully shared.
+
+## Category Quantity Position-space Velocity-space 
+
+## Data Split mode Participant-stratified, 80/20, split Participant-level, split Validation fraction 0.2 0.2 Sampling rate 250 Hz Window length 2,000 samples (8 s) Window stride 250 samples non-overlapping Participants / segments 28 / 4,401 –Train / val. segments 3,265 / 1,136 425 / 127 Diffusion Steps T , schedule 1,000, linear 
+
+## β1, β T 10 −4, 2 × 10 −2
+
+## Architecture Channel widths 128, 256, 512 Parameters 19,350,914 Conditioning FiLM + bottleneck self-attention Diffusion-step embed. dim. 256 Attention heads / dim. 4 / 32 Optimization Optimizer AdamW, lr 10 −4, wd 10 −4
+
+## Batch size / epochs 8 / 500 (3 seeds) 16 / 500 (3 seeds) LR schedule Cosine, 10-ep. warmup Cosine, 10-ep. warmup Grad. clip / AMP 1.0 / on 1.0 / off Augmentation flips + time-reversal none Loss weighting standard Min-SNR ( γSNR =5) Training seeds 42, 123, 2024 0, 1, 2 EMA decay 0.9999 0.999 Sampling DDIM steps, η 100, 0.0 50, 0.0 Post-processing none none GPU NVIDIA A40 NVIDIA RTX A6000 
+
+with LT = DKL (q(xT | x0)∥p(xT )), Lt−1 = DKL (q(xt−1 |
+
+xt, x 0)∥pθ (xt−1 | xt)) for t = 2, . . . , T , and L0 =
+
+− log pθ (x0 | x1). The intermediate terms therefore train the learned reverse kernels to match the exact Gaussian posteriors of Appendix A. Using the noise-prediction parameterization introduced by [20], with 
+
+xt = √¯αtx0 +√1 − ¯αtε, the network is trained to recover 
+
+ε from ( xt, t ), giving the simplified objective LDDPM =
+
+Ex0,t,ε [∥ε − εθ (xt, t )∥22] used in Eq. (2). For the velocity-space model, x0 is replaced by the normalized window ˜V0 ∈ R2×L, and the network predicts εθ ( ˜Vt, t ) accord-ingly; for the position-space model, x0 is the normalized coordinate window directly. 
+
+> Appendix C: Implementation details and hyperparameters
+
+The values in Table III are the configurations used for the reported experiments, rather than ranges from a hy-perparameter search. 
+
+> Appendix D: Additional results
+
+This appendix provides the detailed measurements supporting Section V. Unless stated otherwise, position-space distributional metrics are reported as mean ± SD over three independently trained models evaluated on the same fixed validation split of 1 ,136 segments. The DDIM and I-VT analyses were performed on the single reference run and are therefore interpreted as within-run comparisons. For the velocity-space model, Table II re-ports three-seed aggregates, whereas Figure 7 illustrates one representative seed. 
+
+a. Feature-level detail. Table IV compares the position-space DDPM with the kinematic Markov base-line over the eight features. Averaged over these features, the DDPM reduces the mean KS statistic from 0 .481 to 0.138 ± 0.013 and the mean JS divergence from 0 .221 12 0.00 0.01 0.02 0.03 
+
+> Mean velocity (norm/sample)
+> 100.0 200.0 300.0
+> Density
+
+Mean Velocity   
+
+> Real Generated
+> 012
+> Max velocity (norm/sample)
+> 2.5 5.0 7.5
+> Density
+
+Max Velocity    
+
+> 020 40 60
+> Total path length (norm)
+> 0.1 0.1 0.2
+> Density
+
+Total Path Length   
+
+> 012
+> Horizontal range (norm)
+> 0.4 0.8 1.2
+> Density
+
+Horizontal Range   
+
+> 012
+> Vertical range (norm)
+> 0.3 0.6 0.9
+> Density
+
+Vertical Range    
+
+> 0.00 0.25 0.50 0.75
+> Horizontal std (norm)
+> 0.8 1.6 2.4
+> Density
+
+Horizontal Std    
+
+> 0.00 0.25 0.50 0.75
+> Vertical std (norm)
+> 0.8 1.6 2.4
+> Density
+
+Vertical Std   
+
+> 012
+> Start-to-end displacement (norm)
+> 0.2 0.5 0.8
+> Density
+
+Displacement   
+
+> 0.6 0.8 1.0
+> Fixation ratio (fraction)
+> 5.0 10.0 15.0
+> Density
+
+Fixation Ratio 
+
+FIG. 6. Marginal distributions of the nine kinematic features for real (blue) and generated (red) position-space trajectories (n = 1 ,136 each); numerical values in Table I. 
+
+to 0 .0155 ± 0.0038, corresponding to reductions of 71 .4% and 93 .0%, respectively. The improvement also holds fea-ture by feature, rather than arising from only one or two favorable quantities. Table V reports the corresponding Wasserstein-1 dis-tances. Because W 1 retains the physical scale of each feature, its values should not be compared directly across rows with different units. In particular, the larger W 1 for total path length reflects its scaling by 1 ,999 relative to mean speed, rather than poorer agreement in distribu-tional shape. Figure 6 shows the corresponding real and generated marginals and provides a visual counterpart to the KS, JS, and W 1 statistics. 
+
+b. Sampling ablations and event statistics. Table VI examines the effects of the DDIM sampling budget, sam-pling stochasticity, and EMA weights for the single refer-ence model. Increasing the number of DDIM steps gen-erally improves distributional agreement, although the improvement from 100 to 200 steps is modest relative to the additional sampling cost. We therefore use 100 13                                                                    
+
+> FIG. 7. Velocity-space temporal diagnostics for a representative seed. (a) Mean speed profile across segments. (b) Average speed autocorrelation. (c) Normalized speed power spectrum. TABLE IV. Kinematic Markov baseline [46]: real-data feature means and per-feature agreement with real held-out trajecto-ries. The baseline is deterministic given the training set, so no seed spread applies. Compared over the eight shared non-redundant features, the position-space DDPM reduces mean KS by 71 .4% and mean JS by 93 .0%. It also improves on the baseline for every individual feature.
+> Feature Real μKS JS
+> Mean speed 0.0058 0.731 0.347 Max speed 0.2095 0.460 0.355
+> x-range 1.4699 0.589 0.225
+> y-range 1.3502 0.348 0.108
+> x-std 0.4405 0.339 0.112
+> y-std 0.3815 0.157 0.049 Displacement 1.0730 0.435 0.155 Fixation ratio 0.9121 0.790 0.416
+> Mean 0.481 0.221
+> TABLE V. Position-space model: Wasserstein-1 distance per kinematic feature, mean ±SD over three seeds ( n= 1 ,136 per seed). W1is reported in each feature’s own units and is therefore not comparable across rows; total path length is 1,999 ×mean speed by construction, which is why its W 1is correspondingly larger.
+> Feature W1
+> Mean speed 0.0006 ±0.0002 Max speed 0.0379 ±0.0075 Total path length 1 .2195 ±0.3671
+> x-range 0.1355 ±0.0254
+> y-range 0.1071 ±0.0056
+> x-std 0.0631 ±0.0065
+> y-std 0.0361 ±0.0038 Displacement 0.1390 ±0.0204 Fixation ratio 0.0163 ±0.0114
+
+steps as the quality–efficiency compromise. Determinis-tic sampling ( η = 0) gives better agreement than increas-ingly stochastic sampling, and the EMA shadow model reduces the mean-speed KS statistic from 0 .277 to 0 .158 relative to the raw checkpoint. Because these are within-run ablations, they demonstrate sensitivity to the sam-pling configuration but do not measure variability across independently trained models. The event-level results in Table VII show close agree-ment in mean fixation duration (0 .351 s generated ver-sus 0 .344 s real), fixation count (21 .41 versus 21 .81), and mean saccade peak speed (0 .0618 versus 0 .0624 normal-ized units). These correspond to relative differences of approximately 2 .0%, 1 .8%, and 1 .0%, respectively. The largest discrepancies occur in fixation dispersion, which is approximately 46% higher in the generated data, and saccade count, which is underestimated by approximately 14 .8%. Thus, the model reproduces several event-level averages closely, while the segmentation of individual fix-ation and saccade events remains less accurate. Because I-VT assignments depend on a fixed velocity thresh-old, these differences should be interpreted jointly with the trajectory-level distributional metrics rather than as threshold-independent event errors. 
+
+c. Downstream utility and velocity-space diagnostics. 
+
+Table VIII evaluates whether the generated position-space trajectories retain information useful for predicting fixation count. Training on synthetic data and testing on real data gives R2 = 0 .6612 ± 0.0219, compared with the real-to-real reference of 0 .7999 ±0.0467. The TSTR point estimate is therefore 82 .7% of the TRTR R2 point esti-mate, with an absolute difference of 0 .1387. The corre-sponding TSTR MAE is 2 .7423 ± 0.0970, compared with 1.9219 for TRTR, indicating that the synthetic data pre-serve substantial but incomplete downstream informa-tion. The real-plus-synthetic augmentation condition gives 
+
+R2 = 0 .794, within 0 .006 of the TRTR point estimate. However, this condition was evaluated only on the refer-ence generative run and should therefore be treated as descriptive rather than as a multi-seed comparison. 14 
+
+TABLE VI. Position-space sampling ablations for the refer-ence run. The DDIM-step and EMA rows report KS/JS for mean speed. The η rows report the mean over the eight non-redundant features. Lower is better. 
+
+Setting KS JS 
+
+DDIM steps = 10 0.191 0.0565 DDIM steps = 25 0.211 0.0348 DDIM steps = 50 0.180 0.0243 DDIM steps = 100 (chosen) 0.158 0.0186 
+
+DDIM steps = 200 0.151 0.0140 
+
+η = 0 .0 0.135 0.0135 
+
+η = 0 .2 0.162 0.0168 
+
+η = 0 .5 0.257 0.0528 
+
+η = 1 .0 (full DDPM) 0.356 0.1015 Raw model (no EMA) 0.277 –EMA shadow model (chosen) 0.158 –TABLE VII. I-VT fixation and saccade statistics, real vs. gen-erated ( n = 1 ,136 each). μr , μ g : real/generated means. 
+
+Metric μr μg KS JS 
+
+Fixation duration (s) 0.344 0.351 0.053 0.0017 Fixation dispersion 0.0074 0.0108 0.162 0.0442 Fixation count / traj. 21.81 21.41 0.112 0.0155 Saccade amplitude 0.183 0.217 0.104 0.0027 Saccade peak speed 0.0624 0.0618 0.049 0.0012 Saccade duration (s) 0.0167 0.0195 0.111 0.0057 Saccade count / traj. 26.79 22.82 0.299 0.0703 TABLE VIII. Downstream TSTR protocol: MLP fixation-count regressor. TRTR uses real data only and is therefore identical across generative seeds; its reported spread is the five-fold cross-validation SD and serves as a real-data refer-ence rather than a statistical upper bound. 
+
+Condition R2 MAE 
+
+TRTR (real → real, 5-fold) 0.80 ± 0.05 1.9219 TSTR (synthetic → real, 3 seeds) 0 .67 ± 0.02 2 .74 ± 0.10 AUG (real+synthetic → real) 0.79 ± 0.02 2 .04 ± 0.09

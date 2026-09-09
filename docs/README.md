@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-08</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-09</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 5 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>5</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-08 21:49:29 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-09 21:57:44 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读2篇论文，无精读，聚焦视觉与机器人交互前沿。最值得关注的是高频凝视合成与意图感知的双手交接技术，均获6分。建议下一步优先精读并验证这两项方法在实时场景中的可复现性。</p>
+<p>今日完成5篇论文速读，聚焦三维视线估计与人机交互数据集等方向。最值得关注的是《Self-Supervised Multi-View 3D Gaze Target Estimation》与《DYAD》两篇（7.0分），前者用概率射线行进做自监督视线目标估计，后者提供协作场景多模态数据集。建议优先精读这两篇，以补足深度分析。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">5 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="EyeMakeYou: Identity-, Task-, and Subjective-State-Conditioned Diffusion for High-Frequency Gaze Synthesis">EyeMakeYou: Identity-, Task-, and Subjective-State-Conditioned Diffusion for High-Frequency Gaze Synthesis</span></li><li><span class="dpr-home-dashboard-paper-title" title="Temporal Tactile Encoding and Compliance for Intent-Aware Robot-to-Human Bimanual Handover">Temporal Tactile Encoding and Compliance for Intent-Aware Robot-to-Human Bimanual Handover</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Self-Supervised Multi-View 3D Gaze Target Estimation via Probabilistic Ray Marching">Self-Supervised Multi-View 3D Gaze Target Estimation via Probabilistic Ray Marching</span></li><li><span class="dpr-home-dashboard-paper-title" title="DYAD: A Multimodal Dataset of Co-Located Human Assistance">DYAD: A Multimodal Dataset of Co-Located Human Assistance</span></li><li><span class="dpr-home-dashboard-paper-title" title="Diffusion models for eye-gaze trajectory generation using position and velocity representations">Diffusion models for eye-gaze trajectory generation using position and velocity representations</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>5</strong></span></div>
 </section>
 </div>
 
