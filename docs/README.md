@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-10</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-11</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 6 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 5 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>6</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>5</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-10 21:30:29 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-11 21:31:31 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,8 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>2026-09-10 日报速读 6 篇，无精读，最高分 7.0 的《Ambient @ EgoProactive 2026》聚焦以视觉落地监督实现主动式第一人称辅助。人机交互方向还收录了社交手势实时感知与多模态社交直觉对比机器推理两项 6.0 分工作，值得关注机器人如何更早预判人的意图。普通读者可优先了解第一人称主动辅助这条线，再顺着人机交互三篇看社交信号的感知与预测。</p>
+<p>2026-09-11 日报：今天无精读、速读5篇，3篇上榜，最高分是《Omni Interaction Agent Technical Report》（7.0/10）。</p>
+<p>最值得看</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +85,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">6 篇</strong>
+    <strong class="dpr-home-dashboard-count">5 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Ambient @ EgoProactive 2026 : Proactive Egocentric Assistance with Visually Grounded Supervision">Ambient @ EgoProactive 2026 : Proactive Egocentric Assistance with Visually Grounded Supervision</span></li><li><span class="dpr-home-dashboard-paper-title" title="SocioGesture: Real-Time and Adaptive Social Gesture Perception for Human-Robot Interaction">SocioGesture: Real-Time and Adaptive Social Gesture Perception for Human-Robot Interaction</span></li><li><span class="dpr-home-dashboard-paper-title" title="Social Intuition vs. Machine Reasoning: Anticipating Human-Robot Interaction from multiple modalities">Social Intuition vs. Machine Reasoning: Anticipating Human-Robot Interaction from multiple modalities</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Omni Interaction Agent Technical Report">Omni Interaction Agent Technical Report</span></li><li><span class="dpr-home-dashboard-paper-title" title="Ambient @ EgoProactive 2026 : Proactive Egocentric Assistance with Visually Grounded Supervision">Ambient @ EgoProactive 2026 : Proactive Egocentric Assistance with Visually Grounded Supervision</span></li><li><span class="dpr-home-dashboard-paper-title" title="When Intelligence Becomes Agency: A Theory of Governed, Proactive Agency for Symbiotic AI Systems">When Intelligence Becomes Agency: A Theory of Governed, Proactive Agency for Symbiotic AI Systems</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>6</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>5</strong></span></div>
 </section>
 </div>
 
