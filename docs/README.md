@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-12</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-13</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 2 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-12 21:43:55 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-13 21:21:55 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天速读2篇6.0分论文，聚焦第一视角主动辅助与可穿戴遥操作。最值得看的是“视觉锚定监督”如何让自我中心助手主动帮忙，以及多模态可穿戴接口如何解码动态遥操作中的手部意图。普通读者可关注这两类技术如何从实验室走向日常辅助与远程操作场景。</p>
+<p>今日精读1篇、速读1篇，聚焦工业人机协作与听觉注意检测的多模态融合新进展。最值得看的是《A Confidence-Aware Multimodal Fusion Framework for Industrial Human-Robot Collaboration》（9.0/10），用置信度感知提升协作可靠性；速读的RAMamba-Net（6.0/10）则把可靠性与Mamba架构引入听觉注意检测。普通读者可先读高分的置信度融合框架，再顺带了解Mamba在多模态场景的轻量应用。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -71,12 +71,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="A Confidence-Aware Multimodal Fusion Framework for Industrial Human-Robot Collaboration">A Confidence-Aware Multimodal Fusion Framework for Industrial Human-Robot Collaboration</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -84,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Ambient @ EgoProactive 2026 : Proactive Egocentric Assistance with Visually Grounded Supervision">Ambient @ EgoProactive 2026 : Proactive Egocentric Assistance with Visually Grounded Supervision</span></li><li><span class="dpr-home-dashboard-paper-title" title="Wearable Multimodal Human-Machine Interface for Integrated Hand Intentions Decoding in Dynamic Teleoperation">Wearable Multimodal Human-Machine Interface for Integrated Hand Intentions Decoding in Dynamic Teleoperation</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="RAMamba-Net: A Reliability-Aware and Mamba-Based Multimodal Fusion Network for Auditory Attention Detection">RAMamba-Net: A Reliability-Aware and Mamba-Based Multimodal Fusion Network for Auditory Attention Detection</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 </div>
 
