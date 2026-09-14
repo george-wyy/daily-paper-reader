@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-09-14 <!--dpr-date:20260914-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/14/2609.12374v1-context-aware-causal-gaze-forecasting-for-human-vehicle-interaction-during-in-cabin-tracking-dropouts" data-sidebar-item="{&quot;title&quot;: &quot;Context-Aware Causal Gaze Forecasting for Human-Vehicle Interaction During In-Cabin Tracking Dropouts&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.12374v1-context-aware-causal-gaze-forecasting-for-human-vehicle-interaction-during-in-cabin-tracking-dropouts&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;人车交互中的在线因果注视预测&quot;}">Context-Aware Causal Gaze Forecasting for Human-Vehicle Interaction During In-Cabin Tracking Dropouts</a>
   * 2026-09-13 <!--dpr-date:20260913-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/13/2609.10339v1-a-confidence-aware-multimodal-fusion-framework-for-industrial-human-robot-collaboration" data-sidebar-item="{&quot;title&quot;: &quot;A Confidence-Aware Multimodal Fusion Framework for Industrial Human-Robot Collaboration&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.10339v1-a-confidence-aware-multimodal-fusion-framework-for-industrial-human-robot-collaboration&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;融合注视的多模态实时人体意图预测&quot;}">A Confidence-Aware Multimodal Fusion Framework for Industrial Human-Robot Collaboration</a>
