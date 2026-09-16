@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-15</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-16</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-15 22:20:45 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-16 21:41:46 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日日报：3篇中2篇精读均8.0分，聚焦多模态指代，1篇速读6.0分关注流式视频交互。</p>
-<p>最值得看的是《Learning to Refer from Estimated Listener Gaze》和《Speak to the City》，分别从听者注视与车外场景切入多模态参照/指代。</p>
-<p>普通读者可先精读这两篇8分文章，再速读《ProactiveBench》补上流式视频模型交互评测视角。</p>
+<p>2026-09-16 日报：仅速读 1 篇，主打视频模型「像人一样主动交互」的 ProactiveBench 基准（6.0/10）。</p>
+<p>唯一值得看的方向是它把「流式视频模型能否主动交互」做成可评测的基准，适合关注视频模型交互能力的人顺带一读，但 6.0 的分数说明亮点有限。</p>
+<p>普通读者可先看它的评测任务设计，判断「主动交互」是否真被量化，再决定是否深入。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -73,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Learning to Refer from Estimated Listener Gaze">Learning to Refer from Estimated Listener Gaze</span></li><li><span class="dpr-home-dashboard-paper-title" title="Speak to the City: Multimodal Resolution for Outside-the-Vehicle References">Speak to the City: Multimodal Resolution for Outside-the-Vehicle References</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">

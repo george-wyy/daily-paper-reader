@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-09-16 <!--dpr-date:20260916-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/16/2609.12658v1-proactivebench-can-streaming-video-models-really-interact-like-humans" data-sidebar-item="{&quot;title&quot;: &quot;ProactiveBench: Can Streaming Video Models Really Interact Like Humans?&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.12658v1-proactivebench-can-streaming-video-models-really-interact-like-humans&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;前瞻性交互：无显式提示时何时响应，契合前瞻性系统响应&quot;}">ProactiveBench: Can Streaming Video Models Really Interact Like Humans?</a>
   * 2026-09-15 <!--dpr-date:20260915-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/15/2609.14207v1-learning-to-refer-from-estimated-listener-gaze" data-sidebar-item="{&quot;title&quot;: &quot;Learning to Refer from Estimated Listener Gaze&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.14207v1-learning-to-refer-from-estimated-listener-gaze&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;将听者注视扫描路径转化为学习信号&quot;}">Learning to Refer from Estimated Listener Gaze</a>
