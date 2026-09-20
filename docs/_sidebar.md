@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-09-20 <!--dpr-date:20260920-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/20/2609.16766v1-egoask-egocentric-teaching-of-personalized-object-knowledge-for-household-robots" data-sidebar-item="{&quot;title&quot;: &quot;EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.16766v1-egoask-egocentric-teaching-of-personalized-object-knowledge-for-household-robots&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;智能眼镜第一视角系统主动提出情境相关问题&quot;}">EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots</a>
   * 2026-09-19 <!--dpr-date:20260919-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/19/2609.17064v1-neuro-symbolic-hierarchical-intention-anticipation-in-human-behavior" data-sidebar-item="{&quot;title&quot;: &quot;Neuro-Symbolic Hierarchical Intention Anticipation in Human Behavior&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.17064v1-neuro-symbolic-hierarchical-intention-anticipation-in-human-behavior&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;从部分观测的多模态片段预判人类目标与意图&quot;}">Neuro-Symbolic Hierarchical Intention Anticipation in Human Behavior</a>

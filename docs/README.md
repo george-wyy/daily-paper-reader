@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-19</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-20</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-19 21:05:49 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-20 21:32:34 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精选 2 篇意图识别方向论文：1 篇精读《Neuro-Symbolic Hierarchical Intention Anticipation in Human Behavior》（8.0/10），1 篇速读《Uncertainty-Aware Continual Learning for Open-World Intent Discovery Under an evolving Label Space》（7.0/10）。</p>
-<p>最值得看的是神经-符号结合的分层人类行为意图预测思路，以及开放世界下应对标签空间演化的不确定性持续学习方法，前者分数更高、更偏方法创新。</p>
-<p>普通读者可先读 8.0 那篇理解&quot;神经+符号&quot;如何分层预判意图，再顺着速读篇了解模型在标签不断变化时如何不遗忘、不误判。</p>
+<p>今日速读 1 篇、精读 0 篇，唯一入选的是家用机器人方向论文《EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots》（6.0/10）。</p>
+<p>最值得看的是它“以第一人称视角教机器人认识个性化物品”的思路——让家用机器人按你的视角记住家中物件，不过 6.0 分说明完成度或影响力一般，属可了解不必深追。</p>
+<p>普通读者建议先扫一眼它的摘要和演示，想想自家机器人认物场景是否用得上，再决定要不要投入时间细读。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -73,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Neuro-Symbolic Hierarchical Intention Anticipation in Human Behavior">Neuro-Symbolic Hierarchical Intention Anticipation in Human Behavior</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -89,7 +89,7 @@
     <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Uncertainty-Aware Continual Learning for Open-World Intent Discovery Under an evolving Label Space">Uncertainty-Aware Continual Learning for Open-World Intent Discovery Under an evolving Label Space</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots">EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
