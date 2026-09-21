@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-20</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-21</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 4 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>4</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-20 21:32:34 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-21 23:01:30 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读 1 篇、精读 0 篇，唯一入选的是家用机器人方向论文《EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots》（6.0/10）。</p>
-<p>最值得看的是它“以第一人称视角教机器人认识个性化物品”的思路——让家用机器人按你的视角记住家中物件，不过 6.0 分说明完成度或影响力一般，属可了解不必深追。</p>
-<p>普通读者建议先扫一眼它的摘要和演示，想想自家机器人认物场景是否用得上，再决定要不要投入时间细读。</p>
+<p>今日日报共收录 4 篇速读、0 篇精读，主题集中在多模态用户意图理解、人机交互调节与社交主动智能三个方向。</p>
+<p>最值得看的是 7.0/10 的《Omni Demand Understanding》，它把&quot;多模态交互中的上下文用户意图推断&quot;做成了评测基准；其次是 6.0 分的《Towards Interaction Regulation from Human Feedback via Free Energy Minimization》，用自由能最小化从人类反馈中调节交互。</p>
+<p>普通读者不妨先读最高分那篇的基准设计，再顺着&quot;评测基准&quot;这条线跟进《RobotEQ-Video》的世界状态分类与社交主动智能评测思路。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -86,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">4 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots">EgoAsk: Egocentric Teaching of Personalized Object Knowledge for Household Robots</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Omni Demand Understanding: A Benchmark for Contextual User-Intent Inference in Multimodal Interaction">Omni Demand Understanding: A Benchmark for Contextual User-Intent Inference in Multimodal Interaction</span></li><li><span class="dpr-home-dashboard-paper-title" title="Towards Interaction Regulation from Human Feedback via Free Energy Minimization">Towards Interaction Regulation from Human Feedback via Free Energy Minimization</span></li><li><span class="dpr-home-dashboard-paper-title" title="RobotEQ-Video: A Video-Centric Benchmark for Social Proactive Intelligence with World-State Taxonomy">RobotEQ-Video: A Video-Centric Benchmark for Social Proactive Intelligence with World-State Taxonomy</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>4</strong></span></div>
 </section>
 </div>
 
