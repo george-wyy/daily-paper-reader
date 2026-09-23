@@ -41,7 +41,7 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-22</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-23</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 5 篇</strong>
@@ -51,7 +51,7 @@
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>5</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-22 21:57:44 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-23 22:22:16 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>2026-09-22日报：5篇全速读、0篇精读，已列出的3篇均分7.0，聚焦情感遥操作、多模态意图理解与主动机器人推理。</p>
-<p>最值得看的是“多模态交互中的上下文用户意图推断”和“以人为中心观察驱动的机器人主动推理/共享自主”，都指向更懂人的交互系统。</p>
-<p>普通读者可先读这三篇速读摘要，重点看任务设定、评测基准与结论，再决定是否深入原论文。</p>
+<p>今日速读5篇，聚焦人机共享控制与意图感知协作，全部未进入精读。最值得看的是7分的《Capability-Aware Arbitration for Semantic Intent-Based Shared Control》与《Towards Intent-Aware Human-Robot Teaming》，两者都指向让机器人先理解人的意图再分配控制权。普通读者可先读这两篇的摘要，关注“意图通信”如何落地到搜救等真实场景。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -89,7 +87,7 @@
     <strong class="dpr-home-dashboard-count">5 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Affective Shared Autonomy: Temporal Affect Dynamics and Subjective Evaluation in Bimanual Teleoperation Tasks">Affective Shared Autonomy: Temporal Affect Dynamics and Subjective Evaluation in Bimanual Teleoperation Tasks</span></li><li><span class="dpr-home-dashboard-paper-title" title="Omni Demand Understanding: A Benchmark for Contextual User-Intent Inference in Multimodal Interaction">Omni Demand Understanding: A Benchmark for Contextual User-Intent Inference in Multimodal Interaction</span></li><li><span class="dpr-home-dashboard-paper-title" title="Cognitive Action Reasoning for Proactive Robots from Human-Centered Multimodal Observations">Cognitive Action Reasoning for Proactive Robots from Human-Centered Multimodal Observations</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Capability-Aware Arbitration for Semantic Intent-Based Shared Control">Capability-Aware Arbitration for Semantic Intent-Based Shared Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="Towards Intent-Aware Human-Robot Teaming: A Platform for Search-and-Rescue Operations">Towards Intent-Aware Human-Robot Teaming: A Platform for Search-and-Rescue Operations</span></li><li><span class="dpr-home-dashboard-paper-title" title="Visual Proactivity: Enhancing Human-Robot Collaboration Through Intent Communication">Visual Proactivity: Enhancing Human-Robot Collaboration Through Intent Communication</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>5</strong></span></div>
 </section>
