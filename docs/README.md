@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-24</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-25</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 5 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>4</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-24 22:27:07 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-25 22:25:57 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>2026-09-24 日报共筛出 5 篇论文，精读 1 篇、速读 4 篇，主题集中在多模态人意图理解与机器人控制。</p>
-<p>最值得看的是精读的《HINT-Blimp》（8.0/10）——用多模态线索推断人类意图来驱动机器飞艇，速读里《Capability-Aware Arbitration for Semantic Intent-Based Shared Control》与《Cognitive Action Reasoning…》（均 7.0/10）延续了&quot;意图推理+共享控制&quot;这条线。</p>
-<p>普通读者可先读 HINT-Blimp 的摘要，再按&quot;多模态意图识别&quot;或&quot;人机共享控制&quot;任选一篇速读跟进即可。</p>
+<p>2026-09-25 日报速读2篇：飞艇机器人意图推理与双臂遥操作情感共享自治。</p>
+<p>两篇均属人机交互前沿，前者7.0分更值得关注，聚焦多模态线索让机器人飞艇读懂人的意图。</p>
+<p>普通读者可留意机器人&quot;读懂人心&quot;与&quot;感知情绪&quot;这两条技术线，未来或先见于远程操作场景。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -73,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="HINT-Blimp: Human INTent Inference from Multimodal Cues for Robotic Blimps">HINT-Blimp: Human INTent Inference from Multimodal Cues for Robotic Blimps</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -86,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">4 篇</strong>
+    <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Cognitive Action Reasoning for Proactive Robots from Human-Centered Multimodal Observations">Cognitive Action Reasoning for Proactive Robots from Human-Centered Multimodal Observations</span></li><li><span class="dpr-home-dashboard-paper-title" title="Capability-Aware Arbitration for Semantic Intent-Based Shared Control">Capability-Aware Arbitration for Semantic Intent-Based Shared Control</span></li><li><span class="dpr-home-dashboard-paper-title" title="E3Sense: Head-Confined Multimodal Sensing of Learner Engagement">E3Sense: Head-Confined Multimodal Sensing of Learner Engagement</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="HINT-Blimp: Human INTent Inference from Multimodal Cues for Robotic Blimps">HINT-Blimp: Human INTent Inference from Multimodal Cues for Robotic Blimps</span></li><li><span class="dpr-home-dashboard-paper-title" title="Affective Shared Autonomy: Temporal Affect Dynamics and Subjective Evaluation in Bimanual Teleoperation Tasks">Affective Shared Autonomy: Temporal Affect Dynamics and Subjective Evaluation in Bimanual Teleoperation Tasks</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>4</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
 </section>
 </div>
 
