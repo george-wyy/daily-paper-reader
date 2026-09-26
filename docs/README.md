@@ -41,7 +41,7 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-25</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-26</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 2 篇</strong>
@@ -51,7 +51,7 @@
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-25 22:25:57 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-26 22:13:00 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>2026-09-25 日报速读2篇：飞艇机器人意图推理与双臂遥操作情感共享自治。</p>
-<p>两篇均属人机交互前沿，前者7.0分更值得关注，聚焦多模态线索让机器人飞艇读懂人的意图。</p>
-<p>普通读者可留意机器人&quot;读懂人心&quot;与&quot;感知情绪&quot;这两条技术线，未来或先见于远程操作场景。</p>
+<p>今日速读2篇，聚焦不确定性下的多模态指令接地与人人协作中的自适应交互规划。最值得看的是《MIGU》提出在不确定性中做操作规划的多模态指令接地（7.0分），以及《Learning to Plan in Human-Robot Collaboration》用多模态强化学习实现自适应人机协作（6.0分）。普通读者可优先了解MIGU如何让机器人在信息不全时仍能听懂指令并规划动作。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -89,7 +87,7 @@
     <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="HINT-Blimp: Human INTent Inference from Multimodal Cues for Robotic Blimps">HINT-Blimp: Human INTent Inference from Multimodal Cues for Robotic Blimps</span></li><li><span class="dpr-home-dashboard-paper-title" title="Affective Shared Autonomy: Temporal Affect Dynamics and Subjective Evaluation in Bimanual Teleoperation Tasks">Affective Shared Autonomy: Temporal Affect Dynamics and Subjective Evaluation in Bimanual Teleoperation Tasks</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="MIGU: Multimodal Instruction Grounding under Uncertainty for Manipulation Planning">MIGU: Multimodal Instruction Grounding under Uncertainty for Manipulation Planning</span></li><li><span class="dpr-home-dashboard-paper-title" title="Learning to Plan in Human-Robot Collaboration: Multimodal Reinforcement Learning for Adaptive Interaction">Learning to Plan in Human-Robot Collaboration: Multimodal Reinforcement Learning for Adaptive Interaction</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
 </section>
