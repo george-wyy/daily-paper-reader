@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-09-27 <!--dpr-date:20260927-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/27/2609.28317v1-multimodal-voice-activity-projection-for-social-robot-mediation-expected-behavior-and-deployment-constraints" data-sidebar-item="{&quot;title&quot;: &quot;Multimodal Voice Activity Projection for Social Robot Mediation: Expected Behavior and Deployment Constraints&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.28317v1-multimodal-voice-activity-projection-for-social-robot-mediation-expected-behavior-and-deployment-constraints&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;多模态预测未来轮转行为&quot;}">Multimodal Voice Activity Projection for Social Robot Mediation: Expected Behavior and Deployment Constraints</a>
   * 2026-09-26 <!--dpr-date:20260926-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/26/2609.24995v1-migu-multimodal-instruction-grounding-under-uncertainty-for-manipulation-planning" data-sidebar-item="{&quot;title&quot;: &quot;MIGU: Multimodal Instruction Grounding under Uncertainty for Manipulation Planning&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.24995v1-migu-multimodal-instruction-grounding-under-uncertainty-for-manipulation-planning&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;融合眼-指几何与VLM先验的多模态指令grounding&quot;}">MIGU: Multimodal Instruction Grounding under Uncertainty for Manipulation Planning</a>

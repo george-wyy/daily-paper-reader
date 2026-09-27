@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-26</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-27</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-26 22:13:00 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-27 22:27:40 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读2篇，聚焦不确定性下的多模态指令接地与人人协作中的自适应交互规划。最值得看的是《MIGU》提出在不确定性中做操作规划的多模态指令接地（7.0分），以及《Learning to Plan in Human-Robot Collaboration》用多模态强化学习实现自适应人机协作（6.0分）。普通读者可优先了解MIGU如何让机器人在信息不全时仍能听懂指令并规划动作。</p>
+<p>今天速读 1 篇、精读 0 篇，聚焦社交机器人中介场景下的多模态语音活动预测。</p>
+<p>这篇 6.0 分的《Multimodal Voice Activity Projection for Social Robot Mediation》值得关注两点：多模态信号如何预判对话轮次，以及真实部署时的行为预期与约束。</p>
+<p>普通读者可先看它的部署约束部分，再对照自己场景中的机器人/语音交互需求，判断是否值得跟进原论文。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="MIGU: Multimodal Instruction Grounding under Uncertainty for Manipulation Planning">MIGU: Multimodal Instruction Grounding under Uncertainty for Manipulation Planning</span></li><li><span class="dpr-home-dashboard-paper-title" title="Learning to Plan in Human-Robot Collaboration: Multimodal Reinforcement Learning for Adaptive Interaction">Learning to Plan in Human-Robot Collaboration: Multimodal Reinforcement Learning for Adaptive Interaction</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Multimodal Voice Activity Projection for Social Robot Mediation: Expected Behavior and Deployment Constraints">Multimodal Voice Activity Projection for Social Robot Mediation: Expected Behavior and Deployment Constraints</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 </div>
 
