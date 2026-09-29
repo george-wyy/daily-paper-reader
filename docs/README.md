@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-27</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-29</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-27 22:27:40 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-29 00:23:08 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天速读 1 篇、精读 0 篇，聚焦社交机器人中介场景下的多模态语音活动预测。</p>
-<p>这篇 6.0 分的《Multimodal Voice Activity Projection for Social Robot Mediation》值得关注两点：多模态信号如何预判对话轮次，以及真实部署时的行为预期与约束。</p>
-<p>普通读者可先看它的部署约束部分，再对照自己场景中的机器人/语音交互需求，判断是否值得跟进原论文。</p>
+<p>今日速读3篇AI交互与视觉注意力论文，均分6.0，无精读。最值得看的是《When Direct Manipulation Becomes a Guess》提出的AI多感官可视化中&quot;有益摩擦&quot;设计，以及《OpenVAM》用视觉语言模型做开放世界注意力建模的思路。普通读者可优先从这两篇入手，留意AI替你&quot;猜&quot;意图时该保留多少人工确认环节。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -86,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Multimodal Voice Activity Projection for Social Robot Mediation: Expected Behavior and Deployment Constraints">Multimodal Voice Activity Projection for Social Robot Mediation: Expected Behavior and Deployment Constraints</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="When Direct Manipulation Becomes a Guess: Productive Friction in AI-Mediated Multisensory Visualization">When Direct Manipulation Becomes a Guess: Productive Friction in AI-Mediated Multisensory Visualization</span></li><li><span class="dpr-home-dashboard-paper-title" title="From Visual Search to Movement Control: A Priority Field for Artificial Agents">From Visual Search to Movement Control: A Priority Field for Artificial Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="OpenVAM: Open-World Visual Attention Modeling with VLMs">OpenVAM: Open-World Visual Attention Modeling with VLMs</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
 </div>
 
