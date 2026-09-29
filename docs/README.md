@@ -44,14 +44,14 @@
       <span class="dpr-home-dashboard-kicker">2026-09-29</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 7 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
-    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>2 次</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>6</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-29 00:23:08 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-29 23:06:51 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日速读3篇AI交互与视觉注意力论文，均分6.0，无精读。最值得看的是《When Direct Manipulation Becomes a Guess》提出的AI多感官可视化中&quot;有益摩擦&quot;设计，以及《OpenVAM》用视觉语言模型做开放世界注意力建模的思路。普通读者可优先从这两篇入手，留意AI替你&quot;猜&quot;意图时该保留多少人工确认环节。</p>
+<p>今日精选7篇机器人交互与具身智能论文，精读1篇、速读6篇。最值得关注的是8.0分的《Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning》，用贝叶斯主动学习化解交互规划中的意图歧义；速读中的粒子滤波共享自主与注视提示微调也值得一看。建议普通读者优先从精读篇入手，理解机器人如何主动提问以弄清人类真实意图。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -71,12 +71,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning">Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -84,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">6 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="When Direct Manipulation Becomes a Guess: Productive Friction in AI-Mediated Multisensory Visualization">When Direct Manipulation Becomes a Guess: Productive Friction in AI-Mediated Multisensory Visualization</span></li><li><span class="dpr-home-dashboard-paper-title" title="From Visual Search to Movement Control: A Priority Field for Artificial Agents">From Visual Search to Movement Control: A Priority Field for Artificial Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="OpenVAM: Open-World Visual Attention Modeling with VLMs">OpenVAM: Open-World Visual Attention Modeling with VLMs</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Assisting for Open-Ended Tasks: Goal-Oriented Shared Autonomy as a Particle Filter">Assisting for Open-Ended Tasks: Goal-Oriented Shared Autonomy as a Particle Filter</span></li><li><span class="dpr-home-dashboard-paper-title" title="Gaze Prompts: Temporally Dense Human Attention for Vision-Language-Action Fine-Tuning">Gaze Prompts: Temporally Dense Human Attention for Vision-Language-Action Fine-Tuning</span></li><li><span class="dpr-home-dashboard-paper-title" title="From Visual Search to Movement Control: A Priority Field for Artificial Agents">From Visual Search to Movement Control: A Priority Field for Artificial Agents</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>6</strong></span></div>
 </section>
 </div>
 

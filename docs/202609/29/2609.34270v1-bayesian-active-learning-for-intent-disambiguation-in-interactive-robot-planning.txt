@@ -1,0 +1,395 @@
+Title: Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning
+
+URL Source: https://arxiv.org/pdf/2609.34270v1
+
+Published Time: Tue, 29 Sep 2026 02:57:52 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning 
+
+Huao Li 1, Carson Sobolewski 1, Augustinos Saravanos 1, William Tan 2, John Karigiannis 2, and Chuchu Fan 1
+
+Abstract — Interactive robot planning requires robots to infer and execute human intentions from natural language instruc-tions that are often ambiguous, incomplete, or underspecified. Although large language models (LLMs) provide a powerful interface for clarification, relying on the generative model to drive a multi-turn conversation can introduce systematic fail-ures. We propose a Bayesian framework that treats clarification as an active learning problem over grounded Signal Temporal Logic (STL) task specifications. Our method uses LLMs to initialize candidate formal specifications and translate infor-mative contrasts into natural-language clarification questions, while Bayesian optimization maintains uncertainty estimates over user intent and selects queries that maximize information gain. Because queries are selected in a learned STL embedding space, the system can also ask about plausible specifications that the LLM did not propose. After convergence, the inferred STL specification is passed to a formal planner to synthesize a verifiable robot trajectory. Across four simulated and real-world task domains, our approach generally achieves higher task satisfaction and requires fewer clarification rounds than LLM baselines, while helping smaller models close the performance gap against larger reasoning models. 
+
+I. I NTRODUCTION 
+
+Interactive robot planning requires systems to convert nat-ural language instructions from human users into verifiable plans that can be executed in unstructured environments. While Large Language Models (LLMs) provide a powerful natural language interface for this interaction, off-the-shelf LLMs struggle to reliably generate long-horizon plans or physically ground their plans within the complex spatio-temporal constraints of the real world [1], [2]. Consequently, recent research has sought to combine the semantic reasoning capabilities of LLMs with the rigorous safety guarantees of formal solvers [3], [4], [5], [6], [7]. In these hybrid architec-tures, the LLM translates natural language instructions into formal task specifications (e.g., temporal logic), and a formal solver generates the low-level robot plan, ensuring safety and transparency. Despite this progress, most language-grounded planning pipelines implicitly assume that the user’s initial instruction is sufficiently complete. However, in real-world human-robot interaction, users often rely on shared context, use ambiguous references, or leave safety and social constraints unstated. For instance, the user may provide a vague instruction such as “Go to Tom’s office,” which lacks critical physical grounding (e.g., where the office is located), commonsense constraints 
+
+> 1Huao Li, Carson Sobolewski, Augustinos Saravanos, and Chuchu Fan are with the Massachusetts Institute of Technology, Cambridge, MA, USA.
+
+{huaol,csobo,asaravan,chuchu }@mit.edu         
+
+> 2William Tan and John Karigiannis are with GE Vernova.
+
+{yewteck.tan,John.Karigiannis }@gevernova.com 
+
+(e.g., slowing down when passing near humans), and user preferences (e.g., which Tom, by what time). While some approaches enable LLMs to ask clarification questions when uncertain [8], [9], mounting evidence indicates that state-of-the-art LLMs suffer from context loss in multi-turn dialogues [10] and frequently exhibit sycophancy or over-confidence when interacting with users [11]. These issues motivate a robot planning system that treats clarification as an active information-gathering problem with theoretical grounding. Human-robot interaction has a long history of learn-ing user preferences from demonstrations, comparisons, corrections, and language feedback. Bayesian preference learning, inverse reinforcement learning, and learning-from-demonstration methods can actively query users to infer reward functions based on task-relevant features [12], [13], [14]. However, many such methods assume that prefer-ences are linear combinations of predefined features, such as trajectory length, smoothness, or distance to humans. Recent work uses language models to construct richer task abstractions or infer latent preferences from behavior [15], [16], but the learned preference is still often represented as a reward or feature abstraction whose connection to formal task satisfaction is indirect. In safety-critical robot planning, this creates a gap between what the system learns from the human and what the downstream planner can formally verify. We address this gap by modeling the user’s intended pref-erence as a formal task specification grounded in the robot’s environment. Specifically, we represent candidate intents as Signal Temporal Logic (STL) formulas over atomic propo-sitions grounded in the task scenario. STL then provides a structured hypothesis space for representing temporally extended navigation and manipulation preferences, including goals, avoidance constraints, ordering constraints, and tim-ing requirements. Instead of assuming a single translation from language to logic, our system maintains uncertainty over possible STL specifications and actively asks the user questions that reduce this uncertainty via Bayesian active learning. Within this framework, LLMs serve as language-based support modules: they initialize the preference model by proposing and scoring candidate task specifications from the initial instruction and mediate the natural language con-versation with human users. After the active learning loop converges, the system selects the most likely user-preferred STL formula and passes it to a formal planner, such as an STL-constrained mixed-integer planner [17], to synthesize an optimal, collision-free trajectory. Our contributions are threefold. First, we formulate clari-fication in language-conditioned robot planning as Bayesian arXiv:2609.34270v1 [cs.RO] 28 Sep 2026 active learning over formal task specifications. This casts human-robot dialogue as an information-gathering process, where each question is selected to maximize expected mu-tual information about the user’s intent. Because queries are sampled directly in a learned STL embedding space, the robot can also challenge the user with specifications that the LLM never proposed. Empirically, this formulation recovers user intent with fewer clarification rounds than LLM-driven dialogue alone. Second, we model user intent as grounded STL specifications rather than unconstrained language plans or implicit rewards. This enables the inferred intent to be verified by a formal planner, while preserving the compositionality and interpretability needed for real-world deployment. Third, our framework is flexible across models, domains, and planning backends. We evaluate it with six LLMs across two simulated and two real-world environments spanning navigation and manipulation, and show that the same framework can incorporate different context inputs, intermediate task representations, and downstream solvers. II. R ELATED WORK 
+
+A. Language-Conditioned Formal Planning 
+
+Recent work integrates LLMs with symbolic or for-mal planners to combine flexible language understanding with verifiable plan generation. LLM+P translates natural-language instructions into PDDL problems for classical plan-ning [3], while related systems map language into temporal-logic specifications or task-and-motion planning constraints [4], [6], [5], [18]. Other approaches use foundation models as high-level formalizers that generate planning problems, domain rules, or optimization formulations from natural language [19], [7]. These methods show that LLMs can help bridge informal language and formal solvers, but they primarily focus on improving the translation from a given instruction to a formal representation. Our work instead focuses on the preceding interaction problem: when the initial instruction is underspecified, the robot must actively infer which formal specification the user intends. 
+
+B. Multi-Turn Clarification 
+
+When human instructions are ambiguous or underspeci-fied, the robot must elicit clarification. However, resolving complex specifications and safety constraints purely through multi-turn dialogue driven by LLMs poses structural risks. LLMs can get lost in multi-turn conversations by mak-ing incorrect assumptions and then over-relying on them in later turns [10]. Additionally, LLMs frequently exhibit sycophancy or over-confidence when interacting with users [11]. Therefore, researchers attempt to guide clarification with external verifiers for more robust correction signals [20]. For example, KnowNo utilizes conformal prediction to quantify LLM uncertainty and proactively query human users when confidence is low [8]. More recently, Masked IRL grounds clarification in observed demonstrations, using LLM reasoning to resolve ambiguous instructions before translat-ing the clarified intent into reward-relevant state masks [9]. Our framework treats disambiguation as a Bayesian active learning problem over formal hypotheses rather than rely-ing purely on language-model memory. We leverage LLMs strictly for semantic support, offloading rigorous uncertainty estimation and query generation to the probabilistic model. 
+
+C. Preference Learning in Human-Robot Interaction 
+
+Human-robot interaction has a long history of learning la-tent user preferences from demonstrations, corrections, com-parisons, and language feedback. Active preference learning methods infer reward functions by querying users about informative trajectory comparisons or demonstrations [12], [13], [14]. More recent language-guided approaches use LLMs to extract interpretable features, propose abstractions, or condition preference learning on natural-language feed-back [15], [16], [21]. Related interactive planning methods also use language feedback to discover predicates and op-erators for symbolic planning [22]. These methods improve sample efficiency and interpretability, but the learned object is often a reward function, feature abstraction, or predicate set whose connection to formal task satisfaction is indirect. Our framework instead places Bayesian active learning di-rectly over grounded STL specifications, integrating sample-efficient human feedback with a formal representation that can be verified by the downstream planner. III. M ETHOD 
+
+We formulate interactive robot clarification as a Bayesian active learning (BAL) problem, as shown in Fig. 1. Given an ambiguous natural-language instruction, the robot must infer the formal task specification that best represents the user’s latent intent. Specifically, our method infers a grounded Signal Temporal Logic (STL) specification and then uses a formal planner to synthesize a trajectory satisfying that specification. 
+
+A. Problem Formulation 
+
+Let G denote a grounded robot environment containing objects, regions, semantic labels, and geometric constraints. The environment induces a set of grounded atomic proposi-tions ΠG , such as whether the robot is inside a target region or avoids an unsafe area. A robot trajectory is denoted by 
+
+ξ = ( x0, . . . , x H ), where xt is the robot state at time t.The user provides an initial instruction I0, which may be ambiguous or incomplete. We assume that the user’s intent can be represented by a formal task specification 
+
+ϕ ∈ ΦG , where ΦG is the set of valid specifications over the grounded propositions in G. The robot’s objective is to infer the intended task specification and synthesize a trajectory satisfying it. We introduce a utility function U ⋆ : Φ G → R, where 
+
+U ⋆(ϕ) measures how well candidate specification ϕ matches the user’s latent intent. The inference objective is 
+
+ϕ⋆ ∈ arg max 
+
+> ϕ∈ΦG
+
+U ⋆(ϕ). (1) Fig. 1: Overview of the proposed language-grounded Bayesian active learning framework. Given an ambiguous instruction and scene representation, an LLM proposes candidate user intents as STL task specifications with prior utility estimates. A grammar VAE maps these formulas into a continuous latent space, where a latent utility model (a Gaussian process in our implementation) is initialized from the LLM prior. An acquisition function contrasts the current best specification with an informative challenger, which may be an LLM candidate or a novel formula sampled directly in the latent space, and the contrast is converted into a clarification question. After each user response, the utility model is updated and the LLM regenerates the candidate set. After convergence, the inferred specification is decoded and passed to a formal planner to synthesize a feasible robot trajectory. 
+
+B. STL Specification Space 
+
+We use Signal Temporal Logic (STL) to represent tem-porally extended task intent. STL is defined recursively: grounded predicates form atomic formulas, and more com-plex formulas are built by composing existing formulas with Boolean and temporal operators. This recursive structure makes task specifications modular and interpretable, since each subformula corresponds to a meaningful constraint such as reaching a goal, avoiding an unsafe region, or satisfying an ordering relation. Formally, STL formulas are constructed from grounded predicates, Boolean operators, and temporal operators such as eventually F[a,b ], always G[a,b ], and until 
+
+U[a,b ]. For example, F[0 ,30] pgoal requires the robot to reach the goal within 30 seconds, while G[0 ,H ]¬punsafe requires the robot to avoid unsafe regions throughout the task horizon. We write ξ |= ϕ if trajectory ξ satisfies formula ϕ. STL also provides a robustness score ρϕ(ξ), where ρϕ(ξ) ≥ 0 implies satisfaction. This allows the final inferred specification to be passed directly to a formal trajectory optimizer. 
+
+C. Latent Utility Model over Specifications 
+
+Because ΦG is discrete and combinatorial, direct search over formulas is difficult. We therefore embed STL formu-las into a continuous latent space using a grammar VAE. Let Eψ (ϕ) = z encode a formula into z ∈ Z , and let 
+
+Dψ (z) = ϕ decode a latent point into a syntactically valid STL formula. We then define the latent utility function as 
+
+u⋆(z) = U ⋆(Dψ (z)) .The framework maintains a probabilistic latent utility model over u⋆, which can be any surrogate that provides a posterior mean and uncertainty. In our implementation, we use a Gaussian process (GP). Given observations Dt =
+
+{(zi, y i)}nt
+
+> i=1
+
+, where yi is a direct utility estimate for the candidate specification Dψ (zi), the GP posterior is 
+
+u(z) | D t ∼ N  μt(z), σ 2 
+
+> t
+
+(z). (2) The posterior mean μt(z) estimates how well a specifica-tion matches the user’s intent, while the posterior variance 
+
+σ2 
+
+> t
+
+(z) captures uncertainty. The LLM initializes the model by proposing a candidate set C0 with prior utility estimates based on the initial instruction and task context, thereby guiding the initial search toward semantically plausible regions of the specification space. We write ZCt = {Eψ (ϕ) : ϕ ∈ C t}
+
+for the encoded candidates at round t.
+
+D. Active Clarification Query Selection 
+
+At clarification round t, the system selects two candi-date specifications to contrast. The first is the current best estimate, zbest  
+
+> t
+
+= arg max z∈Z Ct μt(z). The second is an informative alternative selected by an acquisition function αt
+
+that scores the expected uncertainty reduction from querying a latent point. In our implementation, we use an information-gain acquisition with a utility bonus: 
+
+zquery  
+
+> t
+
+= arg max 
+
+> z∈Z t
+
+αt(z), αt(z) = I(y; u | z, Dt)+ λμ t(z)
+
+(3) Here, I(y; u | z, Dt) estimates the expected information gained by querying candidate z, and μt(z) biases selection toward plausible high-utility specifications with weight λ.Crucially, the query pool Zt = ZCt ∪S t contains not only the encoded LLM candidates but also a set St of points sampled directly in the latent space Z. Because the decoder maps any latent point to a valid formula, zquery  
+
+> t
+
+may decode to a novel challenger specification that the LLM never generated. The learned STL embedding space thus lets BAL explore clarification questions that the LLM may overlook, rather than merely re-ranking LLM proposals. The two latent points are decoded as ϕbest  
+
+> t
+
+= Dψ (zbest  
+
+> t
+
+) and ϕquery  
+
+> t
+
+= Dψ (zquery  
+
+> t
+
+).Rather than showing raw STL formulas to the user, the LLM translates the contrast between ϕbest  
+
+> t
+
+and ϕquery  
+
+> t
+
+into a natural-language clarification question Qt. The question targets the attribute that best distinguishes the two candidate specifications. For instance, if they mainly differ in the time window for reaching a target, the system asks about the desired timing constraint. After receiving the user’s free-form answer At, the LLM assigns direct utility estimates to ϕbest  
+
+> t
+
+and ϕquery  
+
+> t
+
+, which are treated as noisy observations of u⋆ and added to the feedback set. The LLM then regenerates the candidate set Ct+1 and its prior utility estimates conditioned on the dialogue so far, retaining the queried challenger. The new candidates are encoded into Z, their prior estimates replace the previous priors in Dt+1 , and the utility model is refit before the next round. 
+
+E. Stopping, Specification Selection, and Planning 
+
+At each round, the current estimate ϕbest  
+
+> t
+
+is passed to a formal planner, which synthesizes a feasible trajectory by solving 
+
+ξt = arg min 
+
+> ξ∈Ξfeasible
+
+C(ξ) s.t. ξ |= ϕbest  
+
+> t
+
+. (4) Clarification ends when a generic stopping test STOP (ϕbest  
+
+> t
+
+, ξ t, Dt) succeeds or the query budget B is exhausted, and the system returns ˆϕ = ϕbest  
+
+> t
+
+and ξ⋆ = ξt
+
+(Algorithm 1). We keep STOP generic; for example, it can succeed when the user approves the proposed trajectory ξt. This design separates intent inference from trajectory optimization: the utility model infers the intended STL specification, while the planner generates a feasible trajectory satisfying it. IV. E XPERIMENTS 
+
+We evaluate BAL in two simulated domains and two real-world deployments. The simulated experiments test whether BAL recovers user intent from ambiguous instructions more efficiently than LLM-based clarification. The real-world ex-periments test deployment on a Unitree Go2 quadruped. 
+
+A. Simulation Domains a) Franka Panda: The first domain is a 7-DoF tabletop manipulation task (Fig. 2a) with a Franka Panda arm [23]. The robot must reach specified colored objects while avoid-ing unsafe objects, such as red balls. Each scene contains 14 objects with known semantic labels, colors, shapes, and metric positions. The context provided to the LLM includes 
+
+Algorithm 1 Language-Grounded Bayesian Active Learning 
+
+Require: Instruction I0, environment G, budget B
+
+Ensure: Specification ˆϕ, trajectory ξ⋆ 
+
+> 1:
+
+(C0, D0) ← LLM-I NITIALIZE (I0, G) 
+
+> 2:
+
+for t = 0 , . . . , B do  
+
+> 3:
+
+Fit utility model (μt, σ 2 
+
+> t
+
+) on Dt 
+
+> 4:
+
+ϕbest  
+
+> t
+
+← Dψ
+
+  arg max z∈Z Ct μt(z) 
+
+> 5:
+
+ξt ← STL-P LAN (G, ϕ best  
+
+> t
+
+) 
+
+> 6:
+
+if STOP (ϕbest  
+
+> t
+
+, ξ t, Dt) then break  
+
+> 7:
+
+ϕquery  
+
+> t
+
+← Dψ
+
+  arg max z∈Z t αt(z) ▷ Eq. (3)  
+
+> 8:
+
+Qt ← LLM-Q UESTION (ϕbest  
+
+> t
+
+, ϕ query  
+
+> t
+
+) 
+
+> 9:
+
+At ← QUERY USER (Qt) 
+
+> 10:
+
+(Ct+1 , Dt+1 ) ← LLM-U PDATE (At, Ct, Dt, ϕ query  
+
+> t
+
+) 
+
+> 11:
+
+end for  
+
+> 12:
+
+return ˆϕ ← ϕbest  
+
+> t
+
+, ξ⋆ ← ξt
+
+the robot end-effector pose, workspace bounds, object at-tributes, object positions, and admissible predicates. Scene-grounded STL specifications are defined over object-level atomic propositions such as reach(orange cube) and 
+
+avoid(red ball) . Given an inferred specification ˆϕ, we use a gradient-based trajectory optimizer to synthesize a trajectory ξ⋆ that maximizes STL robustness while satisfying robot kinematic and collision constraints. 
+
+b) City: The second domain is a 2D city-scale naviga-tion task (Fig. 2b) built from the OpenStreetMap environ-ments used in Lang2LTL [5], [18]. Each map contains 40 landmarks, and grounding ambiguity arises because multiple landmarks may share similar names, categories, or street-level descriptions. The semantic description of each land-mark includes text attributes such as name, amenity type, and street address. Unlike the continuous Panda domain, the City domain is represented as a finite semantic transition system M = ( S, A, T, s 0, L ), where S is the set of discrete locations, A is the action set, T is the transition function, 
+
+s0 is the initial state, and L : S → 2ΠG labels each state with grounded propositions. We therefore represent City tasks using LTL specifications. Each inferred LTL formula is translated into a B¨ uchi automaton, composed with M, and solved on the resulting product system [24]. 
+
+B. Test Scenarios 
+
+Tasks are generated from four temporal-logic template families following prior STL benchmark design [25]: single-goal tasks require reaching one target, multi-goal tasks require satisfying multiple goals, sequential tasks impose an ordering over goals, and partial-order tasks specify prece-dence constraints without requiring a total ordering. For each domain, we randomly generate ground-truth specifications ϕ⋆
+
+across these templates. Each specification contains between 2 and 12 grounded objects or regions, including goals, obstacles, and temporal dependencies. Time intervals are sampled randomly for STL tasks. We filter all generated specifications through the corresponding planner to ensure that each benchmark instance is feasible. (a) Franka Panda (b) City  
+
+> (c) School (d) Factory
+
+Fig. 2: Benchmark environments used in simulation and real-world deployment. For every ground-truth specification, we generate an am-biguous natural-language instruction by hiding the grounding or temporal information. The ambiguity generation procedure is designed to cover three common sources of ambiguity: 
+
+referential ambiguity , where multiple objects or landmarks share similar attributes; commonsense or safety ambiguity ,where task-relevant constraints are omitted; and preference ambiguity , where the user leaves goals, obstacles, or pri-orities unspecified [26]. In simulation, the human user is modeled by an LLM proxy conditioned on ϕ⋆. The proxy generates the initial ambiguous instruction and answers sub-sequent clarification questions. For each test case, the proxy and initial instruction are fixed across methods, ensuring that all methods receive the same interaction context. To study information-seeking in human-robot dialogue, we assume low-initiative users: the initial instruction omits some information, and each subsequent response clarifies only one aspect of the intended task. This information bottleneck pre-vents the robot from relying on overly general, open-ended questions, thereby making clarification question selection critical. Both the LLM proxy and the human participants in Sec. VI are instructed to follow this protocol. Under this constrained, closed-ended setting, we expect LLM proxies and human users to exhibit similar interaction patterns. 
+
+C. Baselines 
+
+We compare BAL against two LLM-based clarification baselines. All methods use the same base LLM, the same simulated user proxy, and the same context information in prompts. LLM Clarification (LM). The LM baseline asks free-form natural-language clarification questions and then directly outputs the final executable plan, such as an action sequence or waypoint trajectory, without producing an inter-mediate formal specification. LLM Clarification + Planner (LM+P). The LM+P baseline asks free-form clarification questions, then translates the clarified instruction into an STL specification. The resulting specification is passed to the same downstream planner used by BAL. This baseline isolates the benefit of explicit Bayesian uncertainty modeling from the benefit of using a formal planner. 
+
+D. Grammar VAE Training 
+
+For each domain, we train a grammar-masked sequence VAE to define the latent space over which the utility model operates. The VAE follows the Grammar VAE design [27]: formulas are represented as grammar-rule sequences, the encoder maps each formula ϕ into a continuous latent vector 
+
+z ∈ Z ⊆ Rd, and the decoder is constrained by the context-free grammar so that decoded samples correspond to syntactically valid formulas. As shown in Fig. 1, the latent space learned by the grammar VAE clusters STL formulas with similar types and complexity levels together, providing a smooth search space for Bayesian optimization. The encoder is a two-layer BiLSTM, the decoder is a two-layer GRU, the hidden size is 256, and the latent dimension is d = 16 . Each VAE is trained on 100k randomly sampled specifications from the four template families using the standard ELBO [28], KL warm-up, and free-bits. The best checkpoint is selected by token-exact reconstruction on a held-out split. Training uses a single NVIDIA RTX 5090 GPU. 
+
+E. Metrics 
+
+In the main experiments, we instantiate the stopping test in Algorithm 1 as human approval for all methods: each method may ask up to B = 10 clarification questions, and the interaction stops early once the user approves the proposed trajectory, i.e., once the trajectory satisfies the ground-truth specification. Each method is evaluated by Success Rate ,whether the final executed trajectory satisfies the ground-truth specification, and Rounds , the number of clarification turns required before first approval. Time measures wall-clock runtime per task, including LLM calls, latent-space inference, Bayesian optimization, and planning. All results are reported as mean ± standard error over all test cases. 
+
+F. Results a) Task Performance: Table I summarizes the suc-cess rates and clarification rounds on the Panda and City domains. Across all simulation environments and all six base LLMs, BAL consistently outperforms the baselines in success rate and generally requires fewer clarification rounds. These results suggest that explicitly modeling uncertainty over candidate specifications and selecting informative clar-ification questions helps the system infer the intended task more efficiently than relying on the LLM to manage the clarification dialogue end-to-end. Human Auto 020 40 60 80 100  
+
+> Success rate (%) (a) Success rate Method
+> BAL LM LM+P
+> Human Auto 012345
+> Avg rounds (all runs) (b) Interaction rounds Method
+> BAL LM LM+P
+
+(a) Success rate Human Auto 020 40 60 80 100   
+
+> Success rate (%) (a) Success rate Method
+> BAL LM LM+P
+> Human Auto 012345
+> Avg rounds (all runs) (b) Interaction rounds Method
+> BAL LM LM+P
+
+(b) Rounds of clarification Time cost  
+
+> 020 40 60 80 100
+> Success (%)
+> better
+> Method
+> BAL (Ours) LLM LLM+Planner
+> Base model
+> GPT-5.4 GPT-5.4-mini Gemini-3.1-pro Gemini-3.1-flash Claude-Opus-4-6 Claude-Sonnet-4-6
+
+(c) Cost performance analysis 
+
+Fig. 3: (a, b) Comparison between human-approval and auto-stop modes on the Panda domain. BAL maintains high task success under auto-stop, while LLM-based baselines terminate earlier but suffer from substantially lower success rates. (c) 
+
+Pareto scatter plot showing the trade-off between time cost and performance. BAL works best with smaller models near the top-left corner. TABLE I: Success rate (%, ↑) and rounds of clarification ( ↓)on Panda and City. Mean ± standard error. Bold marks the per-domain best.                                                                                  
+
+> Base Model Panda City BAL LM LM+P BAL LM LM+P
+> Success Rate (%) ↑
+> GPT-5.4 91.1 ±4.2 48.9 ±7.5 82.2 ±5.7 62.5 ±9.9 29.2 ±9.3 20.8 ±8.3 GPT-5.4-mini 93.2 ±3.8 64.4 ±7.1 86.7 ±5.1 64.7 ±11.6 20.8 ±8.3 12.5 ±6.8 Claude-Opus-4-6 91.1 ±4.2 64.4 ±7.1 82.2 ±5.7 50.0 ±10.2 29.2 ±9.3 20.8 ±8.3 Claude-Sonnet-4-6 91.1 ±4.2 73.3 ±6.6 86.7 ±5.1 41.7 ±10.1 29.2 ±9.3 8.3 ±5.6 Gemini-3.1-Pro 91.1 ±4.2 82.2 ±5.7 91.1 ±4.2 54.2 ±10.2 33.3 ±9.6 25.0 ±8.8 Gemini-3.1-Flash-Lite 93.3 ±3.7 64.4 ±7.1 91.1 ±4.2 66.7 ±9.6 29.2 ±9.3 12.5 ±6.8
+> Rounds of Clarification ↓
+> GPT-5.4 2.33 ±0.41 6.16 ±0.62 3.51 ±0.54 6.54 ±0.57 9.14 ±0.31 9.17 ±0.30 GPT-5.4-mini 2.09 ±0.36 5.40 ±0.58 3.24 ±0.51 6.46 ±0.70 9.42 ±0.30 9.53 ±0.28 Claude-Opus-4-6 2.93 ±0.47 4.69 ±0.62 3.38 ±0.52 7.25 ±0.53 8.75 ±0.39 8.94 ±0.41 Claude-Sonnet-4-6 3.09 ±0.48 4.49 ±0.60 3.02 ±0.50 8.11 ±0.49 8.67 ±0.39 9.39 ±0.33 Gemini-3.1-Pro 2.36 ±0.42 3.47 ±0.49 3.16 ±0.45 7.78 ±0.56 8.83 ±0.39 9.06 ±0.34 Gemini-3.1-Flash-Lite 2.44 ±0.35 5.42 ±0.62 3.13 ±0.47 6.14 ±0.59 8.83 ±0.42 9.53 ±0.23
+
+The consistent performance pattern across different base LLMs indicates that the gains are not tied to a particular model. Instead, they arise from the combination of formal task-specification representations, Bayesian intent modeling, and active query selection. Adding a planner to the LLM-only baseline, i.e., LM → LM+P, closes part of the perfor-mance gap on Panda and in the real-world sites (Table III). However, BAL still performs better because its utility model and latent query sampling allow the framework to recover a structurally correct STL specification even when the LLM proposes noisy or incomplete candidates. The domains exhibit different levels of difficulty for the LLM baselines. City is the most challenging, and it is also the only domain where LM+P underperforms the trajectory-only LM baseline. This suggests that planner augmentation alone is insufficient when the LLM-generated temporal-logic specification drifts from the user’s true intent. In such cases, the solver faithfully executes an incorrect specification. BAL mitigates this failure mode by maintaining a posterior dis-tribution over candidate specifications instead of committing early to a single LLM-generated formula. 
+
+b) Cost Analysis: Figure 3c analyzes the trade-off between performance and computational cost. BAL intro-duces additional computation from latent-space inference and Bayesian optimization, but this overhead is often offset by more efficient clarification, whereas larger reasoning models rely on longer reasoning traces, tool calls, and repeated dia-logue. Consequently, BAL with a smaller model can match or outperform direct clarification with a larger model at lower wall-clock cost, which is valuable for resource-constrained robot deployment. This suggests that BAL shifts much of the reasoning burden to its neuro-symbolic components: the LLM handles semantic interpretation and dialogue, while uncertainty estimation, query selection, and planning are handled by the probabilistic model and formal planner. V. A BLATION STUDY : S TOPPING CRITERIA 
+
+The main experiments use the human-approval instantia-tion of the stopping test, which is relatively favorable: the robot can request approval at every round, while the human remains responsible for validating the final intent estimate. We now evaluate a more autonomous auto-stop instantiation, in which the robot decides when clarification is complete and the user provides approval only afterward. This reduces user burden by placing the responsibility for early stopping on the robot. For BAL, auto-stop terminates when the posterior differential entropy over the candidate pool fails to decrease for two consecutive rounds, indicating that the acquisition function can no longer identify queries with high expected information gain (convergence or a local plateau). For the two LLM baselines, we add an instruction that allows the LLM agent to terminate clarification when it believes the user’s intent is sufficiently clear. We evaluate both stopping modes on the Panda domain. As shown in Fig. 3a, the success rates of the LLM-based methods decrease substantially in auto-stop mode, whereas BAL maintains a similar level of performance. The clarification-round metric shown in Fig. 3b should be interpreted differently across the two modes. In human-approval mode, the interaction terminates only when the agent reaches the ground-truth intent; therefore, fewer rounds indicate better clarification efficiency. In auto-stop mode, however, the number of rounds must be interpreted together with task success. The LLM agents achieve both low success rates and low interaction counts, indicating that they often terminate clarification prematurely due to overconfidence in their intent estimates. In contrast, BAL maintains high success while using a few additional rounds for posterior uncertainty to converge before stopping. These results highlight an important challenge in using LLMs for human-robot interaction. In mixed-initiative set-tings, agents must sometimes challenge, refine, or verify user intent rather than simply produce a confident response. The tendency of LLMs toward overconfidence and sycophancy can therefore lead to premature termination and suboptimal task execution. External uncertainty estimation, such as the Bayesian optimization and surrogate modeling used in BAL, can help mitigate this issue by providing an explicit signal for when clarification is still needed. VI. U SER STUDY 
+
+We conducted a web-based user study to evaluate our BAL agent with real users in the City navigation domain. We recruited N =30 participants through Prolific after ex-cluding incomplete submissions. Each participant completed six episodes. We used a within-subject design with three methods ( BAL , LM , and LM+P ), randomly assigned across episodes and counterbalanced using a Latin square. To facili-tate efficient data collection, we reduced the task complexity to at most four targets and five clarification rounds per episode. All other settings matched the simulation experi-ments in Sec. IV, except that real users replaced the LLM proxy. This study was approved by the IRB as an exempt research study. Table II reports the per-participant means. A one-way repeated-measures ANOVA showed a significant main effect of method on success rate, F (2 , 58)=6 .10 , p=.004 , η2 
+
+> p
+
+=.17 ,and interaction rounds, F (2 , 58)=8 .78 , p=.001 , η2 
+
+> p
+
+=.23 .
+
+BAL achieved the highest success rate while requiring the fewest clarification rounds, supporting its effectiveness rela-tive to the baselines in real-user interactions. TABLE II: User study results (mean ± SE over N =30 
+
+participants).                       
+
+> Method Success rate ↑Avg. rounds ↓
+> BAL 0.65 ±0.07 3.67 ±0.21
+> LM 0.48 ±0.07 4.38 ±0.14
+> LM+P 0.37 ±0.06 4.25 ±0.15
+
+VII. R EAL -W ORLD DEPLOYMENT 
+
+We deploy BAL in two physical sites: School , an academic indoor environment, and Factory , an industrial environment. In both sites, a Unitree Go2 quadruped executes the inferred specifications. We scan each environment with an XGrids PortalCam and build a metric-semantic scene representation containing object labels, 3D bounding boxes, and navigable regions. These elements define the grounded propositions used by BAL. The inferred specification is passed to a MILP TABLE III: Real-world deployment results (mean ± SE over 10 runs per site).                       
+
+> Domain Metric BAL LM LM+P School Success rate (%) ↑90.0 ±9.5 60.0 ±15.5 80.0 ±12.6 Avg. rounds ↓3.50 ±1.13 6.30 ±1.17 3.50 ±1.16
+> Factory Success rate (%) ↑90.0 ±9.5 80.0 ±12.6 90.0 ±9.5
+> Avg. rounds ↓2.90 ±0.90 4.30 ±1.27 4.10 ±1.04
+
+planner, which produces waypoints satisfying the temporal-logic constraints. The Go2 tracks the waypoints using MPC, with a CBF-QP safety filter for local collision avoidance [29]. We run 10 ambiguous instructions at each site using Gemini-3.1-Flash-Lite and a query budget of B = 10 , with human-approval stopping. Table III summarizes the results. All approved tasks are executed successfully with zero collisions. These results show that the same BAL pipeline transfers to physical environments without heavy engineering effort. VIII. D ISCUSSION 
+
+We introduced a language-grounded Bayesian active learn-ing framework for recovering formal task specifications from ambiguous instructions. By combining LLM-based semantic support with probabilistic uncertainty estimation, active query selection, and verifiable planning, BAL gener-ally improves task satisfaction while reducing clarification effort across models and domains. These results suggest that reliable interactive robot planning benefits not only from stronger language models, but also from explicit represen-tations of uncertainty and intent. Several limitations remain. First, the current formulation assumes a known and relatively static task domain. BAL reasons over uncertainty in the user’s intended specification, but assumes that the candidate specification space, grounded propositions, and semantic map are available and accurate. When the true intent involves novel objects, vague social norms, or preferences outside the proposition set, the system can only recover the closest in-distribution specification. Future work should jointly model uncertainty over semantic grounding, map state, and user intent. Second, BAL still relies on LLMs for semantic support, including candidate generation, question verbalization, and response parsing. Al-though the utility posterior and latent-space sampling reduce dependence on LLM reasoning and on the LLM’s candidate set, errors in these steps can bias the candidate pool or introduce noisy utility observations. Third, our simulation studies use an LLM proxy as the user, which enables controlled evaluation but cannot fully capture human vari-ability, inconsistency, or evolving preferences. Our N =30 
+
+user study supports the simulation trends, but larger and more diverse human-subject studies are needed to assess whether BAL produces clarification questions that users find natural, efficient, and trustworthy. ACKNOWLEDGMENT This work is supported by the MIT x GE Vernova Energy and Climate Alliance under the project of Autonomous Field Inspection with Physical AI: A Neural Certificate Guided Framework for Safe, Semantic-Aware Robotic Inspection. REFERENCES [1] M. Ahn, A. Brohan, N. Brown, Y. Chebotar, O. Cortes, B. David, C. Finn, C. Fu, K. Gopalakrishnan, K. Hausman et al. , “Do as i can, not as i say: Grounding language in robotic affordances,” arXiv preprint arXiv:2204.01691 , 2022. [2] J. Liang, W. Huang, F. Xia, P. Xu, K. Hausman, B. Ichter, P. Florence, and A. Zeng, “Code as policies: Language model programs for embodied control,” in 2023 IEEE International conference on robotics and automation (ICRA) . IEEE, 2023, pp. 9493–9500. [3] B. Liu, Y. Jiang, X. Zhang, Q. Liu, S. Zhang, J. Biswas, and P. Stone, “Llm+p: Empowering large language models with optimal planning proficiency,” arXiv preprint arXiv:2304.11477 , 2023. [4] Y. Chen, J. Arkin, C. Dawson, Y. Zhang, N. Roy, and C. Fan, “Autotamp: Autoregressive task and motion planning with llms as translators and checkers,” in 2024 IEEE International conference on robotics and automation (ICRA) . IEEE, 2024, pp. 6695–6702. [5] J. X. Liu, Z. Yang, I. Idrees, S. Liang, B. Schornstein, S. Tellex, and A. Shah, “Grounding complex natural language commands for temporal tasks in unseen environments,” in Conference on Robot Learning . PMLR, 2023, pp. 1084–1110. [6] Y. Chen, R. Gandhi, Y. Zhang, and C. Fan, “Nl2tl: Transforming natural languages to temporal logics using large language models,” in 
+
+Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , 2023, pp. 15 880–15 903. [7] Y. Hao, Y. Zhang, and C. Fan, “Planning anything with rigor: General-purpose zero-shot planning with llm-based formalized programming,” in International Conference on Learning Representations , vol. 2025, 2025, pp. 64 335–64 391. [8] A. Z. Ren, A. Dixit, A. Bodrova, S. Singh, S. Tu, N. Brown, P. Xu, L. Takayama, F. Xia, J. Varley et al. , “Robots that ask for help: Uncertainty alignment for large language model planners,” in 
+
+Conference on Robot Learning . PMLR, 2023, pp. 661–682. [9] M. Hwang, A. Forsey-Smerek, N. Dennler, and A. Bobu, “Masked irl: Llm-guided reward disambiguation from demonstrations and lan-guage,” arXiv preprint arXiv:2511.14565 , 2025. [10] P. Laban, H. Hayashi, Y. Zhou, and J. Neville, “Llms get lost in multi-turn conversation,” arXiv preprint arXiv:2505.06120 , 2025. [11] T. Groot and M. Valdenegro-Toro, “Overconfidence is key: Verbalized uncertainty evaluation in large language and vision-language models,” in Proceedings of the 4th Workshop on Trustworthy Natural Language Processing (TrustNLP 2024) , 2024, pp. 145–171. [12] D. Sadigh, A. D. Dragan, S. Sastry, and S. A. Seshia, “Active preference-based learning of reward functions,” in Robotics: Science and Systems , vol. 13, 2017. [13] A. Bajcsy, D. P. Losey, M. K. O’malley, and A. D. Dragan, “Learning robot objectives from physical human interaction,” in Conference on robot learning . PMLR, 2017, pp. 217–226. [14] H. J. Jeon, S. Milli, and A. Dragan, “Reward-rational (implicit) choice: A unifying formalism for reward learning,” Advances in Neural Information Processing Systems , vol. 33, pp. 4415–4426, 2020. [15] A. Peng, B. Z. Li, I. Sucholutsky, N. Kumar, J. Shah, J. Andreas, and A. Bobu, “Adaptive language-guided abstraction from contrastive explanations,” in Conference on Robot Learning . PMLR, 2025, pp. 3425–3438. [16] A. Peng, A. Bobu, B. Z. Li, T. R. Sumers, I. Sucholutsky, N. Kumar, T. L. Griffiths, and J. A. Shah, “Preference-conditioned language-guided abstraction,” in Proceedings of the 2024 ACM/IEEE Interna-tional Conference on Human-Robot Interaction , 2024, pp. 572–581. [17] D. Sun, J. Chen, S. Mitra, and C. Fan, “Multi-agent motion plan-ning from signal temporal logic specifications,” IEEE Robotics and Automation Letters , vol. 7, no. 2, pp. 3451–3458, 2022. [18] J. X. Liu, A. Shah, G. Konidaris, S. Tellex, and D. Paulius, “Lang2ltl-2: Grounding spatiotemporal navigation commands using large lan-guage and vision-language models,” in 2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) . IEEE, 2024, pp. 2325–2332. [19] Y. Hao, Y. Chen, C. Fan, and Y. Zhang, “Simulation to rules: A dual-vlm framework for formal visual planning,” arXiv preprint arXiv:2510.03182 , 2025. [20] K. Stechly, K. Valmeekam, and S. Kambhampati, “On the self-verification limitations of large language models on reasoning and planning tasks,” in International Conference on Learning Representa-tions , vol. 2025, 2025, pp. 98 190–98 243. [21] S. Mahmud, M. Nakamura, and S. Zilberstein, “Maple: A framework for active preference learning guided by large language models,” in 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , vol. 39, no. 26, 2025, pp. 27 518–27 528. [22] M. Han, Y. Zhu, S.-C. Zhu, Y. N. Wu, and Y. Zhu, “Interpret: Interac-tive predicate learning from language feedback for generalizable task planning,” arXiv preprint arXiv:2405.19758 , 2024. [23] C. Gaz, M. Cognetti, A. Oliva, P. R. Giordano, and A. De Luca, “Dy-namic identification of the franka emika panda robot with retrieval of feasible parameters using penalty-based optimization,” IEEE Robotics and Automation Letters , vol. 4, no. 4, pp. 4147–4154, 2019. [24] C. Baier and J.-P. Katoen, Principles of model checking . MIT press, 2008. [25] Y. Meng and C. Fan, “Telograf: Temporal logic planning via graph-encoded flow matching,” in International Conference on Machine Learning . PMLR, 2025, pp. 43 754–43 780. [26] A. Ivanova, B. Eva, Z. Volovikova, A. Kovalev, and A. Panov, “Ambik: Dataset of ambiguous tasks in kitchen environment,” in Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2025, pp. 33 216–33 241. [27] M. J. Kusner, B. Paige, and J. M. Hern´ andez-Lobato, “Grammar varia-tional autoencoder,” in International conference on machine learning .PMLR, 2017, pp. 1945–1954. [28] D. P. Kingma and M. Welling, “Auto-encoding variational bayes,” 
+
+arXiv preprint arXiv:1312.6114 , 2013. [29] A. D. Ames, X. Xu, J. W. Grizzle, and P. Tabuada, “Control barrier function based quadratic programs for safety critical systems,” IEEE Transactions on Automatic Control , vol. 62, no. 8, pp. 3861–3876, 2016.
