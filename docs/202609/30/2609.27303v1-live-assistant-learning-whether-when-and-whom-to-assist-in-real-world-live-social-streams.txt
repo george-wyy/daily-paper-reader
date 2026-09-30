@@ -1,0 +1,386 @@
+Title: Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams
+
+URL Source: https://arxiv.org/pdf/2609.27303v1
+
+Published Time: Thu, 24 Sep 2026 00:31:26 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams 
+
+## Shujian Gao 1,2,3,# , Jiamei Yan 2,# , Yuchen Yang 2,# , Penghao Zhou 2, †, Qinglei Wang 2, †,Tiehan Fan 2, Yuan Wang 4, Zuxuan Wu 1,3,* , Yu-gang Jiang 1,* 
+
+> 1
+
+Institute of Trustworthy Embodied AI, Fudan University, 2ByteDance TikTok, 
+
+> 3
+
+Shanghai Innovation Institution 
+
+> 4
+
+Zhejiang University 
+
+## Abstract 
+
+Livestreams are long lasting interactive environments in which audio visual content, viewer activity, host behavior, and platform signals evolve together. This setting creates a streaming assistance problem whose requests emerge from the environment itself. We introduce LiveAssistant, a framework for mixed initiative and role conditioned assistance that formulates livestream interaction as four coupled decisions: whether to act, when to act, whom to address, and what to communicate .The model continuously consumes native audio and video together with synchronized comments, gifts, viewer dynamics, and room metadata. At every ten second interval, one autoregressive policy selects OBS, MEM, or ANS. OBS preserves deliberate silence, MEM records a private semantic update, and ANS specifies a recipient, a task, and a grounded message for viewers or the host. This unified protocol makes activation, routing, and content generation depend on the same evolving stream representation. To support the task, we construct a trajectory data engine that reconstructs real livestream sessions, aligns heterogeneous platform events with native media, and produces structured causal supervision. The resulting optimization corpus contains more than 320 hours of trajectories, while the held out benchmark contains 275 complete clips and 13,812 unique decision intervals with human review. We train the policy in two stages. Marker Aware Multiturn Supervised Fine Tuning, MA-MSFT, strengthens sparse state, recipient, and task decisions inside open vocabulary generation. Streaming Multiturn GSPO, SM-GSPO, then optimizes self generated trajectories with scoped turn level and trajectory level credit. On the held out benchmark, LiveAssistant reaches 71.14 state accuracy, 72.67 recipient accuracy, and 58.41 task accuracy, with consistent gains over representative streaming video and general multimodal baselines. The benchmark also exposes class specific behavior for silence, memory, and recipient routing. Together, the formulation, benchmark, and training framework establish livestream assistance as selective participation in a shared social stream. 
+
+Correspondence: zxwu@fudan.edu.cn, ygj@fudan.edu.cn 
+
+Website: https://daryl-gsj.github.io/LiveAssistant/ 
+
+# 1 Introduction 
+
+Streaming video understanding requires a model to perceive and reason over content as it unfolds. Recent systems have advanced causal perception, online question answering, response timing, native audio visual modeling, and long context reasoning [1–6]. These capabilities provide the foundation for continuous interaction with video.   
+
+> 0* Corresponding. †Project Lead. #Equal Contribution.
+
+1arXiv:2609.27303v1 [cs.LG] 23 Sep 2026 Figure 1: LiveAssistant treats a livestream as a heterogeneous social multimodal stream. It learns whether to act, which party should receive the action, and what information should be communicated. The current benchmark evaluates viewer and host assistance. Livestreaming extends this setting into a shared social environment. Audio visual content evolves together with comments, gifts, audience dynamics, and room state [7–9]. The same stream also serves participants with different information needs. Viewers may need an explanation or an answer to a repeated question. Hosts may need cues about audience confusion, pacing, or emerging demand. Platform activity can indicate moments that deserve attention. An assistant therefore has to infer an actionable need from the evolving stream and resolve four decisions together: whether the context calls for action, when the action is useful, 
+
+whom the action should serve, and what information should be communicated. Existing research provides complementary parts of this capability. Streaming video models learn causal perception and response timing from an external query, instruction, or trigger [5, 6, 10–13]. Livestream systems use comments, gifts, and room dynamics for generation, retrieval, recommendation, and moderation [7, 9, 14– 17]. Multi party interaction research studies initiative and addressee selection in conversational settings [18–21]. Livestream assistance connects these directions through one sequential decision: discover a need from synchronized media and social evidence, place an intervention at a useful moment, route it to an appropriate participant, and produce grounded content. We introduce LiveAssistant, a framework for mixed initiative, role conditioned assistance in livestreams. At each step, the model observes native audio and video together with synchronized comments, gifts, viewer dynamics, and room metadata. A single autoregressive policy chooses among three actions: continue observing, update private semantic memory, or produce an external response. External responses specify a recipient, a task, and grounded message content. The current benchmark evaluates viewer and host assistance. Figure 1 illustrates the broader live room setting and the three signal families used by the model. Learning this policy introduces three challenges. First, suitable supervision requires time aligned media, platform events, and per interval assistant decisions. We build a trajectory engine that reconstructs real livestreams, aligns synchronized signals, and converts continuous sessions into structured decision trajectories. Second, the decisive state, recipient, and task markers occupy only a small fraction of each generated target. We introduce Marker Aware Multiturn Supervised Fine Tuning , MA-MSFT , which increases supervision on these structural decisions while preserving open vocabulary generation. Third, every model action becomes part of the context for later decisions. We introduce Streaming Multiturn GSPO , SM-GSPO , which trains on self generated trajectories and combines turn level credit with trajectory level credit [22]. Our contributions are threefold. 2Figure 2: LiveAssistant discovers assistance needs from an unfolding stream of audio, video, comments, and platform signals. The policy may remain silent with OBS, update private memory with MEM, or emit an ANS action to viewers or the host. Evaluation follows the complete decision trajectory under causal stream prefixes. • We formulate livestream assistance as a mixed initiative decision problem in which one policy jointly resolves whether to act, when to act, whom to address, and what to communicate from a continuously evolving social stream. • We construct structured livestream trajectories from native audio, video, comments, and platform signals, together with a human reviewed benchmark for action timing, recipient routing, task selection, and grounded response generation from causal stream prefixes. • We develop MA-MSFT and SM-GSPO for structured streaming trajectories. MA-MSFT strengthens sparse decision supervision, and SM-GSPO learns from self generated trajectories with scoped turn and trajectory credit. 
+
+# 2 Problem Formulation 
+
+2.1 Livestream Assistance as Mixed Initiative Decision Making 
+
+A livestream unfolds as one causal process in which content, audience reactions, and platform state evolve together. Participants share this context while requiring different information at different moments. The assistant receives a persistent role instruction and the observed stream prefix. Assistance needs can arise from media events, repeated viewer requests, changes in audience behavior, or host facing operational cues. Each decision interval poses four coupled questions. Whether to act identifies a useful opportunity for intervention. When to act places the intervention inside its useful temporal window. Whom to address 
+
+routes the action to the participant who can use it. What to communicate produces concise grounded content for that participant. A single policy resolves the four decisions from a shared causal representation. 
+
+2.2 Formalization 
+
+A livestream is represented as an ordered sequence 
+
+𝒳 = {𝑥 𝑡 }𝑇 𝑡 =1 , 𝑥 𝑡 = (𝑣 𝑡 , 𝑎 𝑡 , 𝑒 𝑡 ), (1) where 𝑣 𝑡 and 𝑎 𝑡 denote native video and audio, and 𝑒 𝑡 contains synchronized social signals, including comments, gifts, viewer dynamics, and room metadata. At step 𝑡 , the model receives the available causal 3Selective proactive assistance as a decision trajectory                       
+
+> Understanding (audio/video) Interaction (comments) Platform (gifts/meta)
+> (a) STATE TRAJECTORY · 60 × 10 s CHUNKS
+> recipient viewer host
+> OBS MEM ANS
+> c16 c20 c37
+> EMIT
+> 19 benchmark emits · 41 no-emits 0s 100s 200s 300s 400s 500s 590s
+> (b) WORKED DECISIONS
+> c16 · 160 –170s →HOST INPUT OUTPUT
+> Weekly sessions? Course times? Viewers ask about schedule.
+> One need; the host can answer once.
+> c20 · 200 –210s →VIEWER INPUT OUTPUT
+> Code: XPS8 50 comments Code XPS8 for course sign-up.
+> Ground a visible code for viewers.
+> c37 · 370 –380s no emit INPUT OUTPUT
+> Answer ×254 No novelty
+> ∅no emit 254 occurrences
+> Repeated answer adds no information.
+
+Figure 3: Selective assistance over a continuous livestream. LiveAssistant processes synchronized media, comments, and platform signals across 60 consecutive intervals. It accumulates relevant context through MEM, routes useful information to viewers or hosts through ANS, and remains in OBS when an intervention provides no additional value. history 
+
+ℎ𝑡 = (𝑝, 𝑥 ≤𝑡 , 𝑦 <𝑡 ), (2) where 𝑝 is the persistent instruction and 𝑦 𝑖 is the assistant action at step 𝑖 .Given ℎ𝑡 , the policy predicts a state 
+
+𝑧 𝑡 ∈ 𝒮 = {OBS , MEM , ANS }. (3) OBS continues observing. MEM writes a private semantic update 𝑢 𝑡 . ANS emits a set of external messages 
+
+ℳ𝑡 . Each message is represented as 
+
+𝑚 𝑡,𝑘 = (𝑟 𝑡,𝑘 , 𝑞 𝑡,𝑘 , 𝑤 𝑡,𝑘 ), (4) where 𝑟 𝑡,𝑘 ∈ { viewer , host } is the recipient, 𝑞 𝑡,𝑘 is the task, and 𝑤 𝑡,𝑘 is concise grounded content. The serialized action is 
+
+𝑦 𝑡 =
+
+
+
+⟨obs ⟩, 𝑧 𝑡 = OBS ,
+
+⟨mem ⟩𝑢 𝑡 ⟨/ mem ⟩, 𝑧 𝑡 = MEM ,
+
+⟨ans ⟩{⟨ 𝑟 𝑡,𝑘 ⟩[ 𝑞 𝑡,𝑘 ] 𝑤 𝑡,𝑘 }|ℳ 𝑡 |
+
+𝑘 =1 ⟨/ ans ⟩, 𝑧 𝑡 = ANS .
+
+(5) The state sequence determines activation and timing. Each answer further determines recipient, task, and content. As illustrated in Figure 3, assistance emerges as a selective decision trajectory in which the policy accumulates context, chooses an appropriate recipient, and emits only when the evolving stream supports a useful action. 
+
+2.3 Challenges from the Formulation 
+
+The formulation introduces three learning requirements. Trajectory supervision must pair native livestream inputs with state, recipient, task, and grounded content at each decision interval. Sparse structural decisions 
+
+4Table 1: Comparison of representative work along the two axes of livestream assistance. Social stream input covers native audio visual media, endogenous comment requests, and platform signals. Mixed initiative output covers whether, when, whom, and what. Full, partial, and absent support are shown by •, ⊙, and ◦.
+
+Work Type Dom. Social stream input Mixed initiative output A/V Req. Plat. Whether When Whom What 
+
+StreamingBench [23] B V • ◦ ◦ ⊙ ⊙ 1 •
+
+OVO-Bench [3] B V ⊙ ◦ ◦ ◦ ⊙ 1 •
+
+OmniMMI [24] B+M V • ◦ ◦ • • 1 •
+
+LiveStar [6] M V ⊙ ◦ ◦ • • 1 •
+
+MMDuet2 [10] M V ⊙ ◦ ◦ • • 1 •
+
+ROMA [11] M V • ◦ ◦ • • 1 •
+
+StreamOV [12] M V • ◦ ◦ • • 1 •
+
+LiViBench [9] B L • ⊙ ⊙ ◦ ◦ 1 •
+
+Click-to-Ask [25] S L ⊙ ⊙ ⊙ ⊙ ⊙ 1 •
+
+VideoModerator [16] S L • ◦ ⊙ ⊙ ◦ 1 ⊙
+
+LiveAssistant ★ B+M L • • • • • 2 •
+
+require sufficient optimization signal for short markers inside longer generated sequences. Compounding actions require training under the policy history because an earlier state, memory, or response changes subsequent context. These requirements motivate trajectory construction, MA-MSFT, and SM-GSPO. 
+
+# 3 Method 
+
+LiveAssistant learns a streaming policy over synchronized livestream trajectories for the decision problem in Section 2. A data engine converts replay media and platform logs into chunk aligned supervision. The policy is then optimized in two stages. MA-MSFT establishes the structured action protocol from reference histories. SM-GSPO continues optimization with self generated trajectories so that each action conditions later decisions on the policy history. 
+
+3.1 Livestream Trajectory Construction 
+
+We convert real world recorded livestreams and synchronized platform logs into multiturn decision trajectories. The pipeline reconstructs continuous media, divides each stream into ten second decision intervals, and aligns native audio and video with comments, gifts, viewer dynamics, and room metadata. For each interval, Gemini 3.1 Pro receives the available stream context and produces a structured OBS, MEM, or ANS action following Equation 5. Automatic validation and human review enforce temporal consistency, valid recipient task combinations, and grounded outputs. Data are split by room before contiguous training windows are constructed. The policy is instantiated with the thinker component of Qwen3-Omni [26]. Native audio and video are processed by the corresponding modality encoders. Synchronized platform signals are serialized as timestamped text. Media tokens, social signals, and previous assistant actions are arranged in temporal order so that one autoregressive policy can determine state, recipient, task, and response content. 
+
+3.2 Marker Aware Multiturn Supervised Fine Tuning 
+
+The structured targets in Equation 5 are asymmetric in length. An OBS decision may contribute one supervised token, while MEM and ANS contain many content tokens. Token averaged cross entropy therefore provides substantially more gradient to response wording than to the short structural markers that control system behavior. Let 𝑦 𝑡,𝑗 be the 𝑗 th assistant token of action 𝑦 𝑡 , let 𝜒 𝑡,𝑗 ∈ { 0, 1} indicate whether the token is supervised, and let 𝜂 (𝑦 𝑡,𝑗 ) denote a marker aware weight. We retain the full vocabulary likelihood and 5Phase1: Chunk-wise Multi-turn Supervised Fine-Tuning Phase2: Streaming Oriented Reinforcement Learning (GSPO) 
+
+# …System Instruction Chunk 1 Chunk 2 Chunk 3 
+
+…
+
+Policy Omni Model 
+
+……
+
+Model Output    
+
+> <STATE> <AUD> <Task>
+
+What a play 
+
+Special Tokens Content Tokens 
+
+a. State-selective Loss         
+
+> Share timeline (continuous position)
+> Chunk 1 Chunk 2 Chunk 3
+> 𝑝 !𝑝 "… 𝑝 #$!
+> SFT Checkpoint Streaming Processor
+> Init from SFT
+> Train Policy (𝝅 𝜽 )Rollout Policy (𝝅 "#$ )
+> 𝑝 #%! 𝑝 #%" …𝑝 "#$" 𝑝 "#%! 𝑝 "#%" … 𝑝 &#$!
+> LM Logits
+> <OBS> <MEM> <ANS>
+> State Selective
+> <OBS> <MEM> <ANS>
+> 0.62 0.21 0.17
+> Weight special-token Loss
+
+ℒ"#$ = ℒ %& + 𝜆 "$' ℒ"$' , 𝜆 "$' > 1 
+
+b. Chunk-wise Causal Mask   
+
+> Chunk 1 Chunk 2 Chunk 3 Chunk 4 Chunk 1 Chunk 2 Chunk 3 Chunk 4
+> Attend Masked Video CLIP 1
+> Video CLIP 2
+> Video CLIP N
+
+# …… 
+
+> Dialogue History
+
+Turns Rollout 
+
+Traj 1
+
+Traj 2
+
+Traj 3
+
+Traj 4
+
+# …………
+
+<obs> <obs> <obs> <obs> <mem> <mem> <mem> <mem> <ans> <ans> <ans> <ans> <cons> <cons> <cons> <cons> 
+
+> Multi-Turn Rollout
+
+Turn/Trajectory Based Reward Content Based Reward    
+
+> Turn-Level 𝑨 𝑻𝒖𝒓𝒏
+> Content-Level 𝑨 )"*+
+> Trajectory-Level 𝑨 ,-./
+
+Scoped Credits Assignment Group Normalization 
+
+KL Figure 4: Overview of the LiveAssistant data and training pipeline. A data engine constructs synchronized trajectories, MA-MSFT establishes the structured policy, and SM-GSPO continues optimization on self generated streaming trajectories. increase the contribution of protocol markers: 
+
+ℒvocab = −
+
+Í𝑡,𝑗 𝜒 𝑡,𝑗 𝜂 (𝑦 𝑡,𝑗 ) log 𝜋 𝜃 (𝑦 𝑡,𝑗 | ℎ𝑡 , 𝑦 𝑡, <𝑗 )
+
+Í𝑡,𝑗 𝜒 𝑡,𝑗 𝜂 (𝑦 𝑡,𝑗 ) . (6) The weight 𝜂 (·) distinguishes state, recipient, task, and ordinary content tokens, preserving open vocabulary generation while strengthening rare structural decisions. Marker weighting still scores the state marker against the full vocabulary. We therefore form a restricted state distribution from the same logits, 
+
+𝜋 𝒮 
+
+𝜃 (𝑧 | ℎ𝑡 ) = softmax 𝑧 ∈𝒮 𝜉 𝑡 (𝑧 ), (7) and apply a class weighted focal objective 
+
+ℒstate = −
+
+Í𝑇 𝑡 =1 𝛽 𝑧 𝑡 sg (1 − 𝜋 𝒮 
+
+𝜃 (𝑧 𝑡 | ℎ𝑡 )) 𝛾  log 𝜋 𝒮 
+
+𝜃 (𝑧 𝑡 | ℎ𝑡 )
+
+Í𝑇 𝑡 =1 𝛽 𝑧 𝑡 
+
+. (8) Here 𝛽 𝑧 𝑡 compensates for state imbalance, 𝛾 emphasizes uncertain state decisions [27], and sg stops the focal weight from becoming an optimization path. Restricted label token objectives have been used for language model classification [28]. The complete supervised objective is 
+
+ℒMA-MSFT = ℒvocab + 𝛼 ℒstate . (9) MA-MSFT uses reference histories and establishes a strong structured policy before streaming reinforcement learning. 
+
+3.3 Streaming Multiturn GSPO 
+
+Deployment conditions every decision on the model actions from earlier turns. This creates an exposure mismatch with supervised training and allows early state or memory errors to affect the rest of a stream [29]. SM-GSPO addresses this mismatch with self generated trajectories and complementary turn level and trajectory level credit. 6On policy multiturn rollout. At each training step, the resident rollout model is synchronized with the current training model and generates a group of 𝐺 trajectories. Each turn conditions on the incoming stream and the model actions generated in previous turns: 
+
+b𝑦 𝑔,𝑡 ∼ 𝜇  · | 𝑥 ≤𝑡 , b𝑦 𝑔, <𝑡 
+
+ , (10) where 𝑔 ∈ { 1, . . . , 𝐺 } indexes rollouts and 𝜇 is the behavior policy induced by decoding. The sampled trajectories remain fixed during optimization. Before the first optimizer update, the training model replays them to compute 𝜋 𝜃 old , which remains fixed across subsequent updates on the rollout batch. 
+
+Turn and trajectory rewards. Each turn receives a structural reward ℛstr  
+
+> 𝑔,𝑡
+
+for format, state, recipient, task, and message count correctness. For a correctly predicted ANS state, a Qwen3-VL judge provides a content score 𝑐 𝑔,𝑡 ∈ [ 0, 1]. With a state shaping term 𝑏 𝑔,𝑡 and a format gate 𝑓 𝑔,𝑡 , the turn and trajectory rewards are 
+
+𝑠 𝑔,𝑡 = 𝑓 𝑔,𝑡 
+
+
+
+ℛstr  
+
+> 𝑔,𝑡
+
++ 𝜆 𝑐 𝑐 𝑔,𝑡 + 𝑏 𝑔,𝑡 
+
+
+
+, 𝑅 𝑔 =
+
+> 𝑇 𝑔
+
+Õ
+
+> 𝑡 =1
+
+ℛstr  
+
+> 𝑔,𝑡
+
+. (11) The turn reward provides local feedback for each decision. The trajectory reward measures structural consistency across the complete rollout. 
+
+Scoped credit assignment. We standardize {𝑠 𝑔,𝑡 }𝐺 𝑔 =1 and {𝑅 𝑔 }𝐺 𝑔 =1 within each rollout group to obtain the turn advantage 𝐴 𝑔,𝑡 and trajectory advantage 𝐴 𝑔 . Let ℐ𝑔,𝑡 denote the assistant token positions generated at turn 𝑡 . The turn advantage is assigned only to these tokens, with the GSPO ratio 
+
+𝜌 𝑔,𝑡 = exp 
+
+
+
+1
+
+|ℐ 𝑔,𝑡 |
+
+Õ
+
+> 𝑗 ∈ℐ 𝑔,𝑡
+
+log 𝜋 𝜃 (b𝑦 𝑔,𝑡,𝑗 | 𝐻 𝑔,𝑡,𝑗 )
+
+𝜋 𝜃 old (b𝑦 𝑔,𝑡,𝑗 | 𝐻 𝑔,𝑡,𝑗 )
+
+
+
+, (12) where 𝐻 𝑔,𝑡,𝑗 is the complete causal prefix preceding token 𝑗 . The trajectory advantage is assigned across all assistant tokens in rollout 𝑔 with the corresponding trajectory ratio 𝜌 𝑔 . This scope preserves local credit for each turn while retaining a signal for complete trajectory behavior. 
+
+Training objective. Using the clipped GSPO surrogate ℓ [22], the final objective combines turn level and trajectory level credit: 
+
+ℒSM-GSPO = 1
+
+Í𝑔 𝑇 𝑔 
+
+Õ
+
+> 𝑔,𝑡
+
+ℓ (𝜌 𝑔,𝑡 , 𝐴 𝑔,𝑡 ) + 1
+
+𝐺 
+
+Õ
+
+> 𝑔
+
+ℓ (𝜌 𝑔 , 𝐴 𝑔 ). (13) The first term trains each turn from its local reward. The second term promotes consistent structured behavior across the rollout. 
+
+3.4 Long Stream Inference 
+
+At inference time, each chunk appends new media and platform tokens to a continuous streaming cache. The runtime retains the system instruction and the recent twelve turns at full resolution. Older audio and visual states are evicted, while compact MEM and text states preserve semantic continuity. This design follows the separation between dense recent perception and compressed long term memory used in streaming video systems [13, 30]. 
+
+# 4 Experiments 
+
+The release evaluation focuses on the central claims of the paper. We study whether the policy makes the correct state decision, whether it routes actions to the appropriate participant, and how the two training stages contribute to the final policy. All benchmark inputs are processed chronologically with future observations hidden. 7Table 2: Summary statistics of the release benchmark and optimization corpus. Counts follow room level partitioning and deduplicate repeated chunks introduced by overlapping multiturn windows.                   
+
+> Statistic Optimization Benchmark
+> Livestream rooms 123 14 Continuous clips 2,049 275 Unique ten second chunks 115,938 13,812 Duration in hours 320.8 38.4 Content categories 16 9Language groups 77Comments 4,124,223 625,119 Gifts 104,146 19,217
+
+4.1 Experimental Setup 
+
+Training data and benchmark. Streams are split by room before model inputs are constructed. The optimization data use 115 rooms for MA-MSFT and eight disjoint rooms for SM-GSPO. Fourteen additional rooms are reserved for evaluation. Optimization samples are contiguous windows of five to twelve turns. Benchmark samples retain complete trajectories. The benchmark contains 275 clips and 13,812 unique ten second chunks. It spans nine content categories and seven languages and includes all three decision states, both recipient roles, and synchronized social signals. 
+
+Baselines. We include two groups of baselines. Native streaming video models are evaluated with their released runtime behavior and provide a state decision score when their output protocol can be mapped to the benchmark. General multimodal models receive the unified livestream input and are prompted to emit the same structured action protocol as LiveAssistant. The general baseline set includes Qwen3-VL, Qwen3.5, Qwen3-Omni, and InternVL3.5 variants [26, 31–33]. 
+
+Metrics. State All is the overall accuracy over OBS, MEM, and ANS. OBS, MEM, and ANS report per state recall. Recipient All is overall recipient accuracy on reference ANS turns, with Viewer and Host reporting role conditioned accuracy. Task is end to end task accuracy, with zero credit when the state decision is incorrect. Sem. is the semantic content score for the trained LiveAssistant variants. The main comparison emphasizes the structured metrics that are shared across methods. 
+
+Implementation. LiveAssistant is initialized from the thinker component of Qwen3-Omni 30B A3B [26]. MA-MSFT uses full parameter optimization for three epochs with a global batch size of 512, a peak learning rate of 1 × 10 −5, and a 32,768 token context. SM-GSPO starts from the MA-MSFT checkpoint and uses group size five, twelve turn rollouts, two optimizer updates per rollout batch, learning rate 1 × 10 −7, and temperature 0.5. Benchmark inference uses greedy decoding and a maximum generation length of 64 tokens per turn. 
+
+4.2 Main Comparison 
+
+Table 3 reports representative streaming and general multimodal baselines under the same benchmark protocol. Native streaming models provide partial coverage of the structured protocol, while general multimodal models expose characteristic state and recipient biases under the unified evaluation. LiveAssistant reaches 71.14 State All, 72.67 Recipient All, and 58.41 Task accuracy. The per state and per role columns show that the policy maintains substantial accuracy on MEM and host directed actions, which are the two most difficult parts of the benchmark. 
+
+4.3 Contribution of the Training Stages 
+
+Table 4 isolates the optimization stages under the same backbone and input protocol. MA-MSFT improves structured state learning and provides the checkpoint used by reinforcement learning. Turn level GSPO increases recipient and task accuracy. Full SM-GSPO gives the strongest joint structured result and raises MEM recall to 48.20, Recipient All to 72.67, and Task to 58.41. 8Table 3: Main comparison on the LiveAssistant benchmark. NA denotes fields outside the native output protocol of a baseline or fields without evaluation for that model. 
+
+State decision Recipient routing Action Content Method Input All OBS MEM ANS All Viewer Host Task Sem. 
+
+Native streaming video models 
+
+Dispider [4] V 46.51 NA NA NA NA NA NA NA NA LiveCC [34] V 27.06 NA NA NA NA NA NA NA NA StreamingVLM [13] V 2.17 NA NA NA NA NA NA NA NA LiveStarPro [35] V 42.85 NA NA NA NA NA NA NA NA MMDuet2 [10] V 0.82 NA NA NA NA NA NA NA NA 
+
+General multimodal models under unified streaming evaluation 
+
+Qwen3-VL-4B [31] V+C+G 42.17 32.42 23.48 79.06 66.87 75.86 11.45 41.94 NA Qwen3-VL-8B [31] V+C+G 52.51 49.09 33.39 78.05 50.34 52.61 36.35 38.24 NA Qwen3.5-9B [32] V+C+G 43.22 25.71 28.69 90.44 68.33 74.43 30.72 46.43 NA Qwen3.5-27B [32] V+C+G 43.30 23.79 35.07 87.92 71.05 76.48 37.55 40.12 NA Qwen3-Omni-30B-A3B [26] A+V+C+G 32.59 14.11 3.73 96.12 48.65 47.76 54.05 49.23 NA InternVL3.5-8B [33] V+C+G 58.05 78.50 27.00 51.02 29.21 29.30 28.66 27.34 NA InternVL3.5-14B [33] V+C+G 33.13 16.92 3.44 93.09 49.36 49.33 49.50 30.51 NA LiveAssistant ★ A+V+C+G 71.14 78.84 48.20 79.26 72.67 75.57 56.71 58.41 81.78 
+
+> A denotes native audio, V video, C comments, and G gifts. Streaming baselines expose only the fields supported by their released output protocol.
+
+Table 4: Training stage comparison. The table keeps the structured metrics that show the contribution of the optimization stages.                     
+
+> Training strategy State All MEM Recipient All Task
+> Ordinary multiturn SFT 69.36 35.99 63.54 51.12 MA-MSFT 70.05 36.50 66.42 52.55 MA-MSFT + turn level GSPO 69.98 28.52 68.81 54.46 MA-MSFT + SM-GSPO 71.14 48.20 72.67 58.41
+
+# 5 Related Work 
+
+Proactive and online streaming video understanding. Online video models process content as it unfolds. Early systems established causal frame processing and persistent visual memory [1, 36]. Benchmarks then evaluated temporal grounding, current understanding, and responses that depend on accumulated evidence [2, 3, 23, 24, 37]. Recent systems learn response timing and selective activation. Dispider separates perception, decision, and reaction. StreamBridge learns activation. LiveStar models response and silence decisions. StreamReady studies evidence sufficiency at emission time [4–6, 38]. MMDuet2 and StreamPro use multiturn reinforcement learning for timing and restraint [10, 39]. ROMA, StreamOV, LiveVLM, StreamingVLM, and LiveStarPro further develop native audio visual processing, memory, and bounded streaming context [11–13, 35, 40]. This line provides the streaming perception and timing machinery used by livestream assistance. 
+
+Livestream as a social and platform environment. Livestream research models comments and platform activity as first class signals. LiveBot and LiveChat generate comments from multimodal context [14, 15]. LiViBench combines native audio, speech, and real time comments for livestream question answering [9]. KuaiLive and KuaiLive M3 expose temporally evolving content, interaction, and behavioral feedback for recommendation research [7, 8]. VideoModerator and recent industrial systems use multimodal evidence for livestream safety workflows [16, 17, 41, 42]. Click-to-Ask introduces streaming memory for viewer inquiries [25]. These systems demonstrate the value of social and platform signals and motivate a unified assistant that selects among multiple possible actions. 9Mixed initiative and multi party interaction. Mixed initiative systems study how control is shared between users and automated agents [18, 19]. Work on interruption models the timing of assistance as a decision over user attention [43, 44]. Multi party dialogue adds an explicit recipient dimension through turn taking, addressee recognition, and group participation [20, 21, 45–47]. Recent proactive dialogue research extends initiative taking to language agents [48, 49]. Livestream assistance instantiates this decision vocabulary over a native multimodal social stream with asynchronously emerging needs. 
+
+Multiturn reinforcement learning. Group relative optimization provides critic free policy learning from sampled groups, while GSPO uses sequence level ratios for language model policies [22, 50]. Turn level reward design gives dense credit inside long interactions [51]. SM-GSPO combines turn level credit for local activation and routing with trajectory level credit for complete streaming behavior. This formulation matches the causal structure of livestream interaction, where each generated action becomes part of the context for subsequent decisions. 
+
+# 6 Conclusion 
+
+We formulate livestream assistance as mixed initiative, role conditioned decision making over a multi party social stream. The model receives native audio, video, comments, gifts, and room dynamics, then resolves whether to act, when to act, whom to address, and what to communicate through one structured autoregressive policy. A trajectory data engine provides causal supervision from real livestreams. MA-MSFT strengthens sparse protocol decisions, and SM-GSPO trains on self generated trajectories with scoped turn and trajectory credit. The release benchmark shows strong gains in state decision, recipient routing, and task selection across representative streaming and general multimodal baselines. The resulting framework provides a concrete foundation for assistants that participate selectively in live social environments. 
+
+Limitations and broader impact. The current benchmark covers nine content categories and seven languages, and performance on unseen domains and platforms requires further study. Host directed actions are less frequent than viewer directed actions, which makes host routing the more data limited case. Content quality uses an automatic judge and inherits the limitations of model based evaluation. The ten second decision interval also limits the temporal precision of interventions. Production deployment would additionally require consent, privacy protection, role specific controls, and auditing of routing and activation errors. 
+
+# References 
+
+[1] Joya Chen, Zhaoyang Lv, Shiwei Wu, Kevin Qinghong Lin, Chenan Song, Difei Gao, Jia-Wei Liu, Ziteng Gao, Dongxing Mao, and Mike Zheng Shou. Videollm-online: Online video large language model for streaming video. 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 18407–18418, 2024. URL https://api.semanticscholar.org/CorpusID:270560262 .[2] Zhenpeng Huang, Xinhao Li, Jiaqi Li, Jing Wang, Xiangyu Zeng, Cheng Liang, Tao Wu, Xi Chen, Liang Li, and Limin Wang. Online video understanding: OVBench and VideoChat-Online. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [3] Yifei Li, Junbo Niu, Ziyang Miao, Chunjiang Ge, Yuanhang Zhou, Qihao He, Xiaoyi Dong, Haodong Duan, Shuangrui Ding, Rui Qian, Pan Zhang, Yuhang Zang, Yuhang Cao, Conghui He, and Jiaqi Wang. OVO-Bench: How far is your video-llms from real-world online video understanding? Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [4] Rui Qian, Shuangrui Ding, Xiaoyi Dong, Pan Zhang, Yuhang Zang, Yuhang Cao, Dahua Lin, and Jiaqi Wang. Dispider: Enabling video llms with active real-time interaction via disentangled perception, decision, and reaction. arXiv preprint arXiv:2501.03218 , 2025. [5] Haibo Wang, Bo Feng, Zhengfeng Lai, Mingze Xu, Shiyu Li, Weifeng Ge, Afshin Dehghan, Meng Cao, and Ping Huang. Streambridge: Turning your offline video large language model into a proactive streaming assistant. Advances in Neural Information Processing Systems , 2025. 10 [6] Zhenyu Yang, Kairui Zhang, Yuhang Hu, Bing Wang, Shengsheng Qian, Bin Wen, Fan Yang, Tingting Gao, Weiming Dong, and Changsheng Xu. Livestar: Live streaming assistant for real-world online video understanding. Advances in Neural Information Processing Systems , 2025. [7] Changle Qu, Sunhao Dai, Ke Guo, Xiao Zhang, Liqin Zhao, Shĳun Wang, Yanan Niu, Lantao Hu, Han Li, and Jun Xu. Kuailive: A real-time interactive dataset for live streaming recommendation. In Proceedings of the 49th International ACM SIGIR Conference on Research and Development in Information Retrieval , pages 3356–3364, 2026. doi: 10.1145/3805712.3808587. [8] Ke Guo, Changle Qu, Jiayaqi Cheng, Xiao Zhang, Shĳun Wang, Xiaoyu Zhang, Xueliang Wang, Le Zhang, Lantao Hu, and Jun Xu. Kuailive-m3: A multi-modal, multi-domain, and multi-feedback dataset for live streaming recommendation. arXiv preprint arXiv:2607.24862 , 2026. [9] Xiaodong Wang, Langling Huang, Zhirong Wu, Xu Zhao, Teng Xu, Xuhong Xia, and Peixi Peng. Livibench: An omnimodal benchmark for interactive livestream video understanding. Proceedings of the AAAI Conference on Artificial Intelligence , 40(31):26517–26525, 2026. doi: 10.1609/aaai.v40i31.39859. [10] Yueqian Wang, Songxiang Liu, Disong Wang, Nuo Xu, Guanglu Wan, Huishuai Zhang, and Dongyan Zhao. MMDuet2: Enhancing proactive interaction of video mllms with multi-turn reinforcement learning. arXiv preprint arXiv:2512.06810 , 2025. [11] Xueyun Tian, Wei Li, Bingbing Xu, Heng Dong, Yuanzhuo Wang, and Huawei Shen. ROMA: Real-time omni-multimodal assistant with interactive streaming understanding. arXiv preprint arXiv:2601.10323 ,2026. [12] Ming Xie, Zizheng Huang, Xudong Tan, Chao Wang, Xiangyu Zeng, Wenxiao Wu, Tao Chen, Limin Wang, and Yanwei Fu. Streamov: Streaming omni-video understanding via evidence-guided memory and response triggering. arXiv preprint arXiv:2605.25621 , 2026. [13] Ruyi Xu, Guangxuan Xiao, Yukang Chen, Liuning He, Kelly Peng, Yao Lu, and Song Han. StreamingVLM: Real-time understanding for infinite video streams. International Conference on Learning Representations ,2026. [14] Shuming Ma, Lei Cui, Damai Dai, Furu Wei, and Xu Sun. Livebot: Generating live video comments based on visual and textual contexts. Proceedings of the AAAI Conference on Artificial Intelligence , 33(01): 6810–6817, 2019. doi: 10.1609/aaai.v33i01.33016810. [15] Julien Lalanne, Raphael Bournet, and Yi Yu. Livechat: Video comment generation from audio-visual multimodal contexts. arXiv preprint arXiv:2311.12826 , 2023. [16] Tan Tang, Yanhong Wu, Lingyun Yu, Yuhong Li, and Yingcai Wu. Videomoderator: A risk-aware framework for multimodal video moderation in e-commerce. arXiv preprint arXiv:2109.03479 , 2021. [17] Wei Chee Yew, Hailun Xu, Sanjay Saha, Xiaotian Fan, Hiok Hian Ong, David Yuchen Wang, Kanchan Sarkar, Zhenheng Yang, and Danhui Guan. Dynamic content moderation in livestreams: Combining supervised classification with mllm-boosted similarity matching. arXiv preprint arXiv:2512.03553 , 2026. [18] Eric Horvitz. Principles of mixed-initiative user interfaces. In Proceedings of the SIGCHI Conference on Human Factors in Computing Systems (CHI) , pages 159–166, 1999. [19] James E. Allen, Curry I. Guinn, and Eric Horvitz. Mixed-initiative interaction. IEEE Intelligent Systems and their Applications , 14(5):14–23, 1999. [20] Stephanie Houde, Kristina Brimĳoin, Michael Muller, Steven I. Ross, Dario Andres Silva Moran, Gabriel Enrique Gonzalez, Siya Kunde, Morgan A. Foreman, and Justin D. Weisz. Controlling AI agent participation in group conversations: A human-centered approach. In Proceedings of the 30th International Conference on Intelligent User Interfaces (IUI) , pages 390–408, 2025. doi: 10.1145/3708359.3712089. [21] Koji Inoue, Divesh Lala, Mikey Elmers, Keiko Ochi, and Tatsuya Kawahara. An LLM benchmark for addressee recognition in multi-modal multi-party dialogue. arXiv preprint arXiv:2501.16643 , 2025. 11 [22] Chujie Zheng, Shixuan Liu, Mingze Li, Xiong-Hui Chen, Bowen Yu, Chang Gao, Kai Dang, Yuqiong Liu, Rui Men, An Yang, Jingren Zhou, and Junyang Lin. Group sequence policy optimization. arXiv preprint arXiv:2507.18071 , 2025. [23] Junming Lin, Zheng Fang, Chi Chen, Zihao Wan, Fuwen Luo, Peng Li, Yang Liu, and Maosong Sun. StreamingBench: Assessing the gap for mllms to achieve streaming video understanding. arXiv preprint arXiv:2411.03628 , 2024. [24] Yuxuan Wang, Yueqian Wang, Bo Chen, Tong Wu, Dongyan Zhao, and Zilong Zheng. OmniMMI: A comprehensive multi-modal interaction benchmark in streaming video contexts. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [25] Ruizhi Yu, Keyang Zhong, Peng Liu, Qi Wu, Haoran Zhang, Yanhao Zhang, Chen Chen, and Haonan Lu. Click-to-ask: An ai live streaming assistant with offline copywriting and online interactive qa. In 
+
+Companion Proceedings of the ACM Web Conference 2026 , pages 192–195, 2026. doi: 10.1145/3774905.3793134. [26] Jin Xu, Zhifang Guo, Hangrui Hu, Yunfei Chu, Xiong Wang, Jinzheng He, Yuxuan Wang, Xian Shi, Ting He, Xinfa Zhu, Yuanjun Lv, Yongqi Wang, Dake Guo, He Wang, Linhan Ma, Pei Zhang, Xinyu Zhang, Hongkun Hao, Zishan Guo, Baosong Yang, Bin Zhang, Ziyang Ma, Xipin Wei, Shuai Bai, Keqin Chen, Xuejing Liu, Peng Wang, Mingkun Yang, Dayiheng Liu, Xingzhang Ren, Bo Zheng, Rui Men, Fan Zhou, Bowen Yu, Jianxin Yang, Le Yu, Jingren Zhou, and Junyang Lin. Qwen3-Omni technical report. arXiv preprint arXiv:2509.17765 , 2025. [27] Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, and Piotr Dollár. Focal loss for dense object detection. In Proceedings of the IEEE International Conference on Computer Vision , 2017. [28] Timo Schick and Hinrich Schütze. Exploiting cloze-questions for few-shot text classification and natural language inference. In Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics , 2021. [29] Samy Bengio, Oriol Vinyals, Navdeep Jaitly, and Noam Shazeer. Scheduled sampling for sequence prediction with recurrent neural networks. In Advances in Neural Information Processing Systems , 2015. [30] Zikang Liu, Longteng Guo, Handong Li, Ru Zhen, Xingjian He, Ruyi Ji, Xiaoming Ren, Yanhao Zhang, Haonan Lu, and Jing Liu. Thinking in streaming video. arXiv preprint arXiv:2603.12938 , 2026. [31] Qwen Team. Qwen3-VL technical report. arXiv preprint arXiv:2511.21631 , 2025. [32] Qwen Team. Qwen3.5: Towards native multimodal agents, February 2026. URL https://qwen.ai/ blog?id=qwen3.5 .[33] Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Shenglong Ye, Jie Shao, et al. InternVL3.5: Advancing open-source multimodal models in versatility, reasoning, and efficiency. arXiv preprint arXiv:2508.18265 , 2025. [34] Joya Chen, Ziyun Zeng, Yiqi Lin, Wei Li, Zejun Ma, and Mike Zheng Shou. LiveCC: Learning video llm with streaming speech transcription at scale. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2025. [35] Zhenyu Yang, Kairui Zhang, Bing Wang, Shengsheng Qian, and Changsheng Xu. Livestarpro: Proactive streaming video understanding with hierarchical memory for long-horizon streams. arXiv preprint arXiv:2606.17798 , 2026. [36] Haoji Zhang, Yiqin Wang, Yansong Tang, Yong Liu, Jiashi Feng, Jifeng Dai, and Xiaojie Jin. Flash-VStream: Memory-based real-time understanding for long video streams. arXiv preprint arXiv:2406.08085 , 2024. [37] Zhenyu Yang, Yuhang Hu, Zemin Du, Dizhan Xue, Shengsheng Qian, Jiahong Wu, Fan Yang, Weiming Dong, and Changsheng Xu. SVBench: A benchmark with temporal multi-turn dialogues for streaming video understanding. International Conference on Learning Representations , 2025. [38] Shehreen Azad, Vibhav Vineet, and Yogesh Singh Rawat. Streamready: Learning what to answer and when in long streaming videos. Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026. 12 [39] Ao Li, Zihan Xiao, Zihao Yue, Boshen Xu, Linli Yao, Jiaze Li, Pei Fu, Jianzhong Ju, Jian Luan, and Qin Jin. Streampro: From reactive perception to proactive decision-making in streaming video. arXiv preprint arXiv:2605.16381 , 2026. [40] Zhenyu Ning, Guangda Liu, Qihao Jin, Chengwei Li, Wenchao Ding, Minyi Guo, and Jieru Zhao. LiveVLM: Efficient online video understanding via streaming-oriented kv cache and retrieval. arXiv preprint arXiv:2505.15269 , 2025. [41] Shuchang Ye, Jinqiang Yu, Zhujun Xiao, Yajing Kong, Yist Y. Lin, Yang Ma, Jiaxi Liu, Xiaolei Xu, and Zheng Yu. From failure taxonomy to intervention: A diagnostic methodology for industry-scale avlm in video and live-streaming platform moderation. arXiv preprint arXiv:2606.30059 , 2026. [42] Yiran Qiao, Xiang Ao, Jing Chen, Yang Liu, Qiwei Zhong, and Qing He. Deja vu in plots: Leveraging cross-session evidence with retrieval-augmented llms for live streaming risk assessment. arXiv preprint arXiv:2601.16027 , 2026. [43] Eric Horvitz and Johnson Apacible. Learning and reasoning about interruption. In Proceedings of the 5th International Conference on Multimodal Interfaces (ICMI) , pages 20–27, 2003. [44] James Fogarty, Scott E. Hudson, Christopher G. Atkeson, Daniel Avrahami, Jodi Forlizzi, Sara Kiesler, Johnny C. Lee, and Jie Yang. Predicting human interruptibility with sensors. ACM Transactions on Computer-Human Interaction (TOCHI) , 12(1):119–146, 2005. [45] Harvey Sacks, Emanuel A. Schegloff, and Gail Jefferson. A simplest systematics for the organization of turn-taking for conversation. Language , 50(4):696–735, 1974. doi: 10.1353/lan.1974.0010. [46] Nataša Jovanović, Rieks op den Akker, and Anton Nĳholt. Addressee identification in face-to-face meetings. In Proceedings of the 11th Conference of the European Chapter of the Association for Computational Linguistics (EACL) , Trento, Italy, 2006. Association for Computational Linguistics. [47] Dan Bohus and Eric Horvitz. Models for multiparty engagement in open-world dialog. In Proceedings of the SIGDIAL 2009 Conference , pages 225–234, London, UK, 2009. Association for Computational Linguistics. doi: 10.3115/1708376.1708409. [48] Yang Deng, Lizi Liao, Liang Chen, Hongru Wang, Wenqiang Lei, and Tat-Seng Chua. Prompting and evaluating large language models for proactive dialogues: Clarification, target-guided, and non-collaboration. In Findings of the Association for Computational Linguistics: EMNLP , 2023. [49] Yang Deng, Wenqiang Lei, Wai Lam, and Tat-Seng Chua. A survey on proactive dialogue systems: Problems, methods, and prospects. In Proceedings of the Thirty-Second International Joint Conference on Artificial Intelligence , pages 6583–6591, 2023. doi: 10.24963/ĳcai.2023/738. [50] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y. K. Li, Y. Wu, and Daya Guo. DeepSeekMath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300 , 2024. [51] Quan Wei, Siliang Zeng, Chenliang Li, William Brown, Oana Frunza, Wei Deng, Anderson Schneider, Yuriy Nevmyvaka, Yang Katie Zhao, Alfredo Garcia, and Mingyi Hong. Reinforcing multi-turn reasoning in LLM agents via turn-level reward design. arXiv preprint arXiv:2505.11821 , 2025. 13

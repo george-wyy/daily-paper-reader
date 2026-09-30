@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-29</span>
+      <span class="dpr-home-dashboard-kicker">2026-09-30</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 7 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
-    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>2 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>6</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-29 23:06:51 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-09-30 23:12:03 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精选7篇机器人交互与具身智能论文，精读1篇、速读6篇。最值得关注的是8.0分的《Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning》，用贝叶斯主动学习化解交互规划中的意图歧义；速读中的粒子滤波共享自主与注视提示微调也值得一看。建议普通读者优先从精读篇入手，理解机器人如何主动提问以弄清人类真实意图。</p>
+<p>2026-09-30 日报精选 2 篇速读，聚焦直播社交与主动式智能体的实时交互难题。最值得关注的是《Live Assistant》提出在真实直播流中判断&quot;是否、何时、向谁&quot;提供协助（7.0分），以及《Clarify the User or Verify the World?》用不确定性路由决定主动澄清还是核验环境（6.0分）。普通读者可先读《Live Assistant》理解AI如何在直播场景中克制地介入，再思考主动型助手该&quot;多问一句&quot;还是&quot;多查一下&quot;的取舍。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -71,12 +71,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning">Bayesian Active Learning for Intent Disambiguation in Interactive Robot Planning</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -84,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">6 篇</strong>
+    <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Assisting for Open-Ended Tasks: Goal-Oriented Shared Autonomy as a Particle Filter">Assisting for Open-Ended Tasks: Goal-Oriented Shared Autonomy as a Particle Filter</span></li><li><span class="dpr-home-dashboard-paper-title" title="Gaze Prompts: Temporally Dense Human Attention for Vision-Language-Action Fine-Tuning">Gaze Prompts: Temporally Dense Human Attention for Vision-Language-Action Fine-Tuning</span></li><li><span class="dpr-home-dashboard-paper-title" title="From Visual Search to Movement Control: A Priority Field for Artificial Agents">From Visual Search to Movement Control: A Priority Field for Artificial Agents</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams">Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams</span></li><li><span class="dpr-home-dashboard-paper-title" title="Clarify the User or Verify the World? Uncertainty Routing for Proactive Agents">Clarify the User or Verify the World? Uncertainty Routing for Proactive Agents</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>6</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
 </section>
 </div>
 
