@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-09-30</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-01</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-09-30 23:12:03 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-01 23:12:40 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>2026-09-30 日报精选 2 篇速读，聚焦直播社交与主动式智能体的实时交互难题。最值得关注的是《Live Assistant》提出在真实直播流中判断&quot;是否、何时、向谁&quot;提供协助（7.0分），以及《Clarify the User or Verify the World?》用不确定性路由决定主动澄清还是核验环境（6.0分）。普通读者可先读《Live Assistant》理解AI如何在直播场景中克制地介入，再思考主动型助手该&quot;多问一句&quot;还是&quot;多查一下&quot;的取舍。</p>
+<p>今天速读 1 篇，精读 0 篇，聚焦机器人高精度操作中的视线建模新方法 ActGaze（6.0/10）。该工作通过反事实视觉干预学习&quot;动作落地&quot;的注视策略，思路值得关注，但评分中等、尚未精读验证。普通读者可先看摘要与实验设置，判断是否值得深入跟进。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams">Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams</span></li><li><span class="dpr-home-dashboard-paper-title" title="Clarify the User or Verify the World? Uncertainty Routing for Proactive Agents">Clarify the User or Verify the World? Uncertainty Routing for Proactive Agents</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="ActGaze: Learning Action-Grounded Gaze through Counterfactual Visual Interventions for High-Precision Manipulation">ActGaze: Learning Action-Grounded Gaze through Counterfactual Visual Interventions for High-Precision Manipulation</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 </div>
 

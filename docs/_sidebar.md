@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-10-01 <!--dpr-date:20261001-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202610/01/2609.28955v1-actgaze-learning-action-grounded-gaze-through-counterfactual-visual-interventions-for-high-precision-manipulation" data-sidebar-item="{&quot;title&quot;: &quot;ActGaze: Learning Action-Grounded Gaze through Counterfactual Visual Interventions for High-Precision Manipulation&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.28955v1-actgaze-learning-action-grounded-gaze-through-counterfactual-visual-interventions-for-high-precision-manipulation&quot;, &quot;score&quot;: &quot;6.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;为机器人操作学习动作驱动的注视&quot;}">ActGaze: Learning Action-Grounded Gaze through Counterfactual Visual Interventions for High-Precision Manipulation</a>
   * 2026-09-30 <!--dpr-date:20260930-->
     * 速读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202609/30/2609.27303v1-live-assistant-learning-whether-when-and-whom-to-assist-in-real-world-live-social-streams" data-sidebar-item="{&quot;title&quot;: &quot;Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.27303v1-live-assistant-learning-whether-when-and-whom-to-assist-in-real-world-live-social-streams&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;混合主动前瞻式协助，实时决定是否、何时、向谁介入&quot;}">Live Assistant: Learning Whether, When, and Whom to Assist in Real-World Live Social Streams</a>
