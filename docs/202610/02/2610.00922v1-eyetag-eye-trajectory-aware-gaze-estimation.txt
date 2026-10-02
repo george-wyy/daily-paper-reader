@@ -1,0 +1,596 @@
+Title: EyeTAG: Eye Trajectory-Aware Gaze Estimation
+
+URL Source: https://arxiv.org/pdf/2610.00922v1
+
+Published Time: Fri, 02 Oct 2026 01:07:23 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+> arXiv:2610.00922v1 [cs.CV] 1 Oct 2026
+
+LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 1
+
+# EyeTAG: Eye Trajectory-Aware Gaze Estimation 
+
+Jungmin Lee 1
+
+jungmin@soongsil.ac.kr 
+
+Niamat Ullah 2† 
+
+niamat016@ssu.ac.kr 
+
+Yoseob Han 2† 
+
+yoseob.han@ssu.ac.kr  
+
+> 1
+
+Department of Information and Telecommunication Engineering Soongsil University Seoul, Republic of Korea  
+
+> 2
+
+Department of Electronic Engineering Soongsil University Seoul, Republic of Korea 
+
+Abstract 
+
+Gaze estimation under natural head-eye motion underpins applications from driver monitoring to human-computer interaction. Single-frame methods predict each frame independently, so consecutive outputs fluctuate as jitter. Multi-frame methods reduce this, but they learn motion implicitly inside appearance features, so the gaze trajectory is never an explicit variable. We propose EyeTAG (Eye T rajectory-Aware Gaze Esti-mation), a causal multi-frame framework built around an explicit first-order gaze prior: at each step it differentiates its own recent predictions and feeds the resulting trajectory back as a compact kinematic token. Because differencing is translation-invariant in gaze space, this token carries subject-invariant motion rather than personal gaze offsets. Face and eye streams supply visual evidence, fused by cross-attention and a causal Trans-former decoder. EyeTAG reduces the mean angular error by about 1.0° on Gaze360 and performs on par with the strongest baseline on EVE (2.56° vs. 2.58°). Within-model ablations, which keep the encoder and the rest of the architecture fixed and vary only the gaze history, show that the differential formulation, rather than temporal context alone, removes the systematic saccade bias that persists even with an absolute gaze-history prior. Our code is available at https://github.com/peter8366/EyeTAG .
+
+# 1 Introduction 
+
+Gaze estimation is the task of predicting where a person is looking, and it is fundamental for understanding human attention and for enabling natural human-computer interaction. It is used in many applications, such as driver monitoring [26, 27], behavioral and cognitive anal-ysis [28], and gaze-driven interfaces for extended reality [20, 25]. Despite steady progress, achieving robust performance in unconstrained real-world conditions is still challenging, be-cause the head pose, eye appearance, occlusion, and illumination vary widely. Early gaze-estimation methods relied on geometric modeling of the eyeball and corneal reflections. These methods are accurate in controlled environments, but they require user-specific calibration and are sensitive to occlusion and illumination. In contrast, appearance-
+
+© 2026. The copyright of this document resides with its authors. It may be distributed unchanged freely in print or electronic forms. 
+
+> †
+
+Corresponding authors. 2 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+Figure 1: Visualization of gaze direction gt and its underlying motion kinematics. (a) Defi-nition of the 3D coordinate system. (b) Four consecutive frames illustrating the gaze vector evolving over time. (c) Overlaid 3D visualization, where ∆gt denotes the differential change (i.e., velocity) between consecutive gaze directions. 
+
+based approaches use deep neural networks to learn a direct mapping from facial and ocu-lar appearance to 3D gaze. Large-scale in-the-wild datasets such as GazeCapture [19] and Gaze360 [18] have allowed these methods to generalize across diverse subjects and scenes. Most appearance-based models predict gaze from a single image, so consecutive predic-tions are statistically independent and fluctuate as unrealistic jitter or physically implausible outliers during rapid head-eye movements. Temporal continuity itself is not a new concern: multi-frame methods have addressed it with recurrent layers [18], temporal attention [14], and sequence models over per-frame features [17]. However, these methods represent mo-tion only implicitly , inside high-dimensional appearance features — the gaze trajectory is never carried as an explicit variable, and the model must rediscover it at every step. Human gaze, in contrast, changes smoothly over time [22] and exhibits temporally coherent dynam-ics. As illustrated in Figure 1, we model the local first-order change of the 3D gaze vector 
+
+gt ∈ R3 as: 
+
+gt = gt−1 + ∆gt , (1) where ∆gt denotes the differential change between two consecutive frames. This temporal continuity means that, for stable estimation, it is important to condition the current prediction on the recent gaze kinematics, that is, on the sequence of past differentials rather than on appearance alone. To this end, we propose EyeTAG (Eye T rajectory-Aware Gaze Estimation), a causal multi-frame framework whose defining component is an explicit, autoregressive gaze prior. Unlike previous temporal methods, which learn motion implicitly from high-dimensional appearance features, EyeTAG takes its own recent predictions, converts them into first-order differences, and feeds this differential trajectory back into the model as (i) a kinematic prior encoded by a Multi-Layer Perceptron (MLP). The differencing operator is translation-invariant in gaze space, so a constant offset applied to the whole trajectory leaves the prior unchanged; the prior therefore carries the motion patterns that are shared across subjects and discards subject-specific resting-gaze offsets. To ground this prior in reliable visual evidence, EyeTAG additionally encodes (ii) global facial context with a ResNet-50 and (iii) fine-grained ocular cues with a ResNet-18, and a fusion module based on cross-attention and a causal Transformer decoder integrates the three streams. Both the visual window and the prediction history contain only past and current information, so the whole model is causal and can be run in a streaming setting. Our main contributions are summarized as follows: LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 3
+
+• We introduce an explicit first-order gaze prior for video gaze estimation. Rather than delegating temporal structure to a visual sequence model, EyeTAG differentiates its own recent predictions and feeds the resulting trajectory back as a dedicated, subject-invariant motion token. • We design a causal fusion architecture around this prior, which aligns global facial context with fine-grained ocular cues through unidirectional cross-attention and ag-gregates them with the kinematic token under a causal Transformer decoder, so that inference uses only past and current frames. • Beyond average angular error, we analyze temporal behavior explicitly. Within-model ablations that keep the encoder and the rest of the architecture fixed identify the re-moval of systematic saccade bias as the specific effect of the differential prior, rather than a by-product of temporal smoothing. 
+
+# 2 Related Works 
+
+## 2.1 Gaze Estimation 
+
+Geometric-based Methods. Early gaze-estimation approaches modeled the 3D geometry of the eyeball and corneal reflections [11, 12]. These methods can achieve high accuracy in controlled environments, but they usually require user-specific calibration and are sensitive to illumination and occlusion. They provide explicit physical constraints for gaze estimation, but because they depend on specialized hardware and constrained acquisition conditions, they are difficult to apply in real-world scenarios. 
+
+Appearance-based Methods. With the development of deep learning, appearance-based methods have become the preferred approach [1, 5, 6, 18, 19, 32]. These methods learn a di-rect mapping from visual appearance to the 3D gaze direction without geometric calibration. In addition, large-scale in-the-wild datasets such as GazeCapture [19] and Gaze360 [18] have allowed these data-driven methods to generalize across diverse subjects and scenes. Cheng et al . [6] proposed an asymmetric regression that uses facial appearance and improves accuracy in single-frame settings. More recently, Abdelrahman et al . [1] used a multi-branch archi-tecture that regresses the pitch and yaw angles separately for more fine-grained estimation. Cheng and Lu [5] proposed GazeTR, which uses a hybrid CNN-Transformer architecture to capture long-range spatial dependencies from facial images. Xiao et al . [32] further im-proved appearance-based estimation using deformable sparse attention, but this method still does not perform explicit temporal reasoning. 
+
+## 2.2 Temporal and Multi-frame Modeling 
+
+Temporal modeling for gaze estimation has been widely explored. Kellnhofer et al . [18] used an LSTM to capture temporal continuity, Hu et al . [14] introduced temporal attention over informative frames, and Jindal et al . [17] proposed STAGE to combine inter-frame motion cues with global video dynamics. Other works model head-face-eye interactions [10] or eye-head-body coordination [23], while related approaches forecast future fixations from scene context [15, 16]. Unlike these methods, where temporal dynamics are represented implicitly through ap-pearance features or contextual cues, EyeTAG explicitly models gaze motion itself. Our 4 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+Figure 2: Overview of the EyeTAG framework and its autoregressive components. (a) Main architecture. The DSVE ( F, E) extracts face and eye embeddings from multi-frame inputs, while the TAKE ( T ) encodes temporal gaze-motion priors from previous predictions. These features are fused by the Cross-Modal Causal Attention Fusion (CCAF; C) module with a causal Transformer decoder, followed by the Gaze Vector Predictor (GVP; G) to estimate the final 3D gaze vector ˆ gt . (b) Autoregressive update loop. (c) Legend for the modules used in the diagram. Trajectory-Aware Kinematic Encoder (TAKE) differentiates past gaze predictions and feeds the resulting compact kinematic prior back autoregressively, providing explicit differential feedback for temporally stable gaze estimation. 
+
+## 2.3 Cross-modal Fusion of Face and Eye Features 
+
+Accurate gaze estimation requires an effective combination of global facial context and local ocular motion. The facial region provides coarse cues related to head pose, while the eye re-gion captures fine-grained pupil and iris motion. Early multi-branch architectures combined these cues by simple feature concatenation, but this approach often failed to align the two modalities when they were misregistered. Fischer et al . [9] extracted features from the left and right eyes using separate VGG-based branches and combined them with facial representations for gaze prediction. Cheng et al . [7] later proposed a coarse-to-fine adaptive network that first estimates a coarse gaze direction from the face and then refines it using a residual computed from the eye image. More recent cross-modal interaction frameworks, such as CrossGaze [4], use cross-attention to fuse face and eye features. In short, prior work either relies on appearance cues alone, which can lead to temporal jitter, or models temporal dynamics implicitly through high-dimensional appearance features. EyeTAG instead explicitly models gaze kinematics and fuses the resulting prior with multi-scale face and eye features. 
+
+# 3 Method 
+
+Let Xt,T = {xt−T +1, · · · , xt } denote a sequence of T consecutive frames up to and including the current frame xt ∈ R3×H×W . The goal of EyeTAG is to estimate the 3D gaze direction LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 5
+
+ˆgt ∈ S 2 of the current frame xt . To do this, it uses both the spatial appearance and the temporal kinematic motion in the recent video context, while keeping the autoregressive consistency between consecutive predictions. As shown in Figure 2, EyeTAG consists of three core components and a lightweight prediction head: (i) Dual-Stream Visual Encoder (DSVE) , which extracts per-frame facial and ocular representations using a VGGFace2-pretrained ResNet-50 for the face stream and a shared ImageNet-pretrained ResNet-18 for the eye streams, and stacks them along the tem-poral axis into token sequences; (ii) Trajectory-Aware Kinematic Encoder (TAKE) , which models gaze dynamics by encoding differential gaze trajectories ∆ ˆG into a compact motion token through a lightweight MLP; and (iii) Cross-Modal Causal Attention Fusion (CCAF) ,which integrates the facial, ocular, and kinematic representations using cross-modal atten-tion and a causal Transformer decoder. A lightweight Gaze Vector Predictor (GVP) then regresses the final 3D gaze vector ˆ gt from this fused representation. 
+
+## 3.1 Dual-Stream Visual Encoder (DSVE) 
+
+The DSVE extracts both global facial context and local ocular appearance from consecutive video frames. Given an input sequence Xt,T ∈ RT ×3×H×W , we crop two spatially aligned sub-sequences to separate the facial region and the eye regions: 
+
+Xface  
+
+> t,T
+
+= Crop face (Xt,T ) ,
+
+(XL−eye  
+
+> t,T
+
+, XR−eye  
+
+> t,T
+
+) = Resize  Crop eye (Xt,T ) . (2) Here, Xface  
+
+> t,T
+
+∈ RT ×3×Hface ×Wface is the full facial T sequence of RGB frames, which captures the global head motion, and (XL−eye  
+
+> t,T
+
+, XR−eye  
+
+> t,T
+
+) ∈ RT ×3×Heye ×Weye are the localized left and right eye sequences. The eye sequences are cropped from the original frames and resized to the same spatial resolution as the facial input. These streams are processed by separate ResNet-based branches to extract region-specific appearance features, and the long-range temporal dependencies are modeled later by the CCAF module. 
+
+Face Encoder. The face encoder F uses a ResNet-50 [13] pretrained on VGGFace2 [3], as shown in Figure 3(a). This face-domain pretraining is important because Gaze360 is captured under unconstrained real-world conditions, and ImageNet-pretrained features often do not generalize well to extreme head poses and diverse identities (we provide a detailed ablation of this design choice in Sec. S2 of the supplementary material). Each frame is processed independently with shared weights, and the resulting features are stacked along the temporal axis to form a per-frame token sequence. The final linear layer of F maps these features to the shared latent dimension D:
+
+eface  
+
+> t
+
+= F
+
+
+
+Xface 
+
+> t,T
+
+
+
+, eface  
+
+> t
+
+∈ RT ×D. (3) Note that this per-frame design does not perform temporal modeling inside the DSVE. In-stead, the temporal aggregation is done later in the CCAF. Because of this separation, the face encoder can focus on spatial representation learning, while the temporal dependencies are modeled by the cross-attention and the causal decoder. 
+
+Eye Encoder. The eye encoder E in Figure 3(b) is complementary to the face branch, and it focuses on fine-grained ocular appearance such as the iris position and the eyelid config-uration. We use a lightweight ResNet-18 [13] pretrained on ImageNet, and its weights are 6 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+Figure 3: Detailed architecture of the EyeTAG framework. (a),(b) DSVE ( F, E) and (c) TAKE ( T ) modules generate visual features (global face, local eyes) and a kinematic prior (from ∆ ˆG), respectively. These are fused by (d) CCAF ( C) and regressed by (e) GVP ( G) to produce the final gaze ˆ gt . (f) Notation for operations used in the diagram. 
+
+shared between the left and right eye streams. This design reflects the natural symmetry of ocular appearance and reduces the number of parameters in the eye branch (we compare alternative eye-encoder backbones in Sec. S3 of the supplementary material). Each eye is encoded independently, and the two per-eye descriptors are concatenated along the channel dimension at every time step. The final linear layer of E then maps the concatenated ocular features to the shared latent dimension D used in the CCAF: 
+
+eeye  
+
+> t
+
+= E
+
+
+
+XL−eye  
+
+> t,T
+
+, XR−eye 
+
+> t,T
+
+
+
+, eeye  
+
+> t
+
+∈ RT ×D. (4) As in the face branch, no temporal aggregation is applied at this stage. Together, the facial and ocular encoders form the DSVE. They produce multi-scale per-frame visual feature representations, which are used as the visual input for the following kinematics-aware fusion module. 
+
+## 3.2 Trajectory-Aware Kinematic Encoder (TAKE) 
+
+The DSVE captures appearance from the face and eye sequences ( Xface  
+
+> t,T
+
+, Xeye  
+
+> t,T
+
+), but it does not explicitly model how the gaze direction changes over time. To make this motion ex-plicit, we introduce the TAKE module, shown in Figure 3(c). It encodes the differential gaze trajectories ∆ ˆG into a compact temporal prior that represents the continuity of eye motion. At time step t, we keep a sliding window of the most recent T − 1 predicted gaze vectors: ˆGt−1,T −1 = [ ˆgt−1, ˆgt−2, · · · , ˆgt−T +1], ˆGt−1,T −1 ∈ R(T −1)×3, (5) where the oldest element is removed and the newest prediction is added as the window ad-vances. Instead of using raw gaze vectors, TAKE uses differential representations, which encode the relative motion between consecutive frames: 
+
+∆ˆgt−k = ˆgt−k − ˆgt−k−1, k = 1, · · · , T − 2. (6) This differential formulation is effective because the differencing operator removes subject-specific gaze offsets and keeps the relative motion between consecutive frames. As a result, LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 7
+
+the differential representation forms a compact, zero-centered distribution that preserves shared motion dynamics and improves the autoregressive stability as the context length T
+
+increases, which we analyze quantitatively in Section 5.2. We denote the resulting differential sequence as 
+
+∆ ˆGt−1,T −1 = [ ∆ˆgt−1, · · · , ∆ˆgt−T +2], ∆ ˆGt−1,T −1 ∈ R(T −2)×3. (7) The compact two-layer MLP T first flattens the delta tokens and then maps them into a single kinematic embedding at the shared latent dimension D used in the CCAF: 
+
+etraj  
+
+> t
+
+= T  ∆ ˆGt−1,T −1
+
+ , etraj  
+
+> t
+
+∈ R1×D. (8) The resulting kinematic embedding etraj  
+
+> t
+
+is then fused with the visual representations (eface  
+
+> t
+
+, eeye  
+
+> t
+
+) in the CCAF module for kinematics-aware gaze prediction. Because it is built from differential gaze evolution instead of absolute gaze coordinates, it gives EyeTAG a compact and autoregression-friendly prior over gaze velocity and smoothness. 
+
+## 3.3 Cross-Modal Causal Attention Fusion (CCAF) 
+
+As shown in Figure 3(d), the CCAF module integrates the per-frame visual features (eface  
+
+> t
+
+, eeye  
+
+> t
+
+)
+
+from the DSVE and the kinematic prior etraj  
+
+> t
+
+from the TAKE, in order to jointly reason about the current gaze direction. The visual features encode per-frame appearance cues, while the kinematic embedding provides the motion context of how the gaze changes over time. The CCAF works in two stages: a cross-modal stage that aligns the facial and ocular streams using attention, and then a causal temporal stage that aggregates the aligned visual sequence together with the kinematic prior. 
+
+Cross-modal Attention. In the first stage, the facial stream queries the ocular stream through a multi-head cross-attention operation. This allows the model to enrich the global head-pose representation with the fine-grained ocular evidence that is most relevant at each frame: 
+
+eface →eye  
+
+> t
+
+= Att cross (Q = eface  
+
+> t
+
+, K = V = eeye  
+
+> t
+
+),
+
+vt = LayerNorm 
+
+
+
+eface  
+
+> t
+
++ eface →eye 
+
+> t
+
+
+
+, vt ∈ RT ×D. (9) The residual connection and the layer normalization preserve the facial query signal, while the ocular evidence selectively re-weights the per-frame face features. This produces an aligned per-frame visual token sequence vt , which already encodes the head-eye coordina-tion. 
+
+Causal Temporal Aggregation. In the second stage, we concatenate the aligned visual tokens vt with the kinematic-prior token etraj  
+
+> t
+
+, add a learnable positional embedding P ∈
+
+R(T +1)×D, and process the resulting sequence with a causal Transformer decoder [31]: 
+
+Zt = [ etraj  
+
+> t
+
+∥ vt ] + P,
+
+efuse  
+
+> t
+
+= CausalDecoder (Zt ; Mcausal ) , efuse  
+
+> t
+
+∈ R(T +1)×D. (10) The causal mask ensures that the representation of frame t depends only on the past obser-vations and the kinematic prior, so that no future information leaks during autoregressive inference. 8 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION                          
+
+> Split (a) Gaze360 Dataset [18] (b) EVE Dataset [24] # Clips # Frames Avg Length (s) # Clips # Frames Avg Length (s)
+> Train 321 84,902 8.8 3,015 1,286,850 13.2 Validation 85 11,318 4.4 336 155,640 13.8 Test 68 16,031 7.9 387 169,860 14.0
+
+Table 1: Summary statistics of the (a) Gaze360 and (b) EVE datasets used in our experiments. For each split we report the number of clips (# Clips), the number of annotated frames (# Frames), and the average clip length in seconds (Avg Length (s)). 
+
+Gaze Regression. The final representation of the current frame is taken from the last token of the decoder output efuse  
+
+> t
+
+, which we denote as ht = efuse  
+
+> t
+
+[−1] ∈ RD. A lightweight regression head G then predicts the final 3D gaze direction: 
+
+ˆgt = G (ht ) . (11) Through this two-stage fusion process, the CCAF allows EyeTAG to jointly reason about the visual appearance ( eface  
+
+> t
+
+, eeye  
+
+> t
+
+) and the gaze kinematics etraj  
+
+> t
+
+under a strict causal con-straint, so that the gaze predictions are not only spatially precise but also temporally coherent, autoregression-stable, and smooth across frames. 
+
+# 4 Experiments 
+
+## 4.1 Dataset 
+
+We conduct experiments on the Gaze360 [18] and EVE [24] datasets. Gaze360 was captured from 238 participants under natural conditions in seven environments at 30 Hz, and it covers a wide head-pose range of ±180 ◦ yaw and ±90 ◦ pitch. Following the official split proto-col [18], we use 84,902 training, 11,318 validation, and 16,031 test annotated frames, which are drawn from 321, 85, and 68 clips, respectively, as summarized in Table 1. The training, validation, and test splits are subject-disjoint, so that there is no identity leakage. Following the original Gaze360 convention, we report results on three head-pose subsets defined by the absolute yaw of the target frame: All (|yaw | ≤ 180 ◦), Semi-Front (|yaw | ≤ 90 ◦), and Front 
+
+(|yaw | ≤ 20 ◦); these subsets are visualized in Sec. S1 of the supplementary material. We also evaluate EyeTAG on the EVE dataset [24]. EVE is a large-scale video-based gaze estimation benchmark that was collected using synchronized webcam videos, screen recordings, and eye-tracking devices during natural desktop interaction scenarios. Because EVE contains temporally continuous gaze sequences, it is an appropriate benchmark for evaluating temporal autoregressive gaze estimation methods. Following the official protocol, we train on the official training split and evaluate on the official validation split, because the test annotations are not publicly available. We use only the webcam_c camera stream, which corresponds to the frontal webcam view. The split-level statistics of both datasets are summarized in Table 1. 
+
+## 4.2 Experimental Setup 
+
+Hyperparameters. EyeTAG is trained and evaluated on the official training, validation, and test splits of the Gaze360 [18] and EVE [24] datasets. Each training sample consists of LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 9
+
+T = 48 consecutive frames, which provide sufficient temporal context to capture short-term head-eye dynamics. We optimize the model with AdamW using β1=0.9, β2=0.999, and a weight decay of 2 ×10 −2. The peak learning rate is 3 ×10 −4 with cosine annealing over 15 epochs and a 3-epoch warm-up, while pretrained backbones use a 0 .1× scaled rate. Training is performed with a batch size of 32, gradient clipping at 1.0, and a 4-frame sampling stride. Following Gaze360 preprocessing, face and eye crops are resized to 128 ×128. The network is trained to minimize the angular error between the predicted gaze vector ˆgt and the ground-truth gaze vector gt :
+
+Lang = 1
+
+P
+
+> P−1
+
+# ∑
+
+> t=0
+
+arccos  ˆgt · gt
+
+, (12) where P is the total number of training frames. For the initial T − 1 frames (that is, for t = 0to t = T − 2), a full kinematic history is not available, so we use a padding strategy. The differential gaze history ∆ ˆG is padded with zeros, and the visual inputs (the face and eye sequences) are padded by repeating the first available frame ( x0). In this way, the model can be trained and evaluated on the entire sequence, starting from t = 0. To reduce the gap between training and inference that is caused by autoregressive feed-back, we use a scheduled sampling strategy when we construct the kinematic history ∆ ˆG.During training, the previous gaze tokens are sampled either from the ground-truth gaze or from the cached model predictions, according to a decaying ratio α. Specifically, α is lin-early decreased from 1.0 at epoch 1 to 0.0 at epoch 5, so that the kinematic history gradually changes from teacher-forced supervision to fully autoregressive predictions. After epoch 5, the history is constructed entirely from the cached model predictions, which improves the robustness against accumulated prediction errors during inference. We provide a detailed ablation of this scheduled sampling strategy in Sec. S4 of the supplementary material. 
+
+Model Configuration. The DSVE processes two visual streams: (i) a face sequence Xface  
+
+> t,T
+
+,resized to Wface × Hface = 128 × 128, and (ii) bilateral eye sequences (XL−eye  
+
+> t,T
+
+, XR−eye  
+
+> t,T
+
+), re-sized to Weye × Heye = 128 × 128. The face encoder F uses a VGGFace2-pretrained ResNet-50 [3, 13], and the eye encoder E uses a shared ImageNet-pretrained ResNet-18 [13] that is applied to each eye independently and then concatenated along the channel dimension. The ResNet-50 and ResNet-18 backbones produce 2048- and 1024-dimensional per-frame fea-tures, respectively, and the final linear layer of each visual encoder maps them to the shared dimension D. The TAKE T flattens the T − 2 differential gaze tokens ∆ ˆG and encodes them with a two-layer MLP (hidden width Dhid = 64) whose final layer outputs the single kine-matic token etraj  
+
+> t
+
+at the shared dimension D. All streams use the shared latent dimension 
+
+D = 256. The CCAF module C then fuses the face and eye features through cross-attention, and it models the temporal dependencies with a causal Transformer decoder ( L = 2, h = 4). Finally, the 3D gaze vector ˆ gt is regressed from the last output token ht .We measure inference latency on a single NVIDIA RTX A6000 GPU in FP32 with a batch size of 1. Under this desktop-GPU setting, EyeTAG requires approximately 20 ms per T = 48 input window, which is below the 33.3 ms frame interval of 30 Hz video. This result should be interpreted as feasibility on the evaluated hardware rather than as a claim of embedded real-time deployment. 10 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION                                                                                                     
+
+> Type Method (a) Gaze360 Dataset [18] (b) EVE Dataset [24] (c) Complexity All Semi-Front Front Mean All Time (ms) GFLOPs
+> SF L2CS-Net [1] 11.10 ±9.82 10.77 ±8.30 9.92 ±7.97 10.60 ±8.70 5.06 ±6.12 5.42 16.57 GazeTR-Hybrid [5] 10.56 ±9.24 10.30 ±8.05 9.63 ±7.90 10.16 ±8.40 3.63 ±3.14 5.35 1.84 CrossGaze [4] 10.47 ±8.45 10.29 ±7.79 9.23 ±7.31 10.00 ±7.85 3.30 ±2.68 14.31 1.43
+> MF Gaze360 [18] 10.46 ±8.92 10.18 ±7.69 9.32 ±7.58 9.99 ±8.06 2.73 ±1.77 2.83 12.79 STAGE [17] 12.08 ±10.82 11.63 ±8.53 9.43 ±6.72 11.05 ±8.69 2.58 ±2.11 10.26 39.55
+> EyeTAG (Ours) 9.29 ±7.78 9.12 ±7.23 8.08 ±7.23 8.83 ±7.41 2.56 ±1.89 19.97 121.57
+
+Table 2: Quantitative comparison of 3D gaze estimation on the (a) Gaze360 and (b) EVE datasets, together with (c) the model complexity. We report the Mean Angular Error (MAE, °; lower is better), where the Mean column is the average over the All, Semi-Front, and Front subsets. The (c) Complexity columns report the inference time (in milliseconds) and the computational cost (GFLOPs). SF and MF denote single-frame and multi-frame methods. The best and second-best results in each column are marked in bold and underline. 
+
+Evaluation metric. We measure the model performance using the Mean Angular Error (MAE), which is computed in degrees as: MAE = 1
+
+Ptest 
+
+> Ptest −1
+
+# ∑
+
+> t=0
+
+arccos 
+
+ ˆgt · gt
+
+∥ˆgt ∥2∥gt ∥2
+
+
+
+× 180 
+
+π , (13) where Ptest is the total number of frames in the test set. As in training, we evaluate all frames and use the same padding strategy for the initial T − 1 frames. A smaller MAE means higher accuracy. This metric measures the angular difference between the predicted and the ground-truth gaze directions, and it is a standard metric for 3D gaze estimation. 
+
+## 4.3 Experimental Results 
+
+Table 2 summarizes the quantitative performance on the Gaze360 [18] and EVE [24] bench-marks. We compare EyeTAG with two groups of baselines: single-frame methods (L2CS-Net [1], GazeTR-Hybrid [5], and CrossGaze [4]) and multi-frame methods (Gaze360 [18] and STAGE [17]). All baseline numbers are obtained from our re-training under the same evaluation protocol. STAGE is evaluated in the same calibration-free setting as EyeTAG, although it was originally designed for personalized gaze estimation; this difference likely contributes to its lower Gaze360 score. We also report the (c) model complexity, namely the average inference time and the computational cost (GFLOPs), measured on a single NVIDIA RTX A6000 (FP32, batch size 1). On Gaze360, EyeTAG consistently achieves the lowest MAE on all head-pose subsets, which shows that it is effective for both frontal and large-pose variations. Specifically, Eye-TAG achieves 9.29° on the full-range subset, 9.12° on the semi-frontal subset, and 8.08° on the frontal subset, and it improves the MAE by about 1.0° over the strongest baseline. To contextualize the source of this gain, we also performed a backbone-controlled check using the same VGGFace2 ResNet-50 face encoder as EyeTAG. This improves the strongest multi-frame baseline from 9.99° to 9.76°, whereas EyeTAG remains at 8.83°; together with the visual-only EyeTAG result in Table 5 (9.19°), this indicates that the improvement comes from the overall causal fusion design and the differential prior, not from the face encoder alone. We observe a similar trend on EVE, where EyeTAG achieves a mean MAE of 2.56°, remaining on par with the strongest multi-frame baselines (STAGE 2.58° and Gaze360 2.73°) LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 11                                                                             
+
+> Type Method (a) Fixation Jitter (b) Saccade Bias (c) Absolute Mean
+> SF L2CS-Net [1] 5.60 ±0.16 0.02 ±0.17 2.81 ±0.17 GazeTR-Hybrid [5] 5.48 ±0.16 0.84 ±0.18 3.16 ±0.17 CrossGaze [4] 5.06 ±0.14 0.23 ±0.15 2.65 ±0.15 MF Gaze360 [18] 1.71 ±0.10 -4.24 ±0.17 2.98 ±0.14 STAGE [17] 3.81 ±0.11 -0.89 ±0.26 2.35 ±0.19 EyeTAG (Visual-only) 3.51 ±0.12 -0.46 ±0.16 1.99 ±0.14 EyeTAG (Normal prior) 3.43 ±0.09 -0.53 ±0.14 1.98 ±0.12
+> EyeTAG (Ours) 3.68 ±0.12 0.05 ±0.15 1.87 ±0.14
+
+Table 3: Temporal behavior analysis (all values in °/frame). (a) Fixation Jitter J: mean predicted velocity under near-static gaze ( vGT < 1◦/frame, N=1,003 frame pairs); lower is better. (b) Saccade Bias B: mean signed velocity difference vpred − vGT under rapid gaze transitions ( vGT > 5◦/frame, N=3,306 frame pairs); closer to zero is better. (c) Absolute Mean 12 (J+|B|); lower is better. SF and MF denote single-frame and multi-frame methods, respectively. The EyeTAG variants keep the encoder and remaining architecture fixed and differ only in the gaze-history component. The best and second-best results in each column are marked in bold and underline, respectively. while yielding the lowest mean error overall. The gap among these top methods is small on this near-frontal benchmark, whereas the single-frame methods show noticeably higher errors (CrossGaze 3.30° and GazeTR-Hybrid 3.63°). EyeTAG also shows a lower error standard deviation than STAGE (1 .89 vs. 2 .11). Although Gaze360 reports a slightly smaller deviation (1 .77), it relies on future frames when estimating the current gaze and is therefore not causal. Among methods restricted to past and current observations, EyeTAG provides a favorable balance of accuracy and prediction consistency. Since the mean MAE is nearly saturated on EVE and does not fully reflect frame-to-frame behavior, we further analyze temporal stability in the following section. Table 3 reports our temporal stability analysis, including two controlled EyeTAG variants that keep the encoder and architecture fixed while changing only the gaze-history component. We define the frame-to-frame angular velocities of the ground-truth and predicted gaze as 
+
+vGT  
+
+> t
+
+= arccos (gt−1 ·gt )· 180  
+
+> π
+
+, vpred  
+
+> t
+
+= arccos (ˆgt−1 · ˆgt )· 180  
+
+> π
+
+, (14) which measure the angular displacement between consecutive gaze directions. Using these velocities, we evaluate prediction stability during near-static gaze and responsiveness during rapid gaze transitions. We first consider fixation jitter under near-static gaze ( vGT  
+
+> t
+
+< 1◦/frame). For these frame pairs, we report J = E[vpred  
+
+> t
+
+| vGT  
+
+> t
+
+< 1◦], which measures prediction fluctuation when the true gaze is nearly stationary. Gaze360 shows the lowest jitter, likely aided by its use of future frames around the target. Among the EyeTAG variants, the kinematic prior keeps jitter in a similar range to the visual-only and normal-prior variants (3 .68 vs. 3 .51 and 3 .43), indicating that its benefit does not arise from additional temporal smoothing. We next consider saccade responsiveness under rapid gaze motion ( vGT  
+
+> t
+
+> 5◦/frame). We report the signed velocity difference B = E[vpred  
+
+> t
+
+− vGT  
+
+> t
+
+| vGT  
+
+> t
+
+> 5◦], where values closer to zero are better. Negative values indicate systematic under-shooting, or over-smoothing. Without the kinematic prior, both the visual-only and normal-prior variants under-shoot sac-cades ( B = −0.46 and −0.53), whereas the full EyeTAG reduces this bias to 0 .05. Since the encoder and remaining architecture are fixed across these variants, this comparison directly 12 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+Figure 4: Per-frame Mean Angular Error (MAE, °) on Gaze360 for the (a) All, (b) Semi-Front, and (c) Front head-pose subsets (lower is better).                                                  
+
+> Fusion Strategy All Semi-Front Front Mean
+> (a) Self-Attn + Concat (face ∥eye) 9.80 ±8.14 9.60 ±7.45 8.71 ±7.43 9.37 ±7.67 (b) Bi. Cross-Attn (face ↔eye) 9.66 ±8.16 9.49 ±7.55 8.62 ±7.49 9.26 ±7.73
+> (Ours) Uni. Cross-Attn (face →eye) 9.29 ±7.78 9.12 ±7.23 8.08 ±7.23 8.83 ±7.41
+
+Table 4: Effect of fusion strategy. MAE (°); lower is better. The best and second-best results in each column are marked in bold and underline, respectively. attributes the improved saccade responsiveness to the explicit kinematic prior rather than general smoothing or the encoder. Finally, we summarize both behaviors using M = 12 (J + |B|). EyeTAG achieves the low-est M of 1 .87, compared with 1 .99 and 1 .98 for the visual-only and normal-prior variants, respectively, demonstrating the best overall balance between fixation stability and respon-siveness. Beyond these aggregate metrics, Figure 4 traces the mean angular error frame by frame along the test sequence. EyeTAG (red, dashed) generally remains lower than the baselines across the sequence on every head-pose subset, which shows that its accuracy advantage is consistent over time rather than an artifact of averaging. 
+
+# 5 Ablation Studies 
+
+## 5.1 Effect of Cross-Modal Fusion Strategy 
+
+We study how to effectively fuse the face and eye embeddings from the visual encoders. We compare three fusion strategies in Table 4. Self-Attn + Concat processes the face and eye embeddings separately, concatenates them, and projects the result back to the original dimension. Bidirectional Cross-Attn applies cross-attention in both the face-to-eye and the eye-to-face directions before projection. Our proposed Unidirectional Cross-Attn uses the face embeddings as queries and the eye embeddings as keys and values. As shown in Table 4, the proposed unidirectional cross-attention achieves the lowest error on all subsets. Compared with self-attention and bidirectional fusion, it injects the fine-grained eye cues into the face representation more effectively, without redundant fusion paths. This shows that the face embedding should be the main contextual representation, while the eye features provide complementary gaze-specific cues. LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 13                                               
+
+> Gaze History All Semi-Front Front Mean
+> (a) No Gaze History (visual-only) 9.72 ±8.15 9.55 ±7.76 8.30 ±7.53 9.19 ±7.81 (b) Normal Gaze Prior ( w/ˆG)9.63 ±7.94 9.46 ±7.38 8.22 ±7.07 9.10 ±7.46
+> (Ours) Kinematic Gaze Prior ( w/∆ˆG)9.29 ±7.78 9.12 ±7.23 8.08 ±7.23 8.83 ±7.41
+
+Table 5: Ablation study on the gaze history representation. MAE (°); lower is better. The proposed kinematic prior ∆ ˆG achieves the lowest error across all subsets. The best and second-best results in each column are marked in bold and underline, respectively. 
+
+## 5.2 Influence of Gaze History Embedding 
+
+We further study how the representation of the gaze history affects temporal reasoning. We evaluate three variants in Table 5: (a) No Gaze History (visual-only ), (b) Normal Gaze Prior (w/ ˆG), and (c) our proposed Kinematic Gaze Prior (w/ ∆ ˆG). As summarized in Table 5, removing the prior entirely (visual-only) gives the highest error on all subsets, the Normal Gaze Prior ( w/ ˆG) consistently improves over it, and our Kinematic Gaze Prior ( w/ ∆ ˆG) performs best across all subsets, supporting the benefit of explicitly modeling gaze dynamics. 
+
+Figure 5: Distribution of normal versus differential gaze yaw on Gaze360. The y-axis is on a log scale. The Normal Gaze Prior ˆG is sen-sitive to subject-specific static biases, such as a person’s default resting gaze. In contrast, the Kinematic Gaze Prior 
+
+∆ ˆG encodes relative motion, such as velocity and smoothness, so it encour-ages the network to learn a more gen-eral representation of gaze dynamics. As shown in Figure 5, the normal yaw distribution covers a broad ±180 ◦
+
+range with large variance ( σ ≈ 39 ◦), while the differential yaw forms a com-pact, zero-centered distribution with much lower variance ( σ ≈ 12 ◦). This compact repre-sentation preserves the shared motion dynamics and reduces subject-dependent gaze offsets, which helps the network distinguish genuine gaze transitions from noise. We further show in Sec. S6 of the supplementary material that the kinematic prior remains effective even in the early frames of a clip, where the gaze history is still incomplete ( t < T ). Finally, to bound the cost of autoregressive feedback, we re-evaluated the model with the gaze history replaced by the ground truth. This oracle improves the mean MAE only from 8.83° to 8.65°, and the gap stays flat across clip positions (0.16–0.24° for frames 0– 29, 30–99, 100–199 and 200+), so scheduled sampling keeps the autoregressive error from accumulating over time. 
+
+## 5.3 Effect of Temporal Window Length 
+
+To study the influence of temporal context on gaze estimation, we change the window length 
+
+T ∈ { 4, 8, 16 , 24 , 32 , 48 , 64 } under the same training and testing conditions. As reported in Table 6, the MAE decreases steadily as T increases from 4 to 48 frames, which shows that a longer temporal context improves stability and accuracy. However, the performance 14 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION                                           
+
+> T4816 24 32 48 ∗64
+> Mean 9.87 ±7.57 9.49 ±7.36 9.47 ±7.41 9.35 ±7.56 8.91 ±7.39 8.83 ±7.41 8.82 ±7.40 Time (ms) 10.78 11.12 11.38 11.41 13.91 19.97 25.23
+> GFLOPs 10.13 20.26 40.53 60.79 81.05 121.57 162.09
+
+Table 6: Effect of temporal window size T . For each T we report the Mean Angular Error (MAE, °), the average inference time (Time, in milliseconds) per input window on a single NVIDIA RTX A6000 (FP32, batch size 1), and the computational cost (GFLOPs); ∗ denotes the adopted setting. Accuracy improves up to T = 48 and then saturates, while the inference time and computational cost keep increasing. The best and second-best Mean values are marked in bold and underline, respectively. saturates after T = 48 and changes only slightly at T = 64, while the inference time and the computational cost keep increasing. We also report the measured latency in Table 6. On the RTX A6000, processing one input window takes 19.97 ms at T = 48 and 25.23 ms at T = 64, which is below the 33.3 ms frame interval of 30 Hz video on this hardware. This supports desktop-GPU feasibility, but resource-constrained deployment would require lighter encoders, feature caching, or other optimization. The inference time is also not proportional to the GFLOPs: for T ≤ 32 it stays around 11–14 ms, where fixed overhead dominates the latency. We therefore adopt T = 48 as the default window for its accuracy–latency balance. In the Normal Gaze Prior variant (w/ ˆG), the best MAE is achieved at T = 32, the detailed results of which are reported in Sec. S5 of the supplementary material. 
+
+# 6 Conclusion 
+
+In this work, we present EyeTAG, a trajectory-aware multi-frame gaze estimation framework that addresses the temporal instability of frame-based approaches. Unlike appearance-only methods that predict gaze independently for each frame, EyeTAG explicitly models gaze kinematics through differential gaze trajectories, so that the prediction becomes temporally coherent and stable under unconstrained head-eye motion. It integrates multi-scale appear-ance cues from the face and eye regions with a trajectory-aware kinematic prior learned from the differential gaze dynamics ∆ ˆG, using cross-modal attention fusion and causal temporal aggregation. On Gaze360, EyeTAG clearly reduces angular error, and on EVE it remains on par with the strongest multi-frame baseline. It also keeps fixation jitter low and reduces velocity bias during rapid transitions, and within-model ablations attribute this near-zero saccade bias to the differential prior rather than to temporal context alone. 
+
+Limitations. The current framework only estimates the individual gaze direction, and it does not use scene context. EyeTAG models the temporal dynamics of where a person is looking, but it does not reason about what the person is looking at, or about how multiple people’s gaze patterns interact in a shared environment. Real-time performance is verified only on a desktop GPU, so embedded deployment remains future work. Bridging this gap between low-level gaze estimation and higher-level attention understanding is an important direction for future research. 
+
+Future Work. We plan to extend this framework to multi-person and scene-aware gaze understanding, such as social gaze interactions and contextual intent, moving toward next-generation systems for complex human attention. LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 15 
+
+Acknowledgements. This research was supported by G-LAMP Program of the National Re-search Foundation of Korea (NRF) grant funded by the Ministry of Education (No. RS-2025-25441317), by the IITP (Institute of Information & Communications Technology Planning & Evaluation)-ITRC (Information Technology Research Center) grant funded by the Korean government (Ministry of Science and ICT) (IITP-2026-RS-2020-II201602), by the National Research Foundation of Korea (NRF) grant funded by the Korean government (MSIT) (RS-2025-24533373), and by the Cyber Investigation Support Technology Development Program (No. RS-2025-02304983) of the Korea Institute of Police Technology (KIPoT), funded by the Korean National Police Agency. 
+
+# References 
+
+[1] Ahmed A Abdelrahman, Thorsten Hempel, Aly Khalifa, Ayoub Al-Hamadi, and Laslo Dinges. L2cs-net: Fine-grained gaze estimation in unconstrained environments. In 
+
+2023 8th International Conference on Frontiers of Signal Processing (ICFSP) , pages 98–102. IEEE, 2023. [2] Samy Bengio, Oriol Vinyals, Navdeep Jaitly, and Noam Shazeer. Scheduled sampling for sequence prediction with recurrent neural networks. Advances in neural information processing systems , 28, 2015. [3] Qiong Cao, Li Shen, Weidi Xie, Omkar M Parkhi, and Andrew Zisserman. Vggface2: A dataset for recognising faces across pose and age. In 2018 13th IEEE international conference on automatic face & gesture recognition (FG 2018) , pages 67–74. IEEE, 2018. [4] Andy Catruna, Adrian Cosma, and Emilian Radoi. Crossgaze: A strong method for 3d gaze estimation in the wild. In 2024 IEEE 18th International Conference on Automatic Face and Gesture Recognition (FG) , pages 1–5. IEEE, 2024. [5] Yihua Cheng and Feng Lu. Gaze estimation using transformer. In 2022 26th Interna-tional Conference on Pattern Recognition (ICPR) , pages 3341–3347. IEEE, 2022. [6] Yihua Cheng, Feng Lu, and Xucong Zhang. Appearance-based gaze estimation via evaluation-guided asymmetric regression. In Proceedings of the European conference on computer vision (ECCV) , pages 100–115, 2018. [7] Yihua Cheng, Shiyao Huang, Fei Wang, Chen Qian, and Feng Lu. A coarse-to-fine adaptive network for appearance-based gaze estimation. In Proceedings of the AAAI conference on artificial intelligence , volume 34, pages 10623–10630, 2020. [8] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE Conference on Computer Vision and Pattern Recognition , pages 248–255. IEEE, 2009. [9] Tobias Fischer, Hyung Jin Chang, and Yiannis Demiris. Rt-gene: Real-time eye gaze estimation in natural environments. In Proceedings of the European conference on computer vision (ECCV) , pages 334–352, 2018. 16 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+[10] Yiran Guan, Zhuoguang Chen, Wenzheng Zeng, Zhiguo Cao, and Yang Xiao. End-to-end video gaze estimation via capturing head-face-eye spatial-temporal interaction context. IEEE Signal Processing Letters , 30:1687–1691, 2023. [11] Elias Daniel Guestrin and Moshe Eizenman. General theory of remote gaze estima-tion using the pupil center and corneal reflections. IEEE Transactions on biomedical engineering , 53(6):1124–1133, 2006. [12] Dan Witzner Hansen and Qiang Ji. In the eye of the beholder: A survey of models for eyes and gaze. IEEE transactions on pattern analysis and machine intelligence , 32(3): 478–500, 2009. [13] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 770–778, 2016. [14] Daosong Hu, Mingyue Cui, and Kai Huang. Fifa: Fine-grained inter-frame attention for driver’s video gaze estimation. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 18760–18769, 2025. [15] Zhiming Hu, Sheng Li, Congyi Zhang, Kangrui Yi, Guoping Wang, and Dinesh Manocha. Dgaze: Cnn-based gaze prediction in dynamic scenes. IEEE transactions on visualization and computer graphics , 26(5):1902–1911, 2020. [16] Zhiming Hu, Andreas Bulling, Sheng Li, and Guoping Wang. Fixationnet: Forecasting eye fixations in task-oriented virtual environments. IEEE Transactions on Visualization and Computer Graphics , 27(5):2681–2690, 2021. [17] Swati Jindal, Mohit Yadav, and Roberto Manduchi. Spatio-temporal attention and gaus-sian processes for personalized video gaze estimation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 604–614, 2024. [18] Petr Kellnhofer, Adria Recasens, Simon Stent, Wojciech Matusik, and Antonio Tor-ralba. Gaze360: Physically unconstrained gaze estimation in the wild. In Proceedings of the IEEE/CVF international conference on computer vision , pages 6912–6921, 2019. [19] Kyle Krafka, Aditya Khosla, Petr Kellnhofer, Harini Kannan, Suchendra Bhandarkar, Wojciech Matusik, and Antonio Torralba. Eye tracking for everyone. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 2176–2184, 2016. [20] Geonsun Lee, Jennifer Healey, and Dinesh Manocha. Vrdoc: Gaze-based interactions for vr reading experience. In 2022 IEEE International Symposium on Mixed and Aug-mented Reality (ISMAR) , pages 787–796. IEEE, 2022. [21] Ji Lin, Chuang Gan, and Song Han. Tsm: Temporal shift module for efficient video understanding. In Proceedings of the IEEE/CVF international conference on computer vision , pages 7083–7093, 2019. [22] Stephen G Lisberger. Visual guidance of smooth pursuit eye movements. Annual review of vision science , 1(1):447–468, 2015. LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 17 
+
+[23] Soma Nonaka, Shohei Nobuhara, and Ko Nishino. Dynamic 3d gaze from afar: Deep gaze estimation from temporal eye-head-body coordination. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2192–2201, 2022. [24] Seonwook Park, Emre Aksan, Xucong Zhang, and Otmar Hilliges. Towards end-to-end video-based eye-tracking. In European conference on computer vision , pages 747–763. Springer, 2020. [25] Ken Pfeuffer, Benedikt Mayer, Diako Mardanbegi, and Hans Gellersen. Gaze+ pinch interaction in virtual reality. In Proceedings of the 5th symposium on spatial user interaction , pages 99–108, 2017. [26] Sayyed Mudassar Shah, Zhaoyun Sun, Khalid Zaman, Altaf Hussain, Muhammad Shoaib, and Lili Pei. A driver gaze estimation method based on deep learning. Sensors ,22(10):3959, 2022. [27] Pavan Kumar Sharma and Pranamesh Chakraborty. A review of driver gaze estimation and application in gaze behavior understanding. Engineering Applications of Artificial Intelligence , 133:108117, 2024. [28] Md Samiul Haque Sunny, Md Ishrak Islam Zarif, Ivan Rulik, Javier Sanjuan, Moham-mad Habibur Rahman, Sheikh Iqbal Ahamed, Inga Wang, Katie Schultz, and Brahim Brahmi. Eye-gaze control of a wheelchair mounted 6dof assistive robot for activities of daily living. Journal of NeuroEngineering and Rehabilitation , 18(1):173, 2021. [29] Mingxing Tan and Quoc Le. Efficientnet: Rethinking model scaling for convolutional neural networks. In International conference on machine learning , pages 6105–6114. PMLR, 2019. [30] Du Tran, Lubomir Bourdev, Rob Fergus, Lorenzo Torresani, and Manohar Paluri. Learning spatiotemporal features with 3d convolutional networks. In Proceedings of the IEEE international conference on computer vision , pages 4489–4497, 2015. [31] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems , 30, 2017. [32] Yunfeng Xiao, Xiaowei Bai, Baojun Chen, Hao Su, Hao He, Liang Xie, and Erwei Yin. Deˆ 2gaze: Deformable and decoupled representation learning for 3d gaze estimation. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 3091–3100, 2025. 18 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+# Supplementary Material 
+
+# EyeTAG: Eye Trajectory-Aware Gaze Estimation S1 Dataset Details 
+
+Gaze360 Subset Visualization. The main paper defines the three evaluation subsets in the text. Here, Figure S1 shows their spatial coverage on the unit sphere. The Front subset (|yaw | ≤ 20 ◦) is a narrow frontal cone, where the facial and ocular appearance is most in-formative. The Semi-Front subset ( |yaw | ≤ 90 ◦) covers the full forward-facing hemisphere. The All subset ( |yaw | ≤ 180 ◦) covers the entire sphere, including backward-facing direc-tions. 
+
+Figure S1: Gaze360 evaluation subsets on the unit sphere: Front (green, |yaw | ≤ 20 ◦), 
+
+Semi-Front (blue, |yaw | ≤ 90 ◦), and All (red, |yaw | ≤ 180 ◦). 
+
+# S2 Effect of Face-Encoder Pretraining 
+
+A key design choice in our Dual-Stream Visual Encoder (DSVE) is how the face encoder is pretrained. To study this effect alone, we fix the face-encoder architecture to ResNet-50 and the eye encoder to ResNet-18, and we change only the pretraining of the face encoder across three settings: training from scratch (no pretraining), generic ImageNet pretraining [8], and face-domain VGGFace2 pretraining [3]. Because all the other components are fixed, any difference in performance comes from the pretraining strategy, not from the model capacity. As shown in Table S1, the accuracy improves consistently as the pretraining becomes more domain-relevant. Training from scratch yields the largest error, likely because the gaze dataset alone is insufficient for learning robust facial representations. Generic ImageNet pretraining gives a clear improvement, because it provides transferable low- and mid-level visual features. Face-domain VGGFace2 pretraining performs best, and it reduces the mean angular error to 8.83°, with consistent gains across the All, Semi-Front, and Front subsets. This advantage comes from the identity- and pose-aware facial features learned from large-scale face data. These LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 19                                            
+
+> Pretraining All Semi-Front Front Mean
+> (a) From scratch 20.41 ±16.39 18.03 ±15.54 16.05 ±14.50 18.16 ±15.47 (b) ImageNet [8] 11.69 ±10.22 11.34 ±8.64 10.15 ±8.50 11.06 ±9.12 (Ours )VGGFace2 [3] 9.29 ±7.78 9.12 ±7.23 8.08 ±7.23 8.83 ±7.41
+
+Table S1: Effect of the face encoder F pretraining strategy on Gaze360 [18]. The face encoder architecture (ResNet-50) and the eye encoder (ResNet-18) are held fixed. Only the pretraining of the face encoder is varied across three settings: from scratch, generic ImageNet pretraining, and face-domain VGGFace2 pretraining. MAE (°); lower is better. The best and second-best results in each column are marked in bold and underline, respectively.                                                           
+
+> Eye Backbone Type All Semi-Front Front Mean
+> EfficientNet-B0 [29] 2D, no temporal 10.77 ±10.80 10.37 ±8.83 8.26 ±6.56 9.80 ±8.73 TSM [21] 2D + temporal 9.47 ±7.89 9.30 ±7.30 8.31 ±7.35 9.03 ±7.51 3D CNN [30](scratch) 3D, temporal 9.41 ±7.90 9.22 ±7.27 8.17 ±7.06 8.93 ±7.41 (Ours )ResNet-18 (shared) 2D, no temporal 9.29 ±7.78 9.12 ±7.23 8.08 ±7.23 8.83 ±7.41
+
+Table S2: Effect of the eye-encoder backbone on Gaze360 [18]. MAE (°); lower is better. The best and second-best results in each column are marked in bold and underline, respec-tively. features transfer better than generic ImageNet features to the extreme head poses and diverse identities in Gaze360 [18]. These results show that face-domain pretraining is important for in-the-wild gaze estima-tion, because the head pose and the subjects vary widely. At the same time, the gains from VGGFace2 pretraining are separate from the architectural contributions of EyeTAG. The cross-modal fusion and gaze-history ablations in the main paper keep the VGGFace2 back-bone fixed, so they isolate the contribution of the proposed architecture. In the same way, the temporal-stability analysis mainly reflects the kinematics-aware design, not the choice of backbone initialization. We therefore include this experiment as supplementary evidence to clarify the respective contributions of backbone pretraining and the proposed EyeTAG framework. 
+
+# S3 Effect of Eye-Encoder Backbone 
+
+The main paper uses a shared ImageNet-pretrained ResNet-18 as the eye encoder E. It processes each frame independently, without any temporal modeling inside the eye branch. Here we test whether a backbone with stronger spatial capacity or with explicit temporal modeling gives a further improvement. All experiments use the same configuration as our model ( T =48, kinematic gaze prior, VGGFace2-pretrained face encoder), and we change only the eye backbone. As shown in Table S2, adding explicit temporal modeling to the eye branch does not im-prove the performance. Both TSM and the 3D CNN are worse than the simple 2D ResNet-18 baseline, and replacing ResNet-18 with the stronger EfficientNet-B0 also gives no improve-ment. This suggests that at T =48 the downstream CCAF module already captures enough ocular dynamics from the long temporal context, so extra temporal modeling or stronger spatial capacity inside the eye encoder is redundant. 20 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 
+
+Algorithm S1 Training and inference procedure of EyeTAG.                                                                                                                   
+
+> Input: X t,T={xt−T+1,· · · ,xt}, window size T
+> Output: ˆgt
+> — Training (per epoch) —
+> 1. for each frame tdo
+> a. eface
+> t,eeye
+> t←DSVE (Xt,T)
+> b. Construct gaze history: sample ˆ Gt−1,T−1from GGT
+> t−1,T−1or Cwith ratio α▷α: 1 .0→0.0 over ep. 1–5 c. ∆ˆGt−1,T−1←[ˆgt−k−ˆgt−k−1]T−2
+> k=1
+> d. etraj
+> t←TAKE (∆ˆGt−1,T−1)
+> e. ˆ gt←GVP
+> 
+> CCAF (eface
+> t,eeye
+> t,etraj
+> t)
+> 
+> 2. After epoch ends: run inference on entire training set →store in C
+> — Inference (per frame) —
+> 1. Retrieve gaze history from C
+> if |C|<T−1: pad by repeating ˆ g1
+> 2. Forward pass (same as Training 1.a–e) →ˆgt
+> 3. Append ˆ gtto C
+> Gaze History Schedule All Semi-Front Front Mean
+> (a) Teacher forcing only ( α=1) 39.53 ±32.45 38.98 ±31.81 31.64 ±22.37 36.71 ±28.87 (b) Fully autoregressive ( α=0) 10.13 ±7.88 9.96 ±7.93 8.81 ±7.54 9.63 ±7.78 (Ours )Scheduled sampling ( α: 1 →0) 9.63 ±7.94 9.46 ±7.38 8.22 ±7.07 9.10 ±7.46
+
+Table S3: Effect of the scheduled sampling strategy used to construct the gaze history during training, evaluated on Gaze360 [18] with the normal gaze prior ( w/ ˆ G) at T =32. MAE (°); lower is better. The best and second-best results in each column are marked in bold and underline, respectively. 
+
+# S4 Effect of Scheduled Sampling 
+
+During training, the gaze history ˆ Gt−1,T −1 fed to the TAKE module can be constructed from the ground-truth gaze (teacher forcing) or from the model’s own past predictions (autore-gressive). To reduce the train-inference mismatch between these two strategies, we use a scheduled sampling strategy [2] that linearly anneals the teacher-forcing ratio α from 1.0 to 0.0 over epochs 1-5. As summarized in Algorithm S1, after each epoch the current model runs inference on the entire training set, and the resulting predictions are stored in the cache 
+
+C for use in the next epoch. At inference, the model processes frames sequentially, append-ing each prediction to C online. When fewer than T −1 past predictions are available, the cache is padded by repeating the first prediction ˆ g1.To validate this design choice, we compare three strategies for constructing the gaze his-tory while keeping all the other components fixed: (a) teacher forcing only (α = 1 through-out), (b) fully autoregressive (α = 0 throughout), and (c) our scheduled sampling (α annealed from 1.0 to 0.0). We run this ablation with the normal gaze prior (w/ ˆ G) at T =32, the best-performing window length under the normal representation (see Sec. S5), so that we isolate the effect of the sampling schedule from the gaze-history representation. As reported in Table S3, teacher forcing only (a) is much worse at test time (36.71° Mean), because the model never sees its own prediction errors during training. This train– test mismatch makes the autoregressive errors accumulate quickly at inference. Fully autore-gressive training (b) is much better than (a), but it is still worse than our scheduled sampling LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION 21                                                                                                         
+
+> TAll Semi-Front Front Mean Time (ms) GFLOPs
+> 410.96 ±8.28 10.80 ±7.74 9.58 ±7.42 10.45 ±7.81 9.87 10.13 810.17 ±7.81 10.01 ±7.28 9.23 ±7.06 9.80 ±7.38 9.97 20.26 16 10.26 ±7.98 10.08 ±7.42 9.15 ±7.29 9.83 ±7.56 10.23 40.53 24 9.96 ±7.97 9.80 ±7.36 8.65 ±7.36 9.47 ±7.56 11.45 60.79
+> 32 ∗9.63 ±7.94 9.46 ±7.38 8.22 ±7.07 9.10 ±7.46 13.95 81.05 48 9.94 ±7.94 9.65 ±7.47 8.61 ±7.65 9.40 ±7.69 19.98 121.57 64 10.07 ±8.16 9.91 ±7.64 8.95 ±7.61 9.64 ±7.80 25.28 162.09
+
+Table S4: Effect of temporal window length T on Gaze360 [18] under the normal gaze prior (w/ ˆG). MAE (°); lower is better. The best and second-best results in each column are marked in bold and underline, respectively. (c) by 0.53° in mean, because learning from noisy predictions in the early epochs makes the optimization harder. Scheduled sampling achieves the lowest error across all subsets, indicat-ing that a gradual transition from teacher forcing to autoregressive histories is more effective than using either strategy alone 
+
+# S5 Effect of Window Length with Normal Gaze Prior 
+
+In the main paper (Sec. 5.3), we sweep the temporal window length T under our proposed kinematic gaze prior ( w/ ∆ ˆG). Here we repeat the same sweep with the normal gaze prior (w/ ˆ G), which serves as a controlled baseline that separates the role of temporal context from the gaze-history representation. All experiments use the same architecture as our model (a VGGFace2-pretrained ResNet-50 face encoder, a shared ImageNet-pretrained ResNet-18 eye encoder, unidirectional cross-attention fusion, and a causal Transformer decoder), and we vary only T .As reported in Table S4, the MAE decreases steadily from T =4 to T =32, which con-firms that a longer temporal context provides useful information for gaze estimation. How-ever, the accuracy starts to plateau and even degrade slightly beyond T =32. For example, the Semi-Front error rises from 9.46° at T =32 to 9.65° at T =48 and 9.91° at T =64. This saturation comes from the scale of the normal representation. As T grows, the range of abso-lute pitch–yaw values expands together with the subject-specific bias, so it becomes harder for the model to extract consistent motion patterns from longer sequences. This motivates the kinematic gaze prior ∆ ˆG in the main paper (Sec. 5.2). The differencing removes subject-dependent gaze offsets, so the accuracy keeps improving at larger T .
+
+# S6 Robustness to Incomplete Gaze History 
+
+EyeTAG predicts the current gaze in an autoregressive manner, so the kinematic gaze history 
+
+∆ ˆG is only partially available during the first frames of a clip. As described in the main paper, for the initial T − 1 frames, the differential gaze history is zero-padded, because a full window of past predictions does not yet exist. We therefore investigate how the model behaves in this cold-start setting, where the gaze history is incomplete. For this analysis, we evaluate only the early frames of each clip, that is, the positions 0 ≤ t < T with T = 48, over all 68 Gaze360 test clips [18]. In this setting, the autoregressive history is only partially populated and is padded with zeros, so the kinematic prior is weakest 22 LEE ET AL.: EYETAG: EYE TRAJECTORY-AWARE GAZE ESTIMATION                                                                                           
+
+> Type Method All Semi-Front Front Mean
+> SF L2CS-Net [1] 10.07 ±7.66 9.85 ±6.40 9.90 ±6.37 9.94 ±6.81 GazeTR-Hybrid [5] 9.42 ±7.27 9.26 ±6.50 9.46 ±6.31 9.38 ±6.69 CrossGaze [4] 9.22 ±6.84 9.09 ±6.05 8.55 ±5.90 8.95 ±6.26 MF Gaze360 [18] 9.70 ±7.02 9.47 ±6.00 9.41 ±5.40 9.53 ±6.14 STAGE [17] 8.87 ±5.84 8.87 ±5.84 8.69 ±5.77 8.81 ±5.82 EyeTAG ( w/ ˆG)8.80 ±6.41 8.68 ±6.08 7.95 ±6.22 8.48 ±6.23
+> EyeTAG (Ours) 8.35 ±5.92 8.27 ±5.84 7.69 ±5.69 8.11 ±5.82
+
+Table S5: Robustness to an incomplete gaze history on Gaze360 [18]. We evaluate only the early frames of each test clip (0 ≤ t < T , T = 48), where the autoregressive gaze history is only partially available and is zero-padded. MAE (°); lower is better. EyeTAG ( w/ ˆG) uses the normal gaze prior ˆ G, and EyeTAG (Ours) uses the kinematic prior ∆ ˆG. The best and second-best results in each column are marked in bold and underline, respectively. here. As reported in Table S5, EyeTAG still achieves the lowest error (Mean 8 .11°), and even its absolute-prior variant, EyeTAG ( w/ ˆG), is second. The kinematic prior keeps its advantage over the Normal prior (8 .11 vs 8 .48) and over all baselines even when the history is incomplete. This shows that the kinematic prior degrades gracefully and does not depend on a fully populated gaze history to remain effective.
