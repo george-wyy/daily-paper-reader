@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-10-03 <!--dpr-date:20261003-->
+    * 速读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202610/03/2609.36923v1-precogui-proactive-gui-agents-via-pre-cognitive-simulation-and-experience-retrieval" data-sidebar-item="{&quot;title&quot;: &quot;PrecogUI: Proactive GUI Agents via Pre-cognitive Simulation and Experience Retrieval&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.36923v1-precogui-proactive-gui-agents-via-pre-cognitive-simulation-and-experience-retrieval&quot;, &quot;score&quot;: &quot;7.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;前瞻式主动决策交互范式&quot;}">PrecogUI: Proactive GUI Agents via Pre-cognitive Simulation and Experience Retrieval</a>
   * 2026-10-02 <!--dpr-date:20261002-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202610/02/2609.37971v1-comparing-utility-of-inertial-occupancy-semantic-and-intent-information-in-human-motion-prediction-during-daily-tasks" data-sidebar-item="{&quot;title&quot;: &quot;Comparing Utility of Inertial, Occupancy, Semantic, and Intent Information in Human Motion Prediction During Daily Tasks&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2609.37971v1-comparing-utility-of-inertial-occupancy-semantic-and-intent-information-in-human-motion-prediction-during-daily-tasks&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gaze-intent&quot;}], &quot;evidence&quot;: &quot;眼动注视与意图信息提升人体运动预测&quot;}">Comparing Utility of Inertial, Occupancy, Semantic, and Intent Information in Human Motion Prediction During Daily Tasks</a>
