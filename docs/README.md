@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-03</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-04</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-03 21:38:58 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-04 21:49:51 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天速读 1 篇、精读 0 篇，唯一入选的是 GUI 智能体方向的《PrecogUI: Proactive GUI Agents via Pre-cognitive Simulation and Experience Retrieval》（7.0/10）。</p>
-<p>最值得看的是它把&quot;预认知模拟&quot;与&quot;经验检索&quot;结合，尝试让 GUI 智能体从被动响应走向主动操作界面这一思路。</p>
-<p>普通读者可先记住&quot;先模拟、再检索经验、后行动&quot;这条主线，等有开源代码或实测对比后再决定是否深入。</p>
+<p>2026-10-04 日报精选2篇速读论文，聚焦具身智能与多模态情感识别。可关注两方向：RobotEQ 3.0 探索具身智能体的个性化社交主动智能，EEG-眼动情绪识别则提出联合分布校准应对模态不完整。普通读者若感兴趣，可先看这两篇的摘要与实验部分，判断是否值得深入。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -86,12 +84,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="PrecogUI: Proactive GUI Agents via Pre-cognitive Simulation and Experience Retrieval">PrecogUI: Proactive GUI Agents via Pre-cognitive Simulation and Experience Retrieval</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="RobotEQ 3.0: Towards Personalized Social Proactive Intelligence in Embodied Agents">RobotEQ 3.0: Towards Personalized Social Proactive Intelligence in Embodied Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Aligning the Incomplete: Joint Distribution Calibration for Multimodal EEG-Eye Emotion Recognition">Aligning the Incomplete: Joint Distribution Calibration for Multimodal EEG-Eye Emotion Recognition</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
 </section>
 </div>
 
