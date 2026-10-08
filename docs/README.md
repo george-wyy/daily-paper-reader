@@ -44,14 +44,14 @@
       <span class="dpr-home-dashboard-kicker">2026-10-08</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 7 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
-    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>2 次</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>6</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-08 00:14:42 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-08 23:47:35 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,9 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天速读了 3 篇均分 6.0 的论文，全部聚焦&quot;主动式 AI&quot;：从具身智能体的个性化社交主动、流媒体视频中的感知-记忆-响应统一，到可重规划的对话时间线。</p>
-<p>最值得关注的方向是&quot;主动&quot;正从对话扩展到视频流与机器人身体，且都强调记忆与实时重规划的结合，而非被动应答。</p>
-<p>普通读者可先看《Proactive AI: From Turns to Replannable Dialogue Timelines》理解主动对话框架，再顺着另两篇看它在视频与机器人上的落地。</p>
+<p>今天筛出7篇（精读1、速读6），主题集中在具身AR交互、机器人控制与对话AI三个方向。</p>
+<p>最值得看的是9.0分的《Beyond Activation: Gaze Invocation with Visible Status for an Embodied AR Assistant in Co-Located Collaboration》——用&quot;可见状态&quot;让凝视触发更可信；机器人方向可关注《Active Inference for Interaction-Mediated Control of a High-Dimensional Robotic Arm》（7.0）。</p>
+<p>普通读者建议先花10分钟读精读那篇的交互设计部分，再看对话澄清与主动式对话时间线两篇速读，理解AI如何从&quot;等指令&quot;转向&quot;主动确认与重规划&quot;。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -73,12 +73,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Beyond Activation: Gaze Invocation with Visible Status for an Embodied AR Assistant in Co-Located Collaboration">Beyond Activation: Gaze Invocation with Visible Status for an Embodied AR Assistant in Co-Located Collaboration</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>1</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -86,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">6 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="RobotEQ 3.0: Towards Personalized Social Proactive Intelligence in Embodied Agents">RobotEQ 3.0: Towards Personalized Social Proactive Intelligence in Embodied Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="OneStreamer: Unifying Perception, Memory, and Proactive Response in Streaming Video Interaction">OneStreamer: Unifying Perception, Memory, and Proactive Response in Streaming Video Interaction</span></li><li><span class="dpr-home-dashboard-paper-title" title="Proactive AI: From Turns to Replannable Dialogue Timelines">Proactive AI: From Turns to Replannable Dialogue Timelines</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Active Inference for Interaction-Mediated Control of a High-Dimensional Robotic Arm">Active Inference for Interaction-Mediated Control of a High-Dimensional Robotic Arm</span></li><li><span class="dpr-home-dashboard-paper-title" title="Learning to Clarify Underspecified Intents Under Limited Interaction">Learning to Clarify Underspecified Intents Under Limited Interaction</span></li><li><span class="dpr-home-dashboard-paper-title" title="Proactive AI: From Turns to Replannable Dialogue Timelines">Proactive AI: From Turns to Replannable Dialogue Timelines</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>6</strong></span></div>
 </section>
 </div>
 
