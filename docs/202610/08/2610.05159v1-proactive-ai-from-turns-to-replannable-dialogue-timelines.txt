@@ -1,0 +1,549 @@
+Title: Proactive AI: From Turns to Replannable Dialogue Timelines
+
+URL Source: https://arxiv.org/pdf/2610.05159v1
+
+Published Time: Tue, 06 Oct 2026 01:35:48 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Proactive AI: From Turns to Replannable Dialogue Timelines 
+
+## ZIJIE YANG, Airalogy, China 
+
+Conventional large-language-model chat interfaces typically follow user-initiated turns: each request elicits a response, after which the system waits for further input. Human asynchronous communication instead unfolds over time through message bursts, delays, silence, resumed topics, and self-initiated contact. Proactive dialogue therefore requires not only deciding when to speak, but also managing pending conversational actions and allowing them to be revised as context evolves. We introduce Proactive AI, a framework for proactive dialogue built around replannable temporal message queues. The framework treats interaction as a continuous event timeline and unsent conversational actions as revisable state. A user event, dialogue-pacemaker event, or scheduled decision may yield silence, one or more immediate messages, or future conversational actions. The system may also observe a user message without an immediate visible response and defer the response decision. Before delivery, every planned message must be reconsidered against the current context; reaching a scheduled time does not itself authorize delivery. We provide a formal semantics that characterizes when future conversational actions may be revised, withdrawn, or executed as context evolves. The framework extends AI participation beyond responses to current requests, enabling self-initiated exchanges without new requests, sustained follow-up over time, and revisions of subsequent actions as context evolves. It provides an executable basis for long-term human–AI interaction in tutoring, scientific collaboration, and everyday companionship. CCS Concepts: • Human-centered computing → Human computer interaction (HCI) ; • Computing methodologies →
+
+Discourse, dialogue and pragmatics ; • Software and its engineering → Publish-subscribe / event-based architectures .Additional Key Words and Phrases: proactive AI, conversational agents, asynchronous dialogue, mixed initiative, temporal planning, human–AI interaction 
+
+1 Introduction 
+
+The dominant interface for a large language model (LLM) is deceptively simple: the user submits input, the model produces one visible assistant turn, and the system then waits for another user action. This contract is useful for question answering and command execution, yet it is a poor description of asynchronous social messaging. People often divide a thought across several messages, respond to a group of messages together, send multiple replies in succession, read a message without responding immediately, return to an earlier topic, or initiate a later exchange (Figure 1; Supplementary Figure 1). Among these phenomena, initiative exposes a fundamental limitation of turn-based chat: once the user stops providing input, the system loses its trigger for participating again. Even after both people end an exchange with “goodbye,” either person may reopen the conversation later; a system driven purely by user turns instead waits indefinitely. A persistent proactive system therefore first needs opportunities to deliberate without new user input. Yet this alone does not guarantee that the conversation continues: if the system chooses silence at every such opportunity, the interaction can still stall indefinitely. Prior dialogue research has relaxed parts of this turn-based assumption. Proactive dialogue systems may introduce content or steer toward a goal [4, 7, 14]. Turn-taking systems decide whether to speak or wait [6, 8]. Response-timing models predict natural offsets in spoken dialogue [13]. Time-aware models use gaps between sessions to choose better topics [17], and persistent agents remember, plan, and initiate behavior [9, 12]. Recent work also supports burst-style exchange in which each party may emit several consecutive timestamped messages [15]. Together, these strands provide 
+
+> Author’s Contact Information: Zijie Yang, Airalogy, Hangzhou, China, yangzijie@airalogy.com.
+
+1arXiv:2610.05159v1 [cs.HC] 4 Oct 2026 2 Zijie Yang 
+
+a Paired request–response 
+
+> 09:00
+> U
+
+Help me prepare.  
+
+> AI
+
+Here is a plan. 
+
+> 09:05
+> U
+
+What next?  
+
+> AI
+
+Try a mock interview.   
+
+> one prompt →one answer
+
+b A stale scheduled message 
+
+> Mon 09:00
+> U
+
+Interview tomorrow. 
+
+> U
+
+I’m nervous.  
+
+> AI
+
+That makes sense.  
+
+> AI
+
+Want to rehearse? 
+
+> Mon 16:30
+> U
+
+Interview cancelled.  
+
+> plan remains unchanged overnight
+> AI
+
+Good luck with your interview today! 
+
+> abstracted as temporal interaction patterns
+
+c
+
+𝑈 𝐴𝐼 𝑡 𝑢 1
+
+𝑎 1
+
+𝑢 2
+
+𝑎 2
+
+𝑢 3
+
+𝑎 3
+
+d
+
+𝑃 𝐴 
+
+𝑃 𝐵 𝑡 𝑚 1 𝑚 2
+
+𝑟 1 𝑟 2
+
+𝑚 3
+
+𝑟 3 𝑖 1
+
+Δ𝑡 
+
+e
+
+𝑈 𝐴𝐼 𝑡 
+
+> one plan
+
+𝑢 1 𝑢 2
+
+𝜋 𝑎 1 𝑎 2
+
+𝑢 3
+
+b𝑎 3 𝛿 𝑎 4
+
+∅  
+
+> Δ1Δ2×
+
+Fig. 1. From concrete conversations to temporal interaction patterns. a, A conventional chat alternates one user request and one assistant answer. b, A failure case: after the user reports that the interview was cancelled, the AI still sends an encouragement planned the previous day. In the timelines below, 𝑡 denotes wall-clock time. c, Paired chat proceeds through alternating user inputs and AI answers. 𝑢 𝑖 denotes the 𝑖 th user message and 𝑎 𝑖 its paired AI answer. d, Human asynchronous communication allows both participants to send multiple consecutive messages and either participant to resume contact after silence. 𝑃 𝐴 and 𝑃 𝐵 denote the two participants; 𝑚 𝑖 and 𝑟 𝑖 denote messages from 𝑃 𝐴 and replies from 𝑃 𝐵 , respectively. After an interval Δ𝑡 without communication, 𝑃 𝐵 
+
+initiates 𝑖 1 without waiting for a new message from 𝑃 𝐴 . e, The proposed model organizes multiple future messages into a temporal plan that can be revised as context changes, while allowing the system to reconsider whether to speak without new user input. Independently sent user messages 𝑢 1, 𝑢 2 enter one decision snapshot, from which planner 𝜋 schedules three messages: 𝑎 1 is delivered immediately, 𝑎 2 after interval Δ1, and b𝑎 3 has an earliest delivery time a further interval Δ2 later but is cancelled by a preceding user update 𝑢 3. The later reconsideration 𝛿 may remain silent or create a new message plan; 𝑎 4 illustrates only the single-message case, and the new plan may instead contain multiple immediate or delayed messages. 
+
+essential ingredients for asynchronous AI dialogue, but treat initiative, silence, elapsed time, and message bursts as separate capabilities rather than jointly revisable state on a shared timeline. Proactive AI: From Turns to Replannable Dialogue Timelines 3The interview scenario in Figure 1b shows how a message planned in advance can become stale. When the user tells the AI that the interview is the next day, the AI plans to send “Good luck with your interview today!” the next morning. The user subsequently reports that the interview has been cancelled. If the system does not re-examine the plan in light of this update, it still sends the encouragement the next morning, producing proactive contact that conflicts with the latest context. A pending message therefore cannot be treated as an immutable scheduled task. On receiving new user input, the system should re-evaluate the assumptions on which the plan depends and cancel, revise, or reschedule it—or remain silent after reconsideration. This raises a central question: how should a dialogue system manage messages not yet sent and decisions scheduled for the future, and revise them as circumstances change? A fixed timer may release previously generated content even after it has become obsolete. A heartbeat mechanism can wait until the system wakes before deciding whether to respond, but it typically schedules only the next decision. A model can instead generate a batch of timestamped messages and replace the batch when replanning; this still makes it difficult to retain, revise, postpone, or cancel individual plans independently. Asynchronous dialogue therefore requires not only deciding what to say now, but also managing what may happen later as subsequent events change those decisions. To address this problem, we introduce Proactive AI, a framework for proactive LLM conversations. Its core mechanism is the replannable temporal message queue , which treats conversation as a continuous event timeline and keeps pending conversational actions as persistent, revisable conversational state. User messages, dialogue-pacemaker events, and due actions can all trigger a new plan. The planner may remain silent, send one or more messages now, schedule future actions, or revise an earlier plan. Every future action is reconsidered against the latest context before execution, so reaching a scheduled time does not itself authorize delivery. This temporal structure supports long-term interactions in which circumstances evolve and new information may invalidate earlier plans. For example, an AI tutor may revisit an unresolved learning difficulty after an interval, an AI scientific assistant may follow up after an experiment or new result, and an AI companion may draw on earlier exchanges to initiate a supportive check-in at an appropriate time. These systems may also revise contact plans or remain silent in light of the latest context. Proactivity thereby becomes not an isolated trigger but an ongoing conversational process that can be revised as circumstances change and remains subject to user control. This paper makes the following three contributions: (1) We introduce a conversation model organized around a continuous event timeline rather than user turns, representing silence, multi-message bursts, delayed replies, and proactive initiation within a single framework. The model also supports a configurable bound on continued silence, allowing temporary silence while preventing indefinite waiting for user input due to repeated silence decisions. (2) We formalize a replannable temporal message queue that distinguishes prepared Send actions from Reconsider 
+
+actions that reserve a future decision point without fixing its wording. Multiple future intentions can therefore be retained, postponed, replaced, or cancelled independently. (3) We require future actions to be reconciled with the latest context before execution and confirmed, revised, or cancelled within the same state update, preventing stale messages from being sent merely because their scheduled time has arrived. 4 Zijie Yang 
+
+2 Motivating Scenario and Design Requirements 
+
+Consider a user who sends, “I have an important interview tomorrow” and “I am a little nervous” as two messages. In one planning step, the system may schedule an acknowledgment, an easy question after a short conversational interval, and a concrete preparation suggestion 20 seconds later. Two hours later, the assistant may want to check whether preparation or rest would now be more helpful. If the user instead says “the interview was cancelled” before the 20-second message, the prepared advice should disappear. The system may also observe both messages without speaking immediately, leaving whether and what to say to a later decision. We call this deferred response , distinguishing it from network latency or delayed display of an already written answer. For example, after observing the two interview messages at 9:00, the system may say nothing immediately and schedule a new decision for 9:10. If the context remains unchanged, it might then reply, “Feeling nervous is normal. Which part worries you most?” If the user adds “the interview was cancelled” at 9:05, the 9:10 decision must instead use the updated context; reassurance or preparation advice that might previously have been appropriate should not appear unchanged. Two superficially similar forms of waiting must be distinguished. First, the planner may already have observed an earlier message and deliberately defer its response by reserving a later reconsideration. Second, the user may send faster than the model can infer, so new input arrives before an earlier candidate plan has completed. The latter does not constitute a decision to remain silent; the context underlying the older decision has changed before commit. We represent the first case with Reconsider and handle the second through input coalescing and decision-snapshot freshness checks. Whether the system had scheduled a prepared message or only a later reconsideration, the cancellation should trigger replanning under the updated context. For example, the assistant might respond, “I understand. Then you do not need to prepare for the interview tonight. Would you like to talk about what happened, or would you rather rest?” The need for any later follow-up should likewise be reconsidered. The point is to revise plans as circumstances change, rather than prescribe a particular response. Figure 1e shows how 𝑎 1, 𝑎 2, and b𝑎 3 are created in one plan with distinct delivery times, and how a later user event cancels an unsent action before execution. The required mechanism is not simply delayed delivery: user events must interrupt and revise existing plans. For a longer-horizon follow-up, the system should schedule future reconsideration and decide at that time, using the then-current context, whether to generate a message rather than fixing its wording in advance. Another boundary case arises after an exchange has ended naturally. Suppose both parties say “goodbye” and the user sends nothing further. A conventional chat waits indefinitely. To let the system reconsider whether to open a new exchange without new user input, we introduce a dialogue pacemaker. It periodically wakes the planner and triggers a new decision, grounded in the then-current context, about whether to initiate contact. The result may be one or more messages or continued silence. The pacemaker therefore guarantees another opportunity to decide, not that the system speaks. If the planner chooses silence at every wakeup, the dialogue may still stall indefinitely. A dialogue pacemaker alone is therefore insufficient: the system also needs a configurable bound on continuous silence. Once that bound is reached, the next valid decision must initiate contact from the then-current context rather than release a prewritten opener. These scenarios yield five interaction requirements (R1–R5). System implementation and deployment also require two execution and control conditions (R6–R7). Proactive AI: From Turns to Replannable Dialogue Timelines 5
+
+R1: Planning need not be user-triggered, and message counts may vary. Every user send first becomes an independent arrival event and requests renewed deliberation; nearby arrivals may be jointly observed in one decision snapshot without requiring one model call per message. User messages, pacemaker pulses, and due queue actions may all trigger planning. A planning step may observe zero, one, or many new user messages and produce zero, one, or many immediate messages and future actions. Silence, message bursts, and a deferred first visible response are ordinary outcomes. 
+
+R2: Wall-clock time as system state. Future actions may span seconds to days. The system must explicitly represent current time and each action’s earliest eligibility time rather than relying on turn order. 
+
+R3: Revisable pending actions. Unsent messages and scheduled reconsiderations are conditional intentions. Later events may retain, postpone, replace, or cancel them independently. 
+
+R4: Decision-time generation for long-horizon follow-up. When a follow-up’s premises may change over a longer interval, the system should schedule future reconsideration rather than pre-generate the text to be sent. 
+
+R5: Silence is bounded in proactive mode. When bounded silence is enabled, the system must support a configurable deadline for continuous silence. The next valid decision after that deadline, when external rules permit contact, must produce at least one visible message; the system cannot cancel or indefinitely postpone that contact merely by choosing silence again. 
+
+R6: Separation of generative judgment and deterministic control. Models may judge content, relevance, and tone, but a deterministic runtime must govern clocks, event order, state updates, and delivery authorization. 
+
+R7: Inspectable actions under external policy. Pending actions, action rationales, wakeups, and silence decisions must be inspectable. Autonomous contact must respect user authorization, quiet hours, and rate limits as determined by external policy. Users must be able to revoke pending contact arrangements. 
+
+3 Related Work 3.1 Mixed Initiative and Goal-Directed Dialogue 
+
+Mixed-initiative interaction combines system intervention with direct user control. Horvitz argues that decisions about whether and when to act should account for uncertainty about user goals, the costs and benefits of intervention, and the user’s attention [5]. This perspective provides a foundation for the timing and control of proactive contact; we further examine how multiple future conversational actions formed in one decision can persist and be revised when later events arrive. StalemateBreaker detects conversational stalemate and introduces externally sourced content [7]. Its motivation overlaps with ours: both reject the assumption that the user must always lead. Its mechanism, however, reacts to semantic signs of stalemate within an ongoing session and selects new content; it does not specify wall-clock wakeups or address when the system should reinitiate contact after repeatedly choosing silence. DuConv gives one participant an explicit knowledge-graph path and asks it to lead discussion toward a goal [14]. The broader proactive-dialogue literature studies topic guidance, clarification, persuasion, recommendation, and other system-side goals [4]. These systems primarily alter the content or direction of an active dialogue policy. We instead study how linguistic actions that may occur later are represented and revised, including after user input has ceased. 6 Zijie Yang Proactive Agent, proposed by Lu et al., uses user activities and environmental events to identify potential needs and offer assistance without an explicit request [10]. Its focus is on decisions about proactive intervention; we examine how future conversational actions persist across successive decisions and are revised or cancelled as new information arrives. 
+
+3.2 Waiting, Bursts, and Response Timing 
+
+When to Talk augments a multi-turn generator with a decision to continue speaking or stay silent [6]. Wait, I’m Still Talking! begins from the instant-messaging observation that users split one thought across several short messages; its Imagine-Then-Arbitrate model predicts whether to wait for more input or respond now [8]. These works are direct precedents for non-mandatory response and input batching. Their silence decisions are local to the current interaction point: they neither maintain a long-horizon future queue nor address whether contact will resume after repeated silence decisions. X-TURING implements burst dialogue with batched user input, model-generated consecutive replies, timestamp-governed delivery, and removal of still-unsent messages when a new response batch is produced [15]. These mechanisms support a long-term Turing-test framework for evaluating human likeness. We ask whether multiple future actions can persist across separate decisions and be retained, edited, postponed, or cancelled individually; reconsideration can also be scheduled without prewriting speech. The distinction is therefore not multi-message output itself, but keeping future messages and decisions available for later revision. Roddy and Harte learn context-sensitive spoken response offsets and find that listeners’ naturalness judgments depend on timing [13]. That work assumes a dialogue manager has already decided to take a turn and predicts fine-grained spoken onset. We address asynchronous text over longer horizons and jointly represent whether, what, and how many messages may occur. 
+
+3.3 Persistent Intentions and Time-Aware Agents 
+
+The persistence and revision of intentions are central concerns in classical agent research. Bratman et al. treat plans as partial commitments that constrain subsequent reasoning, avoiding the need to decide everything afresh at every moment [2]. Cohen and Levesque formalize commitment in intention and the conditions under which changing beliefs permit goals to be dropped [3]. These accounts explain why future action requires both persistence and revisability. We address this problem in asynchronous conversation by representing future messages and reconsideration opportunities, and specifying their treatment when new events arrive and when execution becomes due. GapChat supplies elapsed gaps and expected event progress so a model can select appropriate topics across sessions [17]. Time affects generation, but does not independently wake the model or mutate future speech. Generative Agents combine memory, reflection, and daily planning in a simulated world and can initiate conversations [12]. Their planning object is general behavior rather than a human–AI messaging protocol. Inner Thoughts generates covert candidate thoughts, evaluates motivation to express them, and seeks an appropriate moment to participate in multi-party conversation [9]. The public framing emphasizes a continuous internal process and next-speaker selection. We further ask how multiple future utterances can persist over wall-clock time and be updated together as circumstances change, including whether contact should resume after repeated decisions not to speak. Proactive AI: From Turns to Replannable Dialogue Timelines 7
+
+3.4 Heartbeat-Based Proactive Agents 
+
+The open-source ProactiveAgent library records dialogue history, dynamically chooses a sleep interval, wakes, and decides whether to generate a response; new user input interrupts sleep, and its scheduler can bound the interval between responses [11]. We place the silence bound and multiple future conversational actions on the same replannable timeline, so later events can revise, postpone, or cancel them before delivery under external policy. Taken together, prior work provides foundations for system-initiated speech, waiting, multi-message output, temporal context, periodic autonomous wakeups, and response-interval control. We place these capabilities on a shared event timeline, where future messages, reconsiderations, and silence bounds evolve together with user input, elapsed time, and external policy. 
+
+4 Temporal Conversation Model 
+
+To provide a unified account of deferred responses, message bursts, revisable future actions, and system initiation without new user input, we formalize the temporal conversation model underlying Proactive AI. The model treats events in wall-clock time rather than request–response turns as the basic unit of interaction, and represents unsent messages and future reconsiderations as revisable dialogue state. User input, future-action eligibility, and periodic wakeups can each trigger a state transition. This choice allows a dialogue to evolve without further user input and allows unsent content to be revised against new context before delivery. In Figure 1e, a pending interview suggestion becomes obsolete after new user input, providing an intuitive instance of the latter change. 
+
+4.1 Event Timeline and Dialogue State 
+
+At wall-clock time 𝑡 , let 𝑆 𝑡 denote system state: 
+
+𝑆 𝑡 = ⟨𝐻 𝑡 , 𝑄 𝑡 , 𝑃 𝑡 , 𝐿 𝑡 ⟩. (1) Here, 𝐻 𝑡 is visible message history with timestamps and processing markers, 𝑄 𝑡 is persistent future- action state, 𝑃 𝑡 
+
+records the next dialogue-pacemaker wakeup, and 𝐿 𝑡 is proactive-contact policy. Angle brackets ⟨ ⟩ denote an ordered tuple: they combine components with fixed positions and meanings rather than forming an unordered set. The same notation is used below for event bundles, planner outputs, and proactive-contact policy. Every user send becomes an independently timestamped message 𝑢 𝑖 and is immediately appended to 𝐻 𝑡 . An arrival requests a new decision opportunity, but does not itself determine when a model call occurs. When the runtime takes a decision snapshot at time 𝑡 , it orders all messages that have arrived but have not yet been handled by a valid plan. Let 
+
+𝐸 𝑡 denote the event bundle jointly observed by the resulting transition: 
+
+𝐸 𝑡 = ⟨𝑈 𝑡 , 𝑤 𝑡 , 𝐷 𝑡 ⟩, (2) where 𝑈 𝑡 is the ordered list of zero or more independently arrived user messages not yet handled by a successfully committed plan when the snapshot was taken. Messages are ordered by arrival time and stable identifier. Reading a message does not complete its processing: its marker in 𝐻 𝑡 is updated only when the corresponding plan commits, including a valid plan that remains silent. A failed plan or one rejected because its context changed leaves these markers unchanged, so previously read messages may enter a later 𝑈 𝑡 . We use square brackets for ordered lists and [] for an empty list. 𝑤 𝑡 ∈ { 0, 1} indicates whether the dialogue pacemaker fires. For a future action 𝑞 in 𝑄 𝑡 , status (𝑞 ) = pending 8 Zijie Yang means that it has not been delivered, consumed, or cancelled, and 𝜏 (𝑞 ) is its earliest eligibility time. The set of actions that are eligible but unresolved at time 𝑡 is therefore 
+
+𝐷 𝑡 = {𝑞 ∈ 𝑄 𝑡 | status (𝑞 ) = pending ∧ 𝜏 (𝑞 ) ≤ 𝑡 }, (3) where | means “such that” and ∧ denotes logical conjunction: both conditions must hold. A transition contains at least one new user message, a pacemaker wakeup, or a due action. User messages that arrived before the decision snapshot and due actions are observed by one plan, so the system cannot mechanically release a due message before reading an update that changes its context. The relation among state, event bundle, and updated state can be summarized as 
+
+𝑆 𝑡 𝐸 𝑡 
+
+−−−→ 𝑆 𝑡 + . (4) Here, 𝑡 + denotes the point immediately after the events at time 𝑡 have been processed. The system begins in state 𝑆 𝑡 ,processes event bundle 𝐸 𝑡 , and enters updated state 𝑆 𝑡 + . Determining how this transition occurs requires semantics for the future actions in 𝑄 𝑡 and constraints on the plans proposed by the planner. 
+
+4.2 Semantic Types of Future Action 
+
+Future actions should not all be stored in the same form. For an utterance that will follow after a short interval, the system may already have formed specific wording. For a follow-up hours or days later, however, generating the message in advance makes it vulnerable to changes in context; retaining an opportunity to decide later is more appropriate. We therefore define two types of future action. A Send action stores candidate text that is expected to remain useful over a short interval, but still requires confirmation against the latest context before delivery. A Reconsider action stores no message content. At a specified time, it restores the current context and lets the system decide whether to send one or more messages or remain silent. It can represent either a later proactive follow-up or a deferred first response to user input. The former type preserves an expression awaiting confirmation, whereas the latter preserves a decision opportunity before any expression has been fixed. By definition, a future action occurs after the event that creates it; content produced during the same event is immediate output. For an action 𝑞 created at time 𝑡 , the planner therefore proposes a positive delay 𝑑 (𝑞 ) > 0. The deterministic runtime checks that delay against permitted bounds and computes the earliest eligibility time 
+
+𝜏 (𝑞 ) = 𝑡 + 𝑑 (𝑞 ). (5) For example, the prepared short-delay suggestion in Figure 1e can be represented by Send , whereas a decision about whether to follow up hours later is better represented by Reconsider .To distinguish revisable future actions from actions that have already ended, each action also records a stable identifier, creation event, reason, and status. Its lifecycle is 
+
+pending → delivered accepted Send ,
+
+pending → consumed accepted Reconsider ,
+
+pending → cancelled cancellation ,
+
+pending → pending replacement or rescheduling .
+
+(6) Proactive AI: From Turns to Replannable Dialogue Timelines 9Delivered, consumed, and cancelled actions no longer participate in later planning. Replacement or rescheduling changes an action’s content or time while leaving it pending. These states prevent the same action from being delivered or processed more than once. 
+
+4.3 Temporal Plans and Visible Output 
+
+State 𝑆 𝑡 and event bundle 𝐸 𝑡 describe what the system knows at time 𝑡 , but not what it should do next. It must still decide whether to speak immediately, schedule future actions, or revise existing plans. We use 𝜋 to denote the planner that makes this decision. Given current state 𝑆 𝑡 and event bundle 𝐸 𝑡 , 𝜋 (𝑆 𝑡 , 𝐸 𝑡 ) denotes the candidate temporal plan it proposes: 
+
+𝜋 (𝑆 𝑡 , 𝐸 𝑡 ) = ⟨𝐼 𝑡 , 𝑁 𝑡 , Δ𝑡 , 𝐴 𝑡 ⟩, (7) where 𝐼 𝑡 is an ordered list of immediate messages, 𝑁 𝑡 is a set of new future actions, Δ𝑡 is a set of operations that revise existing actions, and 𝐴 𝑡 is a set of due-action identifiers explicitly accepted by this plan. Each component may be empty, and 𝐼 𝑡 may contain one or more messages. A single plan can therefore represent silence, a single reply, or a burst of replies. To separate proposed linguistic actions from system-state updates, we define the transition function T . It takes current state 𝑆 𝑡 , event bundle 𝐸 𝑡 , and planner output 𝜋 (𝑆 𝑡 , 𝐸 𝑡 ) as inputs, and produces a successor state only when the candidate plan satisfies the model constraints: 
+
+𝑆 𝑡 + = T  𝑆 𝑡 , 𝐸 𝑡 , 𝜋 (𝑆 𝑡 , 𝐸 𝑡 ). (8) This separation assigns candidate-action generation to 𝜋 and constrained state evolution to T , preventing incomplete or conflicting planner output from directly changing system state. Let 𝑉 𝑡 denote the list of messages ultimately shown to the user by this state transition. It contains the immediate messages in 𝐼 𝑡 and the prepared messages whose Send actions have reached their earliest delivery time and are confirmed by the current plan. Recording 𝐴 𝑡 explicitly separates “the time has arrived” from “delivery is confirmed against the latest context.” More precisely, the text stored by a Send action enters 𝑉 𝑡 only if the action belongs to due-action set 𝐷 𝑡 
+
+and its identifier is included in acceptance set 𝐴 𝑡 . The quantity |𝑉 𝑡 | is the length of this list: |𝑉 𝑡 | = 0 means that the transition produces no visible message, whereas |𝑉 𝑡 | > 0 means that it produces at least one. A deferred response must be distinguished from a decision not to respond. When the system receives new user input but produces no visible message in the current transition, it can create a Reconsider action associated with that input and defer whether and how to respond. Formally, this corresponds to 𝑈 𝑡 ≠ [] , |𝑉 𝑡 | = 0, and a corresponding Reconsider 
+
+in 𝑁 𝑡 . The action does not promise that a message will eventually be produced. If the system neither produces a visible message nor preserves such a future decision opportunity, it declines to respond at the current decision point. Both plans are valid, but they have different meanings. For example, the system may refrain from replying immediately to a user message and create a Reconsider action for ten minutes later. At that time it decides from the latest context whether to reply or remain silent, rather than writing a message in advance merely to display it later. 10 Zijie Yang 
+
+4.4 Plan Revision and Due-Action Constraints 
+
+Each future action 𝑞 has a stable unique identifier id (𝑞 ). For an action set 𝐷 𝑡 , id (𝐷 𝑡 ) = {id (𝑞 ) | 𝑞 ∈ 𝐷 𝑡 } denotes the set of identifiers of its members. Let targets (Δ𝑡 ) denote the identifiers targeted by mutations. Because 𝐴 𝑡 also contains action identifiers, a valid plan must satisfy 
+
+𝐴 𝑡 ⊆ id (𝐷 𝑡 ), (9) 
+
+𝐴 𝑡 ∩ targets (Δ𝑡 ) = ∅, (10) id (𝐷 𝑡 ) ⊆ 𝐴 𝑡 ∪ targets (Δ𝑡 ). (11) Here, ∅ denotes the empty set. The first constraint permits 𝐴 𝑡 to accept only currently due actions. The second requires 𝐴 𝑡 and the revision targets to be disjoint, preventing the same action from being both accepted and revised by one plan. The third requires every due action to be either accepted or explicitly revised. Revision targets must also be distinct and pending. Consequently, each due action receives exactly one disposition in a transition: an accepted Send 
+
+enters 𝑉 𝑡 , an accepted Reconsider is consumed, and every other action must be cancelled, replaced, or rescheduled. These constraints prevent a due action from being omitted or handled in conflicting ways. Because 𝑈 𝑡 and 𝐷 𝑡 are observed together, new user input can invalidate a due expression before delivery. Reaching an eligibility time permits reconsideration; it does not independently authorize delivery. For example, if the user reports that the interview was cancelled before or at the instant when a short-delay suggestion becomes due, the new input and due action must be handled by the same plan, and the obsolete suggestion must be cancelled rather than delivered. 
+
+4.5 Dialogue Pacemaking, Silence, and Renewed Contact 
+
+When 𝑤 𝑡 = 1, the planner receives another dialogue decision opportunity even if there is no new user input or due queue action. This is the dialogue pacemaker . A valid plan with |𝑉 𝑡 | = 0 represents a deliberate choice to remain silent rather than a planning failure. The pacemaker ensures that the system can decide again, but it cannot prevent silence at every wakeup. After a pacemaker decision completes, the control layer sets 𝑃 𝑡 + later than 𝑡 using a configured positive interval, which may be fixed or adjusted within prescribed bounds. A future wakeup may be retained or adjusted by a new valid plan. Without user input, whichever comes first—a queued action becoming due or the pacemaker wakeup—triggers the next decision. Thus, even an empty queue leaves a defined opportunity to wake again. To prevent repeated silence decisions from causing indefinite waiting in proactive mode, we additionally define a bounded-silence policy. Let 
+
+𝐿 𝑡 = ⟨𝑧 𝑡 , ℓ 𝑡 , 𝑏 𝑡 ⟩, (12) where 𝑧 𝑡 indicates whether the user enables this policy, ℓ𝑡 is the time of the most recent visible AI message, and 𝑏 𝑡 
+
+is the next contact deadline set from user preferences and contact-rate rules. The symbol ⊥ means that no deadline currently exists; 𝑏 𝑡 = ⊥ when the policy is disabled. On enabling the policy, the control layer establishes the first deadline relative to the activation time; subsequent visible messages reset this reference time. To express whether the system has reached a decision point at which it may no longer remain silent, define Proactive AI: From Turns to Replannable Dialogue Timelines 11 
+
+𝑔 𝑡 = 𝑧 𝑡 ∧ ( 𝑏 𝑡 ≠ ⊥) ∧ ( 𝑡 ≥ 𝑏 𝑡 ) ∧ allow (𝑡 ), (13) where allow (𝑡 ) denotes permission for autonomous contact at the current time, supplied by an external policy that may account for user authorization, quiet hours, rate limits, and domain safeguards. When there is no pending user input ( 𝑈 𝑡 = [] ), visible output requires this permission; pausing autonomous contact does not prevent the system from responding to user input. Thus, 𝑔 𝑡 is true only when the policy is enabled, a deadline exists and has been reached, and external rules permit contact. Any plan that passes validation must then satisfy |𝑉 𝑡 | > 0 rather than ending in silence. This constraint does not predefine message content; the planner still determines what to say and how many messages to produce from the then-current context. Earlier silence decisions cannot clear 𝑏 𝑡 , and a failed plan does not discharge the contact requirement. A new visible AI message updates ℓ𝑡 and establishes the next deadline. Temporary policy restrictions postpone contact; disabling the policy clears the corresponding obligation. The contact deadline also participates in wakeup scheduling. When contact is permitted, a deadline earlier than the next regular pulse advances that pulse to the deadline; this decision therefore does not depend on new input or an existing queued action. If a temporary restriction is lifted after the deadline, the system immediately requests a new decision. A failed plan preserves the deadline and schedules another attempt under the recovery rules. Before the deadline, a valid plan may remain silent. Once the deadline has arrived and external rules permit contact, the next plan that passes validation must produce visible output. Provided that the system continues running, external rules permit contact, and planning eventually succeeds, this mechanism renews contact rather than indefinitely postponing it through repeated acceptance of silent plans. 
+
+4.6 Plan Validation and Concurrent Arrivals 
+
+A candidate plan is executed only if it satisfies the model constraints as a whole. If it leaves a due action unresolved or proposes conflicting revisions, the system neither delivers its messages nor applies its proposed additions, cancellations, or revisions. Existing action contents, identifiers, and pending statuses are preserved, and the associated user input remains unprocessed. The control layer separately schedules a retry after a positive interval under deterministic recovery rules, updating the next attempt times of actions and the pacemaker accordingly. These recovery updates do not constitute partial execution of the rejected plan or discharge an outstanding contact requirement. User messages, due actions, and dialogue-pacemaker signals available before a decision snapshot are first combined into event bundle 𝐸 𝑡 , from which the system generates one plan. New context can therefore inform the decision before pending content is delivered. Actions with the same timestamp are ordered by stable identifiers. A candidate plan is also bound to the state snapshot from which its context was constructed; an implementation may enforce this condition with a monotonically increasing state revision. If another user message arrives while the planner is running, the current state no longer matches that snapshot. The older candidate is rejected before atomic commit: it emits no visible message and makes no queue mutation. The next decision includes both the earlier and newly arrived messages in a new 𝑈 𝑡 . This rule lets independent sends within a short interval share one decision while preventing inference latency from leaking a reply based on incomplete context. Given the external events and the candidate that ultimately passes validation, the control layer still produces a unique state transition. 12 Zijie Yang 
+
+Temporal plan validation and execution Event sources 
+
+User arrivals 𝑢 𝑖  
+
+> unprocessed
+> →𝑈 𝑡
+
+Dialogue pacemaker 
+
+𝑤 𝑡 
+
+Due actions 𝐷 𝑡  
+
+> 0, . . . , 𝑛 actions
+
+Deterministic control layer 
+
+1Form event bundle 𝐸 𝑡 
+
+2Take decision snapshot  
+
+> 𝑆 𝑡 , 𝐸 𝑡
+
+3Validate plan 
+
+> structure + rules + contact policy
+
+4Prepare next state 
+
+> temporary copy
+
+5Finalize transition 
+
+> all or none
+
+Planner 𝜋 
+
+> LLM-based
+
+Autonomous-contact policy   
+
+> allow (𝑡 )
+
+Transition results 
+
+Visible output    
+
+> 𝑉 𝑡 :0, . . . , 𝑛 messages
+
+Updated state  
+
+> 𝑆 𝑡 +
+
+Candidate rejected 
+
+> no output; candidate not applied
+> candidate temporal plan state for the next event
+
+Fig. 2. Architecture for temporal plan validation and execution. The diagram reads from left to right as one state transition. Each 𝑢 𝑖 
+
+records one independent user send. At the start of a decision, messages not yet handled by a successfully committed plan form the ordered list 𝑈 𝑡 . This list is combined with dialogue- pacemaker signal 𝑤 𝑡 and due actions 𝐷 𝑡 , namely future actions whose execution time has arrived, to form event bundle 𝐸 𝑡 . The LLM-based planner 𝜋 reads the current state 𝑆 𝑡 and 𝐸 𝑡 , then proposes a candidate temporal plan. Such a plan may contain immediate messages, new future actions, revisions to the existing queue, and decisions about due actions. Once the candidate plan has been produced, the control layer validates it and updates the state according to fixed rules. It checks that the plan is structurally complete, still refers to the current state, and preserves state and queue consistency. For visible output without pending user input, it also checks autonomous-contact permission allow (𝑡 ). A valid plan is first applied to a temporary state. Only after every check succeeds do visible output 𝑉 𝑡 and next state 𝑆 𝑡 + take effect together; otherwise neither takes effect. 𝑉 𝑡 may contain zero, one, or many messages. 𝑆 𝑡 + retains the updated history, future-action queue, pacemaker state, and contact policy for the next event, as shown by the dashed path. If a candidate plan does not satisfy these execution conditions, its messages and proposed state changes do not take effect. Unprocessed input and due actions are retained; the control layer may separately update retry times for a later decision based on the latest state. 
+
+5 Research Prototype and Interaction Demonstration 5.1 System Implementation 
+
+We implement a research prototype of Proactive AI that follows the temporal semantics and state-transition constraints defined in Section 4. The prototype is open source, and its code is available from the project repository. 1 The prototype separates language planning from temporal execution. Planner 𝜋 is instantiated by a language model, which proposes immediate messages, future actions, and queue revisions as a structured candidate plan. Only candidates that pass structural parsing and constraint validation may change the conversation state. An input coordinator records every user send as an independent arrival, groups nearby unprocessed messages into a decision snapshot, and discards an older candidate if the state changes during inference. A deterministic control layer owns wall-clock time, validates candidate plans, updates the future-action queue, maintains the bounded-silence deadline, enforces the externally supplied permission for autonomous contact, and finalizes visible output and state changes. The interface aligns the visible conversation with pending future actions and the event trace that produced them, making the temporal state available for inspection. Figure 2 presents the resulting architecture. 
+
+> 1https://github.com/airalogy/proactive-ai
+
+Proactive AI: From Turns to Replannable Dialogue Timelines 13 a Initial temporal plan  Mon 09:02  
+
+> Visible conversation
+> two independent inputs, one decision
+> You 09:00
+
+I have an important interview tomorrow.  
+
+> You 09:00
+
+I’m nervous—I haven’t started preparing.  
+
+> Proactive AI 09:02
+
+That sounds stressful.  
+
+> Proactive AI 09:02
+
+Want to start with the first minute of your introduction?   
+
+> Future actions
+> rechecked before execution
+> Send Pending
+> Mon 18:00
+
+“What three things should the interviewer remember about you?”   
+
+> Reconsider Pending
+> Tue 08:00
+
+Reload the latest context and decide whether to check in. 
+
+b Context update and replanning  Mon 16:31   
+
+> New context arrives before either action executes
+> You 16:30
+
+The interview was cancelled. I don’t really want to think about it tonight.  
+
+> Proactive AI 16:31
+
+I’m sorry—that’s frustrating. We can leave it there for tonight.    
+
+> Replanned The visible reply follows the new context; both unsent actions are removed.
+> Updated queue
+> obsolete plans removed
+> Send Cancelled
+> Mon 18:00
+
+“What three things should the interviewer remember about you?”   
+
+> Reconsider Cancelled
+> Tue 08:00
+
+Reload the latest context and decide whether to check in. 
+
+c Pacemaker respects a request for space  Mon 20:00    
+
+> Visible conversation unchanged since panel b
+> You Mon 16:30
+
+The interview was cancelled. I don’t really want to think about it tonight.   
+
+> Proactive AI Mon 16:31
+
+I’m sorry—that’s frustrating. We can leave it there for tonight. 
+
+> Mon 20:00
+> No new user input. No message sent.
+> Decision at wakeup
+
+Dialogue pacemaker 
+
+> A new decision without new user input.
+
+↓
+
+Latest context 
+
+> The user asked not to discuss it tonight.
+
+↓
+
+> Decision
+
+Remain silent 
+
+> 0 new messages
+
+d Pacemaker reopens the conversation  Wed 10:00    
+
+> Visible conversation last reply, then new contact
+> Proactive AI Mon 16:31
+
+I’m sorry—that’s frustrating. We can leave it there for tonight.   
+
+> Two days later
+> No new user input.
+> Proactive AI Wed 10:00
+
+How have the last couple of days been? If you'd like, we can talk about what comes next. 
+
+> Decision at wakeup
+
+Dialogue pacemaker 
+
+> A later decision without new user input.
+
+↓
+
+Latest context 
+
+> The pause was for Monday evening. The contact deadline is now due.
+
+↓
+
+> Decision
+
+Reopen conversation 
+
+> 1 new message
+
+Fig. 3. An illustrative temporal dialogue. a, Two independently sent user messages are observed in one decision, which yields two immediate messages and two types of future action: Send stores the quoted message text, whereas Reconsider retains only the purpose of a later decision about whether to follow up. b, After the user reports that the interview was cancelled, both unsent actions are cancelled internally, while the visible reply responds to the new situation rather than describing queue operations. c, A pacemaker trigger later that evening respects the user’s request for space: the earlier exchange remains visible, but no new message is added. 
+
+d, Two days later, another pacemaker trigger uses the latest context to initiate a check-in without new user input, shown as a new chat message after the time gap. The chat history and the corresponding decision are shown side by side. Together, the final two states show that a decision opportunity can yield either silence or renewed contact. 
+
+5.2 Illustrative Interaction 
+
+Figure 3 uses an interview dialogue to show user-visible messages alongside the corresponding future actions and decision states. In the first state, two independently sent user messages are observed in one decision, which produces a two-message assistant response, a prepared message for later delivery, and a later reconsideration. After the user reports that the interview was cancelled, the next decision removes both future intentions before either can be delivered and responds naturally to the updated situation. A dialogue-pacemaker event later that evening respects the user’s request for space and remains silent. Two days later, another pacemaker event reopens the conversation with a check-in despite the absence of new user input. 14 Zijie Yang 
+
+6 Discussion 
+
+The proposed model allows dialogue to continue without depending entirely on another user request. Even without a pending message or a scheduled follow-up, dialogue pacemaking lets the system use the available context to decide whether to initiate an exchange. It can return to unfinished matters or raise a new topic after an earlier exchange has ended. The system can therefore share the work of remembering unresolved matters, choosing follow-up times, and initiating further exchanges, creating an opportunity to reduce the user’s coordination burden in sustained collaboration. Continuity need not take the form of continuous messaging; it can also consist in timely participation after a period of silence. From this perspective, systems for longitudinal collaboration need not only to retain information about the past but also to organize their future participation. Memory helps the system understand what has already happened; temporal plans represent what merits later attention and when another decision should be made. The two are complementary: past context informs future actions, while those actions must be revised as new information arrives. The system can thus retain an intention to follow up without committing in advance to what it will say. For example, an AI tutor could revisit an unresolved difficulty after an explanation and use the learner’s subsequent progress to decide whether to explain further, adjust an exercise, or refrain from intervening. A scientific assistant could retain a question for reconsideration while awaiting experimental results, then decide whether to continue the analysis or revise a suggestion when new evidence becomes available. In these settings, the timing and form of the system’s participation should adapt to task progress. Beyond task-oriented collaboration, relational-agent research treats the establishment and maintenance of human– computer relationships across repeated interactions as a design concern [1]. The proposed temporal organization could support AI companions and other systems for everyday conversation and emotional support. In these settings, humanlike interaction involves not only language style but also initiative, continuity, and sensitivity to changing circumstances. Without another user question, the system can draw on prior exchanges to initiate a supportive check-in, adapting both its timing and content to the latest context. For example, after learning that the user’s interview was cancelled, it could respect a request not to discuss it for the moment, withdraw the original interview reminders, and ask how the user is doing at a suitable later time. Considerate interaction in this sense involves more than warm wording: it requires attention to the user’s current circumstances when choosing between initiating contact and allowing space. Proactive dialogue also offers a starting point for studying autonomous behavior more broadly. In their work on AI scientists, Yang et al. distinguish the initiation of scientific inquiry from the execution of research tasks and discuss whether AI could assume the role of the “First Mover of Science” [16]. This distinction suggests that autonomously completing a given task and autonomously initiating an activity are different dimensions of capability. Starting from sustained dialogue, the present work brings renewed decisions without a new user request and context-dependent revisions of future actions into an executable temporal model. This mechanism can serve as a basis for research into broader forms of autonomous interaction, with potential extensions to high-level task planning for collaborative robots. For example, within an authorized laboratory inspection task, a robot could independently schedule a later visit to a device to check its status and reassess the need for that visit before execution. If a staff member has already completed the check, it could cancel the unexecuted visit; if the passage is temporarily occupied, it could postpone the action. Such an extension would require integrating temporal plans with environmental perception, action execution, and safety controls, keeping a renewed decision opportunity distinct from the execution of a physical action. Proactive AI: From Turns to Replannable Dialogue Timelines 15 In summary, the proposed model brings decisions about whether to participate, when to participate, and how to revise participation plans as context changes into one conversational process. Its significance extends beyond a more natural messaging rhythm to a temporal organization of sustained collaboration in which participation can be initiated, deferred, and revised. The value of initiative should lie in timely support for user needs and shared activities, rather than in the number of messages or actions produced. 
+
+7 Conclusion 
+
+This paper introduces Proactive AI, a framework for proactive dialogue built around replannable temporal message queues. It models conversation as a continuous event timeline and represents silence, message bursts, delayed replies, and proactive initiation within a single model. By representing unexecuted conversational actions as revisable state and reconsidering them against the latest context before execution, the model allows future expressions to be revised or withdrawn rather than automatically delivered when their scheduled time arrives. The formal model and open-source research prototype provide an executable basis for this interaction paradigm. Its significance extends beyond the rhythm of message delivery: AI can reinitiate exchanges without a new request, maintain attention to unfinished matters, and adapt subsequent actions to changing circumstances. Conversational AI can thus move from individual responses toward sustained, revisable participation, providing a mechanism for sharing the work of follow-up and coordination in long-term human–AI collaboration. This organization of future participation also offers a starting point for studying broader forms of autonomous interaction. 
+
+Acknowledgments 
+
+The author thanks Shufeng Sun, a roommate during the author’s doctoral studies, for helpful discussions on interaction scenarios for proactive conversational AI. 
+
+References 
+
+[1] Timothy W. Bickmore and Rosalind W. Picard. 2005. Establishing and Maintaining Long-Term Human-Computer Relationships. ACM Transactions on Computer-Human Interaction 12, 2 (2005), 293–327. doi:10.1145/1067860.1067867 [2] Michael E. Bratman, David J. Israel, and Martha E. Pollack. 1988. Plans and Resource-Bounded Practical Reasoning. Computational Intelligence 4, 3 (1988), 349–355. doi:10.1111/j.1467-8640.1988.tb00284.x [3] Philip R. Cohen and Hector J. Levesque. 1990. Intention Is Choice with Commitment. Artificial Intelligence 42, 2–3 (1990), 213–261. doi:10.1016/0004-3702(90)90055-5 [4] Yang Deng, Wenqiang Lei, Wai Lam, and Tat-Seng Chua. 2023. A Survey on Proactive Dialogue Systems: Problems, Methods, and Prospects. In 
+
+Proceedings of the Thirty-Second International Joint Conference on Artificial Intelligence . 6583–6591. doi:10.24963/ijcai.2023/738 [5] Eric Horvitz. 1999. Principles of Mixed-Initiative User Interfaces. In Proceedings of the SIGCHI Conference on Human Factors in Computing Systems .Association for Computing Machinery, 159–166. doi:10.1145/302979.303030 [6] Tian Lan, Xianling Mao, Heyan Huang, and Wei Wei. 2019. When to Talk: Chatbot Controls the Timing of Talking during Multi-turn Open-domain Dialogue Generation. arXiv preprint arXiv:1912.09879 (2019). https://arxiv.org/abs/1912.09879 [7] Xiang Li, Lili Mou, Rui Yan, and Ming Zhang. 2016. StalemateBreaker: A Proactive Content-Introducing Approach to Automatic Human-Computer Conversation. arXiv preprint arXiv:1604.04358 (2016). https://arxiv.org/abs/1604.04358 [8] Zehao Lin, Shaobo Cui, Guodun Li, Xiaoming Kang, Feng Ji, Fenglin Li, Zhongzhou Zhao, Haiqing Chen, and Yin Zhang. 2020. “Wait, I’m Still Talking!” Predicting the Dialogue Interaction Behavior Using Imagine-Then-Arbitrate Model. arXiv preprint arXiv:2002.09616 (2020). https: //arxiv.org/abs/2002.09616 [9] Xingyu Bruce Liu, Shitao Fang, Weiyan Shi, Chien-Sheng Wu, Takeo Igarashi, and Xiang Anthony Chen. 2025. Proactive Conversational Agents with Inner Thoughts. arXiv preprint arXiv:2501.00383 (2025). https://arxiv.org/abs/2501.00383 [10] Yaxi Lu, Shenzhi Yang, Cheng Qian, Guirong Chen, Qinyu Luo, Yesai Wu, Huadong Wang, Xin Cong, Zhong Zhang, Yankai Lin, Weiwen Liu, Yasheng Wang, Zhiyuan Liu, Fangming Liu, and Maosong Sun. 2025. Proactive Agent: Shifting LLM Agents from Reactive Responses to Active Assistance. In The Thirteenth International Conference on Learning Representations . https://proceedings.iclr.cc/paper_files/paper/2025/hash/ 75c37811e830bf029584b1c6fac17726-Abstract-Conference.html 16 Zijie Yang 
+
+[11] Leonardo Mariga. 2024. ProactiveAgent: A Proactive Conversational Agent Library. GitHub repository. Accessed 2026-08-20. https://github.com/ leomariga/ProactiveAgent [12] Joon Sung Park, Joseph C. O’Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, and Michael S. Bernstein. 2023. Generative Agents: Interactive Simulacra of Human Behavior. arXiv preprint arXiv:2304.03442 (2023). https://arxiv.org/abs/2304.03442 [13] Matthew Roddy and Naomi Harte. 2020. Neural Generation of Dialogue Response Timings. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics . Association for Computational Linguistics, 2442–2452. doi:10.18653/v1/2020.acl-main.221 [14] Wenquan Wu, Zhen Guo, Xiangyang Zhou, Hua Wu, Xiyuan Zhang, Rongzhong Lian, and Haifeng Wang. 2019. Proactive Human-Machine Conversation with Explicit Conversation Goals. arXiv preprint arXiv:1906.05572 (2019). https://arxiv.org/abs/1906.05572 [15] Weiqi Wu, Hongqiu Wu, and Hai Zhao. 2025. X-TURING: Towards an Enhanced and Efficient Turing Test for Long-Term Dialogue Agents. In 
+
+Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . Association for Computational Linguistics, 5874–5889. doi:10.18653/v1/2025.acl-long.293 [16] Zijie Yang, Yukai Wang, and Lijing Zhang. 2023. AI becomes a masterbrain scientist. bioRxiv (2023). doi:10.1101/2023.04.19.537579 [17] Qiang Zhang, Jason Naradowsky, and Yusuke Miyao. 2023. Mind the Gap Between Conversations for Improved Long-Term Dialogue Generation. In 
+
+Findings of the Association for Computational Linguistics: EMNLP 2023 . Association for Computational Linguistics, 10735–10762. doi:10.18653/v1/ 2023.findings-emnlp.720 Proactive AI: From Turns to Replannable Dialogue Timelines 17 
+
+A Supplementary Figures a Message bursts and grouped replies  
+
+> You 09:00
+
+I'm giving a speech at my sister's wedding.  
+
+> You 09:00
+
+It needs to be under three minutes.  
+
+> You 09:01
+
+I have so many stories. I don't know where to start.  
+
+> AI 09:02
+
+For three minutes, I'd start with just one story.  
+
+> AI 09:02
+
+Which memory of her always makes you smile? 
+
+> Several messages express one concern; the replies address them together.
+
+b Deliberately deferring a reply  
+
+> You 14:00
+
+I'm stuck on this homework question.  
+
+> You 14:00
+
+Let me try a little longer. No hints yet.  
+
+> 20-minute pause
+> Input observed at 14:00; the AI chooses to wait and reconsider at 14:20. No new input arrives.
+> AI 14:20
+
+Would you like a small hint now, or a bit more time? 
+
+> The first reply is decided later, not written now and merely displayed later.
+
+c Returning to an earlier topic   
+
+> You Tue 19:00
+
+I'm not sure what to get my dad for his birthday.   
+
+> AI Tue 19:01
+
+What does he enjoy doing?   
+
+> You Tue 19:02
+
+He loves cooking. I'll look for something tomorrow.   
+
+> The next day
+> No new user input; no update on the gift choice.
+> AI Wed 17:30
+
+Did you find a birthday gift for your dad, or are you still looking? 
+
+> A follow-up reconnects to a specific unresolved topic in the shared history.
+
+d Reopening a concluded exchange   
+
+> You Mon 21:00
+
+Let's leave it there for today. Bye!   
+
+> AI Mon 21:00
+
+Okay, bye!   
+
+> Two days later
+> No new input or agreed follow-up. A dialogue pacemaker opens a new decision opportunity.
+> AI Wed 19:30
+
+Hey, how has your week been going? 
+
+> The AI initiates a fresh exchange after both sides have said goodbye.
+
+Supplementary Figure 1. Illustrative dialogue patterns beyond paired turns. a, Consecutive inputs and a combined response. Several user messages jointly express one concern, addressed by successive AI replies rather than one answer per input. b, A delayed first reply. The AI observes the user input at 14:00 but initially remains silent, waiting until 14:20 to reconsider and generate its first reply. 
+
+c, Following up across time. The AI later returns to a previously discussed but unresolved topic, continuing the earlier exchange. 
+
+d, Proactive initiation after goodbye. After both sides say goodbye, the dialogue pacemaker gives the AI a new decision opportunity, leading it to initiate a new exchange without new user input or an agreed follow-up.

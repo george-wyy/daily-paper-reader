@@ -41,17 +41,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-06</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-08</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 3 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
-    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>2 次</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-10-06 23:42:44 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-10-08 00:14:42 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -62,7 +62,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>2026-10-06 日报速读两篇AI论文，聚焦主动式AI助手与机器人精准操作。最值得看的是分层程序理解如何让AI更懂任务步骤、以及不用腕部相机也能实现精准抓取的眼动方案。普通读者可先了解AI&quot;看懂流程&quot;和&quot;用眼睛控制手&quot;这两个趋势，再关注相关产品落地。</p>
+<p>今天速读了 3 篇均分 6.0 的论文，全部聚焦&quot;主动式 AI&quot;：从具身智能体的个性化社交主动、流媒体视频中的感知-记忆-响应统一，到可重规划的对话时间线。</p>
+<p>最值得关注的方向是&quot;主动&quot;正从对话扩展到视频流与机器人身体，且都强调记忆与实时重规划的结合，而非被动应答。</p>
+<p>普通读者可先看《Proactive AI: From Turns to Replannable Dialogue Timelines》理解主动对话框架，再顺着另两篇看它在视频与机器人上的落地。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -84,12 +86,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">2 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Improving Proactive AI Assistance with Hierarchical Procedural Understanding">Improving Proactive AI Assistance with Hierarchical Procedural Understanding</span></li><li><span class="dpr-home-dashboard-paper-title" title="EyeRobot 2.0: Active Gaze for Precise Manipulation without Wrist Cameras">EyeRobot 2.0: Active Gaze for Precise Manipulation without Wrist Cameras</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="RobotEQ 3.0: Towards Personalized Social Proactive Intelligence in Embodied Agents">RobotEQ 3.0: Towards Personalized Social Proactive Intelligence in Embodied Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="OneStreamer: Unifying Perception, Memory, and Proactive Response in Streaming Video Interaction">OneStreamer: Unifying Perception, Memory, and Proactive Response in Streaming Video Interaction</span></li><li><span class="dpr-home-dashboard-paper-title" title="Proactive AI: From Turns to Replannable Dialogue Timelines">Proactive AI: From Turns to Replannable Dialogue Timelines</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>2</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gaze-intent <strong>3</strong></span></div>
 </section>
 </div>
 
